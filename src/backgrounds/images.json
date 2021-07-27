@@ -1,0 +1,14 @@
+{"__comment__": "JSON file specifying the image to use for a given type/name and resolution. Read in by cartopy.mpl.geoaxes.read_user_background_images.",
+"bluemarble": {
+    "__comment__": "Blue Marble Next Generation, July ",
+    "__source__": "https://neo.sci.gsfc.nasa.gov/view.php?datasetId=BlueMarbleNG-TB",
+    "__projection__": "PlateCarree",
+    "low":  "bluemarble_0.25deg.jpeg",
+    "high": "bluemarble_0.1deg.jpeg"},
+"etopo": {
+    "__comment__": "ETOPO",
+    "__source__": "https://www.ngdc.noaa.gov/mgg/global/global.html",
+    "__projection__": "PlateCarree",
+    "low": "etopo1.png",
+    "high": "etopo1.jpg"}    
+} 
