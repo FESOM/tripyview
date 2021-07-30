@@ -5,7 +5,7 @@ import numpy as np
 import time
 import os
 import xarray as xr
-
+from sub_data import *
     
 # ___LOAD CLIMATOLOGY DATA INTO XARRAY DATASET CLASS___________________________
 #|                                                                             |
@@ -13,7 +13,12 @@ import xarray as xr
 #|                                                                             |
 #|_____________________________________________________________________________|
 def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
+                     do_zarithm='mean', do_hinterp='fesom', 
+                     do_compute=True, descript='clim', 
                      **kwargs):
+    
+    str_mdep = ''
+    is_data = 'scalar'
     #___________________________________________________________________________
     # load climatology data with xarray
     data = xr.open_dataset(datapath, **kwargs)
@@ -29,6 +34,10 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
     lon_names_list = ['x','lon','longitude','long']
     lon_idx = [i for i, item in enumerate(list(data.dims)) if item.lower() in lon_names_list][0]
     lon_name = list(data.dims)[lon_idx]
+    
+    lat_names_list = ['y','lat','latitude']
+    lat_idx = [i for i, item in enumerate(list(data.dims)) if item.lower() in lat_names_list][0]
+    lat_name = list(data.dims)[lat_idx]
     
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with 
@@ -51,6 +60,59 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
         # periodically roll data together with longitude dimension
         data = data.roll(dict({'lon':idx_roll}), roll_coords=True)
     
+    #___________________________________________________________________________
+    # do vertical interpolation
+    if (depth) is not None:
+        #_______________________________________________________________________
+        zlev_names_list = ['z','depth','dep','level','lvl','zcoord','zlev','zlevel']
+        zlev_idx = [i for i, item in enumerate(list(data.dims)) if item.lower() in zlev_names_list][0]
+        zlev_name = list(data.dims)[zlev_idx]
+        
+        #_______________________________________________________________________
+        # select depth level indices that are needed to interpolate the values 
+        # in depth list,array
+        zlev = data.coords[zlev_name].values
+        ndimax = len(zlev)
+        sel_levidx = do_comp_sel_levidx(zlev, depth, depidx, ndimax)
+        
+        #_______________________________________________________________________        
+        # select vertical levels from data
+        data = data.isel(dict({zlev_name:sel_levidx})) 
+        
+        #_______________________________________________________________________
+        # do vertical interpolation and summation over interpolated levels 
+        if depidx==False:
+            str_mdep = ', '+str(do_zarithm)
+            # do vertical interpolationof depth levels
+            data = data.interp(dict({zlev_name:depth}), method="linear")
+            
+            # do z-arithmetic 
+            if data[zlev_name].size>1: 
+                data = do_depth_arithmetic(data, do_zarithm, zlev_name)
+          
+    #___________________________________________________________________________
+    # do horizontal interplation to fesom grid 
+    if (do_hinterp) is not None:
+        if do_hinterp=='fesom':
+            #add fesom2 mesh coordinatesro xarray dataset
+            n_x = xr.DataArray(mesh.n_x, dims="n2dn")
+            n_y = xr.DataArray(mesh.n_y, dims="n2dn")
+            
+            # interp data on nodes
+            data = data.interp(lon=n_x, lat=n_y, )
+         
+        elif do_hinterp=='regular': 
+            ...
     
+    #___________________________________________________________________________
+    # write additional attribute info
+    for vname in list(data.keys()):
+        attr_dict=dict({'datapath':datapath, 'depth':depth, 'str_mdep':str_mdep, 
+                        'depidx':depidx, 'do_zarithm':do_zarithm, 'do_hinterp':do_hinterp, 
+                        'do_compute':do_compute, 'descript':descript})
+        do_additional_attrs(data, vname, attr_dict)
     
- 
+    #___________________________________________________________________________
+    if do_compute: data = data.compute()
+    
+    return(data)
