@@ -1,6 +1,6 @@
 # Patrick Scholz, 23.01.2018
 import numpy as np
-import numpy.matlib
+#import numpy.matlib
 import time
 import os
 import xarray as xr
@@ -63,7 +63,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     descript    :   str (default=''), string to describe dataset is written into 
                     variable attributes
     runid       :   str (default='fesom'), runid of loaded data                
-     ___RETURNS:_________________________________________________________________
+    ___RETURNS:_________________________________________________________________
     data        :   object, returns xarray dataset object
     """
     #___________________________________________________________________________
@@ -248,9 +248,13 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # write additional attribute info
     for vname in list(data.keys()):
-        data = do_additional_attrs(data, vname, datapath, do_file, do_filename, 
-               year, mon, day, record, depth, str_mdep, depidx, do_tarithm, 
-               is_data, is_ie2n, do_compute, descript)
+        attr_dict=dict({'datapath':datapath, 'do_file':do_file, 'do_filename':do_filename, 
+                        'year':year, 'mon':mon, 'day':day, 'record':record, 'depth':depth, 
+                        'str_mdep':str_mdep, 'depidx':depidx, 'do_tarithm':do_tarithm,
+                        'do_zarithm':do_zarithm,
+                        'is_data':is_data, 'is_ie2n':is_ie2n, 'do_compute':do_compute, 
+                        'descript':descript})
+        data = do_additional_attrs(data, vname, attr_dict)
     
     #___________________________________________________________________________
     if do_compute: data = data.compute()
@@ -559,18 +563,18 @@ def do_time_arithmetic(data, do_tarithm):
 #| data         :   xarray dataset object                                      |
 #|_____________________________________________________________________________|    
 def do_depth_arithmetic(data, do_zarithm, dim_name):
-    if do_tarithm is not None:
+    if do_zarithm is not None:
         
         #_______________________________________________________________________
-        if   do_tarithm=='mean':
-            data = data.mean(  dim=dim_name, keep_attrs=True)
-        elif do_tarithm=='max':
+        if   do_zarithm=='mean':
+            data = data.mean(  dim=dim_name, keep_attrs=True, skipna=True)
+        elif do_zarithm=='max':
             data = data.max(   dim=dim_name, keep_attrs=True)
-        elif do_tarithm=='min':
+        elif do_zarithm=='min':
             data = data.min(   dim=dim_name, keep_attrs=True)  
-        elif do_tarithm=='sum':
-            data = data.sum(   dim=dim_name, keep_attrs=True)      
-        elif do_tarithm=='None':
+        elif do_zarithm=='sum':
+            data = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)      
+        elif do_zarithm=='None':
             ...
         else:
             raise ValueError(' the depth arithmetic of do_zarithm={} is not supported'.format(str(do_zarithm))) 
@@ -688,30 +692,19 @@ def do_interp_e2n(data, mesh, do_ie2n):
 #| ___INPUT_________________________________________________________________   |
 #| data         :   xarray dataset object                                      |
 #| vname        :   str, (default: None), variable name that should be loaded  |
-#|  ...         :   different infos that are written to attributes             |
+#| attr_dict    :   dict with different infos that are written to attributes   |
 #| ___RETURNS_______________________________________________________________   |
 #| data         :   xarray dataset object                                      |
 #|_____________________________________________________________________________|  
-def do_additional_attrs(data, vname, datapath, do_file, do_filename, 
-                        year, mon, day, record, depth, str_mdep, depidx,  
-                        do_tarithm, is_data, is_ie2n, do_compute, descript):
+#def do_additional_attrs(data, vname, datapath, do_file, do_filename, 
+                        #year, mon, day, record, depth, str_mdep, depidx,  
+                        #do_tarithm, is_data, is_ie2n, do_compute, descript):
+def do_additional_attrs(data, vname, attr_dict):
 
     #___________________________________________________________________________
-    data[vname].attrs['descript'   ] = str(descript)
-    data[vname].attrs['short_name' ] = str(vname)
-    data[vname].attrs['datapath'   ] = str(datapath)
-    data[vname].attrs['do_file'    ] = str(do_file)
-    data[vname].attrs['do_filename'] = str(do_filename)
-    data[vname].attrs['sel_year'   ] = str(year)
-    data[vname].attrs['sel_mon'    ] = str(mon)
-    data[vname].attrs['sel_day'    ] = str(day)
-    data[vname].attrs['sel_record' ] = str(record)
-    data[vname].attrs['sel_depth'  ] = str(depth)+str(str_mdep)
-    data[vname].attrs['do_depidx'  ] = str(depidx)
-    data[vname].attrs['do_tarithm' ] = str(do_tarithm)
-    data[vname].attrs['do_compute' ] = str(do_compute)
-    data[vname].attrs['is_data'    ] = str(is_data)    
-    data[vname].attrs['is_ie2n'    ] = str(is_ie2n)    
+    for key in attr_dict:
+        data[vname].attrs[key] = str(attr_dict[key])
+        
     if 'description' not in data[vname].attrs.keys():
         data[vname].attrs['description'] = str(vname)
     if 'long_name'   not in data[vname].attrs.keys():
@@ -734,17 +727,20 @@ def do_anomaly(data1,data2):
     
     # copy datasets object 
     anom = data1.copy()
-    print(list(anom.keys()))
-    for vname in list(anom.keys()):
+    
+    data1_vname = list(data1.keys())
+    data2_vname = list(data2.keys())
+    #for vname in list(anom.keys()):
+    for vname, vname2 in zip(data1_vname, data2_vname):
         # do anomalous data 
-        anom[vname].data = data1[vname].data - data2[vname].data
+        anom[vname].data = data1[vname].data - data2[vname2].data
         
         # do anomalous attributes 
-        attrs_data1 = data1[vname].attrs
-        attrs_data2 = data2[vname].attrs
-        for key in attrs_data1.keys():
-            if data1[vname].attrs[key] != data2[vname].attrs[key]:
-                anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname].attrs[key]
+        #attrs_data1 = data1[vname].attrs
+        #attrs_data2 = data2[vname2].attrs
+        #for key in attrs_data1.keys():
+            #if data1[vname].attrs[key] != data2[vname].attrs[key]:
+                #anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname].attrs[key]
     
     #___________________________________________________________________________
     return(anom)
