@@ -31,7 +31,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.8,0.8,0.8],  title=None,
-                pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None):
+                pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, linecolor='k', 
+                linewidth=0.5):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -101,6 +102,9 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     do_save     :   None, str (default:None) if None figure will by not saved, if 
                     string figure will be saved, strings must give directory and 
                     filename  where to save.
+    linecolor   :   str, list, (default:'k') either color string or RGB list set
+                    color of coastline 
+    linewidth   :   float, (default:0.2) sets linewidth of coastline
     ___RETURNS:_________________________________________________________________
     fig        :    returns figure handle 
     ax         :    returns list with axes handle 
@@ -239,7 +243,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # add mesh land-sea mask
         ax[ii] = do_plotlsmask(ax[ii],mesh, do_lsmask, box, which_proj,
-                               color_lsmask=color_lsmask, edgecolor='k', linewidth=0.5)
+                               color_lsmask=color_lsmask, edgecolor=linecolor, linewidth=linewidth)
         
         #_______________________________________________________________________
         # add gridlines
