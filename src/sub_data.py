@@ -736,11 +736,12 @@ def do_anomaly(data1,data2):
         anom[vname].data = data1[vname].data - data2[vname2].data
         
         # do anomalous attributes 
-        #attrs_data1 = data1[vname].attrs
-        #attrs_data2 = data2[vname2].attrs
-        #for key in attrs_data1.keys():
-            #if data1[vname].attrs[key] != data2[vname].attrs[key]:
-                #anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname].attrs[key]
+        attrs_data1 = data1[vname].attrs
+        attrs_data2 = data2[vname2].attrs
+        for key in attrs_data1.keys():
+            if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
+                if data1[vname].attrs[key] != data2[vname2].attrs[key]:
+                    anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname2].attrs[key]
     
     #___________________________________________________________________________
     return(anom)
