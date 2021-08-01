@@ -228,15 +228,19 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1])
             
         elif do_plot=='tcf': 
-            data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
-            data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
+            
+            # supress warning message when compared with nan
+            with np.errstate(invalid='ignore'):
+                data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
+                data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
+            
             hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot, 
                                 transform=which_transf, 
                                 levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
                 
         #_______________________________________________________________________
         # add grid mesh on top
-        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[e_idxok,:], 
+        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
                                    color='k', linewidth=0.2, alpha=0.75) 
                                    #transform=which_transf)
         
