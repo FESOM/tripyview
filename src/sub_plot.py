@@ -285,6 +285,12 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     if str_rescale is not None: cbar_label = cbar_label+str_rescale  
     if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][ vname[0] ].attrs['units']+']'
     else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+    
+    if 'str_ltim' in data[0][vname[0]].attrs.keys():
+        cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
+    if 'str_ldep' in data[0][vname[0]].attrs.keys():
+        cbar_label = cbar_label+data[0][vname[0]].attrs['str_ldep']
+    
     cbar.set_label(cbar_label, size=fontsize+2)
     
     #___________________________________________________________________________

@@ -72,7 +72,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     is_ie2n = False
     do_vec  = False
     do_norm = False
-    str_mdep= ''
+    str_adep, str_atim = '', '' # string for arithmetic
+    str_ldep, str_ltim = '', '' # string for labels
         
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
@@ -147,7 +148,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         
     #___________________________________________________________________________
     # create path name list that needs to be loaded
-    pathlist = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
+    pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
     
     #___________________________________________________________________________
     # load multiple files
@@ -190,7 +191,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # years are selected by the files that are open, need to select mon or day 
     # or record 
-    data, mon, day = do_select_time(data, mon, day, record)
+    data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
     
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
@@ -202,12 +203,12 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
     # if ( ('nz1' in data[vname].dims) or ('nz'  in data[vname].dims) ) and (depth is not None):
     if ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is not None):
-        data = do_select_levidx(data, mesh, depth, depidx)
+        data, str_ldep = do_select_levidx(data, mesh, depth, depidx)
         
         #_______________________________________________________________________
         # do vertical interpolation and summation over interpolated levels 
         if depidx==False:
-            str_mdep = ', '+str(do_zarithm)
+            str_adep = ', '+str(do_zarithm)
             if   ('nz1' in data.dims):
                 data = data.interp(nz1=depth, method="linear")
                 if data['nz1'].size>1: 
@@ -230,7 +231,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         
     #___________________________________________________________________________
     # do arithmetic on data
-    data = do_time_arithmetic(data, do_tarithm)
+    data, str_atim = do_time_arithmetic(data, do_tarithm)
     
     #___________________________________________________________________________
     # rotate the vectors if do_vecrot=True and do_vec=True
@@ -250,8 +251,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     for vname in list(data.keys()):
         attr_dict=dict({'datapath':datapath, 'do_file':do_file, 'do_filename':do_filename, 
                         'year':year, 'mon':mon, 'day':day, 'record':record, 'depth':depth, 
-                        'str_mdep':str_mdep, 'depidx':depidx, 'do_tarithm':do_tarithm,
-                        'do_zarithm':do_zarithm,
+                        'depidx':depidx, 'do_tarithm':str_atim,
+                        'do_zarithm':str_adep, 'str_ltim':str_ltim,'str_ldep':str_ldep,
                         'is_data':is_data, 'is_ie2n':is_ie2n, 'do_compute':do_compute, 
                         'descript':descript})
         data = do_additional_attrs(data, vname, attr_dict)
@@ -329,15 +330,18 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     # specific filename and path is given to load 
     if do_filename: 
         pathlist = do_filename
+        str_mtim = os.path.basename(do_filename)
         
     # list, np.array or range of years is given to load files
     elif isinstance(year, (list, np.ndarray, range)):
         # year = [yr_start, yr_end]
         if isinstance(year, list) and len(year)==2: 
             year_in = range(year[0],year[1]+1)
+            str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
         # year = [year1,year2,year3....]            
         else:           
             year_in = year
+            str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[-1]))
         # loop over year to create filename list 
         for yr in year_in:
             fname = do_fnamemask(do_file,vname,runid,yr)
@@ -348,12 +352,12 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     elif isinstance(year, int):
         fname = do_fnamemask(do_file,vname,runid,year)
         pathlist.append(os.path.join(datapath,fname))
-        
+        str_mtim = 'y:{}'.format(year)
     else:
         raise ValueError( " year can be integer, list, np.array or range(start,end)")
     
     #___________________________________________________________________________
-    return(pathlist)
+    return(pathlist,str_mtim)
 
 
 
@@ -371,21 +375,28 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
 #| ___RETURNS_______________________________________________________________   |
 #| data         :   returns xarray dataset object                              |
 #|_____________________________________________________________________________|
-def do_select_time(data, mon, day, record):
+def do_select_time(data, mon, day, record, str_mtim):
     
     #___________________________________________________________________________
     # select no time use entire yearly file
     if (mon is None) and (day is None) and (record is None):
-        return(data, mon, day)
+        return(data, mon, day, str_mtim)
     
     #___________________________________________________________________________
     # select time based on record index --> overwrites mon and day selection        
     elif (record is not None):
         data.isel(time=record)
+        
+        # do time information string 
+        str_mtim = '{}, rec: {}'.format(str_mtim, record)
     
     #___________________________________________________________________________
     # select time based on mon and or day selection 
-    elif (mon is None) or (day is None):
+    elif (mon is not None) or (day is not None):
+        
+        if isinstance(mon, int): mon = [mon]
+        if isinstance(day, int): day = [day]
+        
         # by default select everything
         sel_mon = np.full((data['time'].size, ), True, dtype=bool)
         sel_day = np.full((data['time'].size, ), True, dtype=bool)
@@ -409,9 +420,29 @@ def do_select_time(data, mon, day, record):
             
         # select matching time slices
         data = data.isel(time=np.logical_and(sel_mon,sel_day))
-    
+        
+        # do time information string for month
+        if (mon is not None) and len(mon)!=12:
+            mon_list_short='JFMAMJJASOND'
+            mon_list_lon=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            if len(mon)==1: 
+                str_mtim = '{}, m:{}.'.format(str_mtim, mon_list_lon[mon[0]-1])
+            else:
+                aux_mon = ''
+                aux_mon = ['{}{}'.format(aux_mon,mon_list_short[i-1]) for i in mon]
+                aux_mon = ''.join(aux_mon)
+                str_mtim = '{}, m:{}'.format(str_mtim, str(aux_mon) )
+        
+        # do time information string for day
+        if (day is not None):
+            if len(mon)==1: 
+                str_mtim = '{}, d:{}.'.format(str_mtim, str(day))
+            else:
+                str_mtim = '{}, d:{}-{}'.format(str_mtim, str(day[0]), str(day[-1]) )
+        
     #___________________________________________________________________________
-    return(data, mon, day)    
+    return(data, mon, day, str_mtim)    
 
 
 
@@ -435,7 +466,8 @@ def do_select_levidx(data, mesh, depth, depidx):
     #___________________________________________________________________________
     # no depth selecetion at all
     if   (depth is None): 
-        return(data)
+        str_ldep = ''
+        return(data, str_ldep)
     
     #___________________________________________________________________________
     # found 3d data based on mid-depth levels (w, Kv,...) --> compute 
@@ -462,9 +494,18 @@ def do_select_levidx(data, mesh, depth, depidx):
         
         #_______________________________________________________________________        
         # select vertical levels from data
-        data = data.isel(nz=sel_levidx) 
+        data = data.isel(nz=sel_levidx)
+        
     #___________________________________________________________________________
-    return(data)
+    # do depth information string
+    if (depth is not None):
+        if   isinstance(depth,(int, float)):
+            str_ldep = ', dep:{}m'.format(str(depth))
+        elif isinstance(depth,(list, np.ndarray, range)):   
+            str_ldep = ', dep:{}-{}m'.format(str(depth[0]), str(depth[-1]))
+            
+    #___________________________________________________________________________
+    return(data, str_ldep)
 
 
 
@@ -526,6 +567,8 @@ def do_comp_sel_levidx(zlev, depth, depidx, ndimax):
 def do_time_arithmetic(data, do_tarithm):
     if do_tarithm is not None:
         
+        str_atim = str(do_tarithm)
+        
         #_______________________________________________________________________
         if   do_tarithm=='mean':
             data = data.mean(  dim="time", keep_attrs=True)
@@ -545,8 +588,9 @@ def do_time_arithmetic(data, do_tarithm):
             ...
         else:
             raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
+        
     #___________________________________________________________________________
-    return(data)
+    return(data, str_atim)
 
 
 
@@ -740,7 +784,11 @@ def do_anomaly(data1,data2):
         attrs_data2 = data2[vname2].attrs
         for key in attrs_data1.keys():
             if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
-                if data1[vname].attrs[key] != data2[vname2].attrs[key]:
+                if key in ['long_name']:
+                   anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key] 
+                elif key in ['units',]: 
+                    continue
+                elif data1[vname].attrs[key] != data2[vname2].attrs[key]:
                     anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname2].attrs[key]
     
     #___________________________________________________________________________
