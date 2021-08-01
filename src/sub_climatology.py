@@ -13,7 +13,7 @@ from sub_data import *
 #|                                                                             |
 #|_____________________________________________________________________________|
 def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
-                     do_zarithm='mean', do_hinterp='fesom', 
+                     do_zarithm='mean', do_hinterp='linear', 
                      do_compute=True, descript='clim', 
                      **kwargs):
     
@@ -21,13 +21,18 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
     is_data = 'scalar'
     #___________________________________________________________________________
     # load climatology data with xarray
-    data = xr.open_dataset(datapath, **kwargs)
+    data = xr.open_dataset(datapath, decode_times=False, **kwargs)
     
     # if there are multiple varaibles, than kick out varaible that is not needed
     if len(list(data.keys()))>1:
         vname_drop = list(data.keys())
         vname_drop.remove(vname)
         data = data.drop(labels=vname_drop)
+    
+    #___________________________________________________________________________
+    # delete eventual time dimension from climatology data
+    if 'time' in data.dims:
+        data = data.squeeze(dim='time',drop=True )
     
     #___________________________________________________________________________
     # identify longitude dimension 
@@ -93,14 +98,30 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
     #___________________________________________________________________________
     # do horizontal interplation to fesom grid 
     if (do_hinterp) is not None:
-        if do_hinterp=='fesom':
+        if do_hinterp=='nearest':
             #add fesom2 mesh coordinatesro xarray dataset
             n_x = xr.DataArray(mesh.n_x, dims="n2dn")
             n_y = xr.DataArray(mesh.n_y, dims="n2dn")
             
             # interp data on nodes
-            data = data.interp(lon=n_x, lat=n_y, )
-         
+            data = data.interp(lon=n_x, lat=n_y, method='nearest')
+            del n_x, n_y
+            
+        elif do_hinterp=='linear':
+            #add fesom2 mesh coordinatesro xarray dataset
+            n_x = xr.DataArray(mesh.n_x, dims="n2dn")
+            n_y = xr.DataArray(mesh.n_y, dims="n2dn")
+            
+            # interp data on nodes --> method linear
+            data_lin = data.interp(lon=n_x, lat=n_y, method='linear')
+            
+            # fill up nan gaps as far as possible with nearest neighbours -->
+            # gives better coastal edges
+            isnan = xr.ufuncs.isnan(data_lin[vname])
+            data_lin[vname][isnan] = data[vname].interp(lon=n_x.sel(n2dn=isnan), lat=n_y.sel(n2dn=isnan), method='nearest')
+            data = data_lin
+            del isnan, data_lin, n_x, n_y
+            
         elif do_hinterp=='regular': 
             ...
     
