@@ -565,6 +565,7 @@ def do_comp_sel_levidx(zlev, depth, depidx, ndimax):
 #| data         :   xarray dataset object                                      |
 #|_____________________________________________________________________________|    
 def do_time_arithmetic(data, do_tarithm):
+    str_atim = None
     if do_tarithm is not None:
         
         str_atim = str(do_tarithm)
