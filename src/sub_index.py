@@ -157,7 +157,85 @@ def convert_geojson2shp(geojsonfilepath, shppath):
 
 
 
-def plot_index_region(mesh,idx_IN, box_list):
+def convert_box2shp(boxlist, boxnamelist, shppath):
+    #___________________________________________________________________________
+    # if boxlistname is list write one shapefile for each defined box, 
+    if isinstance(boxnamelist, list):
+        for box, boxname in zip(boxlist, boxnamelist):
+            #___________________________________________________________________
+            # a rectangular box is given --> translate into shapefile object
+            if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+                px     = [box[0], box[1], box[1], box[0], box[0]]
+                py     = [box[2], box[2], box[3], box[3], box[2]]
+                
+            # a polygon as list or ndarray is given --> translate into shape file object
+            elif isinstance(box,list) and len(box)==2: 
+                px, py = box[0], box[1]  
+                
+            elif isinstance(box, np.ndarray): 
+                if box.shape[0]==2:
+                    px, py = list(box[0,:]), list(box[1,:])
+                    
+                else:
+                    raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+         
+            #___________________________________________________________________
+            name_sav = boxname.replace(' ','_')
+            
+            #___________________________________________________________________
+            # initialse geopanda DataFrame 
+            sf = gpd.GeoDataFrame()
+            
+            #___________________________________________________________________
+            sf.loc[0,'geometry'] = Polygon(list(zip(px,py)))
+            sf.loc[0,'location'] = '{}'.format(str(boxname))
+            
+            #___________________________________________________________________
+            # save geopanda DataFrame into shape file 
+            shpfname = name_sav+'.shp'
+            sf.to_file(os.path.join(shppath, shpfname))
+    
+    #___________________________________________________________________________
+    # elseif boxlistname is one string write all boxes in single shape shapefile
+    else:    
+        #_______________________________________________________________________
+        name_sav = boxnamelist.replace(' ','_')
+            
+        #_______________________________________________________________________
+        # initialse geopanda DataFrame 
+        sf = gpd.GeoDataFrame()
+        
+        #_______________________________________________________________________
+        for ii, box in enumerate(boxlist):
+            
+            #___________________________________________________________________
+            # a rectangular box is given --> translate into shapefile object
+            if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+                px, py = [box[0], box[1], box[1], box[0], box[0]], [box[2], box[2], box[3], box[3], box[2]]
+                
+            # a polygon as list or ndarray is given --> translate into shape file object
+            elif isinstance(box,list) and len(box)==2: 
+                px, py = box[0], box[1]  
+                
+            elif isinstance(box, np.ndarray): 
+                if box.shape[0]==2: px, py = list(box[0,:]), list(box[1,:])                    
+                else: raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+                
+            #___________________________________________________________________
+            sf.loc[ii,'geometry'] = Polygon(list(zip(px,py)))
+            sf.loc[ii,'location'] = '{}-{}'.format(str(boxnamelist),str(ii))
+                    
+        #_______________________________________________________________________
+        # save geopanda DataFrame into shape file 
+        shpfname = name_sav+'.shp'
+        sf.to_file(os.path.join(shppath, shpfname))
+    
+    #___________________________________________________________________________
+    return
+    
+
+
+def plot_index_region(mesh, idx_IN, box_list, which='hard'):
     from matplotlib.tri import Triangulation
     
     #___________________________________________________________________________
@@ -175,7 +253,9 @@ def plot_index_region(mesh,idx_IN, box_list):
     for ii in range(0,nidx):
         isnan     = idx_IN[ii]
         aux_isnan = np.hstack((isnan, isnan[mesh.n_pbnd_a]))
-        isnan_tri = np.any(aux_isnan[tri.triangles], axis=1)
+        if   which == 'soft': isnan_tri = np.any(aux_isnan[tri.triangles], axis=1)
+        elif which == 'hard': isnan_tri = np.all(aux_isnan[tri.triangles], axis=1)
+        elif which == 'mid' : isnan_tri = (np.sum(aux_isnan[tri.triangles], axis=1)>1)
         plt.triplot(tri.x, tri.y, tri.triangles[isnan_tri,:], linewidth=0.2)
         
     #___________________________________________________________________________
@@ -226,56 +306,7 @@ def plot_index_region(mesh,idx_IN, box_list):
 
 
         
-    ##|                                                                         |
-    ##+_________________________________________________________________________+
-    ## select which node points are within selected box/polygon
-    #def select_pointsinbox(self,mesh):
-        #from matplotlib import path
-        #self.box_idx = []
-        #for ii in range(0,len(self.box_define)):
-            #if len(self.box_define[ii][0])>2:
-                #p = path.Path(list(zip(self.box_define[ii][0],self.box_define[ii][1])))
-            #else:
-                #auxboxx = [ self.box_define[ii][0][0],\
-                            #self.box_define[ii][0][1],\
-                            #self.box_define[ii][0][1],\
-                            #self.box_define[ii][0][0]]
-                #auxboxy = [ self.box_define[ii][1][0],\
-                            #self.box_define[ii][1][0],\
-                            #self.box_define[ii][1][1],\
-                            #self.box_define[ii][1][1]]
-                #p = path.Path(list(zip(auxboxx,auxboxy)))
-            
-            #self.box_idx.append([])
-            #self.box_idx[ii] = p.contains_points(np.array(list(zip(mesh.nodes_2d_xg,mesh.nodes_2d_yg))))
-            
-            ## exlude node points whos bottom depth is shallower than botlimit
-            #if len(self.botlimit)>0:
-                #self.box_idx[ii][np.abs(mesh.nodes_2d_zg)<np.abs(self.botlimit)] = False
-        
-    ##+_________________________________________________________________________+
-    ##|                                                                         |
-    ##+_________________________________________________________________________+
-    ## calculate fluxes through section
-    #def data_anom(self, box, box2):
-        #self.descript     = box2.descript+'-'+box.descript
-        #if box.str_time!=box2.str_time:
-            #self.str_time = box2.str_time+'-'+box.str_time
-        #else:
-            #self.str_time = box.str_time
-        #self.str_dep = box.str_dep
-        ##_______________________________________________________________________
-        #for ii in range(0,len(self.box_define)):
-            #self.value[ii] = box2.value-box.value
-            ##self.value[ii] = box2.value[ii]-box.value[ii]
-        #self.anom  = True
-        #self.crange= []
-        #self.cmap  = 'blue2red'
-        #self.depth = box.depth
-        #self.sname = box.sname 
-        #self.lname = box.lname
-        #self.unit  = box.unit
-    
+
     
     ##+___PLOT FESOM2.0 DATA IN INDEX BOX OVER DEPTH AND TIME DATA______________+
     ##|                                                                         |
