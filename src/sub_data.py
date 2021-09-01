@@ -159,7 +159,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         # in case of vector load also meridional data and merge into 
         # dataset structure
         if do_vec or do_norm:
-            pathlist = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
+            pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
             data     = xr.merge([data, xr.open_mfdataset(pathlist,**kwargs)])
             if do_vec: is_data='vector'
             
@@ -203,27 +203,41 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
     # if ( ('nz1' in data[vname].dims) or ('nz'  in data[vname].dims) ) and (depth is not None):
     if ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is not None):
+        #_______________________________________________________________________
+        # in old fesom2 output the vertical depth levels are not included --> 
+        # add depth axes by hand
+        if   ('nz_1' in data.dims) and ('nz_1' not in list(data.coords)): 
+            data = data.assign_coords(nz_1=("nz_1",-mesh.zmid))
+        elif ('nz1'  in data.dims) and ('nz1'  not in list(data.coords)): 
+            data = data.assign_coords(nz1 =("nz1" ,-mesh.zmid))
+        elif ('nz'   in data.dims) and ('nz'   not in list(data.coords)): 
+            data = data.assign_coords(nz  =("nz"  ,-mesh.zlev))
+        
+        #_______________________________________________________________________
         data, str_ldep = do_select_levidx(data, mesh, depth, depidx)
         
         #_______________________________________________________________________
         # do vertical interpolation and summation over interpolated levels 
         if depidx==False:
             str_adep = ', '+str(do_zarithm)
+            
+            auxdepth = depth
+            if isinstance(depth,list) and len(depth)==1: auxdepth = depth[0]
+                
             if   ('nz1' in data.dims):
-                data = data.interp(nz1=depth, method="linear")
+                data = data.interp(nz1=auxdepth, method="linear")
                 if data['nz1'].size>1: 
                     data = do_depth_arithmetic(data, do_zarithm, "nz1")
                     
             if   ('nz_1' in data.dims):
-                data = data.interp(nz_1=depth, method="linear")
+                data = data.interp(nz_1=auxdepth, method="linear")
                 if data['nz_1'].size>1: 
                     data = do_depth_arithmetic(data, do_zarithm, "nz_1")
                     
             elif ('nz'  in data.dims):    
-                data = data.interp(nz=depth, method="linear")
+                data = data.interp(nz=auxdepth, method="linear")
                 if data['nz'].size>1:   
-                    data = do_depth_arithmetic(data, do_zarithm, "nz")
-                    
+                    data = do_depth_arithmetic(data, do_zarithm, "nz") 
     
     # only 2D data found            
     else:
