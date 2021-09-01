@@ -1,15 +1,15 @@
 # Patrick Scholz, 14.12.2017
-def colormap_c2c(cmin,cmax,cref,cnumb,cname,cstep=[]):
-    
+def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
+
     import numpy as np
     from matplotlib.colors import LinearSegmentedColormap
-    ##import cmocean
+    #import cmocean
     # cmin ... value of minimum color
     # cmax ... value of maximum color
     # cref ... value of reference color
     # cnumb... minimum number of colors that should be in colormap
     # cname... name of colormap ---> see colormap definition
-    
+
     # colormaps are:
     # --> blue2red
     # --> red2blue
@@ -24,12 +24,12 @@ def colormap_c2c(cmin,cmax,cref,cnumb,cname,cstep=[]):
     # --> wbgyr
     # --> odv
     # --> odv_w
-    
+
     # get colormap matrix from predifined cmaps
     # --> import matplotlib.pyplot as plt
     # --> cmap = plt.get_cmap('rainbow',9)
     # --> cmaplist = [cmap(i) for i in range(cmap.N)]
-    
+
     #___________________________________________________________________________
     # calculate optimal color step size
     if not cstep:
