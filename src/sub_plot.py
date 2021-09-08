@@ -1189,7 +1189,7 @@ def do_ticksteps(mesh, box, ticknr=7):
 #| ___RETURNS_______________________________________________________________   |
 #| None                  
 #|_____________________________________________________________________________|  
-def do_savefigure(do_save, dpi=600, transparent=True, pad_inches=0.1):
+def do_savefigure(do_save, dpi=600, transparent=True, pad_inches=0.1, **kw):
     if do_save is not None:
         #_______________________________________________________________________
         # extract filename from do_save
@@ -1209,4 +1209,4 @@ def do_savefigure(do_save, dpi=600, transparent=True, pad_inches=0.1):
         #_______________________________________________________________________
         plt.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
                     bbox_inches='tight', pad_inches=pad_inches,\
-                    transparent=transparent)
+                    transparent=transparent, **kw)
