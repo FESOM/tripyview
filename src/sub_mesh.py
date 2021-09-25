@@ -6,7 +6,7 @@ import time
 import numpy  as np
 import pandas as pa
 import joblib
-import pickle
+import pickle5 as pickle
 from   netCDF4 import Dataset
 
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
@@ -229,7 +229,7 @@ def load_mesh_fesom2(
                 savepicklepath = os.path.join(meshpath,picklefname)
                 if do_info: print(' > save mesh to *.pckl in {}'.format(savepicklepath))
                 fid = open(savepicklepath, "wb")
-                pickle.dump(mesh, savepicklepath, protocol=pickleprotocol)
+                pickle.dump(mesh, fid, protocol=pickleprotocol)
                 fid.close()
             # if no permission rights for writing in meshpath folder try 
             # cachefolder   
@@ -462,7 +462,7 @@ class mesh_fesom2(object):
             #___________________________________________________________________
             # save land-sea mask with periodic boundnaries to shapefile
             if do_lsmshp:
-                shpfname = 'mypymesh_fesom2'+'_'+self.id+'_'+'pbnd'
+                shpfname = 'tripyview_fesom2'+'_'+self.id+'_'+'pbnd'
                 lsmask_2shapefile(self, lsmask=self.lsmask, fname=shpfname)
             
             #___________________________________________________________________
@@ -1224,7 +1224,7 @@ def lsmask_patch(lsmask):
 #|      from matplotlib.patches import Polygon                                 |
 #|      from matplotlib.collections import PatchCollection                     |
 #|                                                                             |
-#|      shpfname = 'mypymesh_fesom2'+'_'+mesh.id+'_'+                          |
+#|      shpfname = 'tripyview_fesom2'+'_'+mesh.id+'_'+                          |
 #|                  '{}={}'.format('focus',mesh.focus)+'.shp'                  |
 #|      shppath  = os.path.join(mesh.cachepath,shpfname)                       |
 #|                                                                             |
@@ -1615,7 +1615,6 @@ def grid_interp_e2n(mesh,data_e):
     mesh = mesh.compute_n_area()
     aux  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
     aux  = aux * np.vstack((data_e,data_e,data_e)).transpose().flatten()
-    
     #___________________________________________________________________________
     # single loop over self.e_i.flat is ~4 times faster than douple loop 
     # over for i in range(3): ,for j in range(self.n2de):
@@ -1625,8 +1624,8 @@ def grid_interp_e2n(mesh,data_e):
         data_n[idx]=data_n[idx] + aux[count]
         count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
     del aux, count
+    #with np.errstate(divide='ignore',invalid='ignore'):
     data_n=data_n/mesh.n_area/3.0
-    
     #___________________________________________________________________________
     return(data_n)
 
