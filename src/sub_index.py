@@ -9,10 +9,12 @@ import shapefile as shp
 import json
 import geopandas as gpd
 import matplotlib.pylab as plt
+import matplotlib
 from   sub_mesh           import * 
 from   sub_data           import *
+from   sub_plot           import *
 from   colormap_c2c       import *
-
+from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 
 def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean', 
                       do_compute=True):
@@ -22,52 +24,13 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean',
     index_list  = []
     idxin_list  = []
     cnt         = 0
+    
     #___________________________________________________________________________
     # loop over box_list
     for box in box_list:
-        #___________________________________________________________________________
-        # a rectangular box is given --> translate into shapefile object
-        if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
-            px     = [box[0], box[1], box[1], box[0], box[0]]
-            py     = [box[2], box[2], box[3], box[3], box[2]]
-            p      = Polygon(list(zip(px,py)))
-            idx_IN = contains(p, mesh.n_x, mesh.n_y)
-            
-        # a polygon as list or ndarray is given --> translate into shape file object
-        elif isinstance(box,list) and len(box)==2: 
-            px, py = box[0], box[1]  
-            p      = Polygon(list(zip(px,py)))  
-            idx_IN = contains(p, mesh.n_x, mesh.n_y)
-            
-        elif isinstance(box, np.ndarray): 
-            if box.shape[0]==2:
-                px, py = list(box[0,:]), list(box[1,:])
-                p      = Polygon(list(zip(px,py)))
-                idx_IN = contains(p, mesh.n_x, mesh.n_y)
-                
-            else:
-                raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
-            
-        # a polygon as shapefile or shapefile collection is given
-        elif (isinstance(box, (Polygon, MultiPolygon))):
-            if   isinstance(box, Polygon): 
-                idx_IN = contains(box, mesh.n_x, mesh.n_y)
-                
-            elif isinstance(box, MultiPolygon):
-                idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
-                for p in box:
-                    auxidx = contains(p, mesh.n_x, mesh.n_y)
-                    idx_IN = np.logical_or(idx_IN, auxidx)
-        
-        elif (isinstance(box, shp.Reader)):
-            idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
-            for shape in box.shapes(): 
-                p      = Polygon(shape.points)
-                auxidx = contains(p, mesh.n_x, mesh.n_y)
-                idx_IN = np.logical_or(idx_IN, auxidx)
-        # otherwise
-        else:
-            raise ValueError('the given box information to compute the index has no valid format')
+        #_______________________________________________________________________
+        # compute  mask index
+        idx_IN=do_boxmask(mesh,box)
         
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
@@ -84,8 +47,64 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean',
     #___________________________________________________________________________
     return(index_list, idxin_list)
     
+#
+#
+#_______________________________________________________________________________
+def do_boxmask(mesh, box, do_elem=False):
+    #___________________________________________________________________________
+    if do_elem: mesh_x, mesh_y = mesh.n_x[mesh.e_i].sum(axis=1)/3.0, mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+    else      : mesh_x, mesh_y = mesh.n_x, mesh.n_y
     
+    #___________________________________________________________________________
+    # a rectangular box is given --> translate into shapefile object
+    if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+        px     = [box[0], box[1], box[1], box[0], box[0]]
+        py     = [box[2], box[2], box[3], box[3], box[2]]
+        p      = Polygon(list(zip(px,py)))
+        idx_IN = contains(p, mesh_x, mesh_y)
+            
+    # a polygon as list or ndarray is given --> translate into shape file object
+    elif isinstance(box,list) and len(box)==2: 
+        px, py = box[0], box[1]  
+        p      = Polygon(list(zip(px,py)))  
+        idx_IN = contains(p, mesh_x, mesh_y)
+            
+    elif isinstance(box, np.ndarray): 
+        if box.shape[0]==2:
+            px, py = list(box[0,:]), list(box[1,:])
+            p      = Polygon(list(zip(px,py)))
+            idx_IN = contains(p, mesh_x, mesh_y)
+                
+        else:
+            raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+            
+    # a polygon as shapefile or shapefile collection is given
+    elif (isinstance(box, (Polygon, MultiPolygon))):
+        if   isinstance(box, Polygon): 
+            idx_IN = contains(box, mesh_x, mesh_y)
+                
+        elif isinstance(box, MultiPolygon):
+            idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+            for p in box:
+                auxidx = contains(p, mesh_x, mesh_y)
+                idx_IN = np.logical_or(idx_IN, auxidx)
+        
+    elif (isinstance(box, shp.Reader)):
+        idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+        for shape in box.shapes(): 
+            p      = Polygon(shape.points)
+            auxidx = contains(p, mesh_x, mesh_y)
+            idx_IN = np.logical_or(idx_IN, auxidx)
+    # otherwise
+    else:
+        raise ValueError('the given box information to compute the index has no valid format')
+        
+    #___________________________________________________________________________
+    return(idx_IN)
 
+#
+#
+#_______________________________________________________________________________
 def do_horiz_arithmetic(data, do_harithm):
     if do_harithm is not None:
         
@@ -112,9 +131,10 @@ def do_horiz_arithmetic(data, do_harithm):
     #___________________________________________________________________________
     return(data)
 
-
-
-def convert_geojson2shp(geojsonfilepath, shppath):
+#
+#
+#_______________________________________________________________________________
+def convert_geojson2shp(geojsonfilepath, shppath, do_plot=False):
     with open(geojsonfilepath) as f:
         #_______________________________________________________________________
         # loop over features in geojson file 
@@ -130,7 +150,6 @@ def convert_geojson2shp(geojsonfilepath, shppath):
             # get name of geometry object 
             name = feature["properties"]["name"]
             name_sav = name.replace(' ','_')
-            
             #___________________________________________________________________
             # initialse geopanda DataFrame 
             sf = gpd.GeoDataFrame()
@@ -151,12 +170,14 @@ def convert_geojson2shp(geojsonfilepath, shppath):
             # save geopanda DataFrame into shape file 
             shpfname = name_sav+'.shp'
             sf.to_file(os.path.join(shppath, shpfname))
-    
+    #___________________________________________________________________________
+    if do_plot: sf.plot()
     #___________________________________________________________________________
     return
 
-
-
+#
+#
+#_______________________________________________________________________________
 def convert_box2shp(boxlist, boxnamelist, shppath):
     #___________________________________________________________________________
     # if boxlistname is list write one shapefile for each defined box, 
@@ -233,8 +254,9 @@ def convert_box2shp(boxlist, boxnamelist, shppath):
     #___________________________________________________________________________
     return
     
-
-
+#
+#
+#_______________________________________________________________________________
 def plot_index_region(mesh, idx_IN, box_list, which='hard'):
     from matplotlib.tri import Triangulation
     
@@ -302,283 +324,102 @@ def plot_index_region(mesh, idx_IN, box_list, which='hard'):
     #___________________________________________________________________________
     return
 
-
-
-
+#
+#
+#_______________________________________________________________________________
+def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1], 
+                 linecolor_list=None, linestyle_list=None, cbar_label=None,
+                 cbar_unit=None, do_save=None, linewidth=1.0):
         
-
+    #___________________________________________________________________________
+    # make matrix with row colum index to know where to put labels
+    rowlist = np.zeros((n_rc[0],n_rc[1]))
+    collist = np.zeros((n_rc[0],n_rc[1]))       
+    for ii in range(0,n_rc[0]): rowlist[ii,:]=ii
+    for ii in range(0,n_rc[1]): collist[:,ii]=ii
+    rowlist = rowlist.flatten()
+    collist = collist.flatten()
     
-    ##+___PLOT FESOM2.0 DATA IN INDEX BOX OVER DEPTH AND TIME DATA______________+
-    ##|                                                                         |
-    ##+_________________________________________________________________________+
-    #def plot_index_t_x_z(self,numb=[],figsize=[],do_subplot=[],do_output=True,which_lines=[0,0,0]):
-        #from set_inputarray import inputarray
-        #fsize=16
-        ##_______________________________________________________________________
-        #if isinstance(numb,int)==True : numb = [numb]
-        #if len(numb)==0 : numb=range(0,len(self.box_define))
+    #___________________________________________________________________________
+    # create figure and axes
+    fig, ax = plt.subplots(n_rc[0],n_rc[1], figsize=figsize, sharex=False, sharey=True,
+                        gridspec_kw=dict(left=0.1, bottom=0.1, right=0.90, top=0.90, wspace=0.10, hspace=0.3,),
+                                    )
+    if isinstance(ax, np.ndarray): ax = ax.flatten()
+    else:                          ax = [ax] 
+    nax = len(ax)
+    
+    if not isinstance(index_list, list): index_list = [index_list]
+    
+    #___________________________________________________________________________
+    nbi = len(box_list)
+    ndi = len(index_list)
+    # loop over boxes definitions
+    for bi in range(0,len(box_list)):
         
-        ##_______________________________________________________________________
-        #for ii in numb:
-            ##fig = plt.figure(figsize=(12, 6))
-            ##ax1  = plt.gca()
-            
-            #if len(figsize)==0 : figsize=[10,5]
-            ##___________________________________________________________________________
-            ## plot is not part of subplot
-            #if len(do_subplot)==0:
-                #fig = plt.figure(figsize=figsize)
-                #ax1 = plt.gca()
-            #else:
-                #fig=do_subplot[0]
-                #ax1=do_subplot[1]
-                #fig.sca(ax1)
-            #resolution = 'c'
-            #fsize = 14
-            
-            ##___________________________________________________________________
-            #cnumb= self.cnumb
-            ##cmin = np.nanmin(self.value[ii])
-            ##cmax = np.nanmax(self.value[ii])
-            #cmin, cmax = np.nanmin(self.value), np.nanmax(self.value)
-            #cref = cmin + (cmax-cmin)/2
-            #cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) ) 
-            ##cref =0.0
-            
-            ##___________________________________________________________________
-            ## if anomaly data    
-            #if self.anom==True: 
-                ##cmax,cmin,cref = np.nanmax(self.value[ii]), np.nanmin(self.value[ii]), 0.0
-                #cmax,cmin,cref = np.nanmax(self.value), np.nanmin(self.value), 0.0
-                #self.cmap='blue2red'
-            ##___________________________________________________________________
-            ## if predefined color range    
-            #if len(self.crange)!=0:
-                #if len(self.crange)==2:
-                    #cmin = np.float(self.crange[0])
-                    #cmax = np.float(self.crange[1])
-                    #cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) ) 
-                #elif len(self.crange)==3:
-                    #cmin = np.float(self.crange[0])
-                    #cmax = np.float(self.crange[1])
-                    #cref = np.float(self.crange[2])
-                #else:
-                    #print(' this colorrange definition is not supported !!!')
-                    #print('data.crange=[cmin,cmax] or data.crange=[cmin,cmax,cref]')
+        # loop over data
+        for di in range(0,ndi):
                 
-            #if do_output==True: print('[cmin,cmax,cref] = ['+str(cmin)+', '+str(cmax)+', '+str(cref)+']')
-            #if do_output==True: print('[cnum]=',cnumb)
-            #cmap0,clevel = colormap_c2c(cmin,cmax,cref,cnumb,self.cmap)
-            #if do_output==True: print('clevel = ',clevel)
+            vname = list(index_list[di][bi].keys())
+            val   = index_list[di][bi][vname[0]].values
             
-            #do_drawedges=True
-            #if clevel.size>40: do_drawedges=False
-            
-            ## overwrite discrete colormap
-            ##cmap0 = cmocean.cm.balance
-            ##do_drawedges=False
-            
-            ##___________________________________________________________________
-            ## make pcolor or contour plot 
-            ##depth = self.depth[:-1] + (self.depth[1:]-self.depth[:-1])/2.0
-            ##depth = self.zlev[:-1] + (self.zlev[1:]-self.zlev[:-1])/2.0
-            #depth = -self.zlev
-            #depthlim = np.sum(~np.isnan(self.value[0,:])).max()
-            #if depthlim==depth.shape: depthlim=depthlim-1
-            #yy,xx = np.meshgrid(depth,self.time)
-            
-            ##___________________________________________________________________
-            #data_plot = np.copy(self.value)
-            #data_plot[data_plot<clevel[0]]  = clevel[0]+np.finfo(np.float32).eps
-            #data_plot[data_plot>clevel[-1]] = clevel[-1]-np.finfo(np.float32).eps
-            
-            ##___________________________________________________________________
-            #if inputarray['which_plot']=='pcolor':
-                #hp=ax1.pcolormesh(xx[:,0:depthlim],yy[:,0:depthlim],data_plot[:,0:depthlim],
-                            #shading='flat',#flat
-                            #antialiased=False,
-                            #edgecolor='None',
-                            #cmap=cmap0),
-                            ##vmin=np.nanmin(data_plot), vmax=np.nanmax(data_plot))
-            #else: 
-                #hp=ax1.contourf(xx[:,0:depthlim],yy[:,0:depthlim],data_plot[:,0:depthlim],levels=clevel,
-                            #antialiased=False,
-                            #cmap=cmap0,
-                            #vmin=clevel[0], vmax=clevel[-1])
-                #if which_lines[0]==1:
-                    #ax1.contour(xx[:,0:depthlim],yy[:,0:depthlim],data_plot[:,0:depthlim],levels=clevel[clevel<cref],
-                                    #antialiased=True,
-                                    #colors='k',
-                                    #linewidths=0.5,
-                                    #linestyles='-',
-                                    #vmin=clevel[0], vmax=clevel[-1])
-                #if which_lines[1]==1:
-                    #ax1.contour(xx[:,0:depthlim],yy[:,0:depthlim],data_plot[:,0:depthlim],levels=clevel[clevel==cref],
-                                    #antialiased=True,
-                                    #colors='k',
-                                    #linewidths=1.0,
-                                    #linestyles='-',
-                                    #vmin=clevel[0], vmax=clevel[-1])
-                #if which_lines[2]==1:
-                    #ax1.contour(xx[:,0:depthlim],yy[:,0:depthlim],data_plot[:,0:depthlim],levels=clevel[clevel>cref],
-                                    #antialiased=True,
-                                    #colors='k',
-                                    #linewidths=0.5,
-                                    #linestyles='--',
-                                    #vmin=clevel[0], vmax=clevel[-1])
-            ##hp.cmap.set_under([0.4,0.4,0.4])
-            
-            ##___________________________________________________________________
-            ## set main axes
-            #ax1.set_xlim(self.time.min(),self.time.max())
-            #ax1.set_ylim(0,depth[depthlim-1])
-            #ax1.invert_yaxis()
-            ##ax1.set_axis_bgcolor([0.25,0.25,0.25])
-            #ax1.tick_params(axis='both',which='major',direction='out',length=8,labelsize=fsize)
-            #ax1.minorticks_on()
-            #ax1.tick_params(axis='both',which='minor',direction='out',length=4,labelsize=fsize)
-            #ax1.set_xlabel('Time [years]',fontdict=dict(fontsize=fsize))
-            #ax1.set_ylabel('Depth [km]',fontdict=dict(fontsize=fsize))
-            #plt.title(self.descript+' - '+self.box_define[0][2],fontdict= dict(fontsize=fsize*2),verticalalignment='bottom')
-            
-            ##___________________________________________________________________
-            ## draw colorbar
-            ##divider = make_axes_locatable(ax1)
-            ##cax     = divider.append_axes("right", size="2.5%", pad=0.5)
-            ##plt.clim(clevel[0],clevel[-1])
-            #him = ax1.get_images()
-            #for im in ax1.get_images():
-                #im.set_clim(clevel[0],clevel[-1])
-            
-            ##cbar = plt.colorbar(hp,ax=ax1,cax=cax,ticks=clevel,drawedges=do_drawedges)
-            #cbar = plt.colorbar(hp,ax=ax1,ticks=clevel,drawedges=do_drawedges)
-            #cbar.set_label(self.lname+' '+self.unit+'\n'+self.str_time, size=fsize)
-            
-            #cl = plt.getp(cbar.ax, 'ymajorticklabels')
-            #plt.setp(cl, fontsize=fsize)
-            
-            ## kickout some colormap labels if there are to many
-            #ncbar_l=len(cbar.ax.get_yticklabels()[:])
-            #idx_cref = np.where(clevel==cref)[0]
-            #idx_cref = np.asscalar(idx_cref)
-            #nmax_cbar_l = 10
-            #nstep = ncbar_l/nmax_cbar_l
-            #nstep = np.int(np.floor(nstep))
-            ##plt.setp(cbar.ax.get_yticklabels()[:], visible=False)
-            ##plt.setp(cbar.ax.get_yticklabels()[idx_cref::nstep], visible=True)
-            ##plt.setp(cbar.ax.get_yticklabels()[idx_cref::-nstep], visible=True)
-            #if nstep==0:nstep=1
-            #tickl = cbar.ax.get_yticklabels()
-            #idx = np.arange(0,len(tickl),1)
-            #idxb = np.ones((len(tickl),), dtype=bool)                
-            #idxb[idx_cref::nstep]  = False
-            #idxb[idx_cref::-nstep] = False
-            #idx = idx[idxb==True]
-            #for ii in list(idx):
-                #tickl[ii]=''
-            #cbar.ax.set_yticklabels(tickl)
-            
-            ## reposition colorbar and axes
-            #plt.tight_layout()
-            #pos_ax   = ax1.get_position()
-            #ax1.set_position([pos_ax.x0,pos_ax.y0,0.90-pos_ax.y0,pos_ax.height])
-            #pos_ax   = ax1.get_position()
-            #pos_cbar = cbar.ax.get_position()
-            #cbar.ax.set_position([pos_ax.x0+pos_ax.width+0.01,pos_cbar.y0, pos_cbar.width, pos_cbar.height])
-            #fig.canvas.draw()
-            ##___________________________________________________________________
-            ## save figure
-            #if inputarray['save_fig']==True:
-                #print(' --> save figure: png')
-                #str_times= self.str_time.replace(' ','').replace(':','')
-                #str_deps = self.str_dep.replace(' ','').replace(',','').replace(':','')
-                #sfname = 'boxplot_'+self.box_define[ii][2]+'_'+self.descript+'_'+self.sname+'_'+str_times+'_'+str_deps+'.png'
-                #sdname = inputarray['save_figpath']
-                #if os.path.isdir(sdname)==False: os.mkdir(sdname)
-                #plt.savefig(sdname+sfname, \
-                            #format='png', dpi=600, \
-                            #bbox_inches='tight', pad_inches=0,\
-                            #transparent=True,frameon=True)
-            ##___________________________________________________________________
-            #plt.show(block=False)
-            #print('finish')
+            cname = list(index_list[di][bi].coords)
+            dep = index_list[di][bi].coords[cname[0]].values
         
-        #return(fig,ax1,cbar)
+            linestyle = 'solid'
+            if linestyle_list is not None: 
+                if (not linestyle_list[di])==False: linestyle =  linestyle_list[di]
         
+            if linecolor_list is None: 
+                ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=linewidth)
+            else:
+                if not linecolor_list[di]:
+                    ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=linewidth)
+                else:
+                    ax[bi].plot(val,dep, color=linecolor_list[di], 
+                                label=label_list[di], linestyle=linestyle, linewidth=linewidth)
+                    
+        #_______________________________________________________________________
+        if bi==0 : ax[bi].legend(loc='best', frameon=True, shadow=True,fontsize=8)
         
-    ##+___PLOT FESOM2.0 DATA IN INDEX BOX POSITION______________________________+
-    ##|                                                                         |
-    ##+_________________________________________________________________________+
-    #def plot_index_position(self,mesh,numb=[]):
-        #from set_inputarray import inputarray
-        #fsize=16
-        ##_______________________________________________________________________
-        #if isinstance(numb,int)==True : numb = [numb]
-        #if len(numb)==0 : numb=range(0,len(self.box_define))
+        #_______________________________________________________________________
+        if (isinstance(box_list[bi], shp.Reader)): str_title = box_list[bi].shapeName
+        else:                                      str_title = '{}'.format(str(box_list[bi]))
+        ax[bi].set_title(os.path.basename(box_list[bi].shapeName))
         
-        ##_______________________________________________________________________
-        ## draw position of box 
-        #for ii in numb:
+        #_______________________________________________________________________
+        if collist[bi]==0:
+            ax[bi].set_ylabel('depth [m]')
         
-            ##___________________________________________________________________
-            #xmin,xmax = np.min(self.box_define[ii][0]), np.max(self.box_define[ii][0])
-            #ymin,ymax = np.min(self.box_define[ii][1]), np.max(self.box_define[ii][1])
-            #xmin,xmax,ymin,ymax = xmin-20.0, xmax+20.0, ymin-20.0, ymax+20.0
-            #xmin,xmax,ymin,ymax = np.max([xmin,-180.0]),np.min([xmax,180.0]),np.max([ymin,-90.0]),np.min([ymax,90.0])
-            
-            ##___________________________________________________________________
-            #figp, ax = plt.figure(figsize=(8, 8)), plt.gca()
-            #map     = Basemap(projection = 'cyl',resolution = 'c',
-                        #llcrnrlon = xmin, urcrnrlon = xmax, llcrnrlat = ymin, urcrnrlat = ymax)
-            
-            #mx,my     = map(mesh.nodes_2d_xg, mesh.nodes_2d_yg)
-            
-            
-            #map.bluemarble()
-            #fesom_plot_lmask(map,mesh,ax,'0.6')
-            
-            #xlabels,ylabels=[0,0,0,1],[1,0,0,0]
-            #xticks,yticks = np.arange(0.,360.,10.), np.arange(-90.,90.,5.)
-            #map.drawparallels(yticks,labels=ylabels,fontsize=fsize)
-            #map.drawmeridians(xticks,labels=xlabels,fontsize=fsize)
-            #map.drawmapboundary(linewidth=1.0)
-            
-            ##___________________________________________________________________
-            #patch=[]
-            #if len(self.box_define[ii][0])>2:
-                #ax.plot(self.box_define[ii][0]    ,self.box_define[ii][1] ,linestyle='None'   ,color='w',linewidth=2.0,marker='o',mfc='w',mec='k',axes=ax)
-                #patch.append(Polygon(list(zip(self.box_define[ii][0],self.box_define[ii][1])),closed=True,clip_on=True) )
-            #else:
-                #auxboxx = [ self.box_define[ii][0][0],\
-                            #self.box_define[ii][0][1],\
-                            #self.box_define[ii][0][1],\
-                            #self.box_define[ii][0][0],\
-                            #self.box_define[ii][0][0]]
-                #auxboxy = [ self.box_define[ii][1][0],\
-                            #self.box_define[ii][1][0],\
-                            #self.box_define[ii][1][1],\
-                            #self.box_define[ii][1][1],\
-                            #self.box_define[ii][1][0],]
-                #ax.plot(auxboxx    ,auxboxy ,linestyle='None'   ,color='w',linewidth=2.0,marker='o',mfc='w',mec='k',axes=ax)
-                #patch.append(Polygon(list(zip(auxboxx,auxboxy)),closed=True,clip_on=True) )
-            #ax.add_collection(PatchCollection(patch, alpha=1.0,facecolor='none',edgecolor='w',zorder=1,linewidth=2.0,hatch='/'))    
-            
-            ## plot selected mesh points
-            #ax.plot(mesh.nodes_2d_xg[self.box_idx[ii]],mesh.nodes_2d_yg[self.box_idx[ii]],color='r',linestyle='None',marker='.',alpha=0.5)
-            #plt.title(self.box_define[ii][2],fontdict= dict(fontsize=fsize*2),verticalalignment='bottom')
-            
-            ##___________________________________________________________________
-            ## save figure
-            #if inputarray['save_fig']==True:
-                #print(' --> save figure: png')
-                #sfname = 'boxplot_'+self.box_define[ii][2]+'_position'+'.png'
-                #sdname = inputarray['save_figpath']
-                #if os.path.isdir(sdname)==False: os.mkdir(sdname)
-                #plt.savefig(sdname+sfname, \
-                            #format='png', dpi=600, \
-                            #bbox_inches='tight', pad_inches=0,\
-                            #transparent=True,frameon=True)
-            
-            ##___________________________________________________________________
-            #plt.show()
-            #figp.canvas.draw()
+        #_______________________________________________________________________
+        if cbar_label is None: 
+            str_xlabel = index_list[di][bi][ vname[0] ].attrs['long_name']
+        else:
+            str_xlabel = cbar_label
+        if cbar_unit  is None: str_xlabel = str_xlabel+' ['+index_list[di][bi][ vname[0] ].attrs['units']+']'
+        else:                  str_xlabel = str_xlabel+' ['+cbar_unit+']'    
+        ax[bi].set_xlabel(str_xlabel)
+        
+        #_______________________________________________________________________
+        ax[bi].set_ylim(dep[0],6000)
+        ax[bi].invert_yaxis()
+        ax[bi].grid(True,which='major')
+        
+        ax[bi].set_yscale('log')
+        ax[bi].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
+        ax[bi].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        
+        ax[bi].xaxis.set_minor_locator(AutoMinorLocator())
+    #___________________________________________________________________________
+    # delete axes that are not needed
+    for jj in range(bi+1, nax): fig.delaxes(ax[jj])    
+        
+    plt.show()
+    
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save)
+    
+    #___________________________________________________________________________
+    return(fig, ax)
+    
