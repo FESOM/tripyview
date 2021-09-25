@@ -155,7 +155,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 figsize=figsize, 
                                 subplot_kw =dict(projection=which_proj),
                                 gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False, )
+                                constrained_layout=False)
     
     #___________________________________________________________________________    
     # flatt axes if there are more than 1
@@ -189,14 +189,19 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     #___________________________________________________________________________
     # data must be list filled with xarray data
     if not isinstance(data, list): data = [data]
-        
+    ndata = len(data)
+    
     #___________________________________________________________________________
     # set up color info 
     cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale)
     
     #___________________________________________________________________________
     # loop over axes
-    for ii in range(0,nax):
+    #for ii in range(0,nax):
+    for ii in range(0,ndata):
+        #_______________________________________________________________________
+        # if there are more axes allocated than data evailable 
+        #if ii>=ndata: continue
         
         #_______________________________________________________________________
         # add color for bottom bottom
@@ -261,23 +266,24 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
             if   isinstance(title,str) : 
                 # if title string is 'descript' than use descript attribute from 
                 # data to set plot title 
-                if title=='descript':
+                if title=='descript' and ('descript' in data[ii][vname[0]].attrs.keys() ):
                     ax[ii].set_title(data[ii][ vname[0] ].attrs['descript'], fontsize=fontsize+2)
                     
                 else:
                     ax[ii].set_title(title, fontsize=fontsize+2)
             # is title list of string        
             elif isinstance(title,list): ax[ii].set_title(title[ii], fontsize=fontsize+2)
-    nax_fin = ii+1        
+    nax_fin = ii+1
     
     #___________________________________________________________________________
     # delete axes that are not needed
-    for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    for jj in range(ndata, nax): fig.delaxes(ax[jj])
     
     #___________________________________________________________________________
     # delete axes that are not needed
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
-                      extend='neither',extendrect=False, extendfrac=None,
+                      extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
     cbar.ax.tick_params(labelsize=fontsize)
     
@@ -1109,18 +1115,38 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
         aux = ax[jj].get_position()
         ax_pos[jj,:] = np.array([aux.x0, aux.y0, aux.width, aux.height])
     
-    fac = pos_fac
-    #x0, y0, x1, y1 = 0.05, 0.05, 0.95, 0.95
-    x0, y0, x1, y1 = 0.1, 0.1, 0.9, 0.9
-    if cbar is not None:
-        if cbar.orientation=='horizontal': y0 = 0.21
-    w, h = ax_pos[:,2].min(), ax_pos[:,3].min()
-    w, h = w*fac, h*fac
-    wg, hg = pos_gap[0], pos_gap[1]
-    if title is not None: hg = hg+0.04
-    
     maxr = rowlist.max()+1
     maxc = collist.max()+1
+    
+     
+    #fac = pos_fac
+    ##x0, y0, x1, y1 = 0.05, 0.05, 0.95, 0.95
+    #x0, y0, x1, y1 = 0.1, 0.1, 0.9, 0.9
+    #if cbar is not None:
+        #if cbar.orientation=='horizontal': y0 = 0.21
+    #w, h = ax_pos[:,2].min(), ax_pos[:,3].min()
+    #w, h = w*fac, h*fac
+    #wg, hg = pos_gap[0], pos_gap[1]
+    #if title is not None: hg = hg+0.04
+    
+    fac = pos_fac
+    wg, hg = pos_gap[0], pos_gap[1]
+    x0, y0, x1, y1 = 0.075, 0.05, 0.825, 0.95
+    if cbar is not None:
+        if cbar.orientation=='horizontal': y0 = 0.2
+        
+    dx = x1-x0-(maxc-1)*wg
+    w  = dx/maxc
+    h  = w*ax_pos[:,3].min()/ax_pos[:,2].min()
+    
+    #dy = y1-y0-(maxr-1)*hg
+    #h  = dy/maxr
+    #w  = h*ax_pos[:,2].min()/ax_pos[:,3].min()
+    if title is not None: hg = hg+0.06
+    if (h*maxr+hg*(maxr-1)+y0)>1: fac = 1/(h*maxr+hg*(maxr-1)+y0)
+    if (w*maxc+wg*(maxc-1)+x0)>0.825: fac = 1/(w*maxc+wg*(maxc-1)+x0) 
+    w, h = w*fac, h*fac
+    
     
     for jj in range(nax-1,0-1,-1):
         ax[jj].set_position( [x0+(w+wg)*collist[jj], y0+(h+hg)*np.abs(rowlist[jj]-maxr+1), w, h] )
@@ -1131,7 +1157,7 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
             cbar.ax.set_position([x0+(w+wg)*maxc, y0, cbar_pos.width*0.75, h*maxr+hg*(maxr-1)])
             cbar.ax.set_aspect('auto')
         else: 
-            cbar.ax.set_position([x0, 0.11, w*maxc+wg*(maxc-1), cbar_pos.height/2])
+            cbar.ax.set_position([x0, 0.125, w*maxc+wg*(maxc-1), cbar_pos.height/2])
             cbar.ax.set_aspect('auto')
         
     #___________________________________________________________________________
