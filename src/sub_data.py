@@ -728,6 +728,8 @@ def do_interp_e2n(data, mesh, do_ie2n):
         for vname in vname_list:
             # interpolate elem to vertices
             aux = grid_interp_e2n(mesh,data[vname].data)
+            #with np.errstate(divide='ignore',invalid='ignore'):
+                #aux = grid_interp_e2n(mesh,data[vname].values)
             
             # new variable name 
             vname_new = 'n_'+vname
@@ -797,6 +799,7 @@ def do_anomaly(data1,data2):
         # do anomalous attributes 
         attrs_data1 = data1[vname].attrs
         attrs_data2 = data2[vname2].attrs
+        
         for key in attrs_data1.keys():
             if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
                 if key in ['long_name']:

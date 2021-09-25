@@ -60,7 +60,8 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
             lon[idx] = lon[idx]+360.0
         
         # shift longitude coordinates    
-        data.coords[lon_name].values = lon    
+        #data.coords[lon_name].values = lon  
+        data = data.assign_coords(dict({lon_name:lon}))
         
         # periodically roll data together with longitude dimension
         data = data.roll(dict({'lon':idx_roll}), roll_coords=True)
@@ -100,8 +101,8 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
     if (do_hinterp) is not None:
         if do_hinterp=='nearest':
             #add fesom2 mesh coordinatesro xarray dataset
-            n_x = xr.DataArray(mesh.n_x, dims="n2dn")
-            n_y = xr.DataArray(mesh.n_y, dims="n2dn")
+            n_x = xr.DataArray(mesh.n_x, dims="nod2")
+            n_y = xr.DataArray(mesh.n_y, dims="nod2")
             
             # interp data on nodes
             data = data.interp(lon=n_x, lat=n_y, method='nearest')
@@ -109,18 +110,20 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
             
         elif do_hinterp=='linear':
             #add fesom2 mesh coordinatesro xarray dataset
-            n_x = xr.DataArray(mesh.n_x, dims="n2dn")
-            n_y = xr.DataArray(mesh.n_y, dims="n2dn")
+            n_x = xr.DataArray(mesh.n_x, dims="nod2")
+            n_y = xr.DataArray(mesh.n_y, dims="nod2")
             
             # interp data on nodes --> method linear
             data_lin = data.interp(lon=n_x, lat=n_y, method='linear')
             
             # fill up nan gaps as far as possible with nearest neighbours -->
             # gives better coastal edges
-            isnan = xr.ufuncs.isnan(data_lin[vname])
-            data_lin[vname][isnan] = data[vname].interp(lon=n_x.sel(n2dn=isnan), lat=n_y.sel(n2dn=isnan), method='nearest')
+            if depth is not None:
+                isnan = xr.ufuncs.isnan(data_lin[vname])
+                data_lin[vname][isnan] = data[vname].interp(lon=n_x.sel(nod2=isnan), lat=n_y.sel(nod2=isnan), method='nearest')
+                del isnan
             data = data_lin
-            del isnan, data_lin, n_x, n_y
+            del data_lin, n_x, n_y
             
         elif do_hinterp=='regular': 
             ...
