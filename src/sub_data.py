@@ -727,9 +727,9 @@ def do_interp_e2n(data, mesh, do_ie2n):
         #_______________________________________________________________________
         for vname in vname_list:
             # interpolate elem to vertices
-            aux = grid_interp_e2n(mesh,data[vname].data)
+            #aux = grid_interp_e2n(mesh,data[vname].data)
             #with np.errstate(divide='ignore',invalid='ignore'):
-                #aux = grid_interp_e2n(mesh,data[vname].values)
+            aux = grid_interp_e2n(mesh,data[vname].values)
             
             # new variable name 
             vname_new = 'n_'+vname
