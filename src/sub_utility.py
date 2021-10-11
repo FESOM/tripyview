@@ -212,6 +212,9 @@ from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox
 import ipywidgets as widgets
 from sub_index import do_boxmask
 from matplotlib.tri import Triangulation
+from matplotlib.patches import Rectangle
+from   shapely.geometry   import Polygon, shape
+from   shapely.vectorized import contains
 class select_scatterpts_depth(object):
     
     #
@@ -219,8 +222,8 @@ class select_scatterpts_depth(object):
     # ___INIT SELECT_SCATTER_POINTS DEPTH OBJECT______________________________________________________
     def __init__(self, mesh, data, box_list, do_elem=True, do_tri=True, clim=None, 
                  cname='terrain', cnum=20, seldeprange=[-2000, -100], seldepdefault=-680, 
-                 figax=None, figsize=[10, 8], scatsize=500, zoom_fac=0.25, do_centersel=True,
-                 showtxt=True, do_datacopy=True):
+                 figax=None, figsize=[10, 8], scatsize=100, zoom_fac=0.25, do_centersel=True,
+                 showtxt=False, do_datacopy=True, do_reldep=False, do_grid= True, do_axeq=True):
         
         #_____________________________________________________________________________________________
         # init varaibles for selection
@@ -240,6 +243,7 @@ class select_scatterpts_depth(object):
         self.fig, self.ax         = [], []
         self.hscat, self.hchos    = None, []
         self.htxt, self.hitxt     = None, []
+        self.htxt_x, self.htxt_y, self.htxt_v = [], [], []
         self.slider, self.seldep  = [], seldepdefault
         self.ssize, self.zoom_fac = scatsize, zoom_fac
         self.showtxt              = showtxt
@@ -264,6 +268,19 @@ class select_scatterpts_depth(object):
         self.cmap, self.cname     = [], cname
         self.cnum                 = cnum
         
+        self.do_reldep            = do_reldep
+        self.mpress               = False # if left mouse button is hold
+        self.sel_single           = True
+        
+        self.sel_rect             = False
+        self.rect_xds, self.rect_xde = [], [] # mouse drag start point 
+        self.rect_yds, self.rect_yde = [], [] # mouse drag end point
+        self.rect, self.rect_h      = None, None
+        
+        self.sel_poly             = False
+        self.poly_x, self.poly_y  = [], []
+        self.poly_h               = []
+        
         #_____________________________________________________________________________________________
         # set indices mask for vertices and element centroids in box 
         # create first round of scatter points from box_list with index 0 
@@ -273,7 +290,12 @@ class select_scatterpts_depth(object):
         if figax is not None:
             self.fig, self.ax = figax[0], figax[1]
         else:    
-            self.fig, self.ax = plt.figure(figsize=figsize), plt.gca()
+            #self.fig, self.ax = plt.figure(figsize=figsize), plt.gca()
+            self.fig, self.ax = plt.subplots( 1,1,figsize=figsize, 
+                                gridspec_kw=dict(left=0.05, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
+                                constrained_layout=False, sharex=True, sharey=True)
+        if do_grid: self.ax.grid(True, linewidth=1.0, alpha=0.9, zorder=10, )
+        if do_axeq: self.ax.axis('equal')
         
         #_____________________________________________________________________________________________
         # set cmin, cmax, clevel, cmap
@@ -288,10 +310,6 @@ class select_scatterpts_depth(object):
                               vmin=self.clevel[0], vmax=self.clevel[-1], 
                               cmap=self.cmap, edgecolor='k')  
                 
-        #_____________________________________________________________________________________________
-        # write text string of depth in each scatter point
-        #self._update_scattertxt_()
-        
         #_____________________________________________________________________________________________
         self._update_scattertri_()
         
@@ -315,11 +333,30 @@ class select_scatterpts_depth(object):
         
         #_____________________________________________________________________________________________
         # create slider to choose the depth that should be setted
-        interact(self._sel_depth_      , depth = widgets.IntSlider(min=seldeprange[0], max=seldeprange[1], step=5, 
-                                                 value=seldepdefault, description='select depth:', continuous_update=False,
-                                                 layout=widgets.Layout(width='50%')))
+        layout_slider   = widgets.Layout(width='750px')
+        layout_checkbox = widgets.Layout(width='100px')
+        if self.do_reldep:
+            # relative depth change: (+) shallower, (-) deeper
+            self.slider_seldep = widgets.IntSlider(min=-100, max=+100, step=5, 
+                                                    value=0, description='rel dep [%]:', continuous_update=False,
+                                                    layout=layout_slider)
+        else:
+            # absolute  depth change
+            self.slider_seldep = widgets.IntSlider(min=seldeprange[0], max=seldeprange[1], step=5, 
+                                                    value=seldepdefault, description='abs dep [m]:', continuous_update=False,
+                                                    layout=layout_slider)
+        # checkbox for relative and absolute depth                                            
+        self.checkbox_reldep = widgets.Checkbox(value=self.do_reldep, description='relative:',
+                                                disabled=False, indent=False, layout=layout_checkbox)
         
-        interact(self._sel_scattersize_, ssize = widgets.IntSlider(min=10, max=2000, step=50, value=self.ssize, 
+        w1=widgets.interactive(self._sel_depth_      , depth = self.slider_seldep)
+        w2=widgets.interactive(self._sel_absreldep_  , reldep= self.checkbox_reldep)
+        ui= widgets.HBox(children=[w1, w2], 
+                    layout=widgets.Layout(display='inline-flex',flex_flow='row',
+                    align_items='stretch', border='None',width='50%'))
+        display(ui)
+        
+        interact(self._sel_scattersize_, ssize = widgets.IntSlider(value=self.ssize, min=0, max=2000, step=10, 
                                                  description='scatpts size:', continuous_update=False,
                                                  layout=widgets.Layout(width='50%')))
         
@@ -328,30 +365,38 @@ class select_scatterpts_depth(object):
                                                  continuous_update=False,  orientation='horizontal',
                                                  readout=True, readout_format='d', layout=widgets.Layout(width='50%')))
         
-        #interact(self._sel_showtxt_    , showtx= widgets.Checkbox(value=self.showtxt, description='show txt:',
-                                                 #disabled=False, indent=False))
+        interact(self._sel_showtxt_    , showtx= widgets.Checkbox(value=self.showtxt, description='show txt:',
+                                                 disabled=False, indent=False))
         
-        interact(self._sel_centersel_  , csel  = widgets.Checkbox(value=self.centersel, description='center selection:',
-                                                                   disabled=False, indent=False))
+        interact(self._sel_centersel_  , csel= widgets.Checkbox(value=self.centersel, description='center selction:',
+                                                 disabled=False, indent=False))
         
         #_____________________________________________________________________________________________
         # make interactive mpl connection for mouse and keybouad press 
-        self.cid_m = self.fig.canvas.mpl_connect('button_press_event',self._mousepress_)
-        self.cid_k = self.fig.canvas.mpl_connect('key_press_event'   ,self._keypress_  )
+        self.cid_m = self.fig.canvas.mpl_connect('button_press_event'  , self._mousepress_)
+        self.cid_mr= self.fig.canvas.mpl_connect('button_release_event', self._mouserelease_)
+        self.cid_mm= self.fig.canvas.mpl_connect('motion_notify_event' , self._mousemove_)
+        self.cid_k = self.fig.canvas.mpl_connect('key_press_event'     , self._keypress_)
         
     #_________________________________________________________________________________________________
     # define mouse press events 
     def _mousepress_(self, event):
         self.xm, self.ym, self.bm = event.xdata, event.ydata, event.button
         # self.hitxt.set_text('xm={:f}, ym={:f}, bm={:d},'.format(self.xm, self.ym, self.bm))
-
-        # left mouse button
-        if self.bm==1 : 
+        
+        # if mouse is not over axes nothing happens 
+        if event.inaxes!=self.ax: return
+    
+        #_______________________________________________________________________
+        # left mouse button --> do single point selection
+        if self.bm==1 and self.sel_single==True: 
+            self.mpress = False
             # make selection circle green
             self.hchos.set_edgecolor([0.1,1,0.5])
             
             # search closet scatter points with respect to mous position
             self.idx_c = np.argmin( np.sqrt((self.xs-self.xm)**2 + (self.ys-self.ym)**2) )
+            
             
             # move around selection circle
             self.hchos.set_offsets( [self.xs[self.idx_c], self.ys[self.idx_c]] )
@@ -359,17 +404,90 @@ class select_scatterpts_depth(object):
             # center window around selection circle
             if self.centersel: self._movecenter_()
             self.hitxt.set_text('---{{,_,"> [left]')
-
+            
+        # left mouse button --> do multiple point selection with mouse drag
+        elif self.bm==1 and self.sel_rect==True:
+            self.mpress = True
+            self.rect_xds, self.rect_yds = self.xm, self.ym
+            self.rect   = Rectangle((self.rect_xds, self.rect_yds), 0, 0, linewidth=2, facecolor='None', edgecolor='k')
+            self.rect_h = self.ax.add_patch(self.rect)
+        
+        # left mouse button --> do select points for polygon
+        elif self.bm==1 and self.sel_poly==True:
+            self.mpress = False
+            #___________________________________________________________________
+            # collect polygon points
+            if   len(self.poly_x)==0: 
+                self.poly_x, self.poly_y = list([self.xm]), list([self.ym])
+                self.poly_h = self.ax.plot(self.poly_x, self.poly_y,'-o', color='k')
+            else: 
+                self.poly_x.append(self.xm) 
+                self.poly_y.append(self.ym)
+                self.poly_h[0].set_data(self.poly_x, self.poly_y)
+                
+            #___________________________________________________________________
+            # check if polygon is closed --> compute points in polygon 
+            if len(self.poly_x)>2:
+                d = np.sqrt( (self.poly_x[0]-self.poly_x[-1])**2 + 
+                             (self.poly_y[0]-self.poly_y[-1])**2)
+                if d<0.1 : 
+                    self.poly_x[-1], self.poly_y[-1] = self.poly_x[0], self.poly_y[0]
+                    p      = Polygon(list(zip(self.poly_x, self.poly_y)))
+                    self.idx_c = np.where(contains(p, self.xs, self.ys))[0]
+                    
+                    # make multiple selection circle
+                    self.hchos.set_offsets(np.vstack((self.xs[self.idx_c], self.ys[self.idx_c])).transpose())
+                    
+                    #___________________________________________________________________
+                    # delete rectangle 
+                    self.poly_h[0].remove()
+                    self.poly_h = []
+                    
+        #_______________________________________________________________________
         # right mouse button --> zoom to original
         if self.bm==3 : 
             self.hitxt.set_text('---{{,_,"> [right]')
             self._zoomorig_()
+        
+    #_________________________________________________________________________________________________
+    # define mouse release event --> when there is multiple selection
+    def _mouserelease_(self, event):
+        if self.sel_rect==True: 
+            self.mpress = False
+            self.rect_xde, self.rect_yde = event.xdata, event.ydata
+            self.rect.set_width( self.rect_xde - self.rect_xds)
+            self.rect.set_height(self.rect_yde - self.rect_yds)
+            
+            #___________________________________________________________________
+            px     = [self.rect_xds, self.rect_xde, self.rect_xde, self.rect_xds, self.rect_xds]
+            py     = [self.rect_yds, self.rect_yds, self.rect_yde, self.rect_yde, self.rect_yds]
+            p      = Polygon(list(zip(px,py)))
+            self.idx_c = np.where(contains(p, self.xs, self.ys))[0]
+            
+            # make multiple selection circle
+            self.hchos.set_offsets(np.vstack((self.xs[self.idx_c], self.ys[self.idx_c])).transpose())
+            #___________________________________________________________________
+            # delete rectangle 
+            self.rect_h.remove()
+            del(self.rect)
+            self.rect, self.rect_h = None, None
+            
+    #_________________________________________________________________________________________________
+    # define mouse move events --> when there is multiple selection
+    def _mousemove_(self, event):
+        if self.sel_rect==True and self.mpress==True and self.rect is not None: 
+            self.rect.set_width( event.xdata - self.rect_xds)
+            self.rect.set_height(event.ydata - self.rect_yds)
             
     #__________________________________________________________________________________________________
     # define keyboard press events 
     def _keypress_(self, event):
         self.xk, self.yk, self.bk = event.xdata, event.ydata, event.key
-        self.hitxt.set_text('xk={:f}, yk={:f}, bk={},'.format(self.xk, self.yk, str(self.bk)))
+        
+        # if mouse is not over axes nothing happens 
+        if event.inaxes!=self.ax: return
+        
+        #self.hitxt.set_text('xk={:f}, yk={:f}, bk={:s},'.format(self.xk, self.yk, str(self.bk)))
         
         # press c key --> choose new depth value
         if   self.bk=='c'    : self._keychoose_()
@@ -400,6 +518,11 @@ class select_scatterpts_depth(object):
         
         # press right key --> move right
         elif self.bk=='right': self._moveright_()    
+        
+        # press right key --> move right
+        elif self.bk=='1': self.sel_single, self.sel_rect, self.sel_poly = True , False, False
+        elif self.bk=='2': self.sel_single, self.sel_rect, self.sel_poly = False, True , False
+        elif self.bk=='3': self.sel_single, self.sel_rect, self.sel_poly = False, False, True
     
     #__________________________________________________________________________________________________
     # disconect interative mpl connection 
@@ -408,10 +531,28 @@ class select_scatterpts_depth(object):
         self.hchos.set_edgecolor('y')
         
         # set new depth value 
-        self.vs_new[self.idx_c] = self.seldep
+        # change relative depth
+        if self.do_reldep:
+            self.vs_new[self.idx_c] = self.vs[self.idx_c] + self.vs[self.idx_c]*self.seldep/100
+        # change absolute depth    
+        else:    
+            self.vs_new[self.idx_c] = self.seldep
         
         # change local depth label and adapt color towards new depth value
-        self.htxt[self.idx_c].set_text('{:.0f}m'.format(self.vs_new[self.idx_c]))
+        if self.showtxt:
+            #if len(self.idx_c)==1:
+            if isinstance(self.idx_c, np.int64):
+                idx = np.argmin(np.sqrt( (self.htxt_x-self.xs[self.idx_c])**2 + (self.htxt_y-self.ys[self.idx_c])**2 ))
+                self.htxt[idx].set_text('{:.0f}'.format(self.vs_new[self.idx_c]))
+            else:
+                print(self.idx_c)
+                print(len(self.idx_c))
+                for ii in range(0,len(self.idx_c)): 
+                    idx = np.argmin(np.sqrt( (self.htxt_x-self.xs[self.idx_c[ii]])**2 + 
+                                             (self.htxt_y-self.ys[self.idx_c[ii]])**2 ))
+                    self.htxt[idx].set_text( '{:.0f}'.format(self.vs_new[self.idx_c[ii]]) )
+                
+            
         self.hscat.set_array(self.vs_new)
         self.hitxt.set_text('[c]')
     
@@ -422,7 +563,9 @@ class select_scatterpts_depth(object):
         self.hchos.set_edgecolor('r')
         
         # actualize position of selection circle 
-        self.hchos.set_offsets( [self.xs[self.idx_c], self.ys[self.idx_c]] )
+        #self.hchos.set_offsets( [self.xs[self.idx_c], self.ys[self.idx_c]] )
+        self.hchos.set_offsets(np.vstack((self.xs[self.idx_c], self.ys[self.idx_c])).transpose())
+                    
         self.hitxt.set_text('[e]--> finish')
         
         # before exiting and disconnecting plot save changes from the actual one 
@@ -431,6 +574,8 @@ class select_scatterpts_depth(object):
         # disconect interactive mouse, keyboard
         self.fig.canvas.mpl_disconnect(self.cid_m)
         self.fig.canvas.mpl_disconnect(self.cid_k)
+        self.fig.canvas.mpl_disconnect(self.cid_mr)
+        self.fig.canvas.mpl_disconnect(self.cid_mm)
         plt.show(block=False)
         return(self) 
     
@@ -451,12 +596,12 @@ class select_scatterpts_depth(object):
         # shift xy axes limits
         self.ax.set_xlim(aux_xlim[0]-aux_dxlim*self.zoom_fac, aux_xlim[1]+aux_dxlim*self.zoom_fac)
         self.ax.set_ylim(aux_ylim[0]-aux_dylim*self.zoom_fac, aux_ylim[1]+aux_dylim*self.zoom_fac) 
-    
+        
     def _zoomorig_(self):
         # shift xy axes limits
         self.ax.set_xlim(self.xlim_o)
         self.ax.set_ylim(self.ylim_o) 
-    
+        
     #__________________________________________________________________________________________________
     # move up, down, left, right
     def _moveup_(self):
@@ -507,14 +652,72 @@ class select_scatterpts_depth(object):
     # update selected values from checkbox if depth labels are shown or not
     def _sel_showtxt_(self, showtx):
         self.showtxt = showtx    
-        for itxt in self.htxt:
-            if self.showtxt: itxt.set_alpha(1.0)
-            else:            itxt.set_alpha(0.0)
+        if self.showtxt==False:
+            if self.htxt is not None:
+                # remove old text labels
+                for htxt in self.htxt: htxt.remove()
+                self.htxt = None
+        
+        elif self.showtxt==True:
+            # remove old text labels
+            if self.htxt is not None:
+                for htxt in self.htxt: htxt.remove()
+                self.htxt=None
+            
+            # write new text labels
+            aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
+            
+            # define points for actual axes window
+            
+            xmin = np.max([self.box_list[self.idx_box][0][0], aux_xlim[0]])
+            xmax = np.min([self.box_list[self.idx_box][0][1], aux_xlim[1]])
+            ymin = np.max([self.box_list[self.idx_box][0][2], aux_ylim[0]])
+            ymax = np.min([self.box_list[self.idx_box][0][3], aux_ylim[1]])
+            if self.do_elem: 
+                #idx = do_boxmask(self.mesh, [aux_xlim[0],aux_xlim[1],aux_ylim[0], aux_ylim[1]], do_elem=True)
+                idx = do_boxmask(self.mesh, [xmin, xmax, ymin, ymax], do_elem=True)
+                idx[self.mesh.e_pbnd_1]=False
+                self.htxt_x   = self.mesh.n_x[self.mesh.e_i[idx,:]].sum(axis=1)/3.0
+                self.htxt_y   = self.mesh.n_y[self.mesh.e_i[idx,:]].sum(axis=1)/3.0
+                self.htxt_v   = self.data[idx]
+            else: 
+                #idx = do_boxmask(self.mesh, [aux_xlim[0],aux_xlim[1],aux_ylim[0], aux_ylim[1]], do_elem=False)
+                idx = do_boxmask(self.mesh, [xmin, xmax, ymin, ymax], do_elem=False)
+                self.htxt_x   = self.mesh.n_x[idx]
+                self.htxt_y   = self.mesh.n_y[idx]
+                self.htxt_v   = self.data[idx]
+        
+            # 2nd. redo depth text labels
+            self.htxt=list()
+            for ii in range(0,len(self.htxt_x)):
+                # do here annotation instead of text because anotation can become
+                # transparent --> i can hide them with text checkbox
+                # htxt = self.ax.annotate('{:.0f}m'.format(self.htxt_v[ii]), [self.htxt_x[ii], self.htxt_y[ii]],
+                htxt = self.ax.annotate('{:.0f}'.format(self.htxt_v[ii]), [self.htxt_x[ii], self.htxt_y[ii]], 
+                                        xycoords='data' , va="center", ha="center", fontsize=7)
+                self.htxt.append(htxt)
+        
             
     # update selected values from checkbox if selection circle should be 
     # always centered
     def _sel_centersel_(self, csel):
         self.centersel = csel
+        
+    def _sel_absreldep_(self, reldep):
+        if  self.do_reldep==True and reldep==False:
+            self.slider_seldep.max  = 0
+            self.slider_seldep.min  = -6000
+            self.slider_seldep.step = 10
+            self.slider_seldep.value= -680
+            self.slider_seldep.description='abs dep [m]:'
+            
+        elif self.do_reldep==False and reldep==True:   
+            self.slider_seldep.max  = +100
+            self.slider_seldep.min  = -100
+            self.slider_seldep.step = 5
+            self.slider_seldep.value= 0
+            self.slider_seldep.description='rel dep[%]:'
+        self.do_reldep = reldep
     
     # update colorange from slider
     def _sel_colorrange_(self, crange):
@@ -593,6 +796,7 @@ class select_scatterpts_depth(object):
         # set indices mask for vertices and element centroids in box 
         # create first round of scatter points from box_list with index 0 
         idxe = do_boxmask(self.mesh, self.box_list[self.idx_box][0], do_elem=True)
+        idxe[self.mesh.e_pbnd_1]=False
         if not self.do_elem: 
             idxn      = do_boxmask(self.mesh, self.box_list[self.idx_box][0], do_elem=False)
             self.xs   = self.mesh.n_x[idxn]
@@ -631,8 +835,9 @@ class select_scatterpts_depth(object):
         for ii in range(0,len(self.xs)):
             # do here annotation instead of text because anotation can become
             # transparent --> i can hide them with text checkbox
-            htxt = self.ax.annotate('{:.0f}m'.format(self.vs[ii]), [self.xs[ii], self.ys[ii]], 
-                                    xycoords='data' , va="center", ha="center", fontsize=6)
+            #htxt = self.ax.annotate('{:.0f}m'.format(self.vs[ii]), [self.xs[ii], self.ys[ii]],
+            htxt = self.ax.annotate('{:.0f}'.format(self.vs[ii]), [self.xs[ii], self.ys[ii]],                         
+                                    xycoords='data' , va="center", ha="center", fontsize=7)
             self.htxt.append(htxt)
     
     # update title of scatter plot
