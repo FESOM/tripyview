@@ -74,7 +74,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     do_norm = False
     str_adep, str_atim = '', '' # string for arithmetic
     str_ldep, str_ltim = '', '' # string for labels
-        
+    str_lsave = ''    
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
     #data = xr.Dataset(coords={  "lon"  :( "nod2"         ,mesh.n_x), 
@@ -262,11 +262,14 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     
     #___________________________________________________________________________
     # write additional attribute info
+    str_lsave = str_ltim+str_ldep
+    str_lsave = str_lsave.replace(' ','_').replace(',','').replace(':','')
+    
     for vname in list(data.keys()):
-        attr_dict=dict({'datapath':datapath, 'do_file':do_file, 'do_filename':do_filename, 
+        attr_dict=dict({'datapath':datapath, 'runid':runid, 'do_file':do_file, 'do_filename':do_filename, 
                         'year':year, 'mon':mon, 'day':day, 'record':record, 'depth':depth, 
                         'depidx':depidx, 'do_tarithm':str_atim,
-                        'do_zarithm':str_adep, 'str_ltim':str_ltim,'str_ldep':str_ldep,
+                        'do_zarithm':str_adep, 'str_ltim':str_ltim,'str_ldep':str_ldep,'str_lsave':str_lsave,
                         'is_data':is_data, 'is_ie2n':is_ie2n, 'do_compute':do_compute, 
                         'descript':descript})
         data = do_additional_attrs(data, vname, attr_dict)
