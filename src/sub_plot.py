@@ -194,6 +194,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     #___________________________________________________________________________
     # set up color info 
     cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale)
+    # print(cinfo)
     
     #___________________________________________________________________________
     # loop over axes
@@ -281,7 +282,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     for jj in range(ndata, nax): fig.delaxes(ax[jj])
     
     #___________________________________________________________________________
-    # delete axes that are not needed
+    # create colorbar 
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
@@ -327,7 +328,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.8,0.8,0.8],  title=None,
                 pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, linecolor='k', 
-                linewidth=0.5):
+                linewidth=0.5, hsize = 20):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -439,7 +440,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     elif proj=='rob':        
         which_proj=ccrs.Robinson()    
         which_transf = ccrs.PlateCarree()    
-        
+    
     #___________________________________________________________________________    
     # create lon, lat ticks 
     xticks,yticks = do_ticksteps(mesh, box)
@@ -450,7 +451,8 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 figsize=figsize, 
                                 subplot_kw =dict(projection=which_proj),
                                 gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False, )
+                                constrained_layout=False,)
+                                #sharex='all', sharey='all' )
     
     #___________________________________________________________________________    
     # flatt axes if there are more than 1
@@ -484,6 +486,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     #___________________________________________________________________________
     # data must be list filled with xarray data
     if not isinstance(data, list): data = [data]
+    ndata = len(data)
         
     #___________________________________________________________________________
     # set up color info 
@@ -491,11 +494,12 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # loop over axes
-    for ii in range(0,nax):
+    for ii in range(0,ndata):
         
         #_______________________________________________________________________
         # add color for bottom bottom
-        if do_bottom: ax[ii].background_patch.set_facecolor(color_bot)
+        if do_bottom : 
+            ax[ii].background_patch.set_facecolor(color_bot)
         
         #_______________________________________________________________________
         # set axes extent
@@ -507,25 +511,17 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         data_plot_u = data[ii][ vname[0] ].data
         data_plot_v = data[ii][ vname[1] ].data
         data_plot_n = np.sqrt(data_plot_u**2 + data_plot_v**2)
-        data_plot_n, str_rescale= do_rescale_data(data_plot_n, do_rescale)
+        #data_plot_n, str_rescale= do_rescale_data(data_plot_n, do_rescale)
         
         data_plot_u = np.hstack((data_plot_u,data_plot_u[mesh.n_pbnd_a]))
         data_plot_v = np.hstack((data_plot_v,data_plot_v[mesh.n_pbnd_a]))
         data_plot_n = np.hstack((data_plot_n,data_plot_n[mesh.n_pbnd_a]))
         
-        #data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
+        data_plot_u, data_plot_v = data_plot_u/data_plot_n, data_plot_v/data_plot_n
         data_plot_n[data_plot_n<cinfo['clevel'][0]]  = cinfo['clevel'][0] #+np.finfo(np.float32).eps
         data_plot_n[data_plot_n>cinfo['clevel'][-1]] = cinfo['clevel'][-1]#-np.finfo(np.float32).eps
-        #data_plot_u, data_plot_v = data_plot_u/data_plot_n, data_plot_v/data_plot_n
+        data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
         
-        limit = cinfo['clevel'][-1]*0.05
-        aux = data_plot_n**0.5
-        #aux = data_plot_n**2
-        data_plot_u[aux<limit]=data_plot_u[aux<limit]/aux[aux<limit]*limit
-        data_plot_v[aux<limit]=data_plot_v[aux<limit]/aux[aux<limit]*limit
-        
-        #data_plot_u=data_plot_u*0.01
-        #data_plot_v=data_plot_v*0.01
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
         isnan   = np.isnan(data_plot_n)
@@ -537,17 +533,10 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                         data_plot_u[isnan==False], data_plot_v[isnan==False],
                         data_plot_n[isnan==False], 
                         transform=which_transf,
-                        cmap = cinfo['cmap'],
-                        scale_units='xy', #scale=1/aux*50*scal_fac*clevel[-1], #scale=1/aux*80*scal_fac*clevel[-1], #np.max(norm)*0.01,#scale=np.max(norm)*1.15, #25,#scale_units='xy'/'width',scale=clevel[-1],
-                        scale = 1000,
-                        edgecolor='k',
-                        #linewidth=0.1,
-                        
-                        #pivot='middle', 
-                        #antialiased=True,
-                        #minlength=0.0,
-                        #width=0.005,
-                        #headlength=3, headaxislength=3, headwidth=2.0,
+                        cmap = cinfo['cmap'], 
+                        edgecolor='k', linewidth=0.15,
+                        units='xy', angles='xy', scale_units='xy', scale=1/hsize,
+                        headlength=hsize, headaxislength=hsize, headwidth=hsize*2/3,
                         )
         hp.set_clim([cinfo['clevel'][0],cinfo['clevel'][-1]])
             
@@ -585,7 +574,8 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # delete axes that are not needed
-    for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    for jj in range(ndata, nax): fig.delaxes(ax[jj])
     
     #___________________________________________________________________________
     # delete axes that are not needed
@@ -886,6 +876,7 @@ def do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=False):
             cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
             cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
             cmin, cmax = cmin*cfac, cmax*cfac
+            # print(cmin,cmax)
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
         if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
     if 'crange' in cinfo.keys():
@@ -1106,7 +1097,8 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
 #| ax           :   actual axes handle                                         |
 #| cbar         :   actual colorbar handle                                     | 
 #|_____________________________________________________________________________|  
-def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=None):
+def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=None, 
+                          extend=None):
     #___________________________________________________________________________
     # repositioning of axes and colorbar
     nax = len(ax)
@@ -1132,8 +1124,11 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
     fac = pos_fac
     wg, hg = pos_gap[0], pos_gap[1]
     x0, y0, x1, y1 = 0.075, 0.05, 0.825, 0.95
+    if extend is not None:
+        x0, y0, x1, y1 = extend[0], extend[1], extend[2], extend[3]
+        
     if cbar is not None:
-        if cbar.orientation=='horizontal': y0 = 0.2
+        if cbar.orientation=='horizontal': y0 = y0+0.25
         
     dx = x1-x0-(maxc-1)*wg
     w  = dx/maxc
@@ -1157,7 +1152,8 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
             cbar.ax.set_position([x0+(w+wg)*maxc, y0, cbar_pos.width*0.75, h*maxr+hg*(maxr-1)])
             cbar.ax.set_aspect('auto')
         else: 
-            cbar.ax.set_position([x0, 0.125, w*maxc+wg*(maxc-1), cbar_pos.height/2])
+            #cbar.ax.set_position([x0, 0.125, w*maxc+wg*(maxc-1), cbar_pos.height/2])/
+            cbar.ax.set_position([x0, 0.14, w*maxc+wg*(maxc-1), cbar_pos.height/2])
             cbar.ax.set_aspect('auto')
         
     #___________________________________________________________________________
