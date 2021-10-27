@@ -19,7 +19,7 @@ from colormap_c2c import *
 import matplotlib.colors
 import matplotlib.ticker as mticker
 import matplotlib.path as mpath
-
+from matplotlib.colors import ListedColormap
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
@@ -31,8 +31,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.8,0.8,0.8],  title=None,
-                pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, linecolor='k', 
-                linewidth=0.5):
+                pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
+                linecolor='k', linewidth=0.5, ):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -138,9 +138,11 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     elif proj=='nps':    
         which_proj=ccrs.NorthPolarStereo()    
         which_transf = ccrs.PlateCarree()
+        if box[2]<0: box[2]=0
     elif proj=='sps':        
         which_proj=ccrs.SouthPolarStereo()    
         which_transf = ccrs.PlateCarree()
+        if box[3]>0: box[2]=0
     elif proj=='rob':        
         which_proj=ccrs.Robinson()    
         which_transf = ccrs.PlateCarree()    
@@ -198,6 +200,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # loop over axes
+    hpall=list()
     #for ii in range(0,nax):
     for ii in range(0,ndata):
         #_______________________________________________________________________
@@ -243,7 +246,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
             hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot, 
                                 transform=which_transf, 
                                 levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
-                
+        hpall.append(hp)        
         #_______________________________________________________________________
         # add grid mesh on top
         if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
@@ -280,12 +283,14 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     # delete axes that are not needed
     #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
     for jj in range(ndata, nax): fig.delaxes(ax[jj])
-    
+    if nax != nax_fin-1: ax = ax[0:nax_fin]
+   
     #___________________________________________________________________________
     # create colorbar 
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
+    
     cbar.ax.tick_params(labelsize=fontsize)
     
     if cbar_label is None: cbar_label = data[nax_fin-1][ vname[0] ].attrs['long_name']
@@ -306,11 +311,14 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=title)
+    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
     
+    plt.show(block=False)
+    fig.canvas.draw()
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save)
+    do_savefigure(do_save, dpi=save_dpi)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
@@ -327,8 +335,9 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.8,0.8,0.8],  title=None,
-                pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, linecolor='k', 
-                linewidth=0.5, hsize = 20):
+                pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, linecolor='k', 
+                linewidth=0.5, hsize = 20, do_normalize=True, do_topo=False, do_density=None,
+                pos_extend=None,):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -522,28 +531,64 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         data_plot_n[data_plot_n>cinfo['clevel'][-1]] = cinfo['clevel'][-1]#-np.finfo(np.float32).eps
         data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
         
+        
+        if do_normalize:
+            data_plot_u = data_plot_u/data_plot_n
+            data_plot_v = data_plot_v/data_plot_n
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
-        isnan   = np.isnan(data_plot_n)
-        e_idxok = np.any(isnan[tri.triangles], axis=1)==False
+        isok   = np.isnan(data_plot_n)==False
+        #e_idxok = np.any(isok[tri.triangles], axis=1)==True
+        
+        if do_density is not None:
+            r0      = 1/(np.sqrt(mesh.n_area))
+            isp     = np.random.rand(mesh.n2dn)>r0/np.max(r0)*do_density #1.5
+            isok    = np.logical_and(isok,np.hstack((isp,isp[mesh.n_pbnd_a])) )
         
         #_______________________________________________________________________
         # plot tri contourf/tripcolor
-        hp=ax[ii].quiver(tri.x[     isnan==False], tri.y[      isnan==False], 
-                        data_plot_u[isnan==False], data_plot_v[isnan==False],
-                        data_plot_n[isnan==False], 
+        hfac=3
+        hp=ax[ii].quiver(tri.x[     isok], tri.y[      isok], 
+                        data_plot_u[isok], data_plot_v[isok],
+                        data_plot_n[isok],
                         transform=which_transf,
                         cmap = cinfo['cmap'], 
                         edgecolor='k', linewidth=0.15,
                         units='xy', angles='xy', scale_units='xy', scale=1/hsize,
-                        headlength=hsize, headaxislength=hsize, headwidth=hsize*2/3,
-                        )
+                        width = 0.10, #0.1,
+                        headlength=hfac*max([hsize,1.0]),#hsize, 
+                        headaxislength=hfac*max([hsize,1.0]), #hsize, 
+                        headwidth=hfac*max([hsize,1.0])*0.8,# hsize*2/3,
+                        zorder=10)
         hp.set_clim([cinfo['clevel'][0],cinfo['clevel'][-1]])
-            
+        
+        
         #_______________________________________________________________________
         # add grid mesh on top
-        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
-                                   color='k', linewidth=0.2, alpha=0.75) 
+        if do_topo: 
+            fname = data[ii][vname[0]].attrs['runid']+'.mesh.diag.nc'
+            dname = data[ii][vname[0]].attrs['datapath']
+            diagpath = os.path.join(dname,fname)
+            n_iz   = xr.open_mfdataset(diagpath, parallel=True)['nlevels_nod2D']-1
+            data_plot = np.abs(mesh.zlev[n_iz])
+            data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+            
+            levels = np.hstack((25, 50, 100, 150, 200, 250, np.arange(500,6000+1,500)))
+            N = len(levels)
+            vals = np.ones((N, 4))
+            vals[:, 0] = np.linspace(0.2, 0.95, N)
+            vals[:, 1] = np.linspace(0.2, 0.95, N)
+            vals[:, 2] = np.linspace(0.2, 0.95, N)
+            vals = np.flipud(vals)
+            newcmp = ListedColormap(vals)
+            ax[ii].tricontourf(tri.x, tri.y, tri.triangles, data_plot, 
+                                levels=levels, cmap=newcmp, extend='both')
+            ax[ii].tricontour(tri.x, tri.y, tri.triangles, data_plot, levels=levels, 
+                              colors='k', linewidths=0.25, alpha=0.5)
+        #_______________________________________________________________________
+        # add grid mesh on top
+        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[e_idxok,:], #tri.triangles[:,:], #
+                                   color='k', linewidth=0.2, alpha=0.75, zorder=1) 
                                    #transform=which_transf)
         
         #_______________________________________________________________________
@@ -602,11 +647,14 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=title)
+    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
     
+    plt.show(block=False)
+    fig.canvas.draw()
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save)
+    do_savefigure(do_save, dpi=save_dpi)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
@@ -615,7 +663,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
 
 def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5], 
                 title=None, do_save=None, do_lsmask='fesom', color_lsmask=[0.6, 0.6, 0.6],
-                linecolor='k', linewidth=0.2, linealpha=0.75):
+                linecolor='k', linewidth=0.2, linealpha=0.75, pos_extend=None,):
     """
     ---> plot FESOM2 horizontal mesh:
     ___INPUT:___________________________________________________________________
@@ -766,15 +814,16 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
             # is title list of string        
             elif isinstance(title,list): 
                 ax[ii].set_title(title[ii], fontsize=fontsize+2)
+                
     nax_fin = ii+1        
     
     #___________________________________________________________________________
     # delete axes that are not needed
     for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
-    
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, None, rowlist, collist, pos_fac, pos_gap, title=title)
+    ax, cbar = do_reposition_ax_cbar(ax, None, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
     
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
@@ -1098,7 +1147,7 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
 #| cbar         :   actual colorbar handle                                     | 
 #|_____________________________________________________________________________|  
 def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=None, 
-                          extend=None):
+                          extend=None, proj=None):
     #___________________________________________________________________________
     # repositioning of axes and colorbar
     nax = len(ax)
@@ -1106,7 +1155,6 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
     for jj in range(0,nax):
         aux = ax[jj].get_position()
         ax_pos[jj,:] = np.array([aux.x0, aux.y0, aux.width, aux.height])
-    
     maxr = rowlist.max()+1
     maxc = collist.max()+1
     
@@ -1137,12 +1185,14 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
     #dy = y1-y0-(maxr-1)*hg
     #h  = dy/maxr
     #w  = h*ax_pos[:,2].min()/ax_pos[:,3].min()
-    if title is not None: hg = hg+0.06
-    if (h*maxr+hg*(maxr-1)+y0)>1: fac = 1/(h*maxr+hg*(maxr-1)+y0)
-    if (w*maxc+wg*(maxc-1)+x0)>0.825: fac = 1/(w*maxc+wg*(maxc-1)+x0) 
+    if proj in ['nps', 'sps']:
+        if title is not None: hg = hg+0.01
+    else:
+        if title is not None: hg = hg+0.06
+    if (h*maxr+hg*(maxr-1)+y0)>y1: fac = 1/(h*maxr+hg*(maxr-1)+y0)
+    if (w*maxc+wg*(maxc-1)+x0)>x1: fac = 1/(w*maxc+wg*(maxc-1)+x0) 
     w, h = w*fac, h*fac
-    
-    
+
     for jj in range(nax-1,0-1,-1):
         ax[jj].set_position( [x0+(w+wg)*collist[jj], y0+(h+hg)*np.abs(rowlist[jj]-maxr+1), w, h] )
     
@@ -1211,7 +1261,7 @@ def do_ticksteps(mesh, box, ticknr=7):
 #| ___RETURNS_______________________________________________________________   |
 #| None                  
 #|_____________________________________________________________________________|  
-def do_savefigure(do_save, dpi=600, transparent=True, pad_inches=0.1, **kw):
+def do_savefigure(do_save, dpi=300, transparent=True, pad_inches=0.1, **kw):
     if do_save is not None:
         #_______________________________________________________________________
         # extract filename from do_save
