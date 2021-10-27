@@ -17,10 +17,10 @@ from   colormap_c2c       import *
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 
 def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean', 
-                      do_compute=True):
+                      do_compute=True, do_outputidx=False):
     
     #___________________________________________________________________________
-    str_anod    = ''
+    # str_anod    = ''
     index_list  = []
     idxin_list  = []
     cnt         = 0
@@ -28,6 +28,9 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean',
     #___________________________________________________________________________
     # loop over box_list
     for box in box_list:
+        if not isinstance(box, shp.Reader):
+            if len(box)==2: boxname, box = box[1], box[0]
+        
         #_______________________________________________________________________
         # compute  mask index
         idx_IN=do_boxmask(mesh,box)
@@ -37,16 +40,26 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean',
         # points
         index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm) )
         idxin_list.append(idx_IN)
-        str_anod = str(do_harithm)
+        # str_anod = str(do_harithm)
     
         #_______________________________________________________________________
         if do_compute: index_list[cnt] = index_list[cnt].compute()
-    
+        
+        #_______________________________________________________________________
+        if boxname is not None: 
+            vname = list(index_list[cnt].keys())
+            index_list[cnt][vname[0]].attrs['boxname'] = boxname
+        elif boxname is None and isinstance(box, shp.Reader):
+            vname = list(index_list[cnt].keys())
+            index_list[cnt][vname[0]].attrs['boxname'] = os.path.basename(box.shapeName).replace('_',' ')  
+
         #_______________________________________________________________________
         cnt = cnt + 1
     #___________________________________________________________________________
-    return(index_list, idxin_list)
-    
+    if do_outputidx:
+        return(index_list, idxin_list)
+    else:
+        return(index_list)
 #
 #
 #_______________________________________________________________________________
@@ -57,7 +70,10 @@ def do_boxmask(mesh, box, do_elem=False):
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
-    if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+    if  box is None: # if None do global
+        idx_IN = np.ones((mesh_x.shape),dtype=bool)
+        
+    elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
         px     = [box[0], box[1], box[1], box[0], box[0]]
         py     = [box[2], box[2], box[3], box[3], box[2]]
         p      = Polygon(list(zip(px,py)))
@@ -329,7 +345,7 @@ def plot_index_region(mesh, idx_IN, box_list, which='hard'):
 #_______________________________________________________________________________
 def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1], 
                  linecolor_list=None, linestyle_list=None, cbar_label=None,
-                 cbar_unit=None, do_save=None, linewidth=1.0):
+                 cbar_unit=None, do_save=None, linewidth=1.0, do_alpha=0.8):
         
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -369,23 +385,44 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
             linestyle = 'solid'
             if linestyle_list is not None: 
                 if (not linestyle_list[di])==False: linestyle =  linestyle_list[di]
+                
+            if isinstance(linewidth, (list, np.ndarray)):
+                lwidth = linewidth[di]
+            else:
+                lwidth = linewidth
         
             if linecolor_list is None: 
-                ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=linewidth)
+                ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=lwidth, alpha=do_alpha)
             else:
-                if not linecolor_list[di]:
-                    ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=linewidth)
-                else:
+                if isinstance(linecolor_list[di], (list, np.ndarray)):
+                    if len(linecolor_list[di])==0:
+                        ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=lwidth, alpha=do_alpha)
+                    else:
+                        ax[bi].plot(val,dep, color=linecolor_list[di], 
+                                label=label_list[di], linestyle=linestyle, linewidth=lwidth, alpha=do_alpha)
+                elif isinstance(linecolor_list[di], str):
                     ax[bi].plot(val,dep, color=linecolor_list[di], 
-                                label=label_list[di], linestyle=linestyle, linewidth=linewidth)
+                                label=label_list[di], linestyle=linestyle, linewidth=lwidth, alpha=do_alpha)
+                #if not linecolor_list[di]:
+                    #ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=linewidth)
+                #else:
+                    
                     
         #_______________________________________________________________________
-        if bi==0 : ax[bi].legend(loc='best', frameon=True, shadow=True,fontsize=8)
+        if bi==nbi-1 : 
+            ax[bi].legend(loc='upper right', frameon=True, shadow=True, fontsize=8, ncol=1,
+                                   #loc='best', 
+                                   bbox_to_anchor=(1.5, 1.5))
         
         #_______________________________________________________________________
-        if (isinstance(box_list[bi], shp.Reader)): str_title = box_list[bi].shapeName
-        else:                                      str_title = '{}'.format(str(box_list[bi]))
-        ax[bi].set_title(os.path.basename(box_list[bi].shapeName))
+        if 'boxname' in index_list[di][bi][vname[0]].attrs.keys(): 
+            str_title = index_list[di][bi][ vname[0] ].attrs['boxname']
+        elif (isinstance(box_list[bi], shp.Reader)): 
+            str_title = os.path.basename(box_list[bi].shapeName)
+        else:                                      
+            str_title = '{}'.format(str(box_list[bi]))
+        str_title.replace('_',' ')    
+        ax[bi].set_title(str_title)
         
         #_______________________________________________________________________
         if collist[bi]==0:
@@ -423,3 +460,226 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
     #___________________________________________________________________________
     return(fig, ax)
     
+
+ 
+#+___PLOT MERIDIONAL OVERTRUNING CIRCULATION  _________________________________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def plot_index_hovm(data, box_list, figsize=[12, 6], 
+              n_rc=[1, 1], do_grid=True, cinfo=None,
+              cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
+              do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
+              pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
+              do_contour=True, do_clabel=True, title='descript', 
+              pos_extend=[0.05, 0.08, 0.95,0.95],
+            ):
+    #____________________________________________________________________________
+    fontsize = 12
+    str_rescale = None
+    
+    #___________________________________________________________________________
+    # make matrix with row colum index to know where to put labels
+    rowlist = np.zeros((n_rc[0], n_rc[1]))
+    collist = np.zeros((n_rc[0], n_rc[1]))       
+    for ii in range(0,n_rc[0]): rowlist[ii,:]=ii
+    for ii in range(0,n_rc[1]): collist[:,ii]=ii
+    rowlist = rowlist.flatten()
+    collist = collist.flatten()
+    
+    #___________________________________________________________________________    
+    # create figure and axes
+    fig, ax = plt.subplots( n_rc[0],n_rc[1],
+                                figsize=figsize, 
+                                gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
+                                constrained_layout=False, sharex=True, sharey=True)
+    
+    #___________________________________________________________________________    
+    # flatt axes if there are more than 1
+    if isinstance(ax, np.ndarray): ax = ax.flatten()
+    else:                          ax = [ax] 
+    nax = len(ax)
+     
+    #___________________________________________________________________________
+    # data must be list filled with xarray data
+    if not isinstance(data  , list): data  = [data]
+    ndata = len(data) 
+    
+    #___________________________________________________________________________
+    # set up color info 
+    if cinfo is None: cinfo=dict()
+    # check if dictionary keys exist, if they do not exist fill them up 
+    cfac = 1
+    if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
+    if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
+        cmin, cmax = np.Inf, -np.Inf
+        for data_ii in data:
+            vname= list(data_ii[0].keys())[0]
+            cmin = np.min([cmin, np.nanmin(data_ii[0][vname].values) ])
+            cmax = np.max([cmax, np.nanmax(data_ii[0][vname].values) ])
+            cmin, cmax = cmin*cfac, cmax*cfac
+        if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
+        if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
+    if 'crange' in cinfo.keys():
+        # cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
+        cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], 0.0
+    else:
+        if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
+        cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
+        if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
+    if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
+    if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
+    cinfo['cmap'],cinfo['clevel'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+
+    #___________________________________________________________________________
+    # loop over axes
+    
+    for ii in range(0,ndata):
+        
+        #_______________________________________________________________________
+        # limit data to color range
+        vname= list(data[ii][0].keys())[0]
+        data_plot = data[ii][0][vname].values.transpose()
+        time      = data[ii][0]['time'].values
+        depth     = data[ii][0]['nz1'].values
+        
+        data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
+        data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
+        
+        #_______________________________________________________________________
+        # plot MOC
+        hp=ax[ii].contourf(time, depth, data_plot, 
+                           levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'])
+        
+        if do_contour: 
+            tickl    = cinfo['clevel']
+            ncbar_l  = len(tickl)
+            idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+            idx_cref = np.asscalar(idx_cref)
+            nstep    = ncbar_l/cbar_nl
+            nstep    = np.max([np.int(np.floor(nstep)),1])
+            
+            idx = np.arange(0, ncbar_l, 1)
+            idxb = np.ones((ncbar_l,), dtype=bool)                
+            idxb[idx_cref::nstep]  = False
+            idxb[idx_cref::-nstep] = False
+            idx_yes = idx[idxb==False]
+            
+            cont=ax[ii].contour(time, depth, data_plot,
+                            levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
+            #if do_clabel: 
+                #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
+                            #inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
+            
+        
+        #_______________________________________________________________________
+        # fix color range
+        for im in ax[ii].get_images(): im.set_clim(cinfo['clevel'][ 0], cinfo['clevel'][-1])
+        
+        #_______________________________________________________________________
+        # plot grid lines 
+        if do_grid: ax[ii].grid(color='k', linestyle='-', linewidth=0.25,alpha=1.0)
+        
+        #_______________________________________________________________________
+        # set description string plus x/y labels
+        isnotnan = np.isnan(data_plot[:,0])==False
+        isnotnan = isnotnan.sum()-1
+        
+        if title is not None: 
+            txtx, txty = time[0]+(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025                    
+            if   isinstance(title,str) : 
+                # if title string is 'descript' than use descript attribute from 
+                # data to set plot title 
+                if title=='descript' and ('descript' in data[ii][0][vname].attrs.keys() ):
+                    txts = data[ii][0][vname].attrs['descript']
+                else:
+                    txts = title
+            # is title list of string        
+            elif isinstance(title,list):   
+                txts = title[ii]
+            ax[ii].text(txtx, txty, txts, fontsize=14, fontweight='bold', horizontalalignment='left')
+        
+        if 'boxname' in data[ii][0][vname].attrs.keys():
+            txtx, txty = time[-1]-(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025   
+            txts = data[ii][0][vname].attrs['boxname']
+            ax[ii].text(txtx, txty, txts, fontsize=10, fontweight='bold', horizontalalignment='right')
+        
+        
+        
+        
+        if collist[ii]==0        : ax[ii].set_ylabel('Depth [m]',fontsize=12)
+        if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel('Latitudes [deg]',fontsize=12)
+        
+        #_______________________________________________________________________
+        ax[ii].set_ylim(depth[0],depth[isnotnan])
+        ax[ii].invert_yaxis()
+        ax[ii].grid(True,which='major')
+        
+        #ax[ii].set_yscale('log')
+        #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
+        ax[ii].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        
+    nax_fin = ii+1
+    
+    #___________________________________________________________________________
+    # delete axes that are not needed
+    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    for jj in range(ndata, nax): fig.delaxes(ax[jj])
+    if nax != nax_fin-1: ax = ax[0:nax_fin]
+    
+    #___________________________________________________________________________
+    # delete axes that are not needed
+    cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                      extendrect=False, extendfrac=None,
+                      drawedges=True, pad=0.025, shrink=1.0)
+    cbar.ax.tick_params(labelsize=fontsize)
+    
+    if cbar_label is None: cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
+    if str_rescale is not None: cbar_label = cbar_label+str_rescale  
+    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][0][ vname ].attrs['units']+']'
+    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+    
+    if 'str_ltim' in data[0][0][vname].attrs.keys():
+        cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
+    cbar.set_label(cbar_label, size=fontsize+2)
+    
+    #___________________________________________________________________________
+    # kickout some colormap labels if there are to many
+    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
+    
+    #___________________________________________________________________________
+    # repositioning of axes and colorbar
+    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
+                                     title=None, extend=pos_extend)
+    
+    plt.show()
+    fig.canvas.draw()
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, dpi=save_dpi)
+    
+    #___________________________________________________________________________
+    return(fig, ax, cbar)
+
+
+
+# please see at:
+# --> https://stackoverflow.com/questions/47222585/matplotlib-generic-colormap-from-tab10
+# also https://www.py4u.net/discuss/222050
+def categorical_cmap(nc, nsc, cmap="tab10", continuous=False):
+    if nc > plt.get_cmap(cmap).N:
+        raise ValueError("Too many categories for colormap.")
+    if continuous:
+        ccolors = plt.get_cmap(cmap)(np.linspace(0,1,nc))
+    else:
+        ccolors = plt.get_cmap(cmap)(np.arange(nc, dtype=int))
+    cols = np.zeros((nc*nsc, 3))
+    for i, c in enumerate(ccolors):
+        chsv = matplotlib.colors.rgb_to_hsv(c[:3])
+        arhsv = np.tile(chsv,nsc).reshape(nsc,3)
+        arhsv[:,1] = np.linspace(chsv[1],0.25,nsc)
+        arhsv[:,2] = np.linspace(chsv[2],1,nsc)
+        arhsv      = np.flipud(arhsv)
+        rgb = matplotlib.colors.hsv_to_rgb(arhsv)
+        cols[i*nsc:(i+1)*nsc,:] = rgb       
+    cmap = matplotlib.colors.ListedColormap(cols)
+    return cmap
