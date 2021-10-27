@@ -436,7 +436,7 @@ class mesh_fesom2(object):
         self.pbnd_find()
         
         # augment periodic boundary
-        if do_augmpbnd:
+        if do_augmpbnd and any(self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1) > 180):
             self.pbnd_augment()
         
         # compute/load element area
@@ -653,6 +653,7 @@ ___________________________________________""".format(
         #_______________________________________________________________________
         elem_pbnd_l = np.copy(self.e_i[self.e_pbnd_1,:])
         elem_pbnd_r = np.copy(elem_pbnd_l)
+        
         for ei in range(0,self.e_pbnd_1.size):
             # node indices of periodic boundary triangle
             tri  = np.array(self.e_i[self.e_pbnd_1[ei],:]).squeeze()
