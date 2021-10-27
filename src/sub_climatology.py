@@ -5,16 +5,18 @@ import numpy as np
 import time
 import os
 import xarray as xr
+import seawater as sw
 from sub_data import *
+
     
 # ___LOAD CLIMATOLOGY DATA INTO XARRAY DATASET CLASS___________________________
 #|                                                                             |
 #|        *** LOAD CLIMATOLOGY DATA INTO --> XARRAY DATASET CLASS ***          |
 #|                                                                             |
 #|_____________________________________________________________________________|
-def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
-                     do_zarithm='mean', do_hinterp='linear', 
-                     do_compute=True, descript='clim', 
+def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
+                     do_zarithm='mean', do_hinterp='linear', do_zinterp=True, 
+                     do_compute=True, descript='clim', do_ptemp=True, 
                      **kwargs):
     
     str_mdep = ''
@@ -22,12 +24,6 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
     #___________________________________________________________________________
     # load climatology data with xarray
     data = xr.open_dataset(datapath, decode_times=False, **kwargs)
-    
-    # if there are multiple varaibles, than kick out varaible that is not needed
-    if len(list(data.keys()))>1:
-        vname_drop = list(data.keys())
-        vname_drop.remove(vname)
-        data = data.drop(labels=vname_drop)
     
     #___________________________________________________________________________
     # delete eventual time dimension from climatology data
@@ -43,6 +39,32 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
     lat_names_list = ['y','lat','latitude']
     lat_idx = [i for i, item in enumerate(list(data.dims)) if item.lower() in lat_names_list][0]
     lat_name = list(data.dims)[lat_idx]
+    
+    zlev_names_list = ['z','depth','dep','level','lvl','zcoord','zlev','zlevel']
+    zlev_idx = [i for i, item in enumerate(list(data.dims)) if item.lower() in zlev_names_list][0]
+    zlev_name = list(data.dims)[zlev_idx]
+        
+    #___________________________________________________________________________
+    # compute potential temperature
+    if do_ptemp and any( [a in vname for a in ['temp', 'T', 't00', 'temperature']]) :
+        for key in list(data.keys()):
+            if any( [a in key for a in ['temp', 'T', 't00', 'temperature']]): vname_temp=key
+            if any( [a in key for a in ['salt', 'S', 's00', 'salinity'   ]]): vname_salt=key
+        for key in list(data.coords):    
+            if any( [a in key for a in ['depth', 'dep', 'Z', 'lev'       ]]): vname_depth=key
+        data_depth = data[vname_depth]
+        data_depth = data_depth.expand_dims({lat_name:data[lat_name].data, 
+                                             lon_name:data[lon_name].data}
+                                            ).transpose(zlev_name,lat_name,lon_name)
+        data[vname_temp].data = sw.ptmp(data[vname_salt].data, data[vname_temp].data, data_depth )
+        del(data_depth)
+    
+    #___________________________________________________________________________
+    # if there are multiple variables, than kick out varaible that is not needed
+    if len(list(data.keys()))>1:
+        vname_drop = list(data.keys())
+        vname_drop.remove(vname)
+        data = data.drop(labels=vname_drop)
     
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with 
@@ -69,11 +91,6 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
     #___________________________________________________________________________
     # do vertical interpolation
     if (depth) is not None:
-        #_______________________________________________________________________
-        zlev_names_list = ['z','depth','dep','level','lvl','zcoord','zlev','zlevel']
-        zlev_idx = [i for i, item in enumerate(list(data.dims)) if item.lower() in zlev_names_list][0]
-        zlev_name = list(data.dims)[zlev_idx]
-        
         #_______________________________________________________________________
         # select depth level indices that are needed to interpolate the values 
         # in depth list,array
@@ -127,7 +144,14 @@ def load_climatology(mesh, datapath, vname,depth=None, depidx=False,
             
         elif do_hinterp=='regular': 
             ...
-    
+    #___________________________________________________________________________
+    # do vertical interplation to fesom grid
+    if do_zinterp and (depth is None):
+        #add fesom2 mesh coordinatesro xarray dataset
+        zmid = xr.DataArray(np.abs(mesh.zmid), dims="nz1")
+            
+        # interp data on nodes --> method linear
+        data = data.interp(depth=zmid, method='linear')
     #___________________________________________________________________________
     # write additional attribute info
     for vname in list(data.keys()):
