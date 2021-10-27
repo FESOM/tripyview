@@ -4,6 +4,8 @@ import time
 import os
 from netCDF4 import Dataset
 import xarray as xr
+import matplotlib
+matplotlib.rcParams['contour.negative_linestyle']= 'solid'
 import matplotlib.pyplot as plt
 import matplotlib.patches as Polygon
 from colormap_c2c    import *
@@ -98,8 +100,18 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
     # keep in mind that node area info is changing over depth--> therefor load from file 
     if diagpath is None:
         fname = data['w'].attrs['runid']+'.mesh.diag.nc'
-        dname = data['w'].attrs['datapath']
+        
+        if   os.path.isfile( os.path.join(data['w'].attrs['datapath'], fname) ): 
+            dname = data['w'].attrs['datapath']
+        elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data['w'].attrs['datapath'])),'1/'), fname) ): 
+            dname = os.path.join(os.path.dirname(os.path.normpath(data['w'].attrs['datapath'])),'1/')
+        elif os.path.isfile( os.path.join(mesh.path,fname) ): 
+            dname = mesh.path
+        else:
+            raise ValueError('could not find directory with...mesh.diag.nc file')
+        
         diagpath = os.path.join(dname,fname)
+        if do_info: print(' --> found diag in directory:{}', diagpath)
         
     # compute area weighted vertical velocities on elements
     if do_onelem:
@@ -310,9 +322,9 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
               n_rc=[1, 1], do_grid=True, cinfo=None,
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
-              pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None,
+              pos_fac=1.0, pos_gap=[0.01, 0.01], do_save=None, save_dpi=600, 
               do_contour=True, do_clabel=True, title='descript',
-            ):
+              pos_extend=[0.075, 0.08, 0.95,0.95] ):
     #____________________________________________________________________________
     fontsize = 12
     str_rescale = None
@@ -407,7 +419,9 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
             if do_clabel: 
                 ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
                             inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
-                
+            ax[ii].contour(lat, depth, data_plot, 
+                            levels=[0.0], colors='k', linewidths=[1.25]) #linewidths=[0.5,0.25])
+            
         if do_bottom:
             bottom    = data[ii]['bottom'].values
             ax[ii].plot(lat, bottom, color='k')
@@ -446,6 +460,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     # delete axes that are not needed
     #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
     for jj in range(ndata, nax): fig.delaxes(ax[jj])
+    if nax != nax_fin-1: ax = ax[0:nax_fin]
     
     #___________________________________________________________________________
     # delete axes that are not needed
@@ -471,11 +486,13 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     #___________________________________________________________________________
     # repositioning of axes and colorbar
     ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
-                                     title=None, extend=[0.1, 0.08, 0.825,0.95])
+                                     title=None, extend=pos_extend)
     
+    plt.show()
+    fig.canvas.draw()
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save)
+    do_savefigure(do_save, dpi=save_dpi)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
