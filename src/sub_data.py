@@ -77,16 +77,19 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     str_lsave = ''    
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
-    #data = xr.Dataset(coords={  "lon"  :( "nod2"         ,mesh.n_x), 
-                                #"lat"  :( "nod2"         ,mesh.n_y), 
-                                #"faces":(["elem","three"],mesh.e_i),
-                                #"zlev" :( "nz"           ,mesh.zlev),
-                                #"zmid" :( "nz1"          ,mesh.zmid)} )
+    if vname in ['depth', 'topo', 'topography','zcoord', 'narea', 'n_area', 'clusterarea', 'scalararea'
+                 'nresol', 'n_resol', 'resolution', 'resol', 'earea', 'e_area', 'triarea',
+                 'eresol','e_resol','triresolution','triresol']:
+        data = xr.Dataset(coords={"lon"  :( "nod2"         ,mesh.n_x), 
+                                  "lat"  :( "nod2"         ,mesh.n_y), 
+                                  "faces":(["elem","three"],mesh.e_i),
+                                  "zlev" :( "nz"           ,mesh.zlev),
+                                  "zmid" :( "nz1"          ,mesh.zmid)} )
                                 
     #___________________________________________________________________________
     # store topography in data
     if   any(x in vname for x in ['depth','topo','topography','zcoord']):
-        data['topo'] = ("nod2", -mesh.n_z,mesh.n_za)
+        data['topo'] = ("nod2", -mesh.n_z)
         data['topo'].attrs["description"]='Bottom topography'
         data['topo'].attrs["long_name"  ]='Bottom topography'
         data['topo'].attrs["units"      ]='[m]'
