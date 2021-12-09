@@ -199,7 +199,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
-    if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): data = data.where(data[vname]!=0)
+    if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): 
+        data = data.where(data[vname]!=0)
     
     #___________________________________________________________________________
     # select depth levels also fo vertical interpolation 
