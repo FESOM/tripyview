@@ -6,7 +6,7 @@ import time
 import numpy  as np
 import pandas as pa
 import joblib
-import pickle
+import pickle5 as pickle
 from   netCDF4 import Dataset
 
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
@@ -229,7 +229,7 @@ def load_mesh_fesom2(
                 savepicklepath = os.path.join(meshpath,picklefname)
                 if do_info: print(' > save mesh to *.pckl in {}'.format(savepicklepath))
                 fid = open(savepicklepath, "wb")
-                pickle.dump(mesh, savepicklepath, protocol=pickleprotocol)
+                pickle.dump(mesh, fid, protocol=pickleprotocol)
                 fid.close()
             # if no permission rights for writing in meshpath folder try 
             # cachefolder   
@@ -436,7 +436,7 @@ class mesh_fesom2(object):
         self.pbnd_find()
         
         # augment periodic boundary
-        if do_augmpbnd:
+        if do_augmpbnd and any(self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1) > 180):
             self.pbnd_augment()
         
         # compute/load element area
@@ -462,7 +462,7 @@ class mesh_fesom2(object):
             #___________________________________________________________________
             # save land-sea mask with periodic boundnaries to shapefile
             if do_lsmshp:
-                shpfname = 'mypymesh_fesom2'+'_'+self.id+'_'+'pbnd'
+                shpfname = 'tripyview_fesom2'+'_'+self.id+'_'+'pbnd'
                 lsmask_2shapefile(self, lsmask=self.lsmask, fname=shpfname)
             
             #___________________________________________________________________
@@ -653,6 +653,7 @@ ___________________________________________""".format(
         #_______________________________________________________________________
         elem_pbnd_l = np.copy(self.e_i[self.e_pbnd_1,:])
         elem_pbnd_r = np.copy(elem_pbnd_l)
+        
         for ei in range(0,self.e_pbnd_1.size):
             # node indices of periodic boundary triangle
             tri  = np.array(self.e_i[self.e_pbnd_1[ei],:]).squeeze()
@@ -1224,7 +1225,7 @@ def lsmask_patch(lsmask):
 #|      from matplotlib.patches import Polygon                                 |
 #|      from matplotlib.collections import PatchCollection                     |
 #|                                                                             |
-#|      shpfname = 'mypymesh_fesom2'+'_'+mesh.id+'_'+                          |
+#|      shpfname = 'tripyview_fesom2'+'_'+mesh.id+'_'+                          |
 #|                  '{}={}'.format('focus',mesh.focus)+'.shp'                  |
 #|      shppath  = os.path.join(mesh.cachepath,shpfname)                       |
 #|                                                                             |
@@ -1553,45 +1554,56 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo' ):
 #| cutout region based on box and return mesh elements indices that are        |
 #| within the box                                                              |
 #| ___INPUT_________________________________________________________________   |
-#| mesh     :   fesom_mesh object                                              |
+#| nx       :   longitude vertice coordinates                                  |
+#| ny       :   latitude  vertice coordinates                                  |
+#| e_i      :   element array                                                  |
 #| box      :   list, [lonmin, lonmax, latmin, latmax]                         |
 #| which    :   str, how limiting should be the selection                      |
 #|              'soft' : elem with at least 1 vertices in box are selected     |
 #|              'mid'  : elem with at least 2 vertices in box are selected     |
 #|              'hard' : elem with at all vertices in box are selected         |
-#| do_ouTF  :   bool, True/False switch if besides the element indices also a  |
-#|              boolian array with the selected elements should be given out   |
 #| ___RETURNS_______________________________________________________________   |
-#| e_ibox   :   array, with elem indices that are in the box according to      |
-#|              selection criteria                                             |
-#| if do_outTF=True:                                                           |
-#| e_iboxTF :   array, boolian array with 1 in box, 0 outside box              |
+#| e_inbox :   array, boolian array with 1 in box, 0 outside box               |
 #|_____________________________________________________________________________|    
-def grid_cutbox(n_x, n_y, e_i, box, which='mid'):# , do_outTF=False):
+def grid_cutbox_e(n_x, n_y, e_i, box, which='mid'):# , do_outTF=False):
+    
+    #___________________________________________________________________________
+    n_inbox = grid_cutbox_n(n_x, n_y, box)
+    
+    #___________________________________________________________________________
+    e_inbox = n_inbox[e_i]
+    
+    # considers triangles where at least one node is in box
+    if   which == 'soft': e_inbox =  np.any(e_inbox,axis=1)
+    elif which == 'mid' : e_inbox = (np.sum(e_inbox,axis=1)>1)
+    # considers triangles where all node must be in box (serated edge)
+    elif which == 'hard': e_inbox =  np.all(e_inbox,axis=1) 
+    else: raise ValueError("The option which={} in grid_cutbox is not supported. \n(only: 'hard', 'soft')".format(str(which)))
+    
+    #___________________________________________________________________________
+    return(e_inbox)
+
+
+# ___CUTOUT REGION BASED ON BOX________________________________________________
+#| cutout region based on box and return mesh elements indices that are        |
+#| within the box                                                              |
+#| ___INPUT_________________________________________________________________   |
+#| nx       :   longitude vertice coordinates                                  |
+#| ny       :   latitude  vertice coordinates                                  |
+#| e_i      :   element array                                                  |
+#| box      :   list, [lonmin, lonmax, latmin, latmax]                         |
+#| ___RETURNS_______________________________________________________________   |
+#| n_inbox :   array, boolian array with 1 in box, 0 outside box               |
+#|_____________________________________________________________________________|    
+def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
 
     #___________________________________________________________________________
     n_inbox = ((n_x >= box[0]) & (n_x <= box[1]) & 
                (n_y >= box[2]) & (n_y <= box[3]))
     
     #___________________________________________________________________________
-    e_iboxTF = n_inbox[e_i]
-    
-    # considers triangles where at least one node is in box
-    if   which == 'soft': e_iboxTF =  np.any(e_iboxTF,axis=1)
-    elif which == 'mid' : e_iboxTF = (np.sum(e_iboxTF,axis=1)>1)
-    # considers triangles where all node must be in box (serated edge)
-    elif which == 'hard': e_iboxTF =  np.all(e_iboxTF,axis=1) 
-    else: raise ValueError("The option which={} in grid_cutbox is not supported. \n(only: 'hard', 'soft')".format(str(which)))
-    
-    #___________________________________________________________________________
-    # element array for box selection, e_iboxTF...logical (True/False) vector for
-    # elements inside box
-    #e_ibox = mesh.e_i[e_iboxTF,:]
-    
-    #___________________________________________________________________________
-    #if do_outTF: return(e_ibox, e_iboxTF)
-    #else:        return(e_ibox)
-    return(e_iboxTF)
+    return(n_inbox)
+
 
 
 # ___INTERPOLATE FROM ELEMENTS TO VERTICES_____________________________________
@@ -1604,7 +1616,6 @@ def grid_interp_e2n(mesh,data_e):
     mesh = mesh.compute_n_area()
     aux  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
     aux  = aux * np.vstack((data_e,data_e,data_e)).transpose().flatten()
-    
     #___________________________________________________________________________
     # single loop over self.e_i.flat is ~4 times faster than douple loop 
     # over for i in range(3): ,for j in range(self.n2de):
@@ -1614,8 +1625,8 @@ def grid_interp_e2n(mesh,data_e):
         data_n[idx]=data_n[idx] + aux[count]
         count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
     del aux, count
+    #with np.errstate(divide='ignore',invalid='ignore'):
     data_n=data_n/mesh.n_area/3.0
-    
     #___________________________________________________________________________
     return(data_n)
 

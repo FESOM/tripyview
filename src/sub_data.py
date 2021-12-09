@@ -74,19 +74,22 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     do_norm = False
     str_adep, str_atim = '', '' # string for arithmetic
     str_ldep, str_ltim = '', '' # string for labels
-        
+    str_lsave = ''    
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
-    #data = xr.Dataset(coords={  "lon"  :( "nod2"         ,mesh.n_x), 
-                                #"lat"  :( "nod2"         ,mesh.n_y), 
-                                #"faces":(["elem","three"],mesh.e_i),
-                                #"zlev" :( "nz"           ,mesh.zlev),
-                                #"zmid" :( "nz1"          ,mesh.zmid)} )
+    if vname in ['depth', 'topo', 'topography','zcoord', 'narea', 'n_area', 'clusterarea', 'scalararea'
+                 'nresol', 'n_resol', 'resolution', 'resol', 'earea', 'e_area', 'triarea',
+                 'eresol','e_resol','triresolution','triresol']:
+        data = xr.Dataset(coords={"lon"  :( "nod2"         ,mesh.n_x), 
+                                  "lat"  :( "nod2"         ,mesh.n_y), 
+                                  "faces":(["elem","three"],mesh.e_i),
+                                  "zlev" :( "nz"           ,mesh.zlev),
+                                  "zmid" :( "nz1"          ,mesh.zmid)} )
                                 
     #___________________________________________________________________________
     # store topography in data
     if   any(x in vname for x in ['depth','topo','topography','zcoord']):
-        data['topo'] = ("nod2", -mesh.n_z,mesh.n_za)
+        data['topo'] = ("nod2", -mesh.n_z)
         data['topo'].attrs["description"]='Bottom topography'
         data['topo'].attrs["long_name"  ]='Bottom topography'
         data['topo'].attrs["units"      ]='[m]'
@@ -159,7 +162,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         # in case of vector load also meridional data and merge into 
         # dataset structure
         if do_vec or do_norm:
-            pathlist = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
+            pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
             data     = xr.merge([data, xr.open_mfdataset(pathlist,**kwargs)])
             if do_vec: is_data='vector'
             
@@ -196,34 +199,49 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
-    if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): data = data.where(data[vname]!=0)
+    if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): 
+        data = data.where(data[vname]!=0)
     
     #___________________________________________________________________________
     # select depth levels also fo vertical interpolation 
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
     # if ( ('nz1' in data[vname].dims) or ('nz'  in data[vname].dims) ) and (depth is not None):
     if ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is not None):
+        #_______________________________________________________________________
+        # in old fesom2 output the vertical depth levels are not included --> 
+        # add depth axes by hand
+        if   ('nz_1' in data.dims) and ('nz_1' not in list(data.coords)): 
+            data = data.assign_coords(nz_1=("nz_1",-mesh.zmid))
+        elif ('nz1'  in data.dims) and ('nz1'  not in list(data.coords)): 
+            data = data.assign_coords(nz1 =("nz1" ,-mesh.zmid))
+        elif ('nz'   in data.dims) and ('nz'   not in list(data.coords)): 
+            data = data.assign_coords(nz  =("nz"  ,-mesh.zlev))
+        
+        #_______________________________________________________________________
         data, str_ldep = do_select_levidx(data, mesh, depth, depidx)
         
         #_______________________________________________________________________
         # do vertical interpolation and summation over interpolated levels 
         if depidx==False:
             str_adep = ', '+str(do_zarithm)
+            
+            auxdepth = depth
+            if isinstance(depth,list) and len(depth)==1: auxdepth = depth[0]
+                
             if   ('nz1' in data.dims):
-                data = data.interp(nz1=depth, method="linear")
+                data = data.interp(nz1=auxdepth, method="linear")
                 if data['nz1'].size>1: 
                     data = do_depth_arithmetic(data, do_zarithm, "nz1")
                     
             if   ('nz_1' in data.dims):
-                data = data.interp(nz_1=depth, method="linear")
+                data = data.interp(nz_1=auxdepth, method="linear")
                 if data['nz_1'].size>1: 
                     data = do_depth_arithmetic(data, do_zarithm, "nz_1")
                     
             elif ('nz'  in data.dims):    
-                data = data.interp(nz=depth, method="linear")
+                data = data.interp(nz=auxdepth, method="linear")
                 if data['nz'].size>1:   
-                    data = do_depth_arithmetic(data, do_zarithm, "nz")
-                    
+                    data = do_depth_arithmetic(data, do_zarithm, "nz") 
     
     # only 2D data found            
     else:
@@ -248,11 +266,14 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     
     #___________________________________________________________________________
     # write additional attribute info
+    str_lsave = str_ltim+str_ldep
+    str_lsave = str_lsave.replace(' ','_').replace(',','').replace(':','')
+    
     for vname in list(data.keys()):
-        attr_dict=dict({'datapath':datapath, 'do_file':do_file, 'do_filename':do_filename, 
+        attr_dict=dict({'datapath':datapath, 'runid':runid, 'do_file':do_file, 'do_filename':do_filename, 
                         'year':year, 'mon':mon, 'day':day, 'record':record, 'depth':depth, 
                         'depidx':depidx, 'do_tarithm':str_atim,
-                        'do_zarithm':str_adep, 'str_ltim':str_ltim,'str_ldep':str_ldep,
+                        'do_zarithm':str_adep, 'str_ltim':str_ltim,'str_ldep':str_ldep,'str_lsave':str_lsave,
                         'is_data':is_data, 'is_ie2n':is_ie2n, 'do_compute':do_compute, 
                         'descript':descript})
         data = do_additional_attrs(data, vname, attr_dict)
@@ -713,7 +734,9 @@ def do_interp_e2n(data, mesh, do_ie2n):
         #_______________________________________________________________________
         for vname in vname_list:
             # interpolate elem to vertices
-            aux = grid_interp_e2n(mesh,data[vname].data)
+            #aux = grid_interp_e2n(mesh,data[vname].data)
+            #with np.errstate(divide='ignore',invalid='ignore'):
+            aux = grid_interp_e2n(mesh,data[vname].values)
             
             # new variable name 
             vname_new = 'n_'+vname
@@ -783,6 +806,7 @@ def do_anomaly(data1,data2):
         # do anomalous attributes 
         attrs_data1 = data1[vname].attrs
         attrs_data2 = data2[vname2].attrs
+        
         for key in attrs_data1.keys():
             if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
                 if key in ['long_name']:

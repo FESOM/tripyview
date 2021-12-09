@@ -19,7 +19,7 @@ from colormap_c2c import *
 import matplotlib.colors
 import matplotlib.ticker as mticker
 import matplotlib.path as mpath
-
+from matplotlib.colors import ListedColormap
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
@@ -31,8 +31,313 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.8,0.8,0.8],  title=None,
-                pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, linecolor='k', 
-                linewidth=0.5):
+                pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
+                linecolor='k', linewidth=0.5, ):
+    """
+    ---> plot FESOM2 horizontal data slice:
+    ___INPUT:___________________________________________________________________
+    mesh        :   fesom2 mesh object,  with all mesh information 
+    data        :   xarray dataset object, or list of xarray dataset object
+    cinfo       :   None, dict() (default: None), dictionary with colorbar 
+                    formation. Information that are given are used others are 
+                    computed. cinfo dictionary entries can me: 
+                    > cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
+                    max, reference value
+                    > cinfo['crange'] ...  list with [cmin, cmax, cref] overrides 
+                    scalar values 
+                    > cinfo['cnum'] ... minimum number of colors
+                    > cinfo['cstr'] ... name of colormap see in sub_colormap_c2c.py
+                    > cinfo['cmap'] ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    > cinfo['clevel'] ... color level array
+    box         :   None, list (default: None) regional limitation of plot [lonmin,
+                    lonmax, latmin, latmax]
+    proj        :   str, (default: 'pc') which projection should be used, 'pc'=
+                    ccrs.PlateCarree(), 'merc'=ccrs.Mercator(), 'nps'= 
+                    ccrs.NorthPolarStereo(), 'sps'=ccrs.SouthPolarStereo(), 
+                    'rob'=ccrs.Robinson()
+    fig_size    :   list (default:[9,4.5] ), list with figure width and figure
+                    height [w, h]
+    n_rc        :   list, (default: [1,1]) if plotting multiple data panels, give
+                    number of rows and number of columns in to plot, just works when 
+                    also data are a list of xarray dataset object
+    do_grid     :   bool, (default:False) overlay the fesom2 surface grid over 
+                    data
+    do_plot     :   str, (default: 'tcf'), make plotts either as tricontourf plot
+                    ('tcf', much faster than pcolor) or tripcolor plot ('tpc')
+    do_rescale  :   None, bool, str (default:True) rescale data and writes 
+                    rescaling string into colorbar labels
+                    If: None    ... no rescaling is applied
+                        True    ... rescale to multiple of 10 or 1/10
+                        'log10' ... rescale towards log10
+    cbar_nl     :   int, (default:8) minumum number of colorbar label to show 
+    cbar_orient :   str, (default:'vertical') should colorbar be either 'vertical'
+                    or 'horizontal' oriented
+    cbar_label  :   None, str, (default: None) if: None the cbar label is taken from 
+                    the description attribute of the data, if: str cbar_label
+                    is overwritten by string 
+    cbar_unit   :   None, str, (default: None) if: None the cbar unit string is 
+                    taken from the units attribute of the data, if: str cbar_unir
+                    is overwritten by string   
+    do_lsmask   :   None, str (default: 'fesom') plot land-sea mask.  
+                    If:  None   ... no land sea mask is used, 
+                        'fesom' ... overlay fesom shapefile land-sea mask using
+                                    color color_lsmask
+                        'stock' ... use cartopy stock image as land sea mask
+                        'bluemarble' ... use bluemarble image as land sea mask
+                        'etopo' ... use etopo image as land sea mask
+    do_bottom   :   bool, (default:True) highlight nan bottom topography 
+                    with gray color defined by color_bot
+    color_lsmask:   list, (default: [0.6, 0.6, 0.6]) RGB facecolor value for fesom
+                    shapefile land-sea mask patch
+    color_bot   :   list, (default: [0.8, 0.8, 0.8]) RGB facecolor value for  
+                    nan bottom topography
+    title       :   None, str,(default:None) give every plot panel a title string
+                    IF: None       ... no title is plotted
+                        'descript' ... use data 'descript' attribute for title string
+                        'string'   ... use given string as title 
+    pos_fac     :   float, (default:1.0) multiplication factor  to increase/decrease
+                    width and height of plotted  panel
+    pos_gap     :   list, (default: [0.02, 0.02]) gives width and height of gaps 
+                    between multiple panels 
+    do_save     :   None, str (default:None) if None figure will by not saved, if 
+                    string figure will be saved, strings must give directory and 
+                    filename  where to save.
+    linecolor   :   str, list, (default:'k') either color string or RGB list set
+                    color of coastline 
+    linewidth   :   float, (default:0.2) sets linewidth of coastline
+    ___RETURNS:_________________________________________________________________
+    fig        :    returns figure handle 
+    ax         :    returns list with axes handle 
+    cbar       :    returns colorbar handle
+    ____________________________________________________________________________
+    """
+    fontsize = 12
+    str_rescale = None
+    
+    #___________________________________________________________________________
+    # make matrix with row colum index to know where to put labels
+    rowlist = np.zeros((n_rc[0],n_rc[1]))
+    collist = np.zeros((n_rc[0],n_rc[1]))       
+    for ii in range(0,n_rc[0]): rowlist[ii,:]=ii
+    for ii in range(0,n_rc[1]): collist[:,ii]=ii
+    rowlist = rowlist.flatten()
+    collist = collist.flatten()
+    
+    #___________________________________________________________________________
+    # create box if not exist
+    if box is None: box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
+    
+    #___________________________________________________________________________
+    # Create projection
+    if proj=='pc':
+        which_proj=ccrs.PlateCarree()
+        which_transf = None
+    elif proj=='merc':
+        which_proj=ccrs.Mercator()    
+        which_transf = ccrs.PlateCarree()
+    elif proj=='nps':    
+        which_proj=ccrs.NorthPolarStereo()    
+        which_transf = ccrs.PlateCarree()
+        if box[2]<0: box[2]=0
+    elif proj=='sps':        
+        which_proj=ccrs.SouthPolarStereo()    
+        which_transf = ccrs.PlateCarree()
+        if box[3]>0: box[2]=0
+    elif proj=='rob':        
+        which_proj=ccrs.Robinson()    
+        which_transf = ccrs.PlateCarree()    
+        
+    #___________________________________________________________________________    
+    # create lon, lat ticks 
+    xticks,yticks = do_ticksteps(mesh, box)
+    
+    #___________________________________________________________________________    
+    # create figure and axes
+    fig, ax = plt.subplots( n_rc[0],n_rc[1],
+                                figsize=figsize, 
+                                subplot_kw =dict(projection=which_proj),
+                                gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
+                                constrained_layout=False)
+    
+    #___________________________________________________________________________    
+    # flatt axes if there are more than 1
+    if isinstance(ax, np.ndarray): ax = ax.flatten()
+    else:                          ax = [ax] 
+    nax = len(ax)
+    
+    #___________________________________________________________________________
+    # create mesh triangulation
+    tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)),
+                        np.hstack((mesh.n_y,mesh.n_ya)),
+                        np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+    
+    # Limit points to projection box
+    if proj=='nps' or proj=='sps' or 'pc':
+        e_idxbox = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
+    else:    
+        points = which_transf.transform_points(which_proj, 
+                                                tri.x[tri.triangles].sum(axis=1)/3, 
+                                                tri.y[tri.triangles].sum(axis=1)/3)
+        
+        xpts, ypts = points[:,0].flatten().tolist(), points[:,1].flatten().tolist()
+        
+        crs_pts = list(zip(xpts,ypts))
+        fig_pts = ax[0].transData.transform(crs_pts)
+        ax_pts  = ax[0].transAxes.inverted().transform(fig_pts)
+        x, y =  ax_pts[:,0], ax_pts[:,1]
+        e_idxbox = (x>=-0.05) & (x<=1.05) & (y>=-0.05) & (y<=1.05)
+    tri.triangles = tri.triangles[e_idxbox,:]    
+    
+    #___________________________________________________________________________
+    # data must be list filled with xarray data
+    if not isinstance(data, list): data = [data]
+    ndata = len(data)
+    
+    #___________________________________________________________________________
+    # set up color info 
+    cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale)
+    # print(cinfo)
+    
+    #___________________________________________________________________________
+    # loop over axes
+    hpall=list()
+    #for ii in range(0,nax):
+    for ii in range(0,ndata):
+        #_______________________________________________________________________
+        # if there are more axes allocated than data evailable 
+        #if ii>=ndata: continue
+        
+        #_______________________________________________________________________
+        # add color for bottom bottom
+        if do_bottom: ax[ii].background_patch.set_facecolor(color_bot)
+        
+        #_______________________________________________________________________
+        # set axes extent
+        ax[ii].set_extent(box, crs=ccrs.PlateCarree())
+        
+        #_______________________________________________________________________
+        # periodic augment data
+        vname = list(data[ii].keys())
+        data_plot = data[ii][ vname[0] ].data
+        data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
+        data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+        
+        #_______________________________________________________________________
+        # kick out triangles with Nan cut elements to box size        
+        isnan   = np.isnan(data_plot)
+        e_idxok = np.any(isnan[tri.triangles], axis=1)==False
+        
+        #_______________________________________________________________________
+        # plot tri contourf/tripcolor
+        if   do_plot=='tpc':
+            hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
+                                transform=which_transf,
+                                shading='flat',
+                                cmap=cinfo['cmap'],
+                                vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1])
+            
+        elif do_plot=='tcf': 
+            
+            # supress warning message when compared with nan
+            with np.errstate(invalid='ignore'):
+                data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
+                data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
+            
+            hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot, 
+                                transform=which_transf, 
+                                levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+        hpall.append(hp)        
+        #_______________________________________________________________________
+        # add grid mesh on top
+        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
+                                   color='k', linewidth=0.2, alpha=0.75) 
+                                   #transform=which_transf)
+        
+        #_______________________________________________________________________
+        # add mesh land-sea mask
+        ax[ii] = do_plotlsmask(ax[ii],mesh, do_lsmask, box, which_proj,
+                               color_lsmask=color_lsmask, edgecolor=linecolor, linewidth=linewidth)
+        
+        #_______________________________________________________________________
+        # add gridlines
+        ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
+                                  xticks, yticks, proj, which_proj)
+       
+        #_______________________________________________________________________
+        # set title and axes labels
+        if title is not None: 
+            # is title  string:
+            if   isinstance(title,str) : 
+                # if title string is 'descript' than use descript attribute from 
+                # data to set plot title 
+                if title=='descript' and ('descript' in data[ii][vname[0]].attrs.keys() ):
+                    ax[ii].set_title(data[ii][ vname[0] ].attrs['descript'], fontsize=fontsize+2)
+                    
+                else:
+                    ax[ii].set_title(title, fontsize=fontsize+2)
+            # is title list of string        
+            elif isinstance(title,list): ax[ii].set_title(title[ii], fontsize=fontsize+2)
+    nax_fin = ii+1
+    
+    #___________________________________________________________________________
+    # delete axes that are not needed
+    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    for jj in range(ndata, nax): fig.delaxes(ax[jj])
+    if nax != nax_fin-1: ax = ax[0:nax_fin]
+   
+    #___________________________________________________________________________
+    # create colorbar 
+    cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                      extendrect=False, extendfrac=None,
+                      drawedges=True, pad=0.025, shrink=1.0)
+    
+    cbar.ax.tick_params(labelsize=fontsize)
+    
+    if cbar_label is None: cbar_label = data[nax_fin-1][ vname[0] ].attrs['long_name']
+    if str_rescale is not None: cbar_label = cbar_label+str_rescale  
+    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][ vname[0] ].attrs['units']+']'
+    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+    
+    if 'str_ltim' in data[0][vname[0]].attrs.keys():
+        cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
+    if 'str_ldep' in data[0][vname[0]].attrs.keys():
+        cbar_label = cbar_label+data[0][vname[0]].attrs['str_ldep']
+    
+    cbar.set_label(cbar_label, size=fontsize+2)
+    
+    #___________________________________________________________________________
+    # kickout some colormap labels if there are to many
+    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
+    
+    #___________________________________________________________________________
+    # repositioning of axes and colorbar
+    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
+    
+    plt.show(block=False)
+    fig.canvas.draw()
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, dpi=save_dpi)
+    
+    #___________________________________________________________________________
+    return(fig, ax, cbar)
+    
+    
+
+# ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
+#|                                                                             |
+#|      *** PLOT HORIZONTAL FESOM2 DATA SLICES --> BASED ON CARTOPY ***        |
+#|                                                                             |
+#|_____________________________________________________________________________|
+def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5], 
+                n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
+                cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
+                do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
+                color_bot=[0.8,0.8,0.8],  title=None,
+                pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, linecolor='k', 
+                linewidth=0.5, hsize = 20, do_normalize=True, do_topo=False, do_density=None,
+                pos_extend=None,):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -144,7 +449,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     elif proj=='rob':        
         which_proj=ccrs.Robinson()    
         which_transf = ccrs.PlateCarree()    
-        
+    
     #___________________________________________________________________________    
     # create lon, lat ticks 
     xticks,yticks = do_ticksteps(mesh, box)
@@ -155,7 +460,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 figsize=figsize, 
                                 subplot_kw =dict(projection=which_proj),
                                 gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False, )
+                                constrained_layout=False,)
+                                #sharex='all', sharey='all' )
     
     #___________________________________________________________________________    
     # flatt axes if there are more than 1
@@ -171,7 +477,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     # Limit points to projection box
     if proj=='nps' or proj=='sps' or 'pc':
-        e_idxbox = grid_cutbox(tri.x, tri.y, tri.triangles, box, which='hard')
+        e_idxbox = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
     else:    
         points = which_transf.transform_points(which_proj, 
                                                 tri.x[tri.triangles].sum(axis=1)/3, 
@@ -189,18 +495,20 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     #___________________________________________________________________________
     # data must be list filled with xarray data
     if not isinstance(data, list): data = [data]
+    ndata = len(data)
         
     #___________________________________________________________________________
     # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale)
+    cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=True)
     
     #___________________________________________________________________________
     # loop over axes
-    for ii in range(0,nax):
+    for ii in range(0,ndata):
         
         #_______________________________________________________________________
         # add color for bottom bottom
-        if do_bottom: ax[ii].background_patch.set_facecolor(color_bot)
+        if do_bottom : 
+            ax[ii].background_patch.set_facecolor(color_bot)
         
         #_______________________________________________________________________
         # set axes extent
@@ -209,39 +517,78 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # periodic augment data
         vname = list(data[ii].keys())
-        data_plot = data[ii][ vname[0] ].data
-        data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
-        data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+        data_plot_u = data[ii][ vname[0] ].data
+        data_plot_v = data[ii][ vname[1] ].data
+        data_plot_n = np.sqrt(data_plot_u**2 + data_plot_v**2)
+        #data_plot_n, str_rescale= do_rescale_data(data_plot_n, do_rescale)
         
+        data_plot_u = np.hstack((data_plot_u,data_plot_u[mesh.n_pbnd_a]))
+        data_plot_v = np.hstack((data_plot_v,data_plot_v[mesh.n_pbnd_a]))
+        data_plot_n = np.hstack((data_plot_n,data_plot_n[mesh.n_pbnd_a]))
+        
+        data_plot_u, data_plot_v = data_plot_u/data_plot_n, data_plot_v/data_plot_n
+        data_plot_n[data_plot_n<cinfo['clevel'][0]]  = cinfo['clevel'][0] #+np.finfo(np.float32).eps
+        data_plot_n[data_plot_n>cinfo['clevel'][-1]] = cinfo['clevel'][-1]#-np.finfo(np.float32).eps
+        data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
+        
+        
+        if do_normalize:
+            data_plot_u = data_plot_u/data_plot_n
+            data_plot_v = data_plot_v/data_plot_n
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
-        isnan   = np.isnan(data_plot)
-        e_idxok = np.any(isnan[tri.triangles], axis=1)==False
+        isok   = np.isnan(data_plot_n)==False
+        #e_idxok = np.any(isok[tri.triangles], axis=1)==True
+        
+        if do_density is not None:
+            r0      = 1/(np.sqrt(mesh.n_area))
+            isp     = np.random.rand(mesh.n2dn)>r0/np.max(r0)*do_density #1.5
+            isok    = np.logical_and(isok,np.hstack((isp,isp[mesh.n_pbnd_a])) )
         
         #_______________________________________________________________________
         # plot tri contourf/tripcolor
-        if   do_plot=='tpc':
-            hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
-                                transform=which_transf,
-                                shading='flat',
-                                cmap=cinfo['cmap'],
-                                vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1])
-            
-        elif do_plot=='tcf': 
-            
-            # supress warning message when compared with nan
-            with np.errstate(invalid='ignore'):
-                data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
-                data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
-            
-            hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot, 
-                                transform=which_transf, 
-                                levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
-                
+        hfac=3
+        hp=ax[ii].quiver(tri.x[     isok], tri.y[      isok], 
+                        data_plot_u[isok], data_plot_v[isok],
+                        data_plot_n[isok],
+                        transform=which_transf,
+                        cmap = cinfo['cmap'], 
+                        edgecolor='k', linewidth=0.15,
+                        units='xy', angles='xy', scale_units='xy', scale=1/hsize,
+                        width = 0.10, #0.1,
+                        headlength=hfac*max([hsize,1.0]),#hsize, 
+                        headaxislength=hfac*max([hsize,1.0]), #hsize, 
+                        headwidth=hfac*max([hsize,1.0])*0.8,# hsize*2/3,
+                        zorder=10)
+        hp.set_clim([cinfo['clevel'][0],cinfo['clevel'][-1]])
+        
+        
         #_______________________________________________________________________
         # add grid mesh on top
-        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
-                                   color='k', linewidth=0.2, alpha=0.75) 
+        if do_topo: 
+            fname = data[ii][vname[0]].attrs['runid']+'.mesh.diag.nc'
+            dname = data[ii][vname[0]].attrs['datapath']
+            diagpath = os.path.join(dname,fname)
+            n_iz   = xr.open_mfdataset(diagpath, parallel=True)['nlevels_nod2D']-1
+            data_plot = np.abs(mesh.zlev[n_iz])
+            data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+            
+            levels = np.hstack((25, 50, 100, 150, 200, 250, np.arange(500,6000+1,500)))
+            N = len(levels)
+            vals = np.ones((N, 4))
+            vals[:, 0] = np.linspace(0.2, 0.95, N)
+            vals[:, 1] = np.linspace(0.2, 0.95, N)
+            vals[:, 2] = np.linspace(0.2, 0.95, N)
+            vals = np.flipud(vals)
+            newcmp = ListedColormap(vals)
+            ax[ii].tricontourf(tri.x, tri.y, tri.triangles, data_plot, 
+                                levels=levels, cmap=newcmp, extend='both')
+            ax[ii].tricontour(tri.x, tri.y, tri.triangles, data_plot, levels=levels, 
+                              colors='k', linewidths=0.25, alpha=0.5)
+        #_______________________________________________________________________
+        # add grid mesh on top
+        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[e_idxok,:], #tri.triangles[:,:], #
+                                   color='k', linewidth=0.2, alpha=0.75, zorder=1) 
                                    #transform=which_transf)
         
         #_______________________________________________________________________
@@ -272,7 +619,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # delete axes that are not needed
-    for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    for jj in range(ndata, nax): fig.delaxes(ax[jj])
     
     #___________________________________________________________________________
     # delete axes that are not needed
@@ -295,24 +643,27 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # kickout some colormap labels if there are to many
-    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
+    cbar = do_cbar_label(cbar, cbar_nl, cinfo, do_vec=True)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=title)
+    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
     
+    plt.show(block=False)
+    fig.canvas.draw()
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save)
+    do_savefigure(do_save, dpi=save_dpi)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
-    
-    
+
+
 
 def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5], 
                 title=None, do_save=None, do_lsmask='fesom', color_lsmask=[0.6, 0.6, 0.6],
-                linecolor='k', linewidth=0.2, linealpha=0.75):
+                linecolor='k', linewidth=0.2, linealpha=0.75, pos_extend=None,):
     """
     ---> plot FESOM2 horizontal mesh:
     ___INPUT:___________________________________________________________________
@@ -414,7 +765,7 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
     
     # Limit points to projection box
     if proj=='nps' or proj=='sps' or 'pc':
-        e_idxbox = grid_cutbox(tri.x, tri.y, tri.triangles, box, which='hard')
+        e_idxbox = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='hard')
     else:    
         points = which_transf.transform_points(which_proj, 
                                                 tri.x[tri.triangles].sum(axis=1)/3, 
@@ -463,15 +814,16 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
             # is title list of string        
             elif isinstance(title,list): 
                 ax[ii].set_title(title[ii], fontsize=fontsize+2)
+                
     nax_fin = ii+1        
     
     #___________________________________________________________________________
     # delete axes that are not needed
     for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
-    
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, None, rowlist, collist, pos_fac, pos_gap, title=title)
+    ax, cbar = do_reposition_ax_cbar(ax, None, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
     
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
@@ -550,22 +902,30 @@ def do_rescale_data(data,do_rescale):
 #| ___RETURNS_______________________________________________________________   |
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
-def do_setupcinfo(cinfo, data, tri, mesh, do_rescale):
+def do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=False):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
     
     # check if dictionary keys exist, if they do not exist fill them up 
+    cfac = 1
+    if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
     if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
         cmin, cmax = np.Inf, -np.Inf
         for data_ii in data:
             vname = list(data_ii.keys())
-            data_plot = data_ii[ vname[0] ].data.copy()
+            if do_vec==False:
+                data_plot = data_ii[ vname[0] ].data.copy()
+            else:
+                # compute norm when vector data
+                data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
+                
             data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
             data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
             cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
             cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
-            
+            cmin, cmax = cmin*cfac, cmax*cfac
+            # print(cmin,cmax)
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
         if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
     if 'crange' in cinfo.keys():
@@ -733,7 +1093,7 @@ def do_add_gridlines(ax, rowlist, collist, xticks, yticks, proj, which_proj):
 #| ___RETURNS_______________________________________________________________   |
 #| cbar         :   actual colorbar handle                                     |                  
 #|_____________________________________________________________________________|  
-def do_cbar_label(cbar, cbar_nl, cinfo):
+def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
     #___________________________________________________________________________
     # kickout some colormap labels if there are to many
     if cbar.orientation=='vertical': tickl = cbar.ax.get_yticklabels()
@@ -750,8 +1110,12 @@ def do_cbar_label(cbar, cbar_nl, cinfo):
     idxb = np.ones((len(tickl),), dtype=bool)                
     idxb[idx_cref::nstep]  = False
     idxb[idx_cref::-nstep] = False
-    idx = idx[idxb==True]
-    for ii in list(idx): tickl[ii]=''
+    idx_not = idx[idxb==True]
+    idx_yes = idx[idxb==False]
+    
+    for ii in list(idx_not): tickl[ii]=''
+    if do_vec: 
+        for ii in list(idx_yes): tickl[ii]='{:2.2f}'.format(cinfo['clevel'][ii])
     if cbar.orientation=='vertical': cbar.ax.set_yticklabels(tickl)
     else:                            cbar.ax.set_xticklabels(tickl)
     
@@ -782,7 +1146,8 @@ def do_cbar_label(cbar, cbar_nl, cinfo):
 #| ax           :   actual axes handle                                         |
 #| cbar         :   actual colorbar handle                                     | 
 #|_____________________________________________________________________________|  
-def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=None):
+def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=None, 
+                          extend=None, proj=None):
     #___________________________________________________________________________
     # repositioning of axes and colorbar
     nax = len(ax)
@@ -790,20 +1155,44 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
     for jj in range(0,nax):
         aux = ax[jj].get_position()
         ax_pos[jj,:] = np.array([aux.x0, aux.y0, aux.width, aux.height])
-    
-    fac = pos_fac
-    #x0, y0, x1, y1 = 0.05, 0.05, 0.95, 0.95
-    x0, y0, x1, y1 = 0.1, 0.1, 0.9, 0.9
-    if cbar is not None:
-        if cbar.orientation=='horizontal': y0 = 0.21
-    w, h = ax_pos[:,2].min(), ax_pos[:,3].min()
-    w, h = w*fac, h*fac
-    wg, hg = pos_gap[0], pos_gap[1]
-    if title is not None: hg = hg+0.04
-    
     maxr = rowlist.max()+1
     maxc = collist.max()+1
     
+     
+    #fac = pos_fac
+    ##x0, y0, x1, y1 = 0.05, 0.05, 0.95, 0.95
+    #x0, y0, x1, y1 = 0.1, 0.1, 0.9, 0.9
+    #if cbar is not None:
+        #if cbar.orientation=='horizontal': y0 = 0.21
+    #w, h = ax_pos[:,2].min(), ax_pos[:,3].min()
+    #w, h = w*fac, h*fac
+    #wg, hg = pos_gap[0], pos_gap[1]
+    #if title is not None: hg = hg+0.04
+    
+    fac = pos_fac
+    wg, hg = pos_gap[0], pos_gap[1]
+    x0, y0, x1, y1 = 0.075, 0.05, 0.825, 0.95
+    if extend is not None:
+        x0, y0, x1, y1 = extend[0], extend[1], extend[2], extend[3]
+        
+    if cbar is not None:
+        if cbar.orientation=='horizontal': y0 = y0+0.25
+        
+    dx = x1-x0-(maxc-1)*wg
+    w  = dx/maxc
+    h  = w*ax_pos[:,3].min()/ax_pos[:,2].min()
+    
+    #dy = y1-y0-(maxr-1)*hg
+    #h  = dy/maxr
+    #w  = h*ax_pos[:,2].min()/ax_pos[:,3].min()
+    if proj in ['nps', 'sps']:
+        if title is not None: hg = hg+0.01
+    else:
+        if title is not None: hg = hg+0.06
+    if (h*maxr+hg*(maxr-1)+y0)>y1: fac = 1/(h*maxr+hg*(maxr-1)+y0)
+    if (w*maxc+wg*(maxc-1)+x0)>x1: fac = 1/(w*maxc+wg*(maxc-1)+x0) 
+    w, h = w*fac, h*fac
+
     for jj in range(nax-1,0-1,-1):
         ax[jj].set_position( [x0+(w+wg)*collist[jj], y0+(h+hg)*np.abs(rowlist[jj]-maxr+1), w, h] )
     
@@ -813,7 +1202,8 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
             cbar.ax.set_position([x0+(w+wg)*maxc, y0, cbar_pos.width*0.75, h*maxr+hg*(maxr-1)])
             cbar.ax.set_aspect('auto')
         else: 
-            cbar.ax.set_position([x0, 0.11, w*maxc+wg*(maxc-1), cbar_pos.height/2])
+            #cbar.ax.set_position([x0, 0.125, w*maxc+wg*(maxc-1), cbar_pos.height/2])/
+            cbar.ax.set_position([x0, 0.14, w*maxc+wg*(maxc-1), cbar_pos.height/2])
             cbar.ax.set_aspect('auto')
         
     #___________________________________________________________________________
@@ -871,7 +1261,7 @@ def do_ticksteps(mesh, box, ticknr=7):
 #| ___RETURNS_______________________________________________________________   |
 #| None                  
 #|_____________________________________________________________________________|  
-def do_savefigure(do_save, dpi=600, transparent=True, pad_inches=0.1):
+def do_savefigure(do_save, dpi=300, transparent=True, pad_inches=0.1, **kw):
     if do_save is not None:
         #_______________________________________________________________________
         # extract filename from do_save
@@ -891,4 +1281,4 @@ def do_savefigure(do_save, dpi=600, transparent=True, pad_inches=0.1):
         #_______________________________________________________________________
         plt.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
                     bbox_inches='tight', pad_inches=pad_inches,\
-                    transparent=transparent)
+                    transparent=transparent, **kw)
