@@ -28,8 +28,10 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean',
     #___________________________________________________________________________
     # loop over box_list
     for box in box_list:
+        
         if not isinstance(box, shp.Reader):
             if len(box)==2: boxname, box = box[1], box[0]
+            if box is None or box=='global': boxname='global'
         
         #_______________________________________________________________________
         # compute  mask index
@@ -40,19 +42,19 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean',
         # points
         index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm) )
         idxin_list.append(idx_IN)
-        # str_anod = str(do_harithm)
-    
+        
         #_______________________________________________________________________
         if do_compute: index_list[cnt] = index_list[cnt].compute()
         
         #_______________________________________________________________________
+        vname = list(index_list[cnt].keys())            
         if boxname is not None: 
-            vname = list(index_list[cnt].keys())
             index_list[cnt][vname[0]].attrs['boxname'] = boxname
-        elif boxname is None and isinstance(box, shp.Reader):
-            vname = list(index_list[cnt].keys())
+        elif isinstance(box, shp.Reader):
             index_list[cnt][vname[0]].attrs['boxname'] = os.path.basename(box.shapeName).replace('_',' ')  
-
+        elif boxname is None or boxname=='global': 
+            index_list[cnt][vname[0]].attrs['boxname'] = 'global'
+        
         #_______________________________________________________________________
         cnt = cnt + 1
     #___________________________________________________________________________
@@ -70,7 +72,7 @@ def do_boxmask(mesh, box, do_elem=False):
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
-    if  box is None: # if None do global
+    if  box is None or box is 'global': # if None do global
         idx_IN = np.ones((mesh_x.shape),dtype=bool)
         
     elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
@@ -391,7 +393,9 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
             else:
                 lwidth = linewidth
         
+            #ax[bi].plot(val,dep, color='k', linewidth=lwidth*1.05)
             if linecolor_list is None: 
+                
                 ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=lwidth, alpha=do_alpha)
             else:
                 if isinstance(linecolor_list[di], (list, np.ndarray)):
@@ -409,14 +413,16 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
                     
                     
         #_______________________________________________________________________
-        if bi==nbi-1 : 
-            ax[bi].legend(loc='upper right', frameon=True, shadow=True, fontsize=8, ncol=1,
-                                   #loc='best', 
-                                   bbox_to_anchor=(1.5, 1.5))
+        # if bi==nbi-1 : 
+        if bi==n_rc[1]-1 : 
+            ax[bi].legend(loc='upper right', 
+                          frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                          labelspacing=1.0,
+                          bbox_to_anchor=(2.3, 1.0)) #bbox_to_anchor=(1.5, 1.5))
         
         #_______________________________________________________________________
         if 'boxname' in index_list[di][bi][vname[0]].attrs.keys(): 
-            str_title = index_list[di][bi][ vname[0] ].attrs['boxname']
+            str_title = index_list[di][bi][vname[0] ].attrs['boxname']
         elif (isinstance(box_list[bi], shp.Reader)): 
             str_title = os.path.basename(box_list[bi].shapeName)
         else:                                      
@@ -455,7 +461,7 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
     
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save)
+    do_savefigure(do_save, fig, )
     
     #___________________________________________________________________________
     return(fig, ax)
@@ -525,7 +531,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     else:
         if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
         cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
-        if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
+        if 'cref' not in cinfo.keys(): cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
+        #if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
     cinfo['cmap'],cinfo['clevel'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
@@ -585,7 +592,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         isnotnan = isnotnan.sum()-1
         
         if title is not None: 
-            txtx, txty = time[0]+(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025                    
+            #txtx, txty = time[0]+(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025                    
+            txtx, txty = time[0]+(time[-1]-time[0])*0.015, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.015
             if   isinstance(title,str) : 
                 # if title string is 'descript' than use descript attribute from 
                 # data to set plot title 
@@ -596,18 +604,20 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             # is title list of string        
             elif isinstance(title,list):   
                 txts = title[ii]
-            ax[ii].text(txtx, txty, txts, fontsize=14, fontweight='bold', horizontalalignment='left')
+            ax[ii].text(txtx, txty, txts, fontsize=12, fontweight='bold', horizontalalignment='left')
         
         if 'boxname' in data[ii][0][vname].attrs.keys():
-            txtx, txty = time[-1]-(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025   
+            #txtx, txty = time[-1]-(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025   
+            #txtx, txty = time[-1]-(time[-1]-time[0])*0.015, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.015 
+            txtx, txty = time[0]+(time[-1]-time[0])*0.015, depth[0]+(depth[isnotnan]-depth[0])*0.05
             txts = data[ii][0][vname].attrs['boxname']
-            ax[ii].text(txtx, txty, txts, fontsize=10, fontweight='bold', horizontalalignment='right')
+            ax[ii].text(txtx, txty, txts, fontsize=10, fontweight='bold', horizontalalignment='left')
         
         
         
         
         if collist[ii]==0        : ax[ii].set_ylabel('Depth [m]',fontsize=12)
-        if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel('Latitudes [deg]',fontsize=12)
+        if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel('Time [years]',fontsize=12)
         
         #_______________________________________________________________________
         ax[ii].set_ylim(depth[0],depth[isnotnan])
@@ -655,7 +665,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     fig.canvas.draw()
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, dpi=save_dpi)
+    do_savefigure(do_save, fig, dpi=save_dpi)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
@@ -683,3 +693,47 @@ def categorical_cmap(nc, nsc, cmap="tab10", continuous=False):
         cols[i*nsc:(i+1)*nsc,:] = rgb       
     cmap = matplotlib.colors.ListedColormap(cols)
     return cmap
+
+# ___DO ANOMALY________________________________________________________________
+#| compute anomaly between two xarray Datasets                                 |
+#| ___INPUT_________________________________________________________________   |
+#| data1        :   xarray dataset object                                      |
+#| data2        :   xarray dataset object                                      |
+#| ___RETURNS_______________________________________________________________   |
+#| anom         :   xarray dataset object, data1-data2                         |
+#|_____________________________________________________________________________|
+def do_indexanomaly(index1,index2):
+    
+    anom_index = list()
+    
+    #___________________________________________________________________________
+    for idx1,idx2 in zip(index1, index2):
+    
+        # copy datasets object 
+        anom_idx = idx1.copy()
+        
+        idx1_vname = list(idx1.keys())
+        idx2_vname = list(idx2.keys())
+        #for vname in list(anom.keys()):
+        for vname, vname2 in zip(idx1_vname, idx2_vname):
+            # do anomalous data 
+            anom_idx[vname].data = idx1[vname].data - idx2[vname2].data
+            
+            # do anomalous attributes 
+            attrs_data1 = idx1[vname].attrs
+            attrs_data2 = idx2[vname2].attrs
+            
+            for key in attrs_data1.keys():
+                if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
+                    if key in ['long_name']:
+                        anom_idx[vname].attrs[key] = 'anomalous '+anom_idx[vname].attrs[key] 
+                    elif key in ['units',]: 
+                        continue
+                    elif idx1[vname].attrs[key] != idx2[vname2].attrs[key]:
+                        anom_idx[vname].attrs[key]  = idx1[vname].attrs[key]+' - '+idx2[vname2].attrs[key]
+        
+        #___________________________________________________________________________
+        anom_index.append(anom_idx)
+    #___________________________________________________________________________
+    return(anom_index)
+

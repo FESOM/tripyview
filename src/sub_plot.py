@@ -125,7 +125,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # create box if not exist
-    if box is None: box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
+    if box is None or box=="None": box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
     
     #___________________________________________________________________________
     # Create projection
@@ -218,7 +218,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # periodic augment data
         vname = list(data[ii].keys())
-        data_plot = data[ii][ vname[0] ].data
+        data_plot = data[ii][ vname[0] ].data.copy()
         data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
         data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
         
@@ -314,11 +314,13 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
                                      pos_gap, title=title, proj=proj, extend=pos_extend)
     
-    plt.show(block=False)
     fig.canvas.draw()
+    
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, dpi=save_dpi)
+    do_savefigure(do_save, fig, dpi=save_dpi)
+    
+    plt.show(block=False)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
@@ -654,7 +656,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     fig.canvas.draw()
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, dpi=save_dpi)
+    do_savefigure(do_save, fig, dpi=save_dpi)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
@@ -827,7 +829,7 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save)
+    do_savefigure(do_save, fig)
     
     #___________________________________________________________________________
     return(fig, ax)
@@ -867,7 +869,7 @@ def do_rescale_data(data,do_rescale):
     #___________________________________________________________________________
     elif do_rescale=='log10':
         data[data!=0.0] = np.log10(data[data!=0.0])
-        data.rescale='log10'
+        #data.rescale='log10'
         str_rescale  = ' log10() '
     
     #___________________________________________________________________________
@@ -1261,7 +1263,7 @@ def do_ticksteps(mesh, box, ticknr=7):
 #| ___RETURNS_______________________________________________________________   |
 #| None                  
 #|_____________________________________________________________________________|  
-def do_savefigure(do_save, dpi=300, transparent=True, pad_inches=0.1, **kw):
+def do_savefigure(do_save, fig, dpi=300, transparent=True, pad_inches=0.1, **kw):
     if do_save is not None:
         #_______________________________________________________________________
         # extract filename from do_save
@@ -1279,6 +1281,6 @@ def do_savefigure(do_save, dpi=300, transparent=True, pad_inches=0.1, **kw):
         if not os.path.isdir(sdname): os.makedirs(sdname)
         
         #_______________________________________________________________________
-        plt.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
+        fig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
                     bbox_inches='tight', pad_inches=pad_inches,\
                     transparent=transparent, **kw)

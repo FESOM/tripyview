@@ -5,7 +5,7 @@ import time
 import os
 import xarray as xr
 from sub_mesh import *
-#import seawater as sw
+import seawater as sw
 
 # ___LOAD FESOM2 DATA INTO XARRAY DATASET CLASS________________________________
 #|                                                                             |
@@ -72,6 +72,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     is_ie2n = False
     do_vec  = False
     do_norm = False
+    do_pdens= False
     str_adep, str_atim = '', '' # string for arithmetic
     str_ldep, str_ltim = '', '' # string for labels
     str_lsave = ''    
@@ -139,7 +140,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #  \/   \/   \/   \/   \/   \/   \/   \/   \/   \/   \/   \/   \/   \/   \/  
     #___________________________________________________________________________    
     # analyse vname input if vector data should be load  "vec+vnameu+vnamev"
-    vname2 = None
+    vname2, vname_tmp = None, None
     if ('vec' in vname) or ('norm' in vname):
         if ('vec'  in vname): do_vec =True
         if ('norm' in vname): do_norm=True
@@ -148,6 +149,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
             raise ValueError(" to load vector or norm of data two variables need to be defined: vec+u+v")
         vname, vname2 = aux[1], aux[2]
         del aux
+    elif ('sigma' in vname) or ('pdens' in vname):
+        do_pdens=True 
+        vname_tmp = vname
+        vname, vname2 = 'temp', 'salt'
         
     #___________________________________________________________________________
     # create path name list that needs to be loaded
@@ -161,15 +166,16 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         
         # in case of vector load also meridional data and merge into 
         # dataset structure
-        if do_vec or do_norm:
+        if do_vec or do_norm or do_pdens:
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
             data     = xr.merge([data, xr.open_mfdataset(pathlist,**kwargs)])
             if do_vec: is_data='vector'
             
     # load restart or blowup files
     else:
+        print(pathlist)
         data = xr.open_mfdataset(pathlist, parallel=True, **kwargs)
-        if do_vec or do_norm:
+        if do_vec or do_norm or do_pdens:
             # which variables should be dropped 
             vname_drop = list(data.keys())
             print(' > var in file:', vname_drop)
@@ -203,7 +209,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data = data.where(data[vname]!=0)
     
     #___________________________________________________________________________
-    # select depth levels also fo vertical interpolation 
+    # select depth levels also for vertical interpolation 
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
     # if ( ('nz1' in data[vname].dims) or ('nz'  in data[vname].dims) ) and (depth is not None):
     if ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is not None):
@@ -220,6 +226,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         #_______________________________________________________________________
         data, str_ldep = do_select_levidx(data, mesh, depth, depidx)
         
+        #_______________________________________________________________________
+        if do_pdens: 
+            data, vname = do_potential_desnsity(data, do_pdens, vname, vname2, vname_tmp)
+            
         #_______________________________________________________________________
         # do vertical interpolation and summation over interpolated levels 
         if depidx==False:
@@ -258,6 +268,11 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # compute norm of the vectors if do_norm=True    
     data = do_vector_norm(data, do_norm)
+    
+    #___________________________________________________________________________
+    # compute potential density if do_pdens=True    
+    if do_pdens and depth is None: 
+        data, vname = do_potential_desnsity(data, do_pdens, vname, vname2, vname_tmp)
     
     #___________________________________________________________________________
     # interpolate from elements to node
@@ -713,6 +728,39 @@ def do_vector_norm(data, do_norm):
         
     #___________________________________________________________________________    
     return(data)  
+
+
+# ___COMPUTE NORM OF VECTOR DATA_______________________________________________
+#| compute vector norm: vname='vec+u+v'                                        |
+#| ___INPUT_________________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#| do_norm      :   bool, should vector norm be computed                       |
+#| ___RETURNS_______________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#|_____________________________________________________________________________|  
+def do_potential_desnsity(data, do_pdens, vname, vname2, vname_tmp):
+    if do_pdens:
+        pref=0
+        if   vname_tmp == 'sigma' or vname_tmp == 'sigma0'  : pref=0
+        elif vname_tmp == 'sigma1' : pref=1000
+        elif vname_tmp == 'sigma2' : pref=2000
+        elif vname_tmp == 'sigma3' : pref=3000
+        elif vname_tmp == 'sigma4' : pref=4000
+        elif vname_tmp == 'sigma5' : pref=5000
+        
+        if 'time' in data.dims:
+            data_depth = data['nz1'].expand_dims(dict({'time':data.dims['time'], 'nod2':data.dims['nod2']}))
+        else:
+            data_depth = data['nz1'].expand_dims(dict({'nod2':data.dims['nod2']}))
+        data = data.assign({vname_tmp: (list(data.dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.025)})
+        del(data_depth)
+        data = data.drop(labels=[vname, vname2])
+        data[vname_tmp].attrs['units'] = 'kg/m^3'
+        vname = vname_tmp
+        
+    #___________________________________________________________________________    
+    return(data, vname)  
+
 
 
 

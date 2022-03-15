@@ -506,18 +506,26 @@ class mesh_fesom2(object):
         self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
         
         #____load number of levels at each node_________________________________
-        file_content = pa.read_csv(self.fname_nlvls, delim_whitespace=True, skiprows=0, \
-                                       names=['numb_of_lev'])
-        self.n_iz    = file_content.values.astype('uint16') - 1
-        self.n_iz    = self.n_iz.squeeze()
-        self.n_z     = np.float32(self.zlev[self.n_iz])
+        print(self.fname_nlvls)
+        if ( os.path.isfile(self.fname_nlvls) ):
+            file_content = pa.read_csv(self.fname_nlvls, delim_whitespace=True, skiprows=0, \
+                                           names=['numb_of_lev'])
+            self.n_iz    = file_content.values.astype('uint16') - 1
+            self.n_iz    = self.n_iz.squeeze()
+            self.n_z     = np.float32(self.zlev[self.n_iz])
+        else:
+            self.n_iz    = np.zeros((self.n2dn,)) 
+            self.n_z     = np.zeros((self.n2dn,)) 
         
         #____load number of levels at each elem_________________________________
-        file_content    = pa.read_csv(self.fname_elvls, delim_whitespace=True, skiprows=0, \
-                                       names=['numb_of_lev'])
-        self.e_iz= file_content.values.astype('uint16') - 1
-        self.e_iz= self.e_iz.squeeze()
-        
+        if ( os.path.isfile(self.fname_elvls) ):
+            file_content = pa.read_csv(self.fname_elvls, delim_whitespace=True, skiprows=0, \
+                                           names=['numb_of_lev'])
+            self.e_iz    = file_content.values.astype('uint16') - 1
+            self.e_iz    = self.e_iz.squeeze()
+        else:
+            self.e_iz    = np.zeros((self.n2de,)) 
+            
         #_______________________________________________________________________
         return(self)    
     
