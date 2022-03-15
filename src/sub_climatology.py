@@ -16,7 +16,7 @@ from sub_data import *
 #|_____________________________________________________________________________|
 def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                      do_zarithm='mean', do_hinterp='linear', do_zinterp=True, 
-                     do_compute=True, descript='clim', do_ptemp=True, 
+                     do_compute=True, descript='clim', do_ptemp=True, pref =0.0, 
                      **kwargs):
     
     str_mdep = ''
@@ -53,7 +53,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         
     #___________________________________________________________________________
     # compute potential temperature
-    if do_ptemp and any( [a in vname for a in ['temp', 'T', 't00', 'temperature']]) :
+    if vname == 'pdens' or 'sigma' in vname: do_ptemp=True
+    if do_ptemp and (any( [a in vname for a in ['temp', 'T', 't00', 'temperature', 'pdens']]) or 'sigma' in vname) :
         for key in list(data.keys()):
             if any( [a in key for a in ['temp', 'T', 't00', 'temperature']]): vname_temp=key
             if any( [a in key for a in ['salt', 'S', 's00', 'salinity'   ]]): vname_salt=key
@@ -65,14 +66,26 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                         dict({dim_lat:data[coord_lat].data, dim_lon:data[coord_lon].data})
                         ).transpose(dim_zlev,dim_lat,dim_lon)
         data[vname_temp].data = sw.ptmp(data[vname_salt].data, data[vname_temp].data, data_depth )
-        del(data_depth)
+        
     
     #___________________________________________________________________________
     # if there are multiple variables, than kick out varaible that is not needed
-    if len(list(data.keys()))>1:
-        vname_drop = list(data.keys())
-        vname_drop.remove(vname)
+    vname_drop = list(data.keys())            
+    if vname == 'pdens' or 'sigma' in vname:
+        if   vname == 'sigma'  : pref=0
+        elif vname == 'sigma1' : pref=1000
+        elif vname == 'sigma2' : pref=2000
+        elif vname == 'sigma3' : pref=3000
+        elif vname == 'sigma4' : pref=4000
+        elif vname == 'sigma5' : pref=5000
+        data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.025)})
+        #for labels in vname_drop:
         data = data.drop(labels=vname_drop)
+        data[vname].attrs['units'] = 'kg/m^3'
+    else:
+        if len(list(data.keys()))>1:
+            vname_drop.remove(vname)
+            data = data.drop(labels=vname_drop)
     
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with 
@@ -131,7 +144,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
             
             # interp data on nodes
             # data = data.interp(lon=n_x, lat=n_y, method='nearest')
-            data = data.interpdict(dict({dim_lon:n_x, dim_lat:n_y}), method='nearest')
+            data = data.interp(dict({dim_lon:n_x, dim_lat:n_y}), method='nearest')
             del n_x, n_y
             
         elif do_hinterp=='linear':
@@ -163,14 +176,17 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
             
         # interp data on nodes --> method linear
         data = data.interp(dict({dim_zlev:zmid}), method='linear')
+        
+    data = data.transpose()    
     #___________________________________________________________________________
     # write additional attribute info
     for vname in list(data.keys()):
         attr_dict=dict({'datapath':datapath, 'depth':depth, 'str_mdep':str_mdep, 
                         'depidx':depidx, 'do_zarithm':do_zarithm, 'do_hinterp':do_hinterp, 
-                        'do_compute':do_compute, 'descript':descript})
+                        'do_compute':do_compute, 'descript':descript, 'runid':'fesom'})
         do_additional_attrs(data, vname, attr_dict)
     
+    data = data.assign_coords(dict({'nz1':-mesh.zmid}))
     #___________________________________________________________________________
     if do_compute: data = data.compute()
     

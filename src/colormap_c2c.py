@@ -76,6 +76,16 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
                     ((cref-clevel[0])/cdelta2                        , [1.0, 1.0 , 1.0]),
                     ((cref-clevel[0]+(clevel[-1]-cref)/2)/cdelta2    , [1.0, 0.6 , 0.0]),
                     ((clevel[-1]-clevel[0])/cdelta2                    , [1.0, 0.19, 0.0] )]
+        
+    if cname=='dblue2dred':
+        cmap_def = [(0.0                                                , [0.0, 0.19, 0.5]),
+                    (((cref-clevel[0])*0.33333)/cdelta2                 , [0.0, 0.19, 1.0]),
+                    (((cref-clevel[0])*0.66666)/cdelta2                 , [0.0, 0.72, 1.0]),
+                    ((cref-clevel[0])/cdelta2                           , [1.0, 1.0 , 1.0]),
+                    ((cref-clevel[0]+(clevel[-1]-cref)*0.33333)/cdelta2 , [1.0, 0.6 , 0.0]),
+                    ((cref-clevel[0]+(clevel[-1]-cref)*0.66666)/cdelta2 , [1.0, 0.19, 0.0]),
+                    ((clevel[-1]-clevel[0])/cdelta2                     , [0.5, 0.19, 0.0] )]
+        
     if cname=='red2blue':
         cmap_def = [(0.0                                            , [1.0, 0.19, 0.0]),
                     (((cref-clevel[0])/2)/cdelta2                    , [1.0, 0.6 , 0.0]),

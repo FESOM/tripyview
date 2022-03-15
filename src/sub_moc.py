@@ -39,7 +39,7 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         # set proper directory so he can find the moc basin shape files
         try: dname = os.environ['PATH_TRIPYVIEW']
         except: dname=''    
-        mocbaspath=dname+'src/shapefiles/moc_basins/'
+        mocbaspath=os.path.join(dname,'src/shapefiles/moc_basins/')
         
         #_______________________________________________________________________
         # amoc2 ... calculate amoc without arctic
@@ -324,7 +324,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.01, 0.01], do_save=None, save_dpi=600, 
               do_contour=True, do_clabel=True, title='descript',
-              pos_extend=[0.075, 0.08, 0.95,0.95] ):
+              pos_extend=[0.06, 0.08, 0.95,0.95] ):
     #____________________________________________________________________________
     fontsize = 12
     str_rescale = None
@@ -492,7 +492,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     fig.canvas.draw()
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, dpi=save_dpi)
+    do_savefigure(do_save, fig, dpi=save_dpi)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
