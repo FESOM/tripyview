@@ -202,10 +202,9 @@ def do_elem_smoothing(mesh, data_orig, e_nghbr_e, weaksmth_boxlist, rel_cent_wei
             
     #_________________________________________________________________________________________
     return(data_smooth)
-
-
-
-
+#
+#
+#_______________________________________________________________________________
 import numpy as np
 import matplotlib.pyplot as plt
 from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox, Layout
@@ -213,8 +212,8 @@ import ipywidgets as widgets
 from sub_index import do_boxmask
 from matplotlib.tri import Triangulation
 from matplotlib.patches import Rectangle
-from   shapely.geometry   import Polygon, shape
-from   shapely.vectorized import contains
+from shapely.geometry   import Polygon, shape
+from shapely.vectorized import contains
 class select_scatterpts_depth(object):
     
     #
