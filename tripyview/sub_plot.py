@@ -13,13 +13,15 @@ from cartopy.mpl.gridliner import Gridliner
 from matplotlib.tri import Triangulation,TriAnalyzer
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from sub_mesh import *
-from sub_data import *
-from colormap_c2c import *
 import matplotlib.colors
 import matplotlib.ticker as mticker
 import matplotlib.path as mpath
 from matplotlib.colors import ListedColormap
+
+from .sub_mesh     import *
+from .sub_data     import *
+from .colormap_c2c import *
+
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
@@ -993,7 +995,7 @@ def do_plotlsmask(ax, mesh, do_lsmask, box, which_proj,
         # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
         # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
         bckgrndir = os.getcwd()
-        bckgrndir = os.path.normpath(bckgrndir+'/src/backgrounds/')
+        bckgrndir = os.path.normpath(bckgrndir+'/tripyview/backgrounds/')
         os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
         ax.background_img(name=do_lsmask, resolution=resolution)
         ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), 
@@ -1003,7 +1005,7 @@ def do_plotlsmask(ax, mesh, do_lsmask, box, which_proj,
         # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
         # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
         bckgrndir = os.getcwd()
-        bckgrndir = os.path.normpath(bckgrndir+'/src/backgrounds/')
+        bckgrndir = os.path.normpath(bckgrndir+'/tripyview/backgrounds/')
         os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
         ax.background_img(name=do_lsmask, resolution=resolution)    
         ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), 
