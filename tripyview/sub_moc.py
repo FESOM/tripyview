@@ -1,19 +1,21 @@
 # Patrick, Scholz 02.09.2018
 import numpy as np
-import time
+import time as time
 import os
 from netCDF4 import Dataset
 import xarray as xr
 import matplotlib
 matplotlib.rcParams['contour.negative_linestyle']= 'solid'
 import matplotlib.pyplot as plt
-import matplotlib.patches as Polygon
-from colormap_c2c    import *
-import matplotlib.path as mpltPath
-from matplotlib.tri import Triangulation
+#import matplotlib.patches as Polygon
+#import matplotlib.path as mpltPath
+#from matplotlib.tri import Triangulation
 from numba import jit, njit, prange
-from sub_index import *
 import shapefile as shp
+
+from .colormap_c2c    import *
+from .sub_index import *
+
 
 #+___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________+
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
@@ -37,9 +39,8 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         
         #_______________________________________________________________________
         # set proper directory so he can find the moc basin shape files
-        try: dname = os.environ['PATH_TRIPYVIEW']
-        except: dname=''    
-        mocbaspath=os.path.join(dname,'src/shapefiles/moc_basins/')
+        pkg_path = os.path.dirname(__file__)
+        mocbaspath=os.path.join(pkg_path,'shapefiles/moc_basins/')
         
         #_______________________________________________________________________
         # amoc2 ... calculate amoc without arctic
@@ -449,7 +450,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
             # is title list of string        
             elif isinstance(title,list):   
                 txts = title[ii]
-            ax[ii].text(txtx, txty, txts, fontsize=14, fontweight='bold', horizontalalignment='left')
+            ax[ii].text(txtx, txty, txts, fontsize=12, fontweight='bold', horizontalalignment='left')
         
         if collist[ii]==0        : ax[ii].set_ylabel('Depth [m]',fontsize=12)
         if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel('Latitudes [deg]',fontsize=12)

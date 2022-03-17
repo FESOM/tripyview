@@ -8,6 +8,7 @@ import pandas as pa
 import joblib
 import pickle5 as pickle
 from   netCDF4 import Dataset
+from .sub_mesh import *
 
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
 #| IMPORTANT!!!:                                                               |                                         

@@ -1,11 +1,10 @@
 # Patrick Scholz, 23.01.2018
 import numpy as np
-#import numpy.matlib
 import time
 import os
 import xarray as xr
-from sub_mesh import *
 import seawater as sw
+from .sub_mesh import *
 
 # ___LOAD FESOM2 DATA INTO XARRAY DATASET CLASS________________________________
 #|                                                                             |

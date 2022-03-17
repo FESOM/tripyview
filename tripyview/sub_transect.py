@@ -10,13 +10,14 @@ import json
 import geopandas as gpd
 import matplotlib.pylab as plt
 import matplotlib
-from   sub_mesh           import * 
-from   sub_data           import *
-from   sub_plot           import *
-from   sub_index          import *
-from   colormap_c2c       import *
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 import pyfesom2 as pf
+
+from   .sub_mesh           import * 
+from   .sub_data           import *
+from   .sub_plot           import *
+from   .sub_index          import *
+from   .colormap_c2c       import *
 
 def load_transect_fesom2(mesh, data, transect_list, do_compute=True, ):
     

@@ -2,7 +2,6 @@ import os
 import xarray as xr
 import pandas as pa
 import numpy  as np
-
 #
 #
 #_____________________________________________________________________________________________
@@ -209,7 +208,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox, Layout
 import ipywidgets as widgets
-from sub_index import do_boxmask
+from .sub_index import do_boxmask
 from matplotlib.tri import Triangulation
 from matplotlib.patches import Rectangle
 from shapely.geometry   import Polygon, shape

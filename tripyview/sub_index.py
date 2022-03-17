@@ -10,11 +10,13 @@ import json
 import geopandas as gpd
 import matplotlib.pylab as plt
 import matplotlib
-from   sub_mesh           import * 
-from   sub_data           import *
-from   sub_plot           import *
-from   colormap_c2c       import *
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
+
+from   .sub_mesh           import * 
+from   .sub_data           import *
+from   .sub_plot           import *
+from   .colormap_c2c       import *
+
 
 def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean', 
                       do_compute=True, do_outputidx=False):

@@ -1,12 +1,11 @@
 # Patrick Scholz, 23.01.2018
-
 import numpy as np
-#import numpy.matlib
 import time
 import os
 import xarray as xr
 import seawater as sw
-from sub_data import *
+
+from .sub_data import *
 
     
 # ___LOAD CLIMATOLOGY DATA INTO XARRAY DATASET CLASS___________________________
