@@ -21,3 +21,4 @@ from .sub_utility     import *
 from .colormap_c2c    import colormap_c2c
 from .sub_diagdriver  import *
 from .sub_diagrun     import *
+from .sub_3dsphere    import *
