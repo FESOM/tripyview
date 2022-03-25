@@ -349,7 +349,7 @@ def plot_index_region(mesh, idx_IN, box_list, which='hard'):
 #_______________________________________________________________________________
 def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1], 
                  linecolor_list=None, linestyle_list=None, cbar_label=None,
-                 cbar_unit=None, do_save=None, linewidth=1.0, do_alpha=0.8):
+                 cbar_unit=None, do_save=None, linewidth=1.0, do_alpha=0.8, do_rescale=False):
         
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -381,11 +381,12 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
         for di in range(0,ndi):
                 
             vname = list(index_list[di][bi].keys())
-            val   = index_list[di][bi][vname[0]].values
+            val   = index_list[di][bi][vname[0]].values.copy()
+            val, str_rescale= do_rescale_data(val, do_rescale)
             
             cname = list(index_list[di][bi].coords)
-            dep = index_list[di][bi].coords[cname[0]].values
-        
+            dep = np.abs(index_list[di][bi].coords[cname[0]].values)
+            
             linestyle = 'solid'
             if linestyle_list is not None: 
                 if (not linestyle_list[di])==False: linestyle =  linestyle_list[di]
@@ -437,16 +438,19 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
             ax[bi].set_ylabel('depth [m]')
         
         #_______________________________________________________________________
-        if cbar_label is None: 
-            str_xlabel = index_list[di][bi][ vname[0] ].attrs['long_name']
-        else:
-            str_xlabel = cbar_label
-        if cbar_unit  is None: str_xlabel = str_xlabel+' ['+index_list[di][bi][ vname[0] ].attrs['units']+']'
-        else:                  str_xlabel = str_xlabel+' ['+cbar_unit+']'    
+        if cbar_label is None     : str_xlabel = index_list[di][bi][ vname[0] ].attrs['long_name']
+        else                      : str_xlabel = cbar_label
+        if str_rescale is not None: str_xlabel = str_xlabel+str_rescale  
+        if cbar_unit  is None     : str_xlabel = str_xlabel+' ['+index_list[di][bi][ vname[0] ].attrs['units']+']'
+        else                      : str_xlabel = str_xlabel+' ['+cbar_unit+']'    
         ax[bi].set_xlabel(str_xlabel)
         
         #_______________________________________________________________________
-        ax[bi].set_ylim(dep[0],6000)
+        if  do_rescale=='log10' and dep[0]==0: 
+            ax[bi].set_ylim(dep[1],6000)
+        else:
+            ax[bi].set_ylim(dep[0],6000)
+        
         ax[bi].invert_yaxis()
         ax[bi].grid(True,which='major')
         

@@ -33,7 +33,8 @@ requirements = [
     'pytest',
     'papermill', 
     'jinja2',
-    'pyyaml'
+    'pyyaml',
+    'pyvista'
 ]
 
 setup_requirements = ['pytest-runner']

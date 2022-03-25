@@ -490,7 +490,7 @@ class mesh_fesom2(object):
                                       names=['node_number','x','y','flag'] )
         self.n_x     = file_content.x.values.astype('float32')
         self.n_y     = file_content.y.values.astype('float32')
-        # self.n_i     = file_content.flag.values.astype('uint16')   
+        self.n_i     = file_content.flag.values.astype('uint16')   
         self.n2dn    = len(self.n_x)
         
         #____load 2d element matrix_____________________________________________
@@ -1363,7 +1363,12 @@ def grid_rotmat(abg):
 #| ___RETURNS_______________________________________________________________   |
 #| x, y, z  :   array, x y z cartesian coordinates                             |
 #|_____________________________________________________________________________|    
-def grid_cart3d(lon,lat,R=1.0):
+def grid_cart3d(lon,lat,R=1.0, is_deg=False):
+    if is_deg: 
+        rad = np.pi/180
+        lat = lat * rad
+        lon = lon * rad
+    
     x = R*np.cos(lat) * np.cos(lon)
     y = R*np.cos(lat) * np.sin(lon)
     z = R*np.sin(lat)
