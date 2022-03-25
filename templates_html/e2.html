@@ -1,0 +1,79 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+    <link href="../../static/css/bootstrap.min.css" rel="stylesheet">
+  
+<style type="text/css">
+  .thumbnail{        
+     
+    // or you could use percentage values for responsive layout
+    width : 100%;
+    height: 500px;
+    overflow: auto;
+}
+.thumbnail img{
+    // your styles for the image
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto
+}
+</style>
+</head>
+
+<body>
+    {% block content %}
+    <div class="d-flex" id="wrapper">
+    <!-- Sidebar -->
+    <div class="bg-light border-right" id="sidebar-wrapper">
+        {% for analysis_name, analysis_content in analyses.items() %}
+        <div class="sidebar-heading">{{analysis_name}} </div>
+        <div class="list-group list-group-flush">
+            {% for image_name, image_content in analysis_content.items() %}
+          <a href="#{{ image_content.short_name }}" class="list-group-item list-group-item-action bg-light">{{ image_content.name }}</a>
+          {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    
+      <!-- /#sidebar-wrapper -->
+    <div id="page-content-wrapper">
+      <div class="container-fluid">
+        {% for analysis_name, analysis_content in analyses.items() %}
+        {% for image_name, image_content in analysis_content.items() %}
+      <div class="card" id="{{ image_content.short_name }}" style="width: 40rem;" >
+        <div class="card-body">
+          <h5 class="card-title">{{ image_content.name }}</h5>
+            <a href="{{ image_content.path }}" target="_blank">
+              <img class="card-img" src="{{ image_content.path }}" alt="Card image cap">
+            </a>
+        
+          <p class="card-text"></p>
+        </div>
+        <div class="card-body">
+          <a href="{{ image_content.path_nb }}" target="_blank" class="card-link">Notebook</a>
+          
+        </div>
+      </div>
+      
+          {% endfor %}
+      {% endfor %}
+      </div>
+    </div>
+    </div>
+
+    {% endblock %}
+</body>
+</html>

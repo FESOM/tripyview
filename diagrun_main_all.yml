@@ -1,0 +1,274 @@
+workflow_name: "TRR181_TKE+IDEMIX_test"
+input_paths:
+    - /home/ollie/pscholz/results/trr181_tke_ctrl_ck0.1/
+    - /home/ollie/pscholz/results/trr181_tke_ctrl_ck0.3/
+    - /home/ollie/pscholz/results/trr181_tke+idemix_orig_ck0.1/
+    - /home/ollie/pscholz/results/trr181_tke+idemix_jayne09_ck0.1/
+    - /home/ollie/pscholz/results/trr181_tke+idemix_nycander05_ck0.1/
+    - /home/ollie/pscholz/results/trr181_tke+idemix_stormtide2_ck0.1/
+    - /home/ollie/pscholz/results/trr181_tke+idemix_jayne09_ck0.3/
+    - /home/ollie/pscholz/results/trr181_tke+idemix_nycander05_ck0.3/
+    - /home/ollie/pscholz/results/trr181_tke+idemix_stormtide2_ck0.3/
+      
+input_names:
+    - TKE, ck=0.1
+    - TKE, ck=0.3
+    - TKE+IDEMIX, ck=0.1, jayne (old param)
+    - TKE+IDEMIX, ck=0.1, jayne (new param)
+    - TKE+IDEMIX, ck=0.1, nycander (new param)
+    - TKE+IDEMIX, ck=0.1, stormtide(new param)
+    - TKE+IDEMIX, ck=0.3, jayne (new param)
+    - TKE+IDEMIX, ck=0.3, nycander (new param)
+    - TKE+IDEMIX, ck=0.3, stormtide(new)
+    
+mesh_path: '/work/ollie/nkolduno/meshes/POOL/meshes/core2/'
+save_path: './Results/'
+
+clim: 'phc3'
+clim_path: '/work/ollie/pscholz/INIT_HYDRO/phc3.0/phc3.0_annual.nc'
+
+ncolumn: 3
+box: None
+
+which_cycl: 3
+year: [1979, 2019]
+depth: 100
+which_dpi: 200
+
+#_______________________________________________________________________________
+hslice:
+    temp:
+        depths: [10, 100, 1000, 2000, 3000]
+    salt:
+        depths: [10, 100, 1000, 2000, 3000]
+    Kv:
+        depths: [10, 100, 1000, 2000, 3000]
+        do_rescale: 'log10'
+        cmap: 'wbgyr'
+        crange: [-6, 0, -3]
+    tke:
+        depths: [10, 100, 1000, 2000, 3000]
+        do_rescale: False
+        cmap: 'wbgyr'
+        crange: [0, 4.0e-4, 2.0e-4]
+    N2:
+        depths: [10, 100, 1000, 2000, 3000]
+        cmap: 'wbgyr'
+        cfac: 0.25
+    ssh:
+        depths: [0]
+        cmap: 'grads'
+        cref: 0
+    MLD2:
+        depths: [0]
+        cmap: 'rygbw'
+        crange: [-2500,0,-1200]
+
+#_______________________________________________________________________________
+hslice_np:
+    a_ice:
+        mon: 3
+        depths: [0]
+        cmap: 'wbgyr'
+        crange: [0,1.0,0.5]
+        box: [-180,180,50,90]
+        proj: 'nps'
+    m_ice:
+        mon: 3
+        depths: [0]
+        cmap: 'wbgyr'
+        cfac: 0.5
+        box: [-180,180,50,90]
+        proj: 'nps'
+    MLD2:
+        mon: 3
+        depths: [0]
+        cmap: 'rygbw'
+        crange: [-3000,0,-1500]    
+        box: [-180,180,45,90]
+        proj: 'nps' 
+        
+hslice_sp:        
+    a_ice:
+        mon: 9
+        depths: [0]
+        cmap: 'wbgyr'
+        crange: [0,1.0,0.5]
+        box: [-180,180,-90,-50]
+        proj: 'sps'
+    m_ice:
+        mon: 9
+        depths: [0]
+        cmap: 'wbgyr'
+        cfac: 0.5
+        box: [-180,180,-90,-50]
+        proj: 'sps' 
+    MLD2:
+        mon: 9
+        depths: [0]
+        cmap: 'rygbw'
+        crange: [-3000,0,-1500]    
+        box: [-180,180,-90,-50]
+        proj: 'sps'         
+
+#_______________________________________________________________________________
+hslice_clim:
+    temp:
+        depths: [10, 100, 1000, 2000, 3000]
+        crange: [-4, 4, 0]
+    salt:
+        depths: [10, 100, 1000, 2000, 3000]
+        crange: [-0.5, 0.5, 0]
+
+#_______________________________________________________________________________
+hovm_clim:  
+    temp:
+        box_regions:
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+         year: [1958, 2019]   
+    salt:
+        box_regions:
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+        year: [1958, 2019]      
+
+#_______________________________________________________________________________
+xmoc:
+    gmoc:
+    amoc:
+    ipmoc:
+
+#_______________________________________________________________________________
+vprofile:  
+    temp:
+        box_regions:
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+    salt:
+        box_regions:
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+            
+#_______________________________________________________________________________
+vprofile_clim:  
+    temp:
+        box_regions:
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+    salt:
+        box_regions:
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+            
+#_______________________________________________________________________________
+transect:
+    salt:
+        30W_80S-40N:
+            input_transect: [[[-30, -30],[-80, 40], 'Transect: -30°W, -80°S-40°N']]
+            crange: [34.20, 35.2, 34.7]
+            cstr: 'grads'
+            cnum: 25
+    temp:
+        30W_80S-40N:
+            input_transect: [[[-30, -30],[-80, 40], 'Transect: -30°W, -80°S-40°N']]
+            cstr: 'grads'
+            cnum: 25  
+    Kv:
+        30W_80S-90N:
+            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
+            cstr: 'wbgyr'
+            do_rescale: 'log10'
+            crange: [-6, 1, -3]
+            cnum: 25
+
+#_______________________________________________________________________________
+transect_clim:
+    salt:
+        30W_80S-90N:
+            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
+    temp:
+        30W_80S-90N:
+            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
+            crange: [-4, 4, 0]
+
+#_______________________________________________________________________________
+zmeantrans:
+   temp:
+       box_regions: 
+           - global
+   salt:
+       box_regions: 
+           - global
+       cstr: 'grads'
+       cmin: 34
+   sigma2:
+       box_regions: 
+           - global
+       cstr: 'odv' 
+       cmin: 34
+       
+#_______________________________________________________________________________
+zmeantrans_clim:
+   temp:
+       box_regions: 
+           - global
+       crange: [-2.0,2.0,0]        
+   salt:
+       box_regions: 
+           - global
+       crange: [-0.5,0.5,0]    
+   sigma2:
+       box_regions: 
+           - global
+       crange: [-0.25,0.25,0]        

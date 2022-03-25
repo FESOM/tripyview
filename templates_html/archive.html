@@ -1,0 +1,54 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+    <link href="../static/css/bootstrap.min.css" rel="stylesheet">
+  
+<style type="text/css">
+  .thumbnail{        
+     
+    // or you could use percentage values for responsive layout
+    width : 100%;
+    height: 500px;
+    overflow: auto;
+}
+.thumbnail img{
+    // your styles for the image
+    width: 100%;
+    height: auto;
+    display: block;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+
+  <div class="page-header">
+
+  <h1> FESOM2 diagnostics <small> sanity checks archive</small></h1>
+  </div>
+
+{% block content %}
+
+<h2> Experiment: {{ title }}</h2>
+
+
+<div class="list-group">
+    {% for file in hfiles %}
+    <a href="./{{ experiment}}/{{ file }}" class="list-group-item list-group-item-action">{{ file }}</a>
+    {% endfor %}
+  </div>
+
+
+
+
+{% endblock %}
+
+</body>
+</html>
