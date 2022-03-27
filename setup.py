@@ -19,6 +19,7 @@ requirements = [
     'joblib',
     'jupyter',
     'matplotlib',
+    'pickle5'
     'netCDF4',
     'numba',
     'numpy',

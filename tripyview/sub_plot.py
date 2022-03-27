@@ -926,8 +926,13 @@ def do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=False):
                 
             data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
             data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
-            cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
-            cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
+            
+            if tri is None:
+                cmin = np.min([cmin,np.nanmin(data_plot) ])
+                cmax = np.max([cmax,np.nanmax(data_plot) ])
+            else:    
+                cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
+                cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
             cmin, cmax = cmin*cfac, cmax*cfac
             # print(cmin,cmax)
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
