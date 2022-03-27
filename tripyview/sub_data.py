@@ -90,9 +90,9 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # store topography in data
     if   any(x in vname for x in ['depth','topo','topography','zcoord']):
         data['topo'] = ("nod2", -mesh.n_z)
-        data['topo'].attrs["description"]='Bottom topography'
-        data['topo'].attrs["long_name"  ]='Bottom topography'
-        data['topo'].attrs["units"      ]='[m]'
+        data['topo'].attrs["description"]='Depth'
+        data['topo'].attrs["long_name"  ]='Depth'
+        data['topo'].attrs["units"      ]='m'
         data['topo'].attrs["is_data"    ]=is_data
         return(data)
     # store vertice cluster area in data    
@@ -101,7 +101,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['narea'] = ("nod2", mesh.n_area)
         data['narea'].attrs["description"]='Vertice area'
         data['narea'].attrs["long_name"  ]='Vertice area'
-        data['narea'].attrs["units"      ]='[m^2]'
+        data['narea'].attrs["units"      ]='m^2'
         data['narea'].attrs["is_data"    ]=is_data
         return(data)
     # store vertice resolution in data               
@@ -110,7 +110,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['nresol'] = ("nod2", mesh.n_resol)
         data['nresol'].attrs["description"]='Resolution'
         data['nresol'].attrs["long_name"  ]='Resolution'
-        data['nresol'].attrs["units"      ]='[m]'
+        data['nresol'].attrs["units"      ]='m'
         data['nresol'].attrs["is_data"    ]=is_data
         return(data)
     # store element area in data    
@@ -119,7 +119,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['earea'] = ("elem", mesh.e_area)
         data['earea'].attrs["description"]='Element area'
         data['earea'].attrs["long_name"  ]='Element area'
-        data['earea'].attrs["units"      ]='[m^2]'
+        data['earea'].attrs["units"      ]='m^2'
         data['earea'].attrs["is_data"    ]=is_data
         return(data)
     # store element resolution in data               
@@ -128,7 +128,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['eresol'] = ("elem", mesh.e_resol)
         data['eresol'].attrs["description"]='Element resolution'
         data['eresol'].attrs["long_name"  ]='Element resolution'
-        data['eresol'].attrs["units"      ]='[m]'
+        data['eresol'].attrs["units"      ]='m'
         data['eresol'].attrs["is_data"    ]=is_data
         return(data)
         
