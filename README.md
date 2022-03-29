@@ -1,17 +1,7 @@
-# Tripyview 
-
-<img src="tripyview/tripyview_icon.png" width=10% height=10%>
-
-![image](tripyview/tripyview_icon.png){width=50%}
-
-[<img src="tripyview/tripyview_icon.png" width="250"/>](tripyview/tripyview_icon.png)
-
-![image2]('tripyview/tripyview_icon.png'){ height=100px width=100px }.
+# <img src="tripyview/tripyview_icon.png" width=20%>  Tripyview <img src="tripyview/tripyview_icon.png" width=20% >
 
 
-<div>
-<img src="atripyview/tripyview_icon.png" width="100" height="100"/>
-</div>
+
 
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de. 
