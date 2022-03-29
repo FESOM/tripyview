@@ -144,9 +144,9 @@ def create_3d_land_mesh(mesh, resol=1, potatoefac=1, do_topo=False, topo_path=[]
         lat  = fid.variables[topo_dimname[1]][:]
         fid.close()
         mlon,mlat=np.meshgrid(lon,lat)
-        bottom_depth_2d = griddata( np.transpose( (mlon.flatten(),mlat.flatten() ) ), topo.flatten(), land_points, method='nearest')
+        bottom_depth_2d = griddata( np.transpose( (mlon.flatten(),mlat.flatten() ) ), topo.flatten(), land_points, method='linear')
         R_grid         = R_grid+( bottom_depth_2d*100*potatoefac)
-        del topo,lon,lat,mlon,mlat,bottom_depth_2d
+        del topo,lon,lat,mlon,mlat
         
     #___________________________________________________________________________
     # create sperical ocean coordinates
@@ -184,6 +184,13 @@ def create_3d_land_mesh(mesh, resol=1, potatoefac=1, do_topo=False, topo_path=[]
         meshpv_land.active_t_coords[:,1] = 0.5 + np.arcsin(zs)/np.pi
         del xs, ys, zs
     del points
+    
+    #___________________________________________________________________________
+    # add land topography data to pyvista mesh object
+    if do_topo: 
+        meshpv_land['topo'] = bottom_depth_2d
+        print(bottom_depth_2d.shape)
+    del bottom_depth_2d
     
     #___________________________________________________________________________
     return meshpv_land

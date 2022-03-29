@@ -107,10 +107,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # store vertice resolution in data               
     elif any(x in vname for x in ['nresol','n_resol','resolution','resol']):
         if len(mesh.n_resol)==0: mesh=mesh.compute_n_resol()
-        data['nresol'] = ("nod2", mesh.n_resol)
+        data['nresol'] = ("nod2", mesh.n_resol/1000)
         data['nresol'].attrs["description"]='Resolution'
         data['nresol'].attrs["long_name"  ]='Resolution'
-        data['nresol'].attrs["units"      ]='m'
+        data['nresol'].attrs["units"      ]='km'
         data['nresol'].attrs["is_data"    ]=is_data
         return(data)
     # store element area in data    
@@ -125,10 +125,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # store element resolution in data               
     elif any(x in vname for x in ['eresol','e_resol','triresolution','triresol']):
         if len(mesh.e_resol)==0: mesh=mesh.compute_e_resol()
-        data['eresol'] = ("elem", mesh.e_resol)
+        data['eresol'] = ("elem", mesh.e_resol/1000)
         data['eresol'].attrs["description"]='Element resolution'
         data['eresol'].attrs["long_name"  ]='Element resolution'
-        data['eresol'].attrs["units"      ]='m'
+        data['eresol'].attrs["units"      ]='km'
         data['eresol'].attrs["is_data"    ]=is_data
         return(data)
         

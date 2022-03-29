@@ -19,7 +19,7 @@ requirements = [
     'joblib',
     'jupyter',
     'matplotlib',
-    'pickle5'
+    'pickle5',
     'netCDF4',
     'numba',
     'numpy',
@@ -35,7 +35,9 @@ requirements = [
     'papermill', 
     'jinja2',
     'pyyaml',
-    'pyvista'
+    'pyvista',
+    'vtk',
+    'ipyvtklink'
 ]
 
 setup_requirements = ['pytest-runner']
