@@ -1,4 +1,4 @@
-# <img src="tripyview/tripyview_icon.png" width=20%>  Tripyview <img src="tripyview/tripyview_icon.png" width=20% >
+# <img src="tripyview/tripyview_icon.png" width=15%> ------------ Tripyview ------------ <img src="tripyview/tripyview_icon.png" width=15% >
 
 
 
