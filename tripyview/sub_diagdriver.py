@@ -427,8 +427,8 @@ def drive_vprofile_clim(yaml_settings, analysis_name):
         current_params2.update(driver_settings[vname])
             
         #__________________________________________________________________________________________
-        save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}.png"
-        save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}.ipynb"
+        save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.png"
+        save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.ipynb"
         current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
             
         #__________________________________________________________________________________________

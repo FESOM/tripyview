@@ -448,6 +448,8 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
         #_______________________________________________________________________
         if  do_rescale=='log10' and dep[0]==0: 
             ax[bi].set_ylim(dep[1],6000)
+        elif dep[0]==0:     
+            ax[bi].set_ylim(dep[1],6000)
         else:
             ax[bi].set_ylim(dep[0],6000)
         

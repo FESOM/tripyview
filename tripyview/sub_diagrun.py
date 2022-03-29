@@ -13,6 +13,13 @@ import os
 #sys.path.append(os.path.join(pkg_path,"src/"))
 from .sub_diagdriver import *
 
+#_________________________________________________________________________________________________            
+# open htnl template file
+#try: pkg_path = os.environ['PATH_TRIPYVIEW']
+#except: pkg_path='' 
+pkg_path          = os.path.dirname(os.path.dirname(__file__))
+print(pkg_path)
+
 #
 #
 #_______________________________________________________________________________
@@ -69,12 +76,12 @@ def diagrun():
         for path in input_paths: 
             input_names.append(path.split('/')[-3])
     if len(input_names) != len(input_paths): raise ValueError("The size of input_names & input_paths is not equal") 
-
+    
     # setup save path    
     if 'save_path' in yaml_settings: 
         save_path = f"{yaml_settings['save_path']}/{workflow_name}"
     else:
-        save_path = f"./Results_diagrun/{workflow_name}" 
+        save_path = os.path.join(pkg_path, f"Results/{workflow_name}") 
     save_path = os.path.expanduser(save_path)
     save_path = os.path.abspath(save_path)
 
