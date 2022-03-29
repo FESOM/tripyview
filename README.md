@@ -43,10 +43,11 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `transect_clim`- plot point wise transects of 3d temperature, salinity and density climatology
 
 * `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface
+# <img src="tripyview/tripyview_icon_NH.png" width=75%>
 
 ### command line batch diagnostics:
 `diagrun <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
 template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linkted plots
 
 
-![3dsphere](tripyview/tripyview_icon.png)
+
