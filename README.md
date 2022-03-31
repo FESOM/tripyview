@@ -50,7 +50,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 
 * `make 3D animations`
 <p align="center" width="100%">
-<a href="https://www.youtube.com/shorts/Gokzel60GFk" title="Movie core2 bathymetry"><img src="https://img.youtube.com/vi/Gokzel60GFk/hqdefault.jpg" alt="Movie core2 bathymetry"/></a>
+<a href="https://www.youtube.com/watch?v=Gokzel60GFk" title="Movie core2 bathymetry"><img src="https://img.youtube.com/vi/Gokzel60GFk/hqdefault.jpg" alt="Movie core2 bathymetry"/></a>
 </p>
 
 ### command line batch diagnostics:
