@@ -1,4 +1,4 @@
-# <img src="tripyview/tripyview_icon_NH.png" width=15%> ------------ Tripyview ------------ <img src="tripyview/tripyview_icon_SH.png" width=15% >
+# <img src="tripyview/tripyview_icon_NH.png" width=15%> ----------------- Tripyview ----------------- <img src="tripyview/tripyview_icon_SH.png" width=15% >
 
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de. 
@@ -49,5 +49,6 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 `diagrun <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
 template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linkted plots
 
-
+## Credits:
+If you use the package please give the package or the author some credit.
 
