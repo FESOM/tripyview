@@ -49,5 +49,6 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 `diagrun <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
 template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linkted plots
 
-
+## Credits:
+If you use the package please give the package or the author some credit.
 
