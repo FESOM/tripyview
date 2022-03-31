@@ -1,4 +1,4 @@
-# <img src="tripyview/tripyview_icon_NH.png" width=15% align="left" > ------------------------ Tripyview ----------------------- <img src="tripyview/tripyview_icon_SH.png" width=15% align="right" >
+# <img src="tripyview/tripyview_icon_NH.png" width=15% align="left" > --------------------- Tripyview --------------------- <img src="tripyview/tripyview_icon_SH.png" width=15% align="right" >
 
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
