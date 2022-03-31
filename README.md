@@ -1,8 +1,9 @@
-# <img src="tripyview/tripyview_icon_NH.png" width=15%> ----------------- Tripyview ----------------- <img src="tripyview/tripyview_icon_SH.png" width=15% >
+# <img src="tripyview/tripyview_icon_NH.png" width=15% align="left" > ------------------------ Tripyview ----------------------- <img src="tripyview/tripyview_icon_SH.png" width=15% align="right" >
 
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
-fdiag using plotting suite of Patrick.Scholz@awi.de. 
-Actually works well for python3.7
+fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
+Data reading got updated to xarray, plotting got updated to cartopy, actually works well for python3.7
+<br />
 
 ## Installation
 
@@ -43,11 +44,18 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `transect_clim`- plot point wise transects of 3d temperature, salinity and density climatology
 
 * `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface
-# <img src="tripyview/tripyview_icon_NH.png" width=75%>
+<p align="center" width="100%">
+  <img width=75% src="tripyview/tripyview_icon_NH.png">
+</p>
+
+* `make 3D animations`
+<p align="center" width="100%">
+<a href="https://www.youtube.com/shorts/Gokzel60GFk" title="Movie core2 bathymetry"><img src="https://img.youtube.com/vi/Gokzel60GFk/hqdefault.jpg" alt="Movie core2 bathymetry"/></a>
+</p>
 
 ### command line batch diagnostics:
 `diagrun <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
-template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linkted plots
+template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linked plots
 
 ## Credits:
 If you use the package please give the package or the author some credit.
