@@ -48,6 +48,11 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
   <img width=75% src="tripyview/tripyview_icon_NH.png">
 </p>
 
+* `make 3D animations`
+<p align="center" width="100%">
+<a href="https://www.youtube.com/shorts/Gokzel60GFk" title="Movie core2 bathymetry"><img src="https://img.youtube.com/vi/Gokzel60GFk/hqdefault.jpg" alt="Movie core2 bathymetry"/></a>
+</p>
+
 ### command line batch diagnostics:
 `diagrun <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
 template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linked plots
