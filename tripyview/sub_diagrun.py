@@ -49,7 +49,7 @@ def diagrun():
     parser.add_argument('--diagnostics',
                         '-d',
                         nargs='+',
-                        help='run only particilar diagnostics from the yml file.',)
+                        help='run only particular diagnostics from the yml file.',)
     
     # input arguments from command line
     inargs = parser.parse_args()
@@ -113,8 +113,8 @@ def diagrun():
     if os.path.exists(save_path_json):
         with open(save_path_json) as json_file:
             webpages = json.load(json_file)
-            print(f"Data on previous runs exist in {save_path_json}, \n")
-            print("they will be used to generate output for diagnostics you do not run this time.")
+            print(f"Data on previous runs exist in {save_path_json},")
+            print(f"they will be used to generate output for diagnostics you do not run this time.")
     else:
         webpages = {}
         webpages["analyses"] = {}
@@ -124,32 +124,46 @@ def diagrun():
 
     #___________________________________________________________________________
     # define analyses drivers
-    analyses_opt = {}
-    analyses_opt["hslice"         ] = drive_hslice
-    analyses_opt["hslice_np"      ] = drive_hslice
-    analyses_opt["hslice_sp"      ] = drive_hslice
-    analyses_opt["hslice_clim"    ] = drive_hslice_clim
-    analyses_opt["hovm"           ] = drive_hovm
-    analyses_opt["hovm_clim"      ] = drive_hovm_clim
-    analyses_opt["xmoc"           ] = drive_xmoc
-    analyses_opt["vprofile"       ] = drive_vprofile
-    analyses_opt["vprofile_clim"  ] = drive_vprofile_clim
-    analyses_opt["transect"       ] = drive_transect
-    analyses_opt["transect_clim"  ] = drive_transect_clim
-    analyses_opt["zmeantrans"     ] = drive_zmeantrans
-    analyses_opt["zmeantrans_clim"] = drive_zmeantrans_clim
+    analyses_driver_list = {}
+    analyses_driver_list["hslice"         ] = drive_hslice
+    analyses_driver_list["hslice_np"      ] = drive_hslice
+    analyses_driver_list["hslice_sp"      ] = drive_hslice
+    analyses_driver_list["hslice_clim"    ] = drive_hslice_clim
+    analyses_driver_list["hovm"           ] = drive_hovm
+    analyses_driver_list["hovm_clim"      ] = drive_hovm_clim
+    analyses_driver_list["xmoc"           ] = drive_xmoc
+    analyses_driver_list["vprofile"       ] = drive_vprofile
+    analyses_driver_list["vprofile_clim"  ] = drive_vprofile_clim
+    analyses_driver_list["transect"       ] = drive_transect
+    analyses_driver_list["transect_clim"  ] = drive_transect_clim
+    analyses_driver_list["zmeantrans"     ] = drive_zmeantrans
+    analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
     
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file
     # loop over all analyses
-    for analysis in analyses_opt:
+    for analysis_name in analyses_driver_list:
+        
         # check if analysis is in input yaml settings
-        if analysis in yaml_settings:
-            print(f" --> compute {analysis}:")
-            # drive specific analysis
-            webpage = analyses_opt[analysis](yaml_settings, analysis)
-            webpages["analyses"][analysis] = webpage
+        if analysis_name in yaml_settings:
             
+            #___________________________________________________________________
+            # if no -d ... flag is setted perform full yml file diagnostic
+            if inargs.diagnostics is None:
+                print(f" --> compute {analysis_name}:")
+                # drive specific analysis from analyses_driver_list
+                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                webpages["analyses"][analysis_name] = webpage
+            
+            #___________________________________________________________________
+            # if -d ... flag is setted perform specific yml file diagnostic    
+            else:
+                if analysis_name in inargs.diagnostics:
+                    print(f" --> compute {analysis_name}:")
+                    # drive specific analysis from analyses_driver_list
+                    webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                    webpages["analyses"][analysis_name] = webpage
+                
             # write linked analysis to .json file
             with open(save_path_json, "w") as fp: json.dump(webpages, fp)
             
