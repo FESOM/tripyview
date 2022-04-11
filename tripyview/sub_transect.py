@@ -2,6 +2,7 @@
 import sys
 import os
 import numpy as np
+from   scipy.signal import convolve2d
 import copy as  cp
 from   shapely.geometry   import Point, Polygon, MultiPolygon, shape
 from   shapely.vectorized import contains
@@ -59,7 +60,7 @@ def load_transect_fesom2(mesh, data, transect_list, do_compute=True, ):
 
 def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_harithm='mean', 
                       do_compute=True, do_outputidx=False, diagpath=None, do_onelem=False, 
-                      do_info=False,
+                      do_info=False, do_smooth=True, 
                        **kwargs,):
     
     #___________________________________________________________________________
@@ -261,6 +262,16 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         bottom = bottom[idx]
         lat    = lat[idx]
         aux_zonmean[aux_zonarea!=0]= aux_zonmean[aux_zonarea!=0]/aux_zonarea[aux_zonarea!=0]
+        
+        #___________________________________________________________________________
+        if do_smooth: 
+            filt=np.array([1,2,1])
+            filt=filt/np.sum(filt)
+            filt=filt[np.newaxis,:]
+            aux_zonmean[aux_zonarea==0] = 0.0
+            aux_zonmean = convolve2d(aux_zonmean, filt, mode='same', boundary='symm') 
+        
+        #___________________________________________________________________________
         aux_zonmean[aux_zonarea==0]= np.nan
         del(aux_zonarea)
         
@@ -272,6 +283,8 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         aux = np.convolve(aux,filt,mode='same')
         bottom = aux[filt.size:-filt.size]
         del aux, filt
+        
+        
         
         #___________________________________________________________________________
         # Create Xarray Datasert for moc_basins
@@ -398,76 +411,6 @@ def analyse_transects(input_transect, which_res='res', res=1.0, npts=500):
     #___________________________________________________________________________
     return(transect_list)
 
-##
-##
-##_______________________________________________________________________________
-#def plot_index_region(mesh, idx_IN, box_list, which='hard'):
-    #from matplotlib.tri import Triangulation
-    
-    ##___________________________________________________________________________
-    ## make triangulation
-    #tri       = Triangulation(np.hstack(( mesh.n_x, mesh.n_xa )),
-                              #np.hstack(( mesh.n_y, mesh.n_ya )),
-                              #np.vstack(( mesh.e_i[mesh.e_pbnd_0, :], mesh.e_ia ))) 
-    
-    ##___________________________________________________________________________
-    ## plot basemesh
-    #plt.figure()
-    ##plt.triplot(tri,linewidth=0.2)
-    
-    #nidx = len(idx_IN)
-    #for ii in range(0,nidx):
-        #isnan     = idx_IN[ii]
-        #aux_isnan = np.hstack((isnan, isnan[mesh.n_pbnd_a]))
-        #if   which == 'soft': isnan_tri = np.any(aux_isnan[tri.triangles], axis=1)
-        #elif which == 'hard': isnan_tri = np.all(aux_isnan[tri.triangles], axis=1)
-        #elif which == 'mid' : isnan_tri = (np.sum(aux_isnan[tri.triangles], axis=1)>1)
-        #plt.triplot(tri.x, tri.y, tri.triangles[isnan_tri,:], linewidth=0.2)
-        
-    ##___________________________________________________________________________
-    ## loop over box_list
-    #for box in box_list:
-        ##_______________________________________________________________________
-        ## a rectangular box is given --> translate into shapefile object
-        #if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
-            #px     = [box[0], box[1], box[1], box[0], box[0]]
-            #py     = [box[2], box[2], box[3], box[3], box[2]]
-            #p      = Polygon(list(zip(px,py)))
-            #plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
-            
-        ## a polygon as list or ndarray is given --> translate into shape file object
-        #elif isinstance(box,list) and len(box)==2: 
-            #px, py = box[0], box[1]  
-            #p      = Polygon(list(zip(px,py)))  
-            #plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
-            
-        #elif isinstance(box, np.ndarray): 
-            #if box.shape[0]==2:
-                #px, py = list(box[0,:]), list(box[1,:])
-                #p      = Polygon(list(zip(px,py)))
-                #plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
-                
-            #else:
-                #raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
-            
-        ## a polygon as shapefile or shapefile collection is given
-        #elif (isinstance(box, (Polygon, MultiPolygon))):
-            #if   isinstance(box, Polygon): plt.plot(*box.exterior.xy,color='k', linewidth=1.0)
-                
-            #elif isinstance(box, MultiPolygon):
-                #for p in box: plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
-        
-        #elif (isinstance(box, shp.Reader)):
-            #for shape in box.shapes(): 
-                #p      = Polygon(shape.points)
-                #plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
-        ## otherwise
-        #else:
-            #raise ValueError('the given box information to compute the index has no valid format')
-            
-    ##___________________________________________________________________________
-    #return
-
 
  
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION  _________________________________+
@@ -479,7 +422,7 @@ def plot_transects(data, transects, figsize=[12, 6],
               do_bottom=True, max_dep=[], color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
               do_contour=True, do_clabel=True, title='descript', 
-              pos_extend=[0.05, 0.08, 0.95,0.95],
+              pos_extend=[0.05, 0.08, 0.95,0.95], do_ylog=True,
             ):
     #____________________________________________________________________________
     fontsize = 12
@@ -527,6 +470,14 @@ def plot_transects(data, transects, figsize=[12, 6],
             cmin = np.min([cmin, np.nanmin(data_plot) ])
             cmax = np.max([cmax, np.nanmax(data_plot) ])
             cmin, cmax = cmin*cfac, cmax*cfac
+            
+            #___________________________________________________________________
+            cdmin, cdmax = 0.0, 0.0
+            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
+            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
+            cdez        = np.min([cdmin,cdmax])
+            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
+            
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
         if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
     if 'crange' in cinfo.keys():
@@ -539,7 +490,7 @@ def plot_transects(data, transects, figsize=[12, 6],
         #if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
-    cinfo['cmap'],cinfo['clevel'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
 
     #___________________________________________________________________________
     # loop over axes
@@ -594,14 +545,14 @@ def plot_transects(data, transects, figsize=[12, 6],
         ylim = np.sum(~np.isnan(data_plot),axis=0).max()-1
         if ylim<depth.shape[0]-1: ylim=ylim+1
         if np.isscalar(max_dep)==False: max_dep=depth[ylim]
-            
+        
         # plot bottom patch
         aux = np.ones(data_plot.shape,dtype='int16')
         aux[np.isnan(data_plot)]=0
         aux = aux.sum(axis=0)
         aux[aux!=0]=aux[aux!=0]-1
-        
         bottom = np.abs(depth[aux])
+        
         # smooth bottom patch
         filt=np.array([1,2,1]) #np.array([1,2,3,2,1])
         filt=filt/np.sum(filt)
@@ -645,11 +596,21 @@ def plot_transects(data, transects, figsize=[12, 6],
         if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel(str_xlabel, fontsize=12)
         
         #_______________________________________________________________________
-        ax[ii].set_ylim(depth[0],max_dep)
-        ax[ii].invert_yaxis()
-        ax[ii].grid(True,which='major')
-        
-        #ax[ii].set_yscale('log')
+        if do_ylog: 
+            ax[ii].grid(True,which='major')
+            #ax[ii].set_yscale('log')
+            ax[ii].set_yscale('function', functions=(forward, inverse))
+            yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            ax[ii].set_yticks(yticklog)
+            if depth[0]==0: ax[ii].set_ylim(depth[1],max_dep)
+            else          : ax[ii].set_ylim(depth[0],max_dep)
+            ax[ii].invert_yaxis()
+            
+        else:
+            ax[ii].set_ylim(depth[0],max_dep)
+            ax[ii].invert_yaxis()
+            ax[ii].grid(True,which='major')
+            
         #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
         ax[ii].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
         
@@ -675,7 +636,9 @@ def plot_transects(data, transects, figsize=[12, 6],
     
     #if cbar_label is None: cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
     if cbar_label is None: cbar_label = data[0][0][ vname ].attrs['long_name']
-    if str_rescale is not None: cbar_label = cbar_label+str_rescale  
+    
+    if 'do_rescale' in data[0][0][vname].attrs.keys(): cbar_label = cbar_label+' '+data[0][0][vname].attrs['do_rescale']
+    #if str_rescale is not None: cbar_label = cbar_label+str_rescale 
     #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][0][ vname ].attrs['units']+']'
     if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
     else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
@@ -711,7 +674,7 @@ def plot_zmeantransects(data, figsize=[12, 6],
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, max_dep=[], color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
-              do_contour=True, do_clabel=True, title='descript', 
+              do_contour=True, do_clabel=False, title='descript', do_ylog=True,
               pos_extend=[0.05, 0.08, 0.95,0.95],
             ):
     #____________________________________________________________________________
@@ -760,6 +723,14 @@ def plot_zmeantransects(data, figsize=[12, 6],
             cmin = np.min([cmin, np.nanmin(data_plot) ])
             cmax = np.max([cmax, np.nanmax(data_plot) ])
             cmin, cmax = cmin*cfac, cmax*cfac
+            
+            #___________________________________________________________________
+            cdmin, cdmax = 0.0, 0.0
+            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
+            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
+            cdez        = np.min([cdmin,cdmax])
+            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
+            
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
         if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
     if 'crange' in cinfo.keys():
@@ -773,7 +744,7 @@ def plot_zmeantransects(data, figsize=[12, 6],
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
     
-    cinfo['cmap'],cinfo['clevel'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
     
     #___________________________________________________________________________
     # loop over axes
@@ -789,7 +760,8 @@ def plot_zmeantransects(data, figsize=[12, 6],
         
         lat  , str_xlabel = data[ii][0]['lat'].values   , 'Latitude [deg]'
         depth, str_ylabel = data[ii][0]['depth'].values , 'Depth [m]'
-       
+        depth = np.abs(depth)
+        
         #_______________________________________________________________________
         # plot zonal mean data
         hp=ax[ii].contourf(lat, depth, data_plot, levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'])
@@ -809,7 +781,7 @@ def plot_zmeantransects(data, figsize=[12, 6],
             cont=ax[ii].contour(lat, depth, data_plot, levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
             
             if do_clabel: 
-                ax[ii].clabel(cont, cont.levels, inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv',zorder=1)
+                ax[ii].clabel(cont, cont.levels, inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f',zorder=1)
                 #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
                             #inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
             
@@ -862,9 +834,23 @@ def plot_zmeantransects(data, figsize=[12, 6],
         if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel(str_xlabel, fontsize=12)
         
         #_______________________________________________________________________
-        ax[ii].set_ylim(depth[0],depth[-1])
-        ax[ii].invert_yaxis()
-        ax[ii].grid(True,which='major')
+        #ax[ii].set_ylim(depth[0],depth[-1])
+        #ax[ii].invert_yaxis()
+        #ax[ii].grid(True,which='major')
+        if do_ylog: 
+            ax[ii].grid(True,which='major')
+            ax[ii].set_yscale('function', functions=(forward, inverse))
+            yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            ax[ii].set_yticks(yticklog)
+            if depth[0]==0: ax[ii].set_ylim(depth[1],depth[-1])
+            else          : ax[ii].set_ylim(depth[0],depth[-1])
+            ax[ii].invert_yaxis()
+        else:
+            ax[ii].set_ylim(depth[0],depth[-1])
+            ax[ii].invert_yaxis()
+            ax[ii].grid(True,which='major')
+            
+        
         
         #ax[ii].set_yscale('log')
         #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
@@ -891,11 +877,10 @@ def plot_zmeantransects(data, figsize=[12, 6],
     cbar.ax.tick_params(labelsize=fontsize)
     
     #if cbar_label is None: cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
-    if cbar_label is None: cbar_label = data[0][0][ vname ].attrs['long_name']
+    if cbar_label is None     : cbar_label = data[0][0][ vname ].attrs['long_name']
     if str_rescale is not None: cbar_label = cbar_label+str_rescale  
-    #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][0][ vname ].attrs['units']+']'
-    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
-    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+    if cbar_unit  is None     : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
+    else                      : cbar_label = cbar_label+' ['+cbar_unit+']'
     
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
@@ -979,6 +964,15 @@ def do_transectanomaly(index1,index2):
                         anom_idx[vname].attrs[key] = 'anomalous '+anom_idx[vname].attrs[key] 
                     elif key in ['units',]: 
                         continue
+                    elif key in ['descript']: 
+                        if len(idx1[vname].attrs[key])+len(idx2[vname2].attrs[key])>30:
+                            anom_idx[vname].attrs[key]  = idx1[vname].attrs[key]+'\n - '+idx2[vname2].attrs[key]
+                        else:     
+                            anom_idx[vname].attrs[key]  = idx1[vname].attrs[key]+' - '+idx2[vname2].attrs[key]
+                        
+                    elif key in ['do_rescale']: 
+                        anom_idx[vname].attrs[key]  = idx1[vname].attrs[key]    
+                
                     elif idx1[vname].attrs[key] != idx2[vname2].attrs[key]:
                         anom_idx[vname].attrs[key]  = idx1[vname].attrs[key]+' - '+idx2[vname2].attrs[key]
                     
@@ -987,3 +981,8 @@ def do_transectanomaly(index1,index2):
     #___________________________________________________________________________
     return(anom_index)
 
+# Function x**(1/2)
+def forward(x):
+    return x**(1/4)
+def inverse(x):
+    return x**(4)

@@ -49,11 +49,10 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
     #print(np.arange(cref-cstep,cmin-cstep,-cstep))
     
     clevel   = np.concatenate((np.sort(np.arange(cref-cstep,cmin-cstep,-cstep)),np.arange(cref,cmax+cstep,cstep)))
-    #print(clevel)
     if np.abs(clevel.min())>1.0e-15:
         #clevel   = np.around(clevel, -np.int32(np.floor(np.log10(np.abs( clevel.min() ))-2) ) )
         clevel   = np.around(clevel, -np.int32(np.floor(np.log10(np.abs( cstep ))-2) ) )
-    
+        cref     = np.around(cref  , -np.int32(np.floor(np.log10(np.abs( cstep ))-2) ) )
     clevel   = np.unique(clevel)
     #print(clevel)
     #print(clevel[:-1]-clevel[1:])
@@ -336,4 +335,4 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
     cmap.set_under(cmap_def[0][1])
     cmap.set_over(cmap_def[-1][1])
     
-    return(cmap,clevel)
+    return(cmap,clevel,cref)
