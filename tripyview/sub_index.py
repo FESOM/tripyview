@@ -441,8 +441,8 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
         if cbar_label is None     : str_xlabel = index_list[di][bi][ vname[0] ].attrs['long_name']
         else                      : str_xlabel = cbar_label
         if str_rescale is not None: str_xlabel = str_xlabel+str_rescale  
-        if cbar_unit  is None     : str_xlabel = str_xlabel+' ['+index_list[di][bi][ vname[0] ].attrs['units']+']'
-        else                      : str_xlabel = str_xlabel+' ['+cbar_unit+']'    
+        if cbar_unit  is None     : str_xlabel = str_xlabel+'\n ['+index_list[di][bi][ vname[0] ].attrs['units']+']'
+        else                      : str_xlabel = str_xlabel+'\n ['+cbar_unit+']'    
         ax[bi].set_xlabel(str_xlabel)
         
         #_______________________________________________________________________
@@ -484,8 +484,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
-              do_contour=True, do_clabel=True, title='descript', 
-              pos_extend=[0.05, 0.08, 0.95,0.95],
+              do_contour=True, do_clabel=True, title='descript', do_rescale=False, 
+              pos_extend=[0.05, 0.08, 0.95,0.95], do_ylog=True, 
             ):
     #____________________________________________________________________________
     fontsize = 12
@@ -521,6 +521,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
+    else            : cinfo=cinfo.copy()
     # check if dictionary keys exist, if they do not exist fill them up 
     cfac = 1
     if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
@@ -528,9 +529,19 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         cmin, cmax = np.Inf, -np.Inf
         for data_ii in data:
             vname= list(data_ii[0].keys())[0]
-            cmin = np.min([cmin, np.nanmin(data_ii[0][vname].values) ])
-            cmax = np.max([cmax, np.nanmax(data_ii[0][vname].values) ])
-            cmin, cmax = cmin*cfac, cmax*cfac
+            data_plot = data_ii[0][vname].values.copy()
+            data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
+            cmin = np.min([cmin, np.nanmin(data_plot) ])
+            cmax = np.max([cmax, np.nanmax(data_plot) ])
+            cmin, cmax  = cmin*cfac, cmax*cfac
+            
+            #___________________________________________________________________
+            cdmin, cdmax = 0.0, 0.0
+            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
+            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
+            cdez        = np.min([cdmin,cdmax])
+            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
+            
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
         if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
     if 'crange' in cinfo.keys():
@@ -543,19 +554,22 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         #if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
-    cinfo['cmap'],cinfo['clevel'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
-
+    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+    
     #___________________________________________________________________________
     # loop over axes
-    
     for ii in range(0,ndata):
         
         #_______________________________________________________________________
         # limit data to color range
         vname= list(data[ii][0].keys())[0]
-        data_plot = data[ii][0][vname].values.transpose()
+        data_plot = data[ii][0][vname].values.copy()
+        data_plot = data_plot.transpose()
+        data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
         time      = data[ii][0]['time'].values
-        depth     = data[ii][0]['nz1'].values
+        if   'nz1' in data[ii][0].dims: depth = data[ii][0]['nz1' ].values
+        elif 'nz'  in data[ii][0].dims: depth = data[ii][0]['nz'  ].values
+        elif 'nz_1'in data[ii][0].dims: depth = data[ii][0]['nz_1'].values
         
         data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
         data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
@@ -595,13 +609,16 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         if do_grid: ax[ii].grid(color='k', linestyle='-', linewidth=0.25,alpha=1.0)
         
         #_______________________________________________________________________
-        # set description string plus x/y labels
+        # set y limits
         isnotnan = np.isnan(data_plot[:,0])==False
         isnotnan = isnotnan.sum()-1
+        ylim = [depth[0], depth[isnotnan]]
+        if depth[0]==0: ylim[0] = depth[1]
         
+        #_______________________________________________________________________
+        # set description string plus x/y labels
         if title is not None: 
-            #txtx, txty = time[0]+(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025                    
-            txtx, txty = time[0]+(time[-1]-time[0])*0.015, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.015
+            txtx, txty = time[0]+(time[-1]-time[0])*0.015, ylim[1]-(ylim[1]-ylim[0])*0.05
             if   isinstance(title,str) : 
                 # if title string is 'descript' than use descript attribute from 
                 # data to set plot title 
@@ -615,24 +632,27 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             ax[ii].text(txtx, txty, txts, fontsize=12, fontweight='bold', horizontalalignment='left')
         
         if 'boxname' in data[ii][0][vname].attrs.keys():
-            #txtx, txty = time[-1]-(time[-1]-time[0])*0.025, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.025   
-            #txtx, txty = time[-1]-(time[-1]-time[0])*0.015, depth[isnotnan]-(depth[isnotnan]-depth[0])*0.015 
-            txtx, txty = time[0]+(time[-1]-time[0])*0.015, depth[0]+(depth[isnotnan]-depth[0])*0.05
-            txts = data[ii][0][vname].attrs['boxname']
-            ax[ii].text(txtx, txty, txts, fontsize=10, fontweight='bold', horizontalalignment='left')
-        
-        
-        
+            txtx, txty, txts = time[0]+(time[-1]-time[0])*0.015, ylim[0]+(ylim[1]-ylim[0])*0.0001, data[ii][0][vname].attrs['boxname']
+            ax[ii].text(txtx, txty, txts, fontsize=10, fontweight='bold', horizontalalignment='left', verticalalignment='top')
         
         if collist[ii]==0        : ax[ii].set_ylabel('Depth [m]',fontsize=12)
         if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel('Time [years]',fontsize=12)
         
         #_______________________________________________________________________
-        ax[ii].set_ylim(depth[0],depth[isnotnan])
-        ax[ii].invert_yaxis()
-        ax[ii].grid(True,which='major')
+        if do_ylog: 
+            ax[ii].grid(True,which='major')
+            #ax[ii].set_yscale('log')
+            ax[ii].set_yscale('function', functions=(forward, inverse))
+            yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            ax[ii].set_yticks(yticklog)
+            ax[ii].set_ylim(ylim[0], ylim[1])
+            ax[ii].invert_yaxis()
+            
+        else:
+            ax[ii].set_ylim(depth[0], depth[isnotnan])
+            ax[ii].invert_yaxis()
+            ax[ii].grid(True,which='major')
         
-        #ax[ii].set_yscale('log')
         #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
         ax[ii].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
         
@@ -651,10 +671,10 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
                       drawedges=True, pad=0.025, shrink=1.0)
     cbar.ax.tick_params(labelsize=fontsize)
     
-    if cbar_label is None: cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
+    if cbar_label is None     : cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
     if str_rescale is not None: cbar_label = cbar_label+str_rescale  
-    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][0][ vname ].attrs['units']+']'
-    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+    if cbar_unit  is None     : cbar_label = cbar_label+' ['+data[nax_fin-1][0][ vname ].attrs['units']+']'
+    else                      : cbar_label = cbar_label+' ['+cbar_unit+']'
     
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
@@ -745,3 +765,9 @@ def do_indexanomaly(index1,index2):
     #___________________________________________________________________________
     return(anom_index)
 
+
+# Function x**(1/2)
+def forward(x):
+    return x**(1/4)
+def inverse(x):
+    return x**(4)

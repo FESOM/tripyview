@@ -15,7 +15,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=True, descript='',  runid='fesom',
+                     do_compute=True, descript='',  runid='fesom', do_rescale=False,
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -191,10 +191,25 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data = data.drop(labels=vname_drop)
         record=0
         
-        # add depth axes since its not included in restart and blowup files
-        if   ('nz_1' in data.dims): data = data.assign_coords(nz_1=("nz_1",-mesh.zmid))
-        if   ('nz1'  in data.dims): data = data.assign_coords(nz1 =("nz1" ,-mesh.zmid))
-        if   ('nz'   in data.dims): data = data.assign_coords(nz  =("nz"  ,-mesh.zlev))
+    #___________________________________________________________________________    
+    # add depth axes since its not included in restart and blowup files
+    if   ('nz_1' in data.dims): 
+        data = data.assign_coords(nz_1=("nz_1",-mesh.zmid))
+        data = data.assign_coords(idz=("nz_1",np.arange(0,mesh.zmid.size)))
+    elif ('nz1'  in data.dims): 
+        data = data.assign_coords(nz1=("nz1" ,-mesh.zmid))
+        data = data.assign_coords(idz=("nz1" ,np.arange(0,mesh.zmid.size)))
+    elif ('nz'   in data.dims): 
+        data = data.assign_coords(nz=("nz"  ,-mesh.zlev))
+        data = data.assign_coords(idz=("nz"  ,np.arange(0,mesh.zlev.size)))
+    if   ('nod2' in data.dims):
+        data = data.assign_coords(lon=("nod2",mesh.n_x))
+        data = data.assign_coords(lat=("nod2",mesh.n_y))
+        data = data.assign_coords(nod2=("nod2",np.arange(0,mesh.n2dn)))
+    elif ('elem' in data.dims):                          
+        data = data.assign_coords(lon=("elem",mesh.n_x[mesh.e_i].sum(axis=1)/3.0))
+        data = data.assign_coords(lat=("elem",mesh.n_y[mesh.e_i].sum(axis=1)/3.0))
+        data = data.assign_coords(elem=("elem",np.arange(0,mesh.n2de)))                      
     
     #___________________________________________________________________________
     # years are selected by the files that are open, need to select mon or day 
@@ -205,8 +220,13 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
     if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): 
-        data = data.where(data[vname]!=0)
-    
+        if vname in ['Kv', 'Av']: 
+            mat_iz= xr.DataArray(mesh.n_iz, dims='nod2')
+            for di in range(0,mesh.nlev): 
+                data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
+        else:
+            data = data.where(data[vname]!=0)
+        
     #___________________________________________________________________________
     # select depth levels also for vertical interpolation 
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
@@ -268,6 +288,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # compute norm of the vectors if do_norm=True    
     data = do_vector_norm(data, do_norm)
     
+    #___________________________________________________________________________
+    # compute norm of the vectors if do_norm=True    
+    data = do_rescaling(data, do_rescale)
+
     #___________________________________________________________________________
     # compute potential density if do_pdens=True    
     if do_pdens and depth is None: 
@@ -729,6 +753,35 @@ def do_vector_norm(data, do_norm):
     return(data)  
 
 
+# ___COMPUTE LOGARYTHMIC RESCALING_____________________________________________
+#| compute vector norm: vname='vec+u+v'                                        |
+#| ___INPUT_________________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#| do_rescale   :   string 'log10'                                             |
+#| ___RETURNS_______________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#|_____________________________________________________________________________|  
+def do_rescaling(data, do_rescale):
+    if do_rescale=='log10':
+        print(' > do compute log10 rescaling')
+        # which varaibles are in data, must be two to compute norm
+        vname = list(data.keys())[0]
+        
+        # compute log10
+        #data[vname] = xr.ufuncs.log10(data[vname])
+        attr_glob = data.attrs        # rescue global attributes --> get lost with xr.where
+        attr_loc  = data[vname].attrs # rescue local  attributes --> get lost with xr.where 
+        data = xr.where(data!=0, xr.ufuncs.log10(data), 0.0)
+        data.attrs        = attr_glob # put back global attributes
+        data[vname].attrs = attr_loc  # put back local  attributes
+        
+        # set attribute for rescaling
+        data[vname].attrs['do_rescale'] = 'log10()'
+        
+    #___________________________________________________________________________    
+    return(data)  
+
+
 # ___COMPUTE NORM OF VECTOR DATA_______________________________________________
 #| compute vector norm: vname='vec+u+v'                                        |
 #| ___INPUT_________________________________________________________________   |
@@ -811,9 +864,6 @@ def do_interp_e2n(data, mesh, do_ie2n):
 #| ___RETURNS_______________________________________________________________   |
 #| data         :   xarray dataset object                                      |
 #|_____________________________________________________________________________|  
-#def do_additional_attrs(data, vname, datapath, do_file, do_filename, 
-                        #year, mon, day, record, depth, str_mdep, depidx,  
-                        #do_tarithm, is_data, is_ie2n, do_compute, descript):
 def do_additional_attrs(data, vname, attr_dict):
 
     #___________________________________________________________________________
@@ -858,8 +908,19 @@ def do_anomaly(data1,data2):
             if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
                 if key in ['long_name']:
                    anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key] 
-                elif key in ['units',]: 
+                   
+                elif key in ['units']: 
                     continue
+                
+                elif key in ['descript']: 
+                    if len(data1[vname].attrs[key])+len(data2[vname2].attrs[key])>30:
+                        anom[vname].attrs[key]  = data1[vname].attrs[key]+'\n - '+data2[vname2].attrs[key]
+                    else:     
+                        anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname2].attrs[key]
+                        
+                elif key in ['do_rescale']: 
+                    anom[vname].attrs[key]  = data1[vname].attrs[key]    
+                    
                 elif data1[vname].attrs[key] != data2[vname2].attrs[key]:
                     anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname2].attrs[key]
     

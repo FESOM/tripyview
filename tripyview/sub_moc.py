@@ -369,6 +369,13 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
             cmin = np.min([cmin, data_ii['moc'].isel(nz=data_ii['depth']<=-700).min().values ])
             cmax = np.max([cmax, data_ii['moc'].isel(nz=data_ii['depth']<=-700).max().values ])
             cmin, cmax = cmin*cfac, cmax*cfac
+            #___________________________________________________________________
+            cdmin, cdmax = 0.0, 0.0
+            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
+            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
+            cdez        = np.min([cdmin,cdmax])
+            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
+            
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
         if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
     if 'crange' in cinfo.keys():
@@ -380,7 +387,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
         if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
-    cinfo['cmap'],cinfo['clevel'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
 
     #___________________________________________________________________________
     # loop over axes
