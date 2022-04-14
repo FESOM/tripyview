@@ -426,7 +426,8 @@ def plot_transects(data, transects, figsize=[12, 6],
             ):
     #____________________________________________________________________________
     fontsize = 12
-    str_rescale = None
+    rescale_str = None
+    rescale_val = 1.0
     
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -457,62 +458,38 @@ def plot_transects(data, transects, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    if cinfo is None: cinfo=dict()
-    # check if dictionary keys exist, if they do not exist fill them up 
-    cfac = 1
-    if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
-    if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
-        cmin, cmax = np.Inf, -np.Inf
-        for data_ii in data:
-            vname= list(data_ii[0].keys())[0]
-            data_plot = data_ii[0][vname].values.copy()
-            data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
-            cmin = np.min([cmin, np.nanmin(data_plot) ])
-            cmax = np.max([cmax, np.nanmax(data_plot) ])
-            cmin, cmax = cmin*cfac, cmax*cfac
-            
-            #___________________________________________________________________
-            cdmin, cdmax = 0.0, 0.0
-            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
-            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
-            cdez        = np.min([cdmin,cdmax])
-            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
-            
-        if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
-        if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
-    if 'crange' in cinfo.keys():
-        cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
-        #cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], 0.0
-    else:
-        if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
-        cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
-        if 'cref' not in cinfo.keys(): cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
-        #if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
-    if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
-    if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
-    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
 
     #___________________________________________________________________________
     # loop over axes
-    
     for ii in range(0,ndata):
         
         #_______________________________________________________________________
         # limit data to color range
         vname= list(data[ii][0].keys())[0]
         data_plot = data[ii][0][vname].values.transpose().copy()
-        data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
         
+        #_______________________________________________________________________
+        # apply rescaling factor
+        if   do_rescale == 'log10':
+            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ log10() $'
+        elif do_rescale and rescale_val != 1.0: 
+            data_plot = data_plot/rescale_val
+            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
+        
+        #_______________________________________________________________________
+        # setup x-coord and y-coord
         if   np.unique(data[ii][0]['lon'].values).size==1: xcoord, str_xlabel = data[ii][0]['lat'].values, 'Latitude [deg]'
         elif np.unique(data[ii][0]['lat'].values).size==1: xcoord, str_xlabel = data[ii][0]['lon'].values, 'Longitude [deg]'
         else:                                              xcoord, str_xlabel = data[ii][0]['dst'].values, 'Distance from start point [km]'
-        
         
         if 'nz1' in list(data[ii][0].dims):
             depth, str_ylabel = data[ii][0]['nz1'].values, 'Depth [m]'
         elif 'nz' in list(data[ii][0].dims):
             depth, str_ylabel = data[ii][0]['nz'].values, 'Depth [m]'    
         
+        #_______________________________________________________________________
+        # be sure there are no holes
         data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
         data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
         
@@ -634,15 +611,11 @@ def plot_transects(data, transects, figsize=[12, 6],
                       drawedges=True, pad=0.025, shrink=1.0)
     cbar.ax.tick_params(labelsize=fontsize)
     
-    #if cbar_label is None: cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
-    if cbar_label is None: cbar_label = data[0][0][ vname ].attrs['long_name']
-    
-    if 'do_rescale' in data[0][0][vname].attrs.keys(): cbar_label = cbar_label+' '+data[0][0][vname].attrs['do_rescale']
-    #if str_rescale is not None: cbar_label = cbar_label+str_rescale 
-    #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][0][ vname ].attrs['units']+']'
-    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
-    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
-    
+    if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
+    if 'do_rescale' in data[0][0][vname].attrs.keys(): 
+        cbar_label = cbar_label+' '+data[0][0][vname].attrs['do_rescale']
+    if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
+    else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)
@@ -710,42 +683,8 @@ def plot_zmeantransects(data, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    if cinfo is None: cinfo=dict()
-    # check if dictionary keys exist, if they do not exist fill them up 
-    cfac = 1
-    if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
-    if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
-        cmin, cmax = np.Inf, -np.Inf
-        for data_ii in data:
-            vname= list(data_ii[0].keys())[0]
-            data_plot = data_ii[0][vname].values.copy()
-            data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
-            cmin = np.min([cmin, np.nanmin(data_plot) ])
-            cmax = np.max([cmax, np.nanmax(data_plot) ])
-            cmin, cmax = cmin*cfac, cmax*cfac
-            
-            #___________________________________________________________________
-            cdmin, cdmax = 0.0, 0.0
-            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
-            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
-            cdez        = np.min([cdmin,cdmax])
-            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
-            
-        if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
-        if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
-    if 'crange' in cinfo.keys():
-        cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
-        #cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], 0.0
-    else:
-        if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
-        cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
-        if 'cref' not in cinfo.keys(): cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
-        #if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
-    if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
-    if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
-    
-    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
-    
+    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+
     #___________________________________________________________________________
     # loop over axes
     for ii in range(0,ndata):
@@ -754,13 +693,25 @@ def plot_zmeantransects(data, figsize=[12, 6],
         # limit data to color range
         vname= list(data[ii][0].keys())[0]
         data_plot = data[ii][0][vname].values.copy()
-        data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
-        data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
-        data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
         
+        #_______________________________________________________________________
+        # apply rescaling factor
+        if   do_rescale == 'log10':
+            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ log10() $'
+        elif do_rescale and rescale_val != 1.0: 
+            data_plot = data_plot/rescale_val
+            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
+        
+        #_______________________________________________________________________
+        # setup x-coorod and y-coord
         lat  , str_xlabel = data[ii][0]['lat'].values   , 'Latitude [deg]'
         depth, str_ylabel = data[ii][0]['depth'].values , 'Depth [m]'
         depth = np.abs(depth)
+        
+        #_______________________________________________________________________
+        # be sure there are no holes
+        data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
+        data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
         
         #_______________________________________________________________________
         # plot zonal mean data
@@ -834,9 +785,6 @@ def plot_zmeantransects(data, figsize=[12, 6],
         if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel(str_xlabel, fontsize=12)
         
         #_______________________________________________________________________
-        #ax[ii].set_ylim(depth[0],depth[-1])
-        #ax[ii].invert_yaxis()
-        #ax[ii].grid(True,which='major')
         if do_ylog: 
             ax[ii].grid(True,which='major')
             ax[ii].set_yscale('function', functions=(forward, inverse))
@@ -849,8 +797,6 @@ def plot_zmeantransects(data, figsize=[12, 6],
             ax[ii].set_ylim(depth[0],depth[-1])
             ax[ii].invert_yaxis()
             ax[ii].grid(True,which='major')
-            
-        
         
         #ax[ii].set_yscale('log')
         #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
@@ -877,11 +823,11 @@ def plot_zmeantransects(data, figsize=[12, 6],
     cbar.ax.tick_params(labelsize=fontsize)
     
     #if cbar_label is None: cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
-    if cbar_label is None     : cbar_label = data[0][0][ vname ].attrs['long_name']
-    if str_rescale is not None: cbar_label = cbar_label+str_rescale  
-    if cbar_unit  is None     : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
-    else                      : cbar_label = cbar_label+' ['+cbar_unit+']'
-    
+    if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
+    if 'do_rescale' in data[0][0][vname].attrs.keys():
+        cbar_label = cbar_label+data[0][0][vname].attrs['do_rescale']
+    if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
+    else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)

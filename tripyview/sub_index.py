@@ -18,7 +18,7 @@ from   .sub_plot           import *
 from   .colormap_c2c       import *
 
 
-def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='mean', 
+def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='median', 
                       do_compute=True, do_outputidx=False):
     
     #___________________________________________________________________________
@@ -489,7 +489,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             ):
     #____________________________________________________________________________
     fontsize = 12
-    str_rescale = None
+    rescale_str = None
+    rescale_val = 1.0
     
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -520,41 +521,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    if cinfo is None: cinfo=dict()
-    else            : cinfo=cinfo.copy()
-    # check if dictionary keys exist, if they do not exist fill them up 
-    cfac = 1
-    if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
-    if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
-        cmin, cmax = np.Inf, -np.Inf
-        for data_ii in data:
-            vname= list(data_ii[0].keys())[0]
-            data_plot = data_ii[0][vname].values.copy()
-            data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
-            cmin = np.min([cmin, np.nanmin(data_plot) ])
-            cmax = np.max([cmax, np.nanmax(data_plot) ])
-            cmin, cmax  = cmin*cfac, cmax*cfac
-            
-            #___________________________________________________________________
-            cdmin, cdmax = 0.0, 0.0
-            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
-            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
-            cdez        = np.min([cdmin,cdmax])
-            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
-            
-        if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
-        if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
-    if 'crange' in cinfo.keys():
-        # cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
-        cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], 0.0
-    else:
-        if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
-        cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
-        if 'cref' not in cinfo.keys(): cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
-        #if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
-    if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
-    if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
-    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
     
     #___________________________________________________________________________
     # loop over axes
@@ -565,12 +532,24 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         vname= list(data[ii][0].keys())[0]
         data_plot = data[ii][0][vname].values.copy()
         data_plot = data_plot.transpose()
-        data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
+        
+        #_______________________________________________________________________
+        # apply rescaling factor
+        if   do_rescale == 'log10':
+            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ log10() $'
+        elif do_rescale and rescale_val != 1.0: 
+            data_plot = data_plot/rescale_val
+            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
+        
+        #_______________________________________________________________________
+        # setup x-coorod and y-coord
         time      = data[ii][0]['time'].values
         if   'nz1' in data[ii][0].dims: depth = data[ii][0]['nz1' ].values
         elif 'nz'  in data[ii][0].dims: depth = data[ii][0]['nz'  ].values
         elif 'nz_1'in data[ii][0].dims: depth = data[ii][0]['nz_1'].values
         
+        #_______________________________________________________________________
+        # be sure there are no holes
         data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
         data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
         
@@ -671,11 +650,11 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
                       drawedges=True, pad=0.025, shrink=1.0)
     cbar.ax.tick_params(labelsize=fontsize)
     
-    if cbar_label is None     : cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
-    if str_rescale is not None: cbar_label = cbar_label+str_rescale  
-    if cbar_unit  is None     : cbar_label = cbar_label+' ['+data[nax_fin-1][0][ vname ].attrs['units']+']'
-    else                      : cbar_label = cbar_label+' ['+cbar_unit+']'
-    
+    if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
+    if 'do_rescale' in data[0][0][vname].attrs.keys():
+        cbar_label = cbar_label+data[0][0][vname].attrs['do_rescale']
+    if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
+    else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)

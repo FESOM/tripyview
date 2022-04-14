@@ -125,10 +125,16 @@ def drive_hslice_clim(yaml_settings, analysis_name):
             del current_params2["depths"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
             # print(current_params2)
             #__________________________________________________________________________________________
-            save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{depth}.png"
-            save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{depth}.ipynb"
+            if 'proj' in current_params2.keys(): 
+                save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{current_params2['proj']}_{depth}.png"
+                save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{current_params2['proj']}_{depth}.ipynb"
+                short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{current_params2['proj']}_{depth}"
+            else:
+                save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{depth}.png"
+                save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{depth}.ipynb"
+                short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{depth}"
+                
             current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
-            
             #__________________________________________________________________________________________
             pm.execute_notebook(
                 f"{templates_nb_path}/template_hslice_clim.ipynb",
@@ -139,14 +145,10 @@ def drive_hslice_clim(yaml_settings, analysis_name):
             
             #__________________________________________________________________________________________
             webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"][
-                "name"
-            ] = f"{vname.capitalize()} at {depth} m"
-            webpage[f"image_{image_count}"]["path"] = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"] = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"][
-                "short_name"
-            ] = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{depth}"
+            webpage[f"image_{image_count}"]["name"]       = f"{vname.capitalize()} at {depth} m"
+            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+            webpage[f"image_{image_count}"]["short_name"] = short_name
             image_count += 1
     return webpage
 

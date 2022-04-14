@@ -114,7 +114,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     ____________________________________________________________________________
     """
     fontsize = 12
-    str_rescale = None
+    rescale_str = None
+    rescale_val = 1
     
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -197,7 +198,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale)
+    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
     
     #___________________________________________________________________________
     # loop over axes
@@ -220,9 +221,15 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         # periodic augment data
         vname = list(data[ii].keys())
         data_plot = data[ii][ vname[0] ].data.copy()
-        data_plot, str_rescale= do_rescale_data(data_plot, do_rescale)
         data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
-        if str_rescale is not None: data[ii][vname[0]].attrs['do_rescale'] = str_rescale
+        
+        #_______________________________________________________________________
+        # apply rescaling factor
+        if   do_rescale == 'log10':
+            data[ii][vname[0]].attrs['do_rescale'] = ' $ log10() $'
+        elif do_rescale and rescale_val != 1.0: 
+            data_plot = data_plot/rescale_val
+            data[ii][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
         
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
@@ -505,7 +512,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         
     #___________________________________________________________________________
     # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=True)
+    cinfo, rescale_val = do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=True)
     
     #___________________________________________________________________________
     # loop over axes
@@ -878,7 +885,24 @@ def do_rescale_data(data,do_rescale):
     
     #___________________________________________________________________________
     return(data,str_rescale)
+
+
+
+def do_compute_rescale(data,do_rescale):
+    #___________________________________________________________________________
+    # cutoff exponentials --> add therefore string to unit parameter
+    rescale_val=1
     
+    #___________________________________________________________________________
+    if do_rescale==True:
+        if np.nanmax(np.abs(data))<1e-2 and np.nanmax(np.abs(data))>0.0:
+            rescale_val = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
+        elif np.nanmax(np.abs(data))>1.0e4:
+            rescale_val = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
+            
+    #___________________________________________________________________________
+    return(rescale_val)
+
     
 
 # ___DO COLORMAP INFO__________________________________________________________
@@ -908,47 +932,66 @@ def do_rescale_data(data,do_rescale):
 #| ___RETURNS_______________________________________________________________   |
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
-def do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=False):
+def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do_index=False):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
+    else            : cinfo=cinfo.copy()
+    rescale_val = 1.0
     
     # check if dictionary keys exist, if they do not exist fill them up 
     cfac = 1
     if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
     if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
+        #_______________________________________________________________________
+        # loop over all the input data --> find out total cmin/cmax value
         cmin, cmax = np.Inf, -np.Inf
         for data_ii in data:
-            vname = list(data_ii.keys())
+            if do_index: vname = list(data_ii[0].keys())
+            else       : vname = list(data_ii.keys())
+            
+            #___________________________________________________________________
             if do_vec==False:
-                data_plot = data_ii[ vname[0] ].data.copy()
+                if do_index: data_plot = data_ii[0][ vname[0] ].data.copy()
+                else       : data_plot = data_ii[ vname[0] ].data.copy()
             else:
                 # compute norm when vector data
                 data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
                 
-            data_plot, str_rescale = do_rescale_data(data_plot, do_rescale)
-            data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
-            if str_rescale is not None: data_ii[vname[0]].attrs['do_rescale'] = str_rescale
-        
             #___________________________________________________________________
-            if tri is None:
+            # compute rescaling factor
+            auxrescale_val = do_compute_rescale(data_plot, do_rescale)
+            if   auxrescale_val>1.0: rescale_val = np.min([rescale_val, auxrescale_val])
+            elif auxrescale_val<1.0: rescale_val = np.max([rescale_val, auxrescale_val])
+            
+            #___________________________________________________________________
+            if tri is None or do_index:
                 cmin = np.min([cmin,np.nanmin(data_plot) ])
                 cmax = np.max([cmax,np.nanmax(data_plot) ])
             else:    
+                data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
                 cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
                 cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
             cmin, cmax = cmin*cfac, cmax*cfac
             
-            #___________________________________________________________________
-            cdmin, cdmax = 0.0, 0.0
-            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
-            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
-            cdez        = np.min([cdmin,cdmax])
-            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
+        #_______________________________________________________________________
+        # apply rescaling factor 
+        if rescale_val!=1.0: cmin, cmax = cmin/rescale_val, cmax/rescale_val
+        
+        #_______________________________________________________________________
+        # dezimal rounding of cmin and cmax
+        cdmin, cdmax = 0.0, 0.0
+        if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
+        if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
+        cdez        = np.min([cdmin,cdmax])
+        cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
             
-            # print(cmin,cmax)
+        #_______________________________________________________________________
+        # write cmin/cmax too cinfo dictionary
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
-        if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
+        if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax  
+        
+    #___________________________________________________________________________    
     if 'crange' in cinfo.keys():
         cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
         
@@ -956,13 +999,13 @@ def do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=False):
         if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
         cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
         if 'cref' not in cinfo.keys(): cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
-        
+    #___________________________________________________________________________    
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 20
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'wbgyr'
     cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
     
     #___________________________________________________________________________
-    return(cinfo)
+    return(cinfo, rescale_val)
     
     
 
