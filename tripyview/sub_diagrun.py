@@ -129,6 +129,8 @@ def diagrun():
     analyses_driver_list["hslice_np"      ] = drive_hslice
     analyses_driver_list["hslice_sp"      ] = drive_hslice
     analyses_driver_list["hslice_clim"    ] = drive_hslice_clim
+    analyses_driver_list["hslice_clim_np" ] = drive_hslice_clim
+    analyses_driver_list["hslice_clim_sp" ] = drive_hslice_clim
     analyses_driver_list["hovm"           ] = drive_hovm
     analyses_driver_list["hovm_clim"      ] = drive_hovm_clim
     analyses_driver_list["xmoc"           ] = drive_xmoc
