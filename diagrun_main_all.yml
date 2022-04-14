@@ -44,24 +44,24 @@ hslice:
     Kv:
         depths: [10, 100, 1000, 2000, 3000]
         do_rescale: 'log10'
-        cmap: 'wbgyr'
+        cstr: 'wbgyr'
         crange: [-6, 0, -3]
     tke:
         depths: [10, 100, 1000, 2000, 3000]
         do_rescale: False
-        cmap: 'wbgyr'
+        cstr: 'wbgyr'
         crange: [0, 4.0e-4, 2.0e-4]
     N2:
         depths: [10, 100, 1000, 2000, 3000]
-        cmap: 'wbgyr'
+        cstr: 'wbgyr'
         cfac: 0.25
     ssh:
         depths: [0]
-        cmap: 'grads'
+        cstr: 'grads'
         cref: 0
     MLD2:
         depths: [0]
-        cmap: 'rygbw'
+        cstr: 'rygbw'
         crange: [-2500,0,-1200]
 
 #_______________________________________________________________________________
@@ -69,21 +69,21 @@ hslice_np:
     a_ice:
         mon: 3
         depths: [0]
-        cmap: 'wbgyr'
+        cstr: 'wbgyr'
         crange: [0,1.0,0.5]
         box: [-180,180,50,90]
         proj: 'nps'
     m_ice:
         mon: 3
         depths: [0]
-        cmap: 'wbgyr'
+        cstr: 'wbgyr'
         cfac: 0.5
         box: [-180,180,50,90]
         proj: 'nps'
     MLD2:
         mon: 3
         depths: [0]
-        cmap: 'rygbw'
+        cstr: 'rygbw'
         crange: [-3000,0,-1500]    
         box: [-180,180,45,90]
         proj: 'nps' 
@@ -92,21 +92,21 @@ hslice_sp:
     a_ice:
         mon: 9
         depths: [0]
-        cmap: 'wbgyr'
+        cstr: 'wbgyr'
         crange: [0,1.0,0.5]
         box: [-180,180,-90,-50]
         proj: 'sps'
     m_ice:
         mon: 9
         depths: [0]
-        cmap: 'wbgyr'
+        cstr: 'wbgyr'
         cfac: 0.5
         box: [-180,180,-90,-50]
         proj: 'sps' 
     MLD2:
         mon: 9
         depths: [0]
-        cmap: 'rygbw'
+        cstr: 'rygbw'
         crange: [-3000,0,-1500]    
         box: [-180,180,-90,-50]
         proj: 'sps'         
@@ -135,7 +135,7 @@ hovm_clim:
             - mpas_region/South_Pacific_Ocean.shp
             - mpas_region/Southern_Ocean.shp
             - mpas_region/Western_Weddell_Sea.shp
-         year: [1958, 2019]   
+        year: [1958, 2019]   
     salt:
         box_regions:
             - mpas_region/North_Atlantic_Ocean.shp
@@ -244,31 +244,31 @@ transect_clim:
 
 #_______________________________________________________________________________
 zmeantrans:
-   temp:
-       box_regions: 
+    temp:
+        box_regions: 
            - global
-   salt:
-       box_regions: 
+    salt:
+        box_regions: 
            - global
-       cstr: 'grads'
-       cmin: 34
-   sigma2:
-       box_regions: 
+        cstr: 'grads'
+        cmin: 34
+    sigma2:
+        box_regions: 
            - global
-       cstr: 'odv' 
-       cmin: 34
+        cstr: 'odv' 
+        cmin: 34
        
 #_______________________________________________________________________________
 zmeantrans_clim:
-   temp:
-       box_regions: 
+    temp:
+        box_regions: 
            - global
-       crange: [-2.0,2.0,0]        
-   salt:
-       box_regions: 
+        crange: [-2.0,2.0,0]        
+    salt:
+        box_regions: 
            - global
-       crange: [-0.5,0.5,0]    
-   sigma2:
-       box_regions: 
+        crange: [-0.5,0.5,0]    
+    sigma2:
+        box_regions: 
            - global
-       crange: [-0.25,0.25,0]        
+        crange: [-0.25,0.25,0]        
