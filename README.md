@@ -42,9 +42,13 @@ over depth and time averaged over specific region that defined by shapefile (see
 
 * `xmoc`         - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
+* `xmoc_tseries` - plot timeseries of atlantic meridional overturning circulation at specific latitudes 
+(default: which_lats: [26, 40, 'max'])
 
 * `transect`     - plot point wise transects of 3d ocean varíables
 * `transect_clim`- plot point wise transects of 3d temperature, salinity and density climatology
+* `transect_vflx_t`- plot timeseries of volume transport trough zonal or meridional transect (default: Drake Passage, 
+uses pyfesom2 transport utility)
 
 * `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface
 <p align="center" width="100%">
