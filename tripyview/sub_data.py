@@ -15,7 +15,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=True, descript='',  runid='fesom', do_rescale=False,
+                     do_compute=True, descript='',  runid='fesom', 
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -288,9 +288,9 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # compute norm of the vectors if do_norm=True    
     data = do_vector_norm(data, do_norm)
     
-    #___________________________________________________________________________
-    # compute norm of the vectors if do_norm=True    
-    data = do_rescaling(data, do_rescale)
+    ##___________________________________________________________________________
+    ## compute norm of the vectors if do_norm=True    
+    #data = do_rescaling(data, do_rescale)
 
     #___________________________________________________________________________
     # compute potential density if do_pdens=True    

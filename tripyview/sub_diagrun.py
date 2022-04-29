@@ -134,10 +134,12 @@ def diagrun():
     analyses_driver_list["hovm"           ] = drive_hovm
     analyses_driver_list["hovm_clim"      ] = drive_hovm_clim
     analyses_driver_list["xmoc"           ] = drive_xmoc
+    analyses_driver_list["xmoc_tseries"   ] = drive_xmoc_tseries
     analyses_driver_list["vprofile"       ] = drive_vprofile
     analyses_driver_list["vprofile_clim"  ] = drive_vprofile_clim
     analyses_driver_list["transect"       ] = drive_transect
     analyses_driver_list["transect_clim"  ] = drive_transect_clim
+    analyses_driver_list["transect_vflx_t"] = drive_transect_vflx_t
     analyses_driver_list["zmeantrans"     ] = drive_zmeantrans
     analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
     

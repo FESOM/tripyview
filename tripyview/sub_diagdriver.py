@@ -339,6 +339,67 @@ def drive_xmoc(yaml_settings, analysis_name):
         image_count += 1
     return webpage
 
+
+#
+#
+#_______________________________________________________________________________________________________
+def drive_xmoc_tseries(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    # loop over variable name  
+    for which_lat in driver_settings['which_lats']:
+        print(f'         --> compute tseries @: {str(which_lat)}')
+        
+        current_params2 = {}
+        current_params2 = current_params.copy()
+        current_params2["which_lat"] = [which_lat]
+        current_params2.update(driver_settings)
+        del current_params2["which_lats"]
+            
+        #__________________________________________________________________________________________
+        save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{str(which_lat)}.png"
+        save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{str(which_lat)}.ipynb"
+        current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+        #__________________________________________________________________________________________
+        pm.execute_notebook(
+                f"{templates_nb_path}/template_xmoc_tseries.ipynb",
+                os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                parameters=current_params2,
+                nest_asyncio=True)
+            
+        #__________________________________________________________________________________________
+        webpage[f"image_{image_count}"] = {}
+        if which_lat == 'max':
+            webpage[f"image_{image_count}"]["name"]       = f" max AMOC @ 30°N<lat<45°N"
+        else:
+            webpage[f"image_{image_count}"]["name"]       = f" AMOC @ {str(which_lat)}°N"
+        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{str(which_lat)}"
+        image_count += 1
+    return webpage
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -559,6 +620,59 @@ def drive_transect_clim(yaml_settings, analysis_name):
             webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
             webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{tname}"
             image_count += 1
+    return webpage
+
+#
+#
+#_______________________________________________________________________________________________________
+def drive_transect_vflx_t(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    # loop over variable name  
+    for tname in driver_settings:
+        print(f'         --> compute: {tname}')
+        current_params2 = {}
+        current_params2 = current_params.copy()
+        current_params2.update(driver_settings[tname])
+
+        #__________________________________________________________________________________________
+        save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{tname}.png"
+        save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{tname}.ipynb"
+        current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+
+        #__________________________________________________________________________________________
+        pm.execute_notebook(
+                f"{templates_nb_path}/template_transect_vflx_t.ipynb",
+                os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                parameters=current_params2,
+                nest_asyncio=True)
+
+        #__________________________________________________________________________________________
+        webpage[f"image_{image_count}"] = {}
+        webpage[f"image_{image_count}"]["name"]       = f" @ {tname}"
+        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{tname}"
+        image_count += 1
     return webpage
 
 #
