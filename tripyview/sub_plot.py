@@ -1,8 +1,8 @@
 import os
 import sys
 import numpy as np
-import matplotlib.pylab as plt
-#import matplotlib.pyplot as plt
+#import matplotlib.pylab as plt
+import matplotlib.pyplot as plt
 import time as time
 import xarray as xr
 import cartopy.crs as ccrs
@@ -15,13 +15,15 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import matplotlib.colors
 import matplotlib.ticker as mticker
-import matplotlib.path as mpath
+import matplotlib.path   as mpath
+import matplotlib.colors as mcolors
 from matplotlib.colors import ListedColormap
 
 from .sub_mesh     import *
 from .sub_data     import *
 from .colormap_c2c import *
 
+   
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
@@ -32,7 +34,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
-                color_bot=[0.8,0.8,0.8],  title=None,
+                color_bot=[0.75,0.75,0.75],  title=None,
                 pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
                 linecolor='k', linewidth=0.5, ):
     """
@@ -115,7 +117,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     """
     fontsize = 12
     rescale_str = None
-    rescale_val = 1
+    rescale_val = 1.0
     
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -198,8 +200,12 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
     
+    #_______________________________________________________________________
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+        
     #___________________________________________________________________________
     # loop over axes
     hpall=list()
@@ -208,10 +214,6 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # if there are more axes allocated than data evailable 
         #if ii>=ndata: continue
-        
-        #_______________________________________________________________________
-        # add color for bottom bottom
-        if do_bottom: ax[ii].background_patch.set_facecolor(color_bot)
         
         #_______________________________________________________________________
         # set axes extent
@@ -224,17 +226,14 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
         
         #_______________________________________________________________________
-        # apply rescaling factor
-        if   do_rescale == 'log10':
-            data[ii][vname[0]].attrs['do_rescale'] = ' $ log10() $'
-        elif do_rescale and rescale_val != 1.0: 
-            data_plot = data_plot/rescale_val
-            data[ii][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
-        
-        #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
         isnan   = np.isnan(data_plot)
         e_idxok = np.any(isnan[tri.triangles], axis=1)==False
+        
+        #_______________________________________________________________________
+        # add color for ocean bottom
+        if do_bottom and np.any(e_idxok==False):
+            hbot = ax[ii].triplot(tri.x, tri.y, tri.triangles[e_idxok==False,:], color=color_bot)
         
         #_______________________________________________________________________
         # plot tri contourf/tripcolor
@@ -243,17 +242,18 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 transform=which_transf,
                                 shading='flat',
                                 cmap=cinfo['cmap'],
-                                vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1])
+                                vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
+                                norm = which_norm)
             
         elif do_plot=='tcf': 
-            
             # supress warning message when compared with nan
             with np.errstate(invalid='ignore'):
                 data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
                 data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
             
             hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot, 
-                                transform=which_transf, 
+                                transform=which_transf,
+                                norm=which_norm,
                                 levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
         hpall.append(hp)        
         #_______________________________________________________________________
@@ -296,47 +296,38 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
    
     #___________________________________________________________________________
     # create colorbar 
-    cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+    cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extendrect=False, extendfrac=None,
-                      drawedges=True, pad=0.025, shrink=1.0)
+                      drawedges=True, pad=0.025, shrink=1.0,)                      
     
-    cbar.ax.tick_params(labelsize=fontsize)
+    # do formatting of colorbar 
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
     
+    # do labeling of colorbar
     if cbar_label is None: cbar_label = data[nax_fin-1][ vname[0] ].attrs['long_name']
-    #if str_rescale is not None: cbar_label = cbar_label+str_rescale  
-    if 'do_rescale' in data[0][vname[0]].attrs.keys(): cbar_label = cbar_label+data[0][vname[0]].attrs['do_rescale']
-    
     if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][ vname[0] ].attrs['units']+']'
     else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
-    
     if 'str_ltim' in data[0][vname[0]].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
     if 'str_ldep' in data[0][vname[0]].attrs.keys():
         cbar_label = cbar_label+data[0][vname[0]].attrs['str_ldep']
-    
     cbar.set_label(cbar_label, size=fontsize+2)
-    
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
     ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
                                      pos_gap, title=title, proj=proj, extend=pos_extend)
-    
     fig.canvas.draw()
     
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, fig, dpi=save_dpi)
-    
+    do_savefigure(do_save, fig, dpi=save_dpi, transparent=True)
     plt.show(block=False)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
     
-    
+
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
@@ -344,7 +335,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
 #|                                                                             |
 #|_____________________________________________________________________________|
 def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5], 
-                n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
+                n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=False,
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.8,0.8,0.8],  title=None,
@@ -512,8 +503,12 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         
     #___________________________________________________________________________
     # set up color info 
-    cinfo, rescale_val = do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=True)
+    cinfo = do_setupcinfo(cinfo, data, tri, mesh, do_rescale, do_vec=True)
     
+    #_______________________________________________________________________    
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)   
+        
     #___________________________________________________________________________
     # loop over axes
     for ii in range(0,ndata):
@@ -533,7 +528,6 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         data_plot_u = data[ii][ vname[0] ].data
         data_plot_v = data[ii][ vname[1] ].data
         data_plot_n = np.sqrt(data_plot_u**2 + data_plot_v**2)
-        #data_plot_n, str_rescale= do_rescale_data(data_plot_n, do_rescale)
         
         data_plot_u = np.hstack((data_plot_u,data_plot_u[mesh.n_pbnd_a]))
         data_plot_v = np.hstack((data_plot_v,data_plot_v[mesh.n_pbnd_a]))
@@ -548,6 +542,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         if do_normalize:
             data_plot_u = data_plot_u/data_plot_n
             data_plot_v = data_plot_v/data_plot_n
+            
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
         isok   = np.isnan(data_plot_n)==False
@@ -572,7 +567,8 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                         headlength=hfac*max([hsize,1.0]),#hsize, 
                         headaxislength=hfac*max([hsize,1.0]), #hsize, 
                         headwidth=hfac*max([hsize,1.0])*0.8,# hsize*2/3,
-                        zorder=10)
+                        zorder=10,
+                        norm = which_norm)
         hp.set_clim([cinfo['clevel'][0],cinfo['clevel'][-1]])
         
         
@@ -640,23 +636,19 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extend='neither',extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
-    cbar.ax.tick_params(labelsize=fontsize)
     
+    # do formatting of colorbar 
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    
+    # do labeling of colorbar    
     if cbar_label is None: cbar_label = data[nax_fin-1][ vname[0] ].attrs['long_name']
-    if str_rescale is not None: cbar_label = cbar_label+str_rescale  
     if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][ vname[0] ].attrs['units']+']'
     else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
-    
     if 'str_ltim' in data[0][vname[0]].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
     if 'str_ldep' in data[0][vname[0]].attrs.keys():
         cbar_label = cbar_label+data[0][vname[0]].attrs['str_ldep']
-    
     cbar.set_label(cbar_label, size=fontsize+2)
-    
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    cbar = do_cbar_label(cbar, cbar_nl, cinfo, do_vec=True)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
@@ -888,20 +880,18 @@ def do_rescale_data(data,do_rescale):
 
 
 
-def do_compute_rescale(data,do_rescale):
+def do_compute_scalingnorm(cinfo, do_rescale):
     #___________________________________________________________________________
-    # cutoff exponentials --> add therefore string to unit parameter
-    rescale_val=1
-    
+    which_norm = None
+    if   do_rescale =='log10':
+            which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
+    elif do_rescale =='slog10':    
+            which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
+                                            linscale=1.0, 
+                                            vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
+                                            clip=True)
     #___________________________________________________________________________
-    if do_rescale==True:
-        if np.nanmax(np.abs(data))<1e-2 and np.nanmax(np.abs(data))>0.0:
-            rescale_val = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
-        elif np.nanmax(np.abs(data))>1.0e4:
-            rescale_val = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
-            
-    #___________________________________________________________________________
-    return(rescale_val)
+    return(which_norm)
 
     
 
@@ -932,13 +922,13 @@ def do_compute_rescale(data,do_rescale):
 #| ___RETURNS_______________________________________________________________   |
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
-def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do_index=False):
+def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do_index=False, do_moc=False):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
     else            : cinfo=cinfo.copy()
-    rescale_val = 1.0
     
+    #___________________________________________________________________________
     # check if dictionary keys exist, if they do not exist fill them up 
     cfac = 1
     if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
@@ -952,17 +942,17 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do
             
             #___________________________________________________________________
             if do_vec==False:
-                if do_index: data_plot = data_ii[0][ vname[0] ].data.copy()
-                else       : data_plot = data_ii[ vname[0] ].data.copy()
+                if   do_index: data_plot = data_ii[0][ vname[0] ].data.copy()
+                elif do_moc  : data_plot = data_ii['moc'].isel(nz=data_ii['depth']<=-700).data.copy()
+                else         : data_plot = data_ii[ vname[0] ].data.copy()
             else:
                 # compute norm when vector data
                 data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
-                
-            #___________________________________________________________________
-            # compute rescaling factor
-            auxrescale_val = do_compute_rescale(data_plot, do_rescale)
-            if   auxrescale_val>1.0: rescale_val = np.min([rescale_val, auxrescale_val])
-            elif auxrescale_val<1.0: rescale_val = np.max([rescale_val, auxrescale_val])
+            
+            # for logarythmic rescaling cmin or cmax can not be zero
+            if do_rescale=='log10' or do_rescale=='slog10': 
+                data_plot[np.abs(data_plot)==0]=np.nan
+                data_plot[np.abs(data_plot)<=1e-15]=np.nan
             
             #___________________________________________________________________
             if tri is None or do_index:
@@ -975,16 +965,18 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do
             cmin, cmax = cmin*cfac, cmax*cfac
             
         #_______________________________________________________________________
-        # apply rescaling factor 
-        if rescale_val!=1.0: cmin, cmax = cmin/rescale_val, cmax/rescale_val
+        if 'climit' in cinfo.keys():
+           cmin = np.max([cmin, cinfo['climit'][0]])
+           cmax = np.min([cmax, cinfo['climit'][-1]])
         
         #_______________________________________________________________________
         # dezimal rounding of cmin and cmax
-        cdmin, cdmax = 0.0, 0.0
-        if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
-        if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
-        cdez        = np.min([cdmin,cdmax])
-        cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
+        if not do_rescale=='log10' and not do_rescale=='slog10':
+            cdmin, cdmax = 0.0, 0.0
+            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
+            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
+            cdez        = np.min([cdmin,cdmax])
+            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
             
         #_______________________________________________________________________
         # write cmin/cmax too cinfo dictionary
@@ -994,20 +986,69 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do
     #___________________________________________________________________________    
     if 'crange' in cinfo.keys():
         cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
-        
+        if do_rescale=='slog10': cinfo['cref'] = np.abs(cinfo['cref']) 
     else:
         if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
         cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
-        if 'cref' not in cinfo.keys(): cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
+        if 'cref' not in cinfo.keys(): 
+            if do_rescale=='log10':
+                # compute cref in decimal units and tranfer back to normal units 
+                # afterwards
+                cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
+                cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
+                cref = cdmin + (cdmax-cdmin)/2
+                cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
+                cinfo['cref'] = np.power(10.0,cinfo['cref'])
+            elif do_rescale=='slog10':    
+                # cref becomes cutoff value for logarithmic to liner transition in 
+                # case of symetric log10
+                cinfo['cref'] = np.power(10.0,-6)
+            else:
+                cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
+        
     #___________________________________________________________________________    
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 20
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'wbgyr'
-    cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
     
+    print(cinfo)
+    #___________________________________________________________________________    
+    # compute clevels and cmap
+    if do_rescale=='log10':
+        # transfer cmin, cmax, cref into decimal units
+        cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
+        cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
+        cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
+        
+        #compute levels in decimal units
+        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
+        
+        # transfer levels back to normal units
+        cinfo['clevel'] = np.power(10.0,cinfo['clevel'])
+        cinfo['cref']   = np.power(10.0,cinfo['cref'])
+           
+    elif do_rescale=='slog10':
+        # transfer cmin, cmax, cref into decimal units
+        cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
+        cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
+        cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
+        ddcmin, ddcmax = -(cdmin-cdref), (cdmax-cdref)
+        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(ddcmin,ddcmax,0.0,cinfo['cnum'],cinfo['cstr'])
+        
+        # rescale clevels towards symetric logarithm
+        isneg = cinfo['clevel']<0
+        ispos = cinfo['clevel']>0
+        cinfo['clevel'][isneg] = (np.abs(cinfo['clevel'][isneg]) + cdref)
+        cinfo['clevel'][ispos] = (np.abs(cinfo['clevel'][ispos]) + cdref)
+        cinfo['clevel'][isneg] = -np.power(10.0, cinfo['clevel'][isneg])
+        cinfo['clevel'][ispos] = np.power(10.0, cinfo['clevel'][ispos])
+        
+    else:    
+        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+        
     #___________________________________________________________________________
-    return(cinfo, rescale_val)
-    
-    
+    return(cinfo)    
+
+
 
 # ___DO PLOT LAND-SEA MASK_____________________________________________________
 #| plot different land sea masks, based on patch: 'fesom', based on png image: |
@@ -1182,6 +1223,31 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
         for ii in list(idx_yes): tickl[ii]='{:2.2f}'.format(cinfo['clevel'][ii])
     if cbar.orientation=='vertical': cbar.ax.set_yticklabels(tickl)
     else:                            cbar.ax.set_xticklabels(tickl)
+    
+    #___________________________________________________________________________
+    return(cbar)
+
+
+
+# ___DO FORMATING OF COLORBAR___________________________________________________
+#|
+#|
+#| ___RETURNS_______________________________________________________________   |
+#| cbar         :   actual colorbar handle                                     |   
+#|_____________________________________________________________________________|  
+def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, pw_lim=[-3,4]):
+    # do formatting of colorbar 
+    if not do_rescale == 'log10' and not do_rescale == 'slog10':
+        formatter = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
+        formatter.set_scientific(True)
+        formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))      
+        cbar.formatter= formatter
+        cbar.locator  = mticker.MaxNLocator(nbins=cbar_nl)
+        cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
+    else:
+        cbar.ax.minorticks_off()
+    cbar.ax.tick_params(labelsize=fontsize)
+    cbar.update_ticks()
     
     #___________________________________________________________________________
     return(cbar)

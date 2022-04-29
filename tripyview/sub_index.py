@@ -490,8 +490,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     #____________________________________________________________________________
     fontsize = 12
     rescale_str = None
-    rescale_val = 1.0
-    
+        
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
     rowlist = np.zeros((n_rc[0], n_rc[1]))
@@ -503,10 +502,9 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     
     #___________________________________________________________________________    
     # create figure and axes
-    fig, ax = plt.subplots( n_rc[0],n_rc[1],
-                                figsize=figsize, 
-                                gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False, sharex=True, sharey=True)
+    fig, ax = plt.subplots( n_rc[0],n_rc[1], figsize=figsize, 
+                            gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
+                            constrained_layout=False, sharex=True, sharey=True)
     
     #___________________________________________________________________________    
     # flatt axes if there are more than 1
@@ -521,7 +519,11 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+    
+    #_______________________________________________________________________
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
     
     #___________________________________________________________________________
     # loop over axes
@@ -532,14 +534,6 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         vname= list(data[ii][0].keys())[0]
         data_plot = data[ii][0][vname].values.copy()
         data_plot = data_plot.transpose()
-        
-        #_______________________________________________________________________
-        # apply rescaling factor
-        if   do_rescale == 'log10':
-            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ log10() $'
-        elif do_rescale and rescale_val != 1.0: 
-            data_plot = data_plot/rescale_val
-            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
         
         #_______________________________________________________________________
         # setup x-coorod and y-coord
@@ -556,7 +550,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         #_______________________________________________________________________
         # plot MOC
         hp=ax[ii].contourf(time, depth, data_plot, 
-                           levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'])
+                           levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'],
+                           norm = which_norm)
         
         if do_contour: 
             tickl    = cinfo['clevel']
@@ -573,11 +568,11 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             idx_yes = idx[idxb==False]
             
             cont=ax[ii].contour(time, depth, data_plot,
-                            levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
+                            levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5],
+                            norm = which_norm) #linewidths=[0.5,0.25])
             #if do_clabel: 
                 #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
                             #inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
-            
         
         #_______________________________________________________________________
         # fix color range
@@ -622,7 +617,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             ax[ii].grid(True,which='major')
             #ax[ii].set_yscale('log')
             ax[ii].set_yscale('function', functions=(forward, inverse))
-            yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            #yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            yticklog = np.array([10,25,50,100,250,500,1000,2000,4000,6000])
             ax[ii].set_yticks(yticklog)
             ax[ii].set_ylim(ylim[0], ylim[1])
             ax[ii].invert_yaxis()
@@ -648,20 +644,17 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
-    cbar.ax.tick_params(labelsize=fontsize)
     
+    # do formatting of colorbar 
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    
+    # do labeling of colorbar
     if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
-    if 'do_rescale' in data[0][0][vname].attrs.keys():
-        cbar_label = cbar_label+data[0][0][vname].attrs['do_rescale']
     if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
     else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)
-    
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
@@ -682,19 +675,33 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
 # please see at:
 # --> https://stackoverflow.com/questions/47222585/matplotlib-generic-colormap-from-tab10
 # also https://www.py4u.net/discuss/222050
-def categorical_cmap(nc, nsc, cmap="tab10", continuous=False):
-    if nc > plt.get_cmap(cmap).N:
-        raise ValueError("Too many categories for colormap.")
+def categorical_cmap(nc, nsc, cmap="tab10", cmap2='nipy_spectral', continuous=False):
+    from matplotlib.colors import ListedColormap
+    #if nc > plt.get_cmap(cmap).N: cmap = "hsv"
+        #raise ValueError("Too many categories for colormap.")
+        
     if continuous:
-        ccolors = plt.get_cmap(cmap)(np.linspace(0,1,nc))
+        if nc > plt.get_cmap(cmap).N:
+            ccolors = ListedColormap(plt.cm.get_cmap(cmap2, nc)(np.linspace(0,1,nc))).colors
+        else:    
+            ccolors = plt.get_cmap(cmap)(np.linspace(0,1,nc))
+            
     else:
-        ccolors = plt.get_cmap(cmap)(np.arange(nc, dtype=int))
+        if nc > plt.get_cmap(cmap).N:
+            ccolors = ListedColormap(plt.cm.get_cmap(cmap2, nc)(np.arange(nc, dtype=int))).colors
+        else:
+            ccolors = plt.get_cmap(cmap)(np.arange(nc, dtype=int))
+            
+            
     cols = np.zeros((nc*nsc, 3))
     for i, c in enumerate(ccolors):
         chsv = matplotlib.colors.rgb_to_hsv(c[:3])
         arhsv = np.tile(chsv,nsc).reshape(nsc,3)
-        arhsv[:,1] = np.linspace(chsv[1],0.25,nsc)
-        arhsv[:,2] = np.linspace(chsv[2],1,nsc)
+        if not chsv[0]==0.0 and not chsv[1]==0.0:
+            arhsv[:,1] = np.linspace(chsv[1],0.2,nsc)
+            arhsv[:,2] = np.linspace(chsv[2],1.0,nsc)
+        else:
+            arhsv[:,2] = np.linspace(chsv[2],0.8,nsc)
         arhsv      = np.flipud(arhsv)
         rgb = matplotlib.colors.hsv_to_rgb(arhsv)
         cols[i*nsc:(i+1)*nsc,:] = rgb       
@@ -747,6 +754,6 @@ def do_indexanomaly(index1,index2):
 
 # Function x**(1/2)
 def forward(x):
-    return x**(1/4)
+    return x**(1/2.5)
 def inverse(x):
-    return x**(4)
+    return x**(2.5)

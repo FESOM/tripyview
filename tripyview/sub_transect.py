@@ -10,6 +10,7 @@ import shapefile as shp
 import json
 import geopandas as gpd
 import matplotlib.pylab as plt
+import matplotlib.colors as mcolors
 import matplotlib
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 import pyfesom2 as pf
@@ -427,7 +428,6 @@ def plot_transects(data, transects, figsize=[12, 6],
     #____________________________________________________________________________
     fontsize = 12
     rescale_str = None
-    rescale_val = 1.0
     
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -440,10 +440,9 @@ def plot_transects(data, transects, figsize=[12, 6],
     
     #___________________________________________________________________________    
     # create figure and axes
-    fig, ax = plt.subplots( n_rc[0],n_rc[1],
-                                figsize=figsize, 
-                                gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False, sharex=True, sharey=True)
+    fig, ax = plt.subplots( n_rc[0],n_rc[1], figsize=figsize, 
+                            gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
+                            constrained_layout=False, sharex=True, sharey=True)
     
     #___________________________________________________________________________    
     # flatt axes if there are more than 1
@@ -458,8 +457,12 @@ def plot_transects(data, transects, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
-
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+    
+    #_______________________________________________________________________
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    
     #___________________________________________________________________________
     # loop over axes
     for ii in range(0,ndata):
@@ -468,14 +471,6 @@ def plot_transects(data, transects, figsize=[12, 6],
         # limit data to color range
         vname= list(data[ii][0].keys())[0]
         data_plot = data[ii][0][vname].values.transpose().copy()
-        
-        #_______________________________________________________________________
-        # apply rescaling factor
-        if   do_rescale == 'log10':
-            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ log10() $'
-        elif do_rescale and rescale_val != 1.0: 
-            data_plot = data_plot/rescale_val
-            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
         
         #_______________________________________________________________________
         # setup x-coord and y-coord
@@ -496,7 +491,8 @@ def plot_transects(data, transects, figsize=[12, 6],
         #_______________________________________________________________________
         # plot MOC
         hp=ax[ii].contourf(xcoord, depth, data_plot, 
-                           levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'])
+                           levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'],
+                           norm = which_norm)
         if do_contour: 
             tickl    = cinfo['clevel']
             ncbar_l  = len(tickl)
@@ -512,7 +508,8 @@ def plot_transects(data, transects, figsize=[12, 6],
             idx_yes = idx[idxb==False]
             
             cont=ax[ii].contour(xcoord, depth, data_plot,
-                            levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
+                            levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5],
+                            norm = which_norm) #linewidths=[0.5,0.25])
             #if do_clabel: 
                 #ax[ii].clabel(cont, cont.levels, inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
                 #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
@@ -577,7 +574,8 @@ def plot_transects(data, transects, figsize=[12, 6],
             ax[ii].grid(True,which='major')
             #ax[ii].set_yscale('log')
             ax[ii].set_yscale('function', functions=(forward, inverse))
-            yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            #yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            yticklog = np.array([10,25,50,100,250,500,1000,2000,4000,6000])
             ax[ii].set_yticks(yticklog)
             if depth[0]==0: ax[ii].set_ylim(depth[1],max_dep)
             else          : ax[ii].set_ylim(depth[0],max_dep)
@@ -596,7 +594,8 @@ def plot_transects(data, transects, figsize=[12, 6],
     #___________________________________________________________________________
     # set superior title
     if 'transect_name' in data[ii][0][vname].attrs.keys():
-        fig.suptitle( data[ii][0][vname].attrs['transect_name'], x=0.5, y=1.04, fontsize=16, horizontalalignment='center')
+        fig.suptitle( data[ii][0][vname].attrs['transect_name'], x=0.5, y=1.04, fontsize=16, 
+                     horizontalalignment='center', verticalalignment='bottom')
     
     #___________________________________________________________________________
     # delete axes that are not needed
@@ -609,20 +608,17 @@ def plot_transects(data, transects, figsize=[12, 6],
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
-    cbar.ax.tick_params(labelsize=fontsize)
     
+    # do formatting of colorbar 
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    
+    # do labeling of colorbar
     if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
-    if 'do_rescale' in data[0][0][vname].attrs.keys(): 
-        cbar_label = cbar_label+' '+data[0][0][vname].attrs['do_rescale']
     if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
     else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)
-    
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
@@ -652,7 +648,6 @@ def plot_zmeantransects(data, figsize=[12, 6],
             ):
     #____________________________________________________________________________
     fontsize = 12
-    str_rescale = None
     
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -665,10 +660,9 @@ def plot_zmeantransects(data, figsize=[12, 6],
     
     #___________________________________________________________________________    
     # create figure and axes
-    fig, ax = plt.subplots( n_rc[0],n_rc[1],
-                                figsize=figsize, 
-                                gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False, sharex=True, sharey=True)
+    fig, ax = plt.subplots( n_rc[0],n_rc[1], figsize=figsize, 
+                            gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
+                            constrained_layout=False, sharex=True, sharey=True)
     
     #___________________________________________________________________________    
     # flatt axes if there are more than 1
@@ -683,8 +677,12 @@ def plot_zmeantransects(data, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo, rescale_val = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
-
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+    
+    #_______________________________________________________________________
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    
     #___________________________________________________________________________
     # loop over axes
     for ii in range(0,ndata):
@@ -693,14 +691,6 @@ def plot_zmeantransects(data, figsize=[12, 6],
         # limit data to color range
         vname= list(data[ii][0].keys())[0]
         data_plot = data[ii][0][vname].values.copy()
-        
-        #_______________________________________________________________________
-        # apply rescaling factor
-        if   do_rescale == 'log10':
-            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ log10() $'
-        elif do_rescale and rescale_val != 1.0: 
-            data_plot = data_plot/rescale_val
-            data[ii][0][vname[0]].attrs['do_rescale'] = ' $ \cdot 10^{'+str(int(np.log10(rescale_val)))+'} $'
         
         #_______________________________________________________________________
         # setup x-coorod and y-coord
@@ -715,7 +705,8 @@ def plot_zmeantransects(data, figsize=[12, 6],
         
         #_______________________________________________________________________
         # plot zonal mean data
-        hp=ax[ii].contourf(lat, depth, data_plot, levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'])
+        hp=ax[ii].contourf(lat, depth, data_plot, levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'],
+                           norm = which_norm)
         if do_contour: 
             tickl    = cinfo['clevel']
             ncbar_l  = len(tickl)
@@ -729,7 +720,8 @@ def plot_zmeantransects(data, figsize=[12, 6],
             idxb[idx_cref::nstep]  = False
             idxb[idx_cref::-nstep] = False
             idx_yes = idx[idxb==False]
-            cont=ax[ii].contour(lat, depth, data_plot, levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
+            cont=ax[ii].contour(lat, depth, data_plot, levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5],
+                                norm = which_norm) #linewidths=[0.5,0.25])
             
             if do_clabel: 
                 ax[ii].clabel(cont, cont.levels, inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f',zorder=1)
@@ -788,7 +780,8 @@ def plot_zmeantransects(data, figsize=[12, 6],
         if do_ylog: 
             ax[ii].grid(True,which='major')
             ax[ii].set_yscale('function', functions=(forward, inverse))
-            yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            #yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
+            yticklog = np.array([10,25,50,100,250,500,1000,2000,4000,6000])
             ax[ii].set_yticks(yticklog)
             if depth[0]==0: ax[ii].set_ylim(depth[1],depth[-1])
             else          : ax[ii].set_ylim(depth[0],depth[-1])
@@ -807,7 +800,8 @@ def plot_zmeantransects(data, figsize=[12, 6],
     #___________________________________________________________________________
     # set superior title
     if 'transect_name' in data[ii][0][vname].attrs.keys():
-        fig.suptitle( data[ii][0][vname].attrs['transect_name'], x=0.5, y=1.04, fontsize=16, horizontalalignment='center')
+        fig.suptitle( data[ii][0][vname].attrs['transect_name'], x=0.5, y=1.04, fontsize=16, 
+                     horizontalalignment='center', verticalalignment='bottom')
     
     #___________________________________________________________________________
     # delete axes that are not needed
@@ -820,21 +814,17 @@ def plot_zmeantransects(data, figsize=[12, 6],
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
-    cbar.ax.tick_params(labelsize=fontsize)
     
-    #if cbar_label is None: cbar_label = data[nax_fin-1][0][ vname ].attrs['long_name']
+    # do formatting of colorbar 
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    
+    # do labeling of colorbar
     if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
-    if 'do_rescale' in data[0][0][vname].attrs.keys():
-        cbar_label = cbar_label+data[0][0][vname].attrs['do_rescale']
     if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
     else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][0][vname].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)
-    
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
@@ -929,6 +919,6 @@ def do_transectanomaly(index1,index2):
 
 # Function x**(1/2)
 def forward(x):
-    return x**(1/4)
+    return x**(1/2.5)
 def inverse(x):
-    return x**(4)
+    return x**(2.5)

@@ -85,16 +85,17 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
             e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1    
     
     #___________________________________________________________________________
-    #e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1    
-    #tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)),
-                        #np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
-    #e_idxin = np.hstack(( e_idxin[mesh.e_pbnd_0], e_idxin[mesh.e_pbnd_a]))
-    #fig = plt.figure(figsize=[6,3])
-    #plt.triplot(tri.x, tri.y, tri.triangles[e_idxin,:], linewidth=0.2)
-    #plt.axis('scaled')
-    #plt.title('Basin limited domain')
-    #plt.show()
-    #STOP
+    # e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1    
+    # tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)),
+    #                     np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+    # e_idxin = np.hstack(( e_idxin[mesh.e_pbnd_0], e_idxin[mesh.e_pbnd_a]))
+    # fig = plt.figure(figsize=[6,3])
+    # plt.triplot(tri.x, tri.y, tri.triangles[e_idxin,:], linewidth=0.2)
+    # plt.plot(mesh.n_x[n_idxin], mesh.n_y[n_idxin],'*')
+    # plt.axis('scaled')
+    # plt.title('Basin limited domain')
+    # plt.show()
+    # STOP
     
     #___________________________________________________________________________
     # do moc calculation either on nodes or on elements        
@@ -315,6 +316,7 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
     #___________________________________________________________________________
     return(moc)
     
+    
  
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION  _________________________________+
 #|                                                                             |
@@ -324,11 +326,10 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.01, 0.01], do_save=None, save_dpi=600, 
-              do_contour=True, do_clabel=True, title='descript',
+              do_contour=True, do_clabel=True, title='descript', do_rescale=None, 
               pos_extend=[0.06, 0.08, 0.95,0.95] ):
     #____________________________________________________________________________
     fontsize = 12
-    str_rescale = None
     
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
@@ -359,36 +360,8 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    if cinfo is None: cinfo=dict()
-    # check if dictionary keys exist, if they do not exist fill them up 
-    cfac = 1
-    if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
-    if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
-        cmin, cmax = np.Inf, -np.Inf
-        for data_ii in data:
-            cmin = np.min([cmin, data_ii['moc'].isel(nz=data_ii['depth']<=-700).min().values ])
-            cmax = np.max([cmax, data_ii['moc'].isel(nz=data_ii['depth']<=-700).max().values ])
-            cmin, cmax = cmin*cfac, cmax*cfac
-            #___________________________________________________________________
-            cdmin, cdmax = 0.0, 0.0
-            if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
-            if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
-            cdez        = np.min([cdmin,cdmax])
-            cmin, cmax  = np.around(cmin, -np.int32(cdez-1)), np.around(cmax, -np.int32(cdez-1))
-            
-        if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
-        if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax    
-    if 'crange' in cinfo.keys():
-        # cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
-        cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], 0.0
-    else:
-        if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
-        cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
-        if 'cref' not in cinfo.keys(): cinfo['cref'] = 0
-    if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 15
-    if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'blue2red'
-    cinfo['cmap'],cinfo['clevel'], cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
-
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_moc=True)
+    
     #___________________________________________________________________________
     # loop over axes
     ndi, nli, nbi =0, 0, 0
@@ -475,21 +448,20 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                       extendrect=False, extendfrac=None,
                       drawedges=True, pad=0.025, shrink=1.0)
-    cbar.ax.tick_params(labelsize=fontsize)
     
-    if which_moc=='gmoc'   : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
-    elif which_moc=='amoc' or which_moc=='aamoc':
-        cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
+    # do formatting of colorbar 
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    
+    # do labeling of colorbar
+    if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
+    elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
+    elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
     elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
     elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
     elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
     if 'str_ltim' in data[0]['moc'].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0]['moc'].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)
-    
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    cbar = do_cbar_label(cbar, cbar_nl, cinfo)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
@@ -551,6 +523,195 @@ def plot_xmoc_tseries(time,moc_t,which_lat=['max'],which_moc='amoc',str_descript
     plt.show(block=False)
     
     fig.canvas.draw()
+    return(fig,ax)
+
+
+#+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def plot_xmoc_tseries2(time, moct_list, input_names, which_cycl=None, which_lat=['max'], 
+                       which_moc='amoc', do_allcycl=False, ymaxstep=1, xmaxstep=5,
+                       str_descript='', str_time='', figsize=[], 
+                       do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False ):    
+    
+    import matplotlib.patheffects as path_effects
+    from matplotlib.ticker import AutoMinorLocator, MultipleLocator
+
+    if len(figsize)==0: figsize=[13,6.5]
+    fig,ax= plt.figure(figsize=figsize),plt.gca()
+    
+    #___________________________________________________________________________
+    # setup colormap
+    if do_allcycl: 
+        if which_cycl is not None:
+            cmap = categorical_cmap(np.int32(len(moct_list)/which_cycl), which_cycl, cmap="tab10")
+        else:
+            cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
+    else:
+        cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
+    
+    #___________________________________________________________________________
+    ii=0
+    for ii_ts, (tseries, tname) in enumerate(zip(moct_list, input_names)):
+        
+        if tseries.ndim>1: tseries = tseries.squeeze()
+        
+        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
+            
+            hp=ax.plot(time,tseries, 
+                    linewidth=2, label=tname, color=cmap.colors[ii_ts,:], 
+                    marker='o', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
+                    zorder=2)
+                
+            if do_pltmean: 
+                # plot mean value with trinagle 
+                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(),
+                        marker='<', markersize=8, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+            if do_pltstd:
+                # plot std. range
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(),
+                        marker='^', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+                
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(),
+                        marker='v', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+        
+        else:
+            hp=ax.plot(time, tseries, 
+                   linewidth=2, label=tname, color=cmap.colors[ii_ts,:],
+                   zorder=1) #marker='o', markerfacecolor='w', 
+                   # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
+        
+    #___________________________________________________________________________
+    if which_lat[ii]=='max':
+        str_label='max {:s}: 30°N<=lat<=45°N'.format(which_moc.upper(),which_lat[ii])
+    else:
+        str_label='{:s} at: {:2.1f}°N'.format(which_moc.upper(),which_lat[ii])
+    
+    #___________________________________________________________________________
+    ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
+              bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+              #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
+    ax.set_xlabel('Time [years]',fontsize=12)
+    ax.set_ylabel('{:s} in [Sv]'.format(which_moc.upper()),fontsize=12)
+    ax.set_title(str_label, fontsize=12, fontweight='bold')
+    
+    #___________________________________________________________________________
+    xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
+    ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
+    ax.xaxis.set_major_locator(xmajor_locator)
+    ax.yaxis.set_major_locator(ymajor_locator)
+
+    xminor_locator = AutoMinorLocator(5)
+    yminor_locator = AutoMinorLocator(4)
+    ax.yaxis.set_minor_locator(yminor_locator)
+    ax.xaxis.set_minor_locator(xminor_locator)
+    
+    plt.grid(which='major')
+    plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
+    
+    #___________________________________________________________________________
+    plt.show()
+    fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, fig, dpi=save_dpi)
+    
+    #___________________________________________________________________________
+    return(fig,ax)
+
+
+#+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=None, 
+                       do_allcycl=False, str_descript='', str_time='', figsize=[], 
+                       do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
+                       ymaxstep=5, xmaxstep=5):    
+    
+    import matplotlib.patheffects as path_effects
+    from matplotlib.ticker import AutoMinorLocator, MultipleLocator
+
+    if len(figsize)==0: figsize=[13,6.5]
+    fig,ax= plt.figure(figsize=figsize),plt.gca()
+    
+    #___________________________________________________________________________
+    # setup colormap
+    if do_allcycl: 
+        if which_cycl is not None:
+            cmap = categorical_cmap(np.int32(len(tseries_list)/which_cycl), which_cycl, cmap="tab10")
+        else:
+            cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
+    else:
+        cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
+    
+    #___________________________________________________________________________
+    ii=0
+    for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
+        
+        if tseries.ndim>1: tseries = tseries.squeeze()
+        
+        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
+            hp=ax.plot(time,tseries, 
+                   linewidth=2, label=tname, color=cmap.colors[ii_ts,:], 
+                   marker='o', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
+                   zorder=2)
+            
+            if do_pltmean: 
+                # plot mean value with triangle 
+                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(),
+                        marker='<', markersize=8, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+            if do_pltstd:
+                # plot std. range
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(),
+                        marker='^', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+                
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(),
+                        marker='v', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+        
+        else:
+            hp=ax.plot(time, tseries, 
+                   linewidth=2, label=tname, color=cmap.colors[ii_ts,:],
+                   zorder=1) #marker='o', markerfacecolor='w', 
+                   # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
+        
+    #___________________________________________________________________________
+    ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
+              bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+              #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
+    ax.set_xlabel('Time [years]',fontsize=12)
+    ax.set_ylabel('{:s} in [Sv]'.format('Transport'),fontsize=12)
+    ax.set_title(sect_name, fontsize=12, fontweight='bold')
+    
+    #___________________________________________________________________________
+    xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
+    ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
+    ax.xaxis.set_major_locator(xmajor_locator)
+    ax.yaxis.set_major_locator(ymajor_locator)
+    
+    xminor_locator = AutoMinorLocator(5)
+    yminor_locator = AutoMinorLocator(4)
+    ax.yaxis.set_minor_locator(yminor_locator)
+    ax.xaxis.set_minor_locator(xminor_locator)
+    
+    plt.grid(which='major')
+    plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
+    
+    #___________________________________________________________________________
+    plt.show()
+    fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, fig, dpi=save_dpi)
+    
+    #___________________________________________________________________________
     return(fig,ax)
 
 
