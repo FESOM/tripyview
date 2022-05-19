@@ -135,6 +135,13 @@ def diagrun():
     analyses_driver_list["hovm_clim"      ] = drive_hovm_clim
     analyses_driver_list["xmoc"           ] = drive_xmoc
     analyses_driver_list["xmoc_tseries"   ] = drive_xmoc_tseries
+    analyses_driver_list["dmoc"           ] = drive_dmoc
+    analyses_driver_list["dmoc_z"         ] = drive_dmoc
+    analyses_driver_list["dmoc_srf"       ] = drive_dmoc
+    analyses_driver_list["dmoc_srf_z"     ] = drive_dmoc
+    analyses_driver_list["dmoc_inner"     ] = drive_dmoc
+    analyses_driver_list["dmoc_inner_z"   ] = drive_dmoc
+    analyses_driver_list["dmoc_tseries"   ] = drive_dmoc_tseries
     analyses_driver_list["vprofile"       ] = drive_vprofile
     analyses_driver_list["vprofile_clim"  ] = drive_vprofile_clim
     analyses_driver_list["transect"       ] = drive_transect
