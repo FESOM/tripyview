@@ -898,8 +898,11 @@ def do_anomaly(data1,data2):
     #for vname in list(anom.keys()):
     for vname, vname2 in zip(data1_vname, data2_vname):
         # do anomalous data 
-        anom[vname].data = data1[vname].data - data2[vname2].data
-        
+        if vname=='dmoc_zpos':
+            anom[vname].data = data1[vname].data
+        else:
+            anom[vname].data = data1[vname].data - data2[vname2].data
+            
         # do anomalous attributes 
         attrs_data1 = data1[vname].attrs
         attrs_data2 = data2[vname2].attrs
