@@ -42,11 +42,13 @@ over depth and time averaged over specific region that defined by shapefile (see
 
 * `xmoc`         - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
+
 <p align="left" width="100%">
   <img width=32% src="tripyview/tripyview_zAMOC.png">
   <img width=32% src="tripyview/tripyview_zIPMOC.png">
   <img width=32% src="tripyview/tripyview_zGMOC.png">
 </p>
+
 * `xmoc_tseries` - plot timeseries of atlantic meridional overturning circulation at specific latitudes 
 (default: which_lats: [26, 40, 'max'])
 
@@ -54,17 +56,21 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
 * `dmoc_srf`     - plot surface transformation of meridional overturning circulation in density coordinates
 * `dmoc_inner`   - plot inner transformation of meridional overturning circulation in density coordinates
+
 <p align="left" width="100%">
   <img width=32% src="tripyview/tripyview_dAMOC.png">
   <img width=32% src="tripyview/tripyview_dAMOC_srf.png">
   <img width=32% src="tripyview/tripyview_dAMOC_inner.png">
 </p>
+
 * `dmoc_z`, `dmoc_srf_z`, `dmoc_inner_z` - plot meridional overturning circulation in density coordinates back into z-coordinate space 
+
 <p align="left" width="100%">
   <img width=32% src="tripyview/tripyview_dAMOC_z.png">
   <img width=32% src="tripyview/tripyview_dIPMOC_z.png">
   <img width=32% src="tripyview/tripyview_dGMOC_z.png">
 </p>
+
 * `dmoc_tseries` - plot timeseries of atlantic meridional overturning circulation in density coordinates at specific latitudes 
 (default: which_lats: [26, 55, 'max'])
 
