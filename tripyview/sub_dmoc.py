@@ -604,7 +604,7 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
         elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
         elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
         elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
-    else
+    else:
         if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
         elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
         elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
