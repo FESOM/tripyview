@@ -778,14 +778,14 @@ def plot_zmeantransects(data, figsize=[12, 6],
         
         #_______________________________________________________________________
         if do_ylog: 
-            ax[ii].grid(True,which='major')
-            ax[ii].set_yscale('function', functions=(forward, inverse))
-            #yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
-            yticklog = np.array([10,25,50,100,250,500,1000,2000,4000,6000])
-            ax[ii].set_yticks(yticklog)
             if depth[0]==0: ax[ii].set_ylim(depth[1],depth[-1])
             else          : ax[ii].set_ylim(depth[0],depth[-1])
+            ax[ii].set_yscale('function', functions=(forward, inverse))
+            yticklog = np.array([10,25,50,100,250,500,1000,2000,4000,6000])
+            ax[ii].set_yticks(yticklog)
             ax[ii].invert_yaxis()
+            ax[ii].grid(True,which='major')
+            
         else:
             ax[ii].set_ylim(depth[0],depth[-1])
             ax[ii].invert_yaxis()

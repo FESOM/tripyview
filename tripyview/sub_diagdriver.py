@@ -87,6 +87,9 @@ def drive_hslice(yaml_settings, analysis_name):
             webpage[f"image_{image_count}"]["short_name"] = short_name
             image_count += 1
     return webpage
+
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -151,6 +154,8 @@ def drive_hslice_clim(yaml_settings, analysis_name):
             webpage[f"image_{image_count}"]["short_name"] = short_name
             image_count += 1
     return webpage
+
+
 
 #
 #
@@ -218,6 +223,8 @@ def drive_hovm(yaml_settings, analysis_name):
             image_count += 1
     return webpage
 
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -284,6 +291,8 @@ def drive_hovm_clim(yaml_settings, analysis_name):
             image_count += 1
     return webpage
 
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -338,6 +347,7 @@ def drive_xmoc(yaml_settings, analysis_name):
         webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}"
         image_count += 1
     return webpage
+
 
 
 #
@@ -400,6 +410,137 @@ def drive_xmoc_tseries(yaml_settings, analysis_name):
     return webpage
 
 
+
+#
+#
+#_______________________________________________________________________________________________________
+def drive_dmoc(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    # loop over variable name  
+    for vname in driver_settings:
+        print(f'         --> compute: {vname}')
+        current_params2 = {}
+        current_params2 = current_params.copy()
+        current_params2["vname"] = vname
+        if   analysis_name == 'dmoc'      : 
+            current_params2["which_transf"], str_mode = 'dmoc' , ''
+        elif analysis_name == 'dmoc_srf'  : 
+            current_params2["which_transf"], str_mode = 'srf'  , '_srf'
+        elif analysis_name == 'dmoc_inner': 
+            current_params2["which_transf"], str_mode = 'inner', '_inner'
+        elif analysis_name == 'dmoc_z': 
+            current_params2["which_transf"], str_mode = 'dmoc', '_z'    
+            current_params2["do_zcoord"] = True
+        elif analysis_name == 'dmoc_srf_z'  : 
+            current_params2["do_zcoord"] = True
+            current_params2["which_transf"], str_mode = 'srf'  , '_srf_z'
+        elif analysis_name == 'dmoc_inner_z': 
+            current_params2["which_transf"], str_mode = 'inner', '_inner_z'
+            current_params2["do_zcoord"] = True
+        
+        #__________________________________________________________________________________________
+        save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.png"
+        save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.ipynb"
+        current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+        #__________________________________________________________________________________________
+        pm.execute_notebook(
+                f"{templates_nb_path}/template_dmoc.ipynb",
+                os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                parameters=current_params2,
+                nest_asyncio=True)
+            
+        #__________________________________________________________________________________________
+        webpage[f"image_{image_count}"] = {}
+        webpage[f"image_{image_count}"]["name"]       = f"Density-{vname.upper()}{str_mode}"
+        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}"
+        image_count += 1
+    return webpage
+
+
+#
+#
+#_______________________________________________________________________________________________________
+def drive_dmoc_tseries(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    # loop over variable name  
+    for which_lat in driver_settings['which_lats']:
+        print(f'         --> compute tseries @: {str(which_lat)}')
+        
+        current_params2 = {}
+        current_params2 = current_params.copy()
+        current_params2["which_lat"] = [which_lat]
+        current_params2.update(driver_settings)
+        del current_params2["which_lats"]
+            
+        #__________________________________________________________________________________________
+        save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{str(which_lat)}.png"
+        save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{str(which_lat)}.ipynb"
+        current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+        #__________________________________________________________________________________________
+        pm.execute_notebook(
+                f"{templates_nb_path}/template_dmoc_tseries.ipynb",
+                os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                parameters=current_params2,
+                nest_asyncio=True)
+            
+        #__________________________________________________________________________________________
+        webpage[f"image_{image_count}"] = {}
+        if which_lat == 'max':
+            webpage[f"image_{image_count}"]["name"]       = f" max density-AMOC @ 45°N<lat<60°N"
+        else:
+            webpage[f"image_{image_count}"]["name"]       = f" density AMOC @ {str(which_lat)}°N"
+        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{str(which_lat)}"
+        image_count += 1
+    return webpage
+
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -455,6 +596,8 @@ def drive_vprofile(yaml_settings, analysis_name):
         image_count += 1
     return webpage
 
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -509,6 +652,8 @@ def drive_vprofile_clim(yaml_settings, analysis_name):
         webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}"
         image_count += 1
     return webpage
+
+
 
 #
 #
@@ -566,6 +711,8 @@ def drive_transect(yaml_settings, analysis_name):
             image_count += 1
     return webpage
 
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -622,6 +769,8 @@ def drive_transect_clim(yaml_settings, analysis_name):
             image_count += 1
     return webpage
 
+
+
 #
 #
 #_______________________________________________________________________________________________________
@@ -674,6 +823,8 @@ def drive_transect_vflx_t(yaml_settings, analysis_name):
         webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{tname}"
         image_count += 1
     return webpage
+
+
 
 #
 #
@@ -740,6 +891,8 @@ def drive_zmeantrans(yaml_settings, analysis_name):
             ] = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}_{str_boxregion}"
             image_count += 1
     return webpage
+
+
 
 #
 #

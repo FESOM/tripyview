@@ -922,7 +922,8 @@ def do_compute_scalingnorm(cinfo, do_rescale):
 #| ___RETURNS_______________________________________________________________   |
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
-def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do_index=False, do_moc=False):
+def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
+                  do_index=False, do_moc=False, do_dmoc=None):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
@@ -944,6 +945,11 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do
             if do_vec==False:
                 if   do_index: data_plot = data_ii[0][ vname[0] ].data.copy()
                 elif do_moc  : data_plot = data_ii['moc'].isel(nz=data_ii['depth']<=-700).data.copy()
+                elif do_dmoc is not None  : 
+                    if   do_dmoc=='dmoc'  : data_plot = data_ii['dmoc'].data.copy()
+                    elif do_dmoc=='srf'   : data_plot = -(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
+                    elif do_dmoc=='inner' : data_plot = data_ii['dmoc'].data.copy() + \
+                                                        (data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
                 else         : data_plot = data_ii[ vname[0] ].data.copy()
             else:
                 # compute norm when vector data
@@ -1010,7 +1016,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 20
     if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'wbgyr'
     
-    print(cinfo)
     #___________________________________________________________________________    
     # compute clevels and cmap
     if do_rescale=='log10':
@@ -1046,6 +1051,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, do
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
         
     #___________________________________________________________________________
+    print(cinfo)
     return(cinfo)    
 
 
@@ -1287,8 +1293,9 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
         ax_pos[jj,:] = np.array([aux.x0, aux.y0, aux.width, aux.height])
     maxr = rowlist.max()+1
     maxc = collist.max()+1
+    #print(maxr,maxc)
+    #print(ax_pos)
     
-     
     #fac = pos_fac
     ##x0, y0, x1, y1 = 0.05, 0.05, 0.95, 0.95
     #x0, y0, x1, y1 = 0.1, 0.1, 0.9, 0.9
@@ -1304,13 +1311,25 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
     x0, y0, x1, y1 = 0.075, 0.05, 0.825, 0.95
     if extend is not None:
         x0, y0, x1, y1 = extend[0], extend[1], extend[2], extend[3]
-        
+        #ax_pos[:,2] = x1-x0
+        #ax_pos[:,3] = y1-y0
+    
+    #print(ax_pos[:,3], ax_pos[:,2])
     if cbar is not None:
         if cbar.orientation=='horizontal': y0 = y0+0.25
         
     dx = x1-x0-(maxc-1)*wg
-    w  = dx/maxc
-    h  = w*ax_pos[:,3].min()/ax_pos[:,2].min()
+    dy = y1-y0-(maxr-1)*hg
+    #print('dx,dy=', dx, dy)
+    wref  = dx/maxc
+    href  = dy/maxr
+    #print('wref,href=',wref,href)
+    fac   = ax_pos[:,3].min()/ax_pos[:,2].min()
+    w,h   = wref, wref*fac
+    if h>href: 
+        w,h   = href/fac, href
+    #h  = dh*(ax_pos[:,3].min()/ax_pos[:,2].min())
+    #print('w,h=',w,h,)
     
     #dy = y1-y0-(maxr-1)*hg
     #h  = dy/maxr
@@ -1321,8 +1340,9 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
         if title is not None: hg = hg+0.06
     if (h*maxr+hg*(maxr-1)+y0)>y1: fac = 1/(h*maxr+hg*(maxr-1)+y0)
     if (w*maxc+wg*(maxc-1)+x0)>x1: fac = 1/(w*maxc+wg*(maxc-1)+x0) 
-    w, h = w*fac, h*fac
-
+    #w, h = w*fac, h*fac
+    #print('w,h=',w,h,fac)
+    
     for jj in range(nax-1,0-1,-1):
         ax[jj].set_position( [x0+(w+wg)*collist[jj], y0+(h+hg)*np.abs(rowlist[jj]-maxr+1), w, h] )
     

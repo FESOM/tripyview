@@ -12,6 +12,11 @@ import matplotlib.pyplot as plt
 #from matplotlib.tri import Triangulation
 from numba import jit, njit, prange
 import shapefile as shp
+from matplotlib.ticker import FormatStrFormatter
+from scipy.interpolate import interp1d
+from numpy.matlib import repmat
+from scipy import interpolate
+import numpy.ma as ma
 
 from .colormap_c2c    import *
 from .sub_index import *
@@ -30,59 +35,7 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
-    if which_moc=='gmoc':
-        if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
-        else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
-    else:    
-        tt1=time.time()
-        box_list = list()
-        
-        #_______________________________________________________________________
-        # set proper directory so he can find the moc basin shape files
-        pkg_path = os.path.dirname(__file__)
-        mocbaspath=os.path.join(pkg_path,'shapefiles/moc_basins/')
-        
-        #_______________________________________________________________________
-        # amoc2 ... calculate amoc without arctic
-        if   which_moc=='amoc':
-            # for calculation of amoc mesh focus must be on 0 degree longitude
-            box_list.append( shp.Reader(os.path.join(mocbaspath,'Atlantic_MOC.shp') ))
-            
-        #_______________________________________________________________________
-        # amoc ... calculate amoc including arctic
-        elif which_moc=='aamoc':
-            # for calculation of amoc mesh focus must be on 0 degree longitude
-            box_list.append( [-180.0,180.0,65.0,90.0] )
-            box_list.append( shp.Reader(os.path.join(mocbaspath,'Atlantic_MOC.shp') ))
-        #_______________________________________________________________________
-        # pmoc ... calculate pacific moc
-        elif which_moc=='pmoc':
-            # for calculation of pmoc mesh focus must be on 180 degree longitude
-            box_list.append( shp.Reader(os.path.join(mocbaspath,'Pacific_MOC.shp') ))
-        
-        #_______________________________________________________________________
-        # ipmoc ... calculate indo-pacific moc
-        elif which_moc=='ipmoc':
-            # for calculation of pmoc mesh focus must be on 180 degree longitude
-            box_list.append( shp.Reader(os.path.join(mocbaspath,'IndoPacific_MOC.shp') ))
-            
-        #_______________________________________________________________________
-        # imoc ... calculate indian ocean moc
-        elif which_moc=='imoc':
-            box_list.append( shp.Reader(os.path.join(mocbaspath,'Indian_MOC.shp') ))
-        
-        #_______________________________________________________________________
-        else: raise ValueError("The option which_moc={} is not supported.".format(str(which_moc)))
-        
-        #_______________________________________________________________________
-        # compute vertice index for in box 
-        n_idxin = np.zeros((mesh.n2dn,), dtype=bool)
-        for box in box_list:
-            n_idxin = np.logical_or(n_idxin, do_boxmask(mesh, box, do_elem=False))
-        
-        if do_onelem: 
-            # e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1
-            e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1    
+    idxin = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem)
     
     #___________________________________________________________________________
     # e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1    
@@ -121,16 +74,16 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         # load elem area from diag file
         if ( os.path.isfile(diagpath)):
             mat_area = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['elem_area']
-            mat_area = mat_area.isel(elem=e_idxin).compute()   
+            mat_area = mat_area.isel(elem=idxin).compute()   
             mat_area = mat_area.expand_dims({'nz':mesh.zlev}).transpose()
             mat_iz   = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nlevels']-1
-            mat_iz   = mat_iz.isel(elem=e_idxin).compute()   
+            mat_iz   = mat_iz.isel(elem=idxin).compute()   
         else: 
             raise ValueError('could not find ...mesh.diag.nc file')
         
         #_______________________________________________________________________
         # create meridional bins
-        e_y   = mesh.n_y[mesh.e_i[e_idxin,:]].sum(axis=1)/3.0
+        e_y   = mesh.n_y[mesh.e_i[idxin,:]].sum(axis=1)/3.0
         lat   = np.arange(np.floor(e_y.min())+dlat/2, 
                           np.ceil( e_y.max())-dlat/2, 
                           dlat)
@@ -140,10 +93,10 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         # mean over elements + select MOC basin 
         if 'time' in list(data.dims): 
             wdim = ['time','elem','nz']
-            wdum = data['w'].data[:, mesh.e_i[e_idxin,:], :].sum(axis=2)/3.0 * 1e-6
+            wdum = data['w'].data[:, mesh.e_i[idxin,:], :].sum(axis=2)/3.0 * 1e-6
         else                        : 
             wdim = ['elem','nz']
-            wdum = data['w'].data[mesh.e_i[e_idxin,:], :].sum(axis=1)/3.0 * 1e-6
+            wdum = data['w'].data[mesh.e_i[idxin,:], :].sum(axis=1)/3.0 * 1e-6
         mat_mean = xr.DataArray(data=wdum, dims=wdim)
         mat_mean = mat_mean.fillna(0.0)
         del wdim, wdum
@@ -173,22 +126,22 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         # load vertice cluster area from diag file
         if ( os.path.isfile(diagpath)):
             mat_area = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area'].transpose() 
-            mat_area = mat_area.isel(nod2=n_idxin).compute()  
+            mat_area = mat_area.isel(nod2=idxin).compute()  
             mat_iz   = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nlevels_nod2D']-1
-            mat_iz   = mat_iz.isel(nod2=n_idxin).compute()   
+            mat_iz   = mat_iz.isel(nod2=idxin).compute()   
         else: 
             raise ValueError('could not find ...mesh.diag.nc file')
         
         #_______________________________________________________________________
         # create meridional bins
-        lat   = np.arange(np.floor(mesh.n_y[n_idxin].min())+dlat/2, 
-                          np.ceil( mesh.n_y[n_idxin].max())-dlat/2, 
+        lat   = np.arange(np.floor(mesh.n_y[idxin].min())+dlat/2, 
+                          np.ceil( mesh.n_y[idxin].max())-dlat/2, 
                           dlat)
         lat_i = ( (mesh.n_y[n_idxin]-lat[0])/dlat ).astype('int')
             
         #_______________________________________________________________________    
         # select MOC basin 
-        mat_mean = data['w'].isel(nod2=n_idxin)*1e-6
+        mat_mean = data['w'].isel(nod2=idxin)*1e-6
         mat_mean = mat_mean.fillna(0.0)
         
         #_______________________________________________________________________
@@ -219,8 +172,8 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
     numbtri = np.zeros([lat.size,])
     
     #  switch topo beteen computation on nodes and elements
-    if do_onelem: topo    = np.float16(mesh.zlev[mesh.e_iz[e_idxin]])
-    else        : topo    = np.float16(mesh.n_z[n_idxin])
+    if do_onelem: topo    = np.float16(mesh.zlev[mesh.e_iz[idxin]])
+    else        : topo    = np.float16(mesh.n_z[idxin])
     
     # this is more or less required so bottom patch looks aceptable
     if which_moc=='pmoc':
@@ -315,9 +268,8 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
     
     #___________________________________________________________________________
     return(moc)
-    
-    
- 
+
+
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION  _________________________________+
 #|                                                                             |
 #+_____________________________________________________________________________+
@@ -327,7 +279,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.01, 0.01], do_save=None, save_dpi=600, 
               do_contour=True, do_clabel=True, title='descript', do_rescale=None, 
-              pos_extend=[0.06, 0.08, 0.95,0.95] ):
+              pos_extend=[0.06, 0.08, 0.95, 0.95] ):
     #____________________________________________________________________________
     fontsize = 12
     
@@ -476,7 +428,6 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
-    
 
     
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
@@ -622,6 +573,7 @@ def plot_xmoc_tseries2(time, moct_list, input_names, which_cycl=None, which_lat=
     
     #___________________________________________________________________________
     return(fig,ax)
+
 
 
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
@@ -975,6 +927,75 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
             box_idx_fin = np.concatenate((box_idx_fin,box_idx[tri_merge_idx]))
         
     return(box_idx_fin)
+
+
+
+#+___CALCULATE BASIN LIMITED DOMAIN___________________________________________________________________+
+#| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
+#| 
+#+___________________________________________________________________________________________________
+def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True):
+    #___________________________________________________________________________
+    # calculate/use index for basin domain limitation
+    if which_moc=='gmoc':
+        if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
+        else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
+    else:    
+        tt1=time.time()
+        box_list = list()
+        
+        #_______________________________________________________________________
+        # set proper directory so he can find the moc basin shape files
+        pkg_path = os.path.dirname(__file__)
+        mocbaspath=os.path.join(pkg_path,'shapefiles/moc_basins/')
+        
+        #_______________________________________________________________________
+        # amoc2 ... calculate amoc without arctic
+        if   which_moc=='amoc':
+            # for calculation of amoc mesh focus must be on 0 degree longitude
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Atlantic_MOC.shp') ))
+            
+        #_______________________________________________________________________
+        # amoc ... calculate amoc including arctic
+        elif which_moc=='aamoc':
+            # for calculation of amoc mesh focus must be on 0 degree longitude
+            box_list.append( [-180.0,180.0,65.0,90.0] )
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Atlantic_MOC.shp') ))
+        #_______________________________________________________________________
+        # pmoc ... calculate pacific moc
+        elif which_moc=='pmoc':
+            # for calculation of pmoc mesh focus must be on 180 degree longitude
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Pacific_MOC.shp') ))
+        
+        #_______________________________________________________________________
+        # ipmoc ... calculate indo-pacific moc
+        elif which_moc=='ipmoc':
+            # for calculation of pmoc mesh focus must be on 180 degree longitude
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'IndoPacific_MOC.shp') ))
+            
+        #_______________________________________________________________________
+        # imoc ... calculate indian ocean moc
+        elif which_moc=='imoc':
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Indian_MOC.shp') ))
+        
+        #_______________________________________________________________________
+        else: raise ValueError("The option which_moc={} is not supported.".format(str(which_moc)))
+        
+        #_______________________________________________________________________
+        # compute vertice index for in box 
+        n_idxin = np.zeros((mesh.n2dn,), dtype=bool)
+        for box in box_list:
+            n_idxin = np.logical_or(n_idxin, do_boxmask(mesh, box, do_elem=False))
+        
+        if do_onelem: 
+            # e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1
+            e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+    
+    #___________________________________________________________________________
+    if do_onelem: return(e_idxin)
+    else        : return(n_idxin)
+                
+            
 
 
 #+___EQUIVALENT OF MATLAB ISMEMBER FUNCTION___________________________________________________________+
