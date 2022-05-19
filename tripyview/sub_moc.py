@@ -279,7 +279,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.01, 0.01], do_save=None, save_dpi=600, 
               do_contour=True, do_clabel=True, title='descript', do_rescale=None, 
-              pos_extend=[0.06, 0.08, 0.95, 0.95] ):
+              pos_extend=[0.075, 0.075, 0.90, 0.95] ):
     #____________________________________________________________________________
     fontsize = 12
     
@@ -405,12 +405,22 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
     
     # do labeling of colorbar
-    if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
-    elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
-    elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
-    elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
-    elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
-    elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
+    if n_rc[0]==1:
+        if   which_moc=='gmoc' : cbar_label = 'Global Meridional \n Overturning Circulation [Sv]'
+        elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional \n Overturning Circulation [Sv]'
+        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional \n Overturning Circulation [Sv]'
+        elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
+        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
+        elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
+    else:    
+        if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
+        elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
+        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
+        elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
+        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
+        elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
+    
+    
     if 'str_ltim' in data[0]['moc'].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0]['moc'].attrs['str_ltim']
     cbar.set_label(cbar_label, size=fontsize+2)
