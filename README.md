@@ -49,7 +49,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
 * `dmoc_srf`     - plot surface transformation of meridional overturning circulation in density coordinates
 * `dmoc_inner`   - plot inner transformation of meridional overturning circulation in density coordinates
-* `dmoc_z`, `dmoc_srf_z`, `dmoc_inner_z` - plot meridional overturning circulation density density coordinates back into z-coordinate space 
+* `dmoc_z`, `dmoc_srf_z`, `dmoc_inner_z` - plot meridional overturning circulation in density coordinates back into z-coordinate space 
 
 * `dmoc_tseries` - plot timeseries of atlantic meridional overturning circulation in density coordinates at specific latitudes 
 (default: which_lats: [26, 55, 'max'])
