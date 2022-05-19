@@ -53,9 +53,9 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `dmoc_srf`     - plot surface transformation of meridional overturning circulation in density coordinates
 * `dmoc_inner`   - plot inner transformation of meridional overturning circulation in density coordinates
 <p align="left" width="100%">
-  <img width=33% src="tripyview/tripyview_dAMOC.png">
-  <img width=33% src="tripyview/tripyview_dAMOC_srf.png">
-  <img width=33% src="tripyview/tripyview_dAMOC_inner.png">
+  <img width=32% src="tripyview/tripyview_dAMOC.png">
+  <img width=32% src="tripyview/tripyview_dAMOC_srf.png">
+  <img width=32% src="tripyview/tripyview_dAMOC_inner.png">
 </p>
 * `dmoc_z`, `dmoc_srf_z`, `dmoc_inner_z` - plot meridional overturning circulation in density coordinates back into z-coordinate space 
 <p align="left" width="100%">
