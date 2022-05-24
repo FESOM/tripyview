@@ -1,4 +1,4 @@
-workflow_name: "TRR181_TKE+IDEMIX_test"
+workflow_name: "diagrun_all_analysis"
 input_paths:
     - /home/ollie/pscholz/results/trr181_tke_ctrl_ck0.1/
     - /home/ollie/pscholz/results/trr181_tke_ctrl_ck0.3/
@@ -30,7 +30,7 @@ clim_path: '/work/ollie/pscholz/INIT_HYDRO/phc3.0/phc3.0_annual.nc'
 ncolumn: 3
 box: None
 
-which_cycl: 3
+which_cycl: 1
 year: [1979, 2019]
 depth: 100
 which_dpi: 200
@@ -38,23 +38,38 @@ which_dpi: 200
 #_______________________________________________________________________________
 hslice:
     temp:
-        depths: [10, 100, 1000, 2000, 3000]
+        depths: [500, 1000, 2000, 3000, 4000]
+        cstr: 'blue2red'
     salt:
-        depths: [10, 100, 1000, 2000, 3000]
+        depths: [500, 1000, 2000, 3000, 4000]
+        #cmin: 31
+        cstr: 'green2orange'
+        climit: [-35.5, 37.5]
+    sigma2:
+        depths: [500, 1000, 2000, 3000, 4000]
+        cstr: 'grads'
+        climit: [-31, 40]    
     Kv:
-        depths: [10, 100, 1000, 2000, 3000]
+        depths: [500, 1000, 2000, 3000, 4000]
         do_rescale: 'log10'
         cstr: 'wbgyr'
-        crange: [-6, 0, -3]
-    tke:
-        depths: [10, 100, 1000, 2000, 3000]
-        do_rescale: False
-        cstr: 'wbgyr'
-        crange: [0, 4.0e-4, 2.0e-4]
+        crange: [-1.0e-6, 1.0e-0, 1.0e-3]
     N2:
-        depths: [10, 100, 1000, 2000, 3000]
+        depths: [500, 1000, 2000, 3000, 4000]
+        cstr: 'blue2red'
+        cref: 0
+        #cfac: 1.0
+    Kv*N2:
+        depths: [500, 1000, 2000, 3000, 4000]
         cstr: 'wbgyr'
-        cfac: 0.25
+        do_rescale: 'log10'
+        crange: [1.0e-11, 1.0e-6, 1.0e-9]
+    tke:
+        depths: [500, 1000, 2000, 3000, 4000]
+        do_rescale: 'log10'
+        cstr: 'wbgyr'
+        cnum: 15
+        crange: [-1.0e-6, 1.0e-3, 1.0e-5]  
     ssh:
         depths: [0]
         cstr: 'grads'
@@ -62,7 +77,6 @@ hslice:
     MLD2:
         depths: [0]
         cstr: 'rygbw'
-        crange: [-2500,0,-1200]
 
 #_______________________________________________________________________________
 hslice_np:
@@ -77,14 +91,20 @@ hslice_np:
         mon: 3
         depths: [0]
         cstr: 'wbgyr'
-        cfac: 0.5
+        cmax: 6
         box: [-180,180,50,90]
         proj: 'nps'
     MLD2:
         mon: 3
         depths: [0]
         cstr: 'rygbw'
-        crange: [-3000,0,-1500]    
+        box: [-180,180,45,90]
+        proj: 'nps'
+    Kv:
+        depths: [500, 1000, 2000, 3000, 4000]
+        do_rescale: 'log10'
+        cstr: 'wbgyr'
+        crange: [-1.0e-6, 1.0e-0, 1.0e-3]
         box: [-180,180,45,90]
         proj: 'nps' 
         
@@ -100,16 +120,22 @@ hslice_sp:
         mon: 9
         depths: [0]
         cstr: 'wbgyr'
-        cfac: 0.5
+        cmax: 1.5
         box: [-180,180,-90,-50]
-        proj: 'sps' 
+        proj: 'sps'   
     MLD2:
         mon: 9
         depths: [0]
         cstr: 'rygbw'
-        crange: [-3000,0,-1500]    
         box: [-180,180,-90,-50]
-        proj: 'sps'         
+        proj: 'sps'  
+    Kv:
+        depths: [500, 1000, 2000, 3000, 4000]
+        do_rescale: 'log10'
+        cstr: 'wbgyr'
+        crange: [-1.0e-6, 1.0e-0, 1.0e-3]
+        box: [-180,180,-90,-50]
+        proj: 'sps'     
 
 #_______________________________________________________________________________
 hslice_clim:
@@ -157,6 +183,45 @@ xmoc:
     amoc:
     ipmoc:
 
+    xmoc_tseries:
+    which_lats: [26, 40, 'max']
+    year: [1958,2019]
+    do_allcycl: False
+    
+#_______________________________________________________________________________
+dmoc:
+    gmoc:
+    amoc:
+    ipmoc:
+    
+dmoc_srf:
+    gmoc:
+    amoc:
+    ipmoc:    
+
+dmoc_inner:
+    gmoc:
+    amoc:
+    ipmoc:        
+    
+dmoc_z:
+    gmoc:
+    amoc:
+    ipmoc:        
+
+dmoc_wdiap:
+    which_isopycs: [36.72, 37.00]
+    crange: [-2.0e-5, 2.0e-5, 0.0]
+    
+dmoc_srfcbflx:
+    which_isopycs: [36.72, 37.00]
+    crange: [-2.0e-5, 2.0e-5, 0.0]    
+    
+dmoc_tseries:
+    which_lats: [26, 55, 'max']
+    year: [1958,2019]
+    do_allcycl: False    
+    
 #_______________________________________________________________________________
 vprofile:  
     temp:
@@ -183,7 +248,20 @@ vprofile:
             - mpas_region/South_Pacific_Ocean.shp
             - mpas_region/Southern_Ocean.shp
             - mpas_region/Western_Weddell_Sea.shp
-            
+    Kv:
+        box_regions:
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+        do_rescale: 'log10'  
+        
 #_______________________________________________________________________________
 vprofile_clim:  
     temp:
@@ -213,62 +291,116 @@ vprofile_clim:
             
 #_______________________________________________________________________________
 transect:
+    temp:
+        30W_80S-40N:
+            input_transect: [[[-30, -30],[-80, 40], 'Transect: -30°W, -80°S-40°N']]
+            cstr: 'blue2red'
+            climit: [0, 26]
+            cnum: 25  
     salt:
         30W_80S-40N:
             input_transect: [[[-30, -30],[-80, 40], 'Transect: -30°W, -80°S-40°N']]
             crange: [34.20, 35.2, 34.7]
-            cstr: 'grads'
+            cstr: 'green2orange'
             cnum: 25
-    temp:
-        30W_80S-40N:
-            input_transect: [[[-30, -30],[-80, 40], 'Transect: -30°W, -80°S-40°N']]
-            cstr: 'grads'
-            cnum: 25  
     Kv:
         30W_80S-90N:
             input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
             cstr: 'wbgyr'
             do_rescale: 'log10'
-            crange: [-6, 1, -3]
-            cnum: 25
+            crange: [-1.0e-6, 1.0e-1, 1.0e-4]
+            cnum: 25  
+            do_contour: False
+    tke:
+        30W_80S-90N:
+            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
+            cstr: 'wbgyr'
+            do_rescale: 'log10'
+            crange:  [-1.0e-8, 1.0e-3, 1.0e-6]
+            cnum: 15
+            do_contour: False
 
 #_______________________________________________________________________________
 transect_clim:
-    salt:
-        30W_80S-90N:
-            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
     temp:
         30W_80S-90N:
             input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
+            cstr: 'blue2red' 
             crange: [-4, 4, 0]
+    salt:
+        30W_80S-90N:
+            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
+            cstr: 'green2orange' 
+    sigma2:
+        30W_80S-90N:
+            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
+            cstr: 'grads' 
 
+#_______________________________________________________________________________
+transect_vflx_t:
+    Drake_Passage:
+        input_transect: [[[-66, -66,  -67, -55], 'Drake Passage @ 66°W, 67°S-55°S']] #use transect input from pyfesom2
+        year: [1958, 2019]
+        do_allcycl: False
+        
 #_______________________________________________________________________________
 zmeantrans:
     temp:
         box_regions: 
            - global
+        cstr: 'blue2red'    
     salt:
         box_regions: 
            - global
-        cstr: 'grads'
-        cmin: 34
+        cstr: 'green2orange'
+        climit: [32.5, 35.5]
     sigma2:
         box_regions: 
            - global
-        cstr: 'odv' 
-        cmin: 34
+        cstr: 'grads'
+        climit: [31, 36.5]
+    Kv:
+        box_regions: 
+           - global
+        do_rescale: 'log10'
+        cstr: 'wbgyr'
+        crange: [-1.0e-6, 1.0e-1, 1.0e-3]
+        cnum: 15
+        do_contour: False
+    N2:
+        box_regions: 
+           - global
+        do_rescale: 'log10'   
+        cstr: 'wbgyr'
+        crange: [1.0e-7, 1.0e-3, 1.0e-5]
+        cnum: 15
+        do_contour: False
+    #Kv*N2:
+        #box_regions: 
+           #- global
+        #do_rescale: 'log10'   
+        #cstr: 'wbgyr'
+        #crange: [1.0e-11, 1.0e-6, 1.0e-9]
+        #cnum: 15
+        #do_contour: False
        
 #_______________________________________________________________________________
 zmeantrans_clim:
     temp:
         box_regions: 
            - global
-        crange: [-2.0,2.0,0]        
+        crange: [-2.0,2.0,0] 
+        cstr: 'blue2red'
+        do_contour: False
     salt:
         box_regions: 
            - global
-        crange: [-0.5,0.5,0]    
+        crange: [-0.75,0.75,0]    
+        cstr: 'green2orange'
+        do_contour: False
     sigma2:
         box_regions: 
            - global
-        crange: [-0.25,0.25,0]        
+        crange: [-0.35,0.35,0]        
+        cstr: 'grads'
+        do_contour: False
