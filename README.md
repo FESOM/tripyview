@@ -71,6 +71,10 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
   <img width=32% src="tripyview/tripyview_dGMOC_z.png">
 </p>
 
+* `dmoc_wdiap`   - plot diapycnal velocity for specific water-class
+
+* `dmoc_srfcbflx`- plot surface buoyancy flux transformation for specific water-class
+
 * `dmoc_tseries` - plot timeseries of atlantic meridional overturning circulation in density coordinates at specific latitudes 
 (default: which_lats: [26, 55, 'max'])
 
