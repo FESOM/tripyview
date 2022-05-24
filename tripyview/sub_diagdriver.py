@@ -540,6 +540,132 @@ def drive_dmoc_tseries(yaml_settings, analysis_name):
     return webpage
 
 
+#
+#
+#_______________________________________________________________________________________________________
+def drive_dmoc_wdiap(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    # loop over diffrent ispycnals   
+    for which_isopyc in driver_settings['which_isopycs']:
+        
+        current_params2 = {}
+        current_params2 = current_params.copy()
+        current_params2["which_isopyc"] = [which_isopyc]
+        current_params2.update(driver_settings)
+        del current_params2["which_isopycs"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
+            
+        #__________________________________________________________________________________________
+        if 'proj' in current_params2.keys(): 
+            save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.png"
+            save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.ipynb"
+            short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}"
+        else:
+            save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isopyc}.png"
+            save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isopyc}.ipynb"
+            short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isopyc}"
+        current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+        #__________________________________________________________________________________________
+        pm.execute_notebook(
+            f"{templates_nb_path}/template_dmoc_wdiap.ipynb",
+            os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+            parameters=current_params2,
+            nest_asyncio=True,
+        )
+            
+        #__________________________________________________________________________________________
+        webpage[f"image_{image_count}"] = {}
+        webpage[f"image_{image_count}"]["name"]       = f"{'W_diap'} at sigma2={which_isopyc} kg/m^3"
+        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+        webpage[f"image_{image_count}"]["short_name"] = short_name
+        image_count += 1
+    return webpage
+
+
+#
+#
+#_______________________________________________________________________________________________________
+def drive_dmoc_srfcbflx(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    # loop over diffrent ispycnals   
+    for which_isopyc in driver_settings['which_isopycs']:
+        
+        current_params2 = {}
+        current_params2 = current_params.copy()
+        current_params2["which_isopyc"] = [which_isopyc]
+        current_params2.update(driver_settings)
+        del current_params2["which_isopycs"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
+            
+        #__________________________________________________________________________________________
+        if 'proj' in current_params2.keys(): 
+            save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.png"
+            save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.ipynb"
+            short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}"
+        else:
+            save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isopyc}.png"
+            save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isopyc}.ipynb"
+            short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isopyc}"
+        current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+        
+        #__________________________________________________________________________________________
+        pm.execute_notebook(
+            f"{templates_nb_path}/template_dmoc_srfcbflx.ipynb",
+            os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+            parameters=current_params2,
+            nest_asyncio=True,
+        )
+        
+        #__________________________________________________________________________________________
+        webpage[f"image_{image_count}"] = {}
+        webpage[f"image_{image_count}"]["name"]       = f"{'srf. buoyancy transf.'} at sigma2={which_isopyc} kg/m^3"
+        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+        webpage[f"image_{image_count}"]["short_name"] = short_name
+        image_count += 1
+    return webpage
+
+
 
 #
 #

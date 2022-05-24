@@ -25,7 +25,8 @@ from .sub_moc import *
 #|                                                                             |
 #+_____________________________________________________________________________+
 def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_area=None, e_area=None, 
-                   do_info=True, do_tarithm='mean', add_trend=False, **kwargs, ):
+                   do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
+                   **kwargs, ):
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
     xr.set_options(keep_attrs=True)
@@ -54,57 +55,101 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_are
         if e_area is None: e_area = meshdiag['elem_area']
     
     #___________________________________________________________________________
+    # number of sigma2 density levels 
+    ndens        = len(std_dens)
+    wd, w        = np.diff(std_dens), np.zeros(ndens)
+    w[0 ], w[-1] = wd[0   ]/2., wd[-1  ]/2.
+    w[1:-1]      = (wd[0:-1]+wd[1:])/2. # drho @  std_dens level boundary
+    weight_dens  = xr.DataArray(w, dims=["ndens"])
+    
+    #___________________________________________________________________________
     # Load netcdf data
     if do_info==True: print(' --> create xarray dataset and load std_* data')
     # create xarray dataset to combine dat for dmoc computation
     data_DMOC = xr.Dataset()
     
     # add surface transformations 
-    if which_transf=='srf' or which_transf=='inner': # add surface fluxes
-        data_DMOC = xr.merge([data_DMOC, 
-                              load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)]) 
+    if (which_transf=='srf' or which_transf=='inner') or do_dflx: # add surface fluxes
         
-        data_DMOC = xr.merge([data_DMOC, 
-                              load_data_fesom2(mesh, datapath, vname='std_frwt_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)])
+        # compute combined density flux: heat_flux+freshwater_flux+restoring_flux
+        if do_dflx: 
+            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
+            data['std_heat_flux'].data = data['std_heat_flux'].data +\
+                        load_data_fesom2(mesh, datapath, vname='std_frwt_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)['std_frwt_flux'].data + \
+                        load_data_fesom2(mesh, datapath, vname='std_rest_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)['std_rest_flux'].data
+            data      = data.rename({'std_heat_flux':'std_dens_flux'}).assign_coords({'ndens' :("ndens",std_dens)})
+            data_DMOC = xr.merge([data_DMOC, data], combine_attrs="no_conflicts")
+            data_DMOC = data_DMOC / weight_dens * 1024
+            data_DMOC = data_DMOC / e_area
+            data_DMOC = data_DMOC.assign_attrs(data.attrs)
+            del(data)
         
-        data_DMOC = xr.merge([data_DMOC, 
-                              load_data_fesom2(mesh, datapath, vname='std_rest_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)])
-        
+        # compute single flux from heat_flux & freshwater_flux &restoring_flux
+        else:
+            data_DMOC = xr.merge([data_DMOC, 
+                                load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                combine_attrs="no_conflicts") 
+            data_DMOC = xr.merge([data_DMOC, 
+                                load_data_fesom2(mesh, datapath, vname='std_frwt_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                combine_attrs="no_conflicts")   
+            data_DMOC = xr.merge([data_DMOC, 
+                                load_data_fesom2(mesh, datapath, vname='std_rest_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                combine_attrs="no_conflicts")   
+            data_attrs= data_DMOC.attrs # rescue attributes will get lost during multipolication
+            data_DMOC = data_DMOC.assign_coords({'ndens' :("ndens",std_dens)})
+            data_DMOC = data_DMOC / weight_dens * 1024
+            data_DMOC = data_DMOC.assign_attrs(data_attrs)
+            del(data_attrs)
+            
     # add volume trend  
     if add_trend:  
         data_DMOC = xr.merge([data_DMOC, 
-                              load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)]) 
+                              load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                              combine_attrs="no_conflicts")
+    
+    # skip this when doing diapycnal vertical velocity
+    if (not do_wdiap) and (not do_dflx):
+        # add vertical mean z-coordinate position of density classes
+        data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
+        data_zpos = data_zpos.assign_coords({'ndens' :("ndens",std_dens)})
+        data_zpos = data_zpos*e_area
+        data_DMOC = xr.merge([data_DMOC, data_zpos], combine_attrs="no_conflicts")
+        del(data_zpos)
+    
+    if (not do_dflx):
+        # add divergence of density classes --> diapycnal velocity
+        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm) 
+        data_div  = data_div.assign_coords({'ndens' :("ndens",std_dens)})
         
-    # add vertical mean z-coordinate position of density classes
-    data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
-    data_zpos = data_zpos*e_area
-    data_DMOC = xr.merge([data_DMOC, data_zpos]) 
-    del(data_zpos)
+        # save global attributes into allocated DMOC dataset
+        #data_DMOC = data_DMOC.assign_attrs(data_div.attrs)
+        
+        # integrated divergence below isopcnal  --> size: [nod2d x ndens] --> size: [elem x ndens]
+        data_div  = data_div/n_area
+        
+        # skip this when doing diapycnal vertical velocity
+        if not do_wdiap:
+            # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
+            # array an save the attributes in the same time
+            if 'time' in list(data_div.dims):
+                data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][:, xr.DataArray(mesh.e_i, dims=["elem",'n3']), :].mean(dim="n3", keep_attrs=True) )
+            else:
+                data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][xr.DataArray(mesh.e_i, dims=["elem",'n3']),:].mean(dim="n3", keep_attrs=True) )
+            
+            # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
+            data_div  = data_div.drop(['nod2','lon','lat'])
+            data_div  = data_div*e_area
+        
+        data_DMOC = xr.merge([data_DMOC, data_div], combine_attrs="no_conflicts")  
+        del(data_div)
     
-    # add divergence of density classes --> diapycnal velocity
-    data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm) 
-
-    # integrated divergence below isopcnal  --> size: [nod2d x ndens] --> size: [elem x ndens]
-    data_div  = data_div/n_area
-    
-    # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
-    # array an save the attributes in the same time
-    if 'time' in list(data_div.dims):
-        data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][:, xr.DataArray(mesh.e_i, dims=["elem",'n3']), :].mean(dim="n3", keep_attrs=True) )
-    else:
-        data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][xr.DataArray(mesh.e_i, dims=["elem",'n3']),:].mean(dim="n3", keep_attrs=True) )
-    
-    # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
-    data_div  = data_div.drop(['nod2','lon','lat'])
-    data_div  = data_div*e_area
-    data_DMOC = xr.merge([data_DMOC, data_div])    
-    del(data_div)
-    
-    # add coordinates to xarray data set
-    data_DMOC = data_DMOC.assign_coords({'ndens' :("ndens",std_dens),
-                                         'lon'   :("elem",mesh.n_x[mesh.e_i].sum(axis=1)/3.0),
-                                         'lat'   :("elem",mesh.n_y[mesh.e_i].sum(axis=1)/3.0),
-                                         'elem_A':("elem",e_area.values)})
+    # skip this when doing diapycnal vertical velocity
+    if not do_wdiap:
+        # add coordinates to xarray data set
+        data_DMOC = data_DMOC.assign_coords({'ndens' :("ndens",std_dens),
+                                             'lon'   :("elem",mesh.n_x[mesh.e_i].sum(axis=1)/3.0),
+                                             'lat'   :("elem",mesh.n_y[mesh.e_i].sum(axis=1)/3.0),
+                                             'elem_A':("elem",e_area.values)})
     
     #___________________________________________________________________________
     # return combined xarray dataset object
@@ -121,12 +166,12 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     # number of sigma2 density levels 
     std_dens     = data_dMOC['ndens'].values
     ndens        = len(std_dens)
-    wd, w        = np.diff(std_dens), np.zeros(ndens)
-    w[0 ], w[-1] = wd[0   ]/2., wd[-1  ]/2.
-    w[1:-1]      = (wd[0:-1]+wd[1:])/2. # drho @  std_dens level boundary
-    weight_dens  = xr.DataArray(w, dims=["ndens"])
+    #wd, w        = np.diff(std_dens), np.zeros(ndens)
+    #w[0 ], w[-1] = wd[0   ]/2., wd[-1  ]/2.
+    #w[1:-1]      = (wd[0:-1]+wd[1:])/2. # drho @  std_dens level boundary
+    #weight_dens  = xr.DataArray(w, dims=["ndens"])
 
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # compute index for basin domain limitation
     idxin     = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=True)
 
@@ -143,21 +188,23 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
         plt.title('Basin selection')
         plt.show()
 
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # scale surface density fluxes
     if 'std_heat_flux' in list(data_dMOC.keys()):
-        data_dMOC['std_heat_flux'] = data_dMOC['std_heat_flux'] / weight_dens * 1.0e-6 * 1024.0
+        data_dMOC['std_heat_flux'] = data_dMOC['std_heat_flux'] * 1.0e-6 
     if 'std_frwt_flux' in list(data_dMOC.keys()):
-        data_dMOC['std_frwt_flux'] = data_dMOC['std_frwt_flux'] / weight_dens * 1.0e-6 * 1024.0
+        data_dMOC['std_frwt_flux'] = data_dMOC['std_frwt_flux'] * 1.0e-6
     if 'std_rest_flux' in list(data_dMOC.keys()):
-        data_dMOC['std_rest_flux'] = data_dMOC['std_rest_flux'] / weight_dens * 1.0e-6 * 1024.0
+        data_dMOC['std_rest_flux'] = data_dMOC['std_rest_flux'] * 1.0e-6 
+    if 'std_dens_flux' in list(data_dMOC.keys()):
+        data_dMOC['std_dens_flux'] = data_dMOC['std_dens_flux'] * 1.0e-6     
     # scale volume change over time
     if 'std_dens_dVdT' in list(data_dMOC.keys()):
         data_dMOC['std_dens_dVdT'] = data_dMOC['std_dens_dVdT'] * 1.0e-6
     # scale integrated divergence below isopcnal
     data_dMOC['std_dens_DIV']  = data_dMOC['std_dens_DIV'] * 1.0e-6
 
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # create meridional bins
     if do_info==True: print(' --> create latitudinal bins')
     #dlat      = 1.0
@@ -165,7 +212,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     lat       = np.arange(np.floor(e_y.min())-dlat, np.ceil( e_y.max())+dlat, dlat)
     lat_i     = (( e_y-lat[0])/dlat ).astype('int')
 
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # number of latitudinal bins & number of density levels & number time slices
     dens = data_dMOC['ndens'].values
     nlat, ndens = lat.size, dens.size
@@ -188,21 +235,31 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
         aux_attr = data_dMOC['std_heat_flux'].attrs
         aux_attr['long_name'], aux_attr['units'] = 'Transformation from heat flux', 'Sv'
         data_vars['dmoc_fh'  ] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+        
     # setup dmoc_fw xarray in dataset, rescue attributes from data_MOC
     if 'std_frwt_flux' in list(data_dMOC.keys()):
         aux_attr = data_dMOC['std_frwt_flux'].attrs
         aux_attr['long_name'], aux_attr['units'] = 'Transformation from freshwater flux', 'Sv'
         data_vars['dmoc_fw'  ] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+        
     # setup dmoc_fr xarray in dataset, rescue attributes from data_MOC
     if 'std_rest_flux' in list(data_dMOC.keys()):
         aux_attr = data_dMOC['std_rest_flux'].attrs
         aux_attr['long_name'], aux_attr['units'] = 'Transformation from surface salinity restoring', 'Sv'
         data_vars['dmoc_fr'  ] = (list_dimname, np.zeros(list_dimsize), aux_attr)
+        
+    # setup dmoc_fr xarray in dataset, rescue attributes from data_MOC
+    if 'std_dens_flux' in list(data_dMOC.keys()):
+        aux_attr = data_dMOC['std_dens_flux'].attrs
+        aux_attr['long_name'], aux_attr['units'] = 'Transformation from total density flux', 'Sv'
+        data_vars['dmoc_fd'  ] = (list_dimname, np.zeros(list_dimsize), aux_attr)    
+        
     # setup dmoc_dvdt xarray in dataset, rescue attributes from data_MOC
     if 'std_dens_dVdT' in list(data_dMOC.keys()):
         aux_attr = data_dMOC['std_dens_dVdT'].attrs
         aux_attr['long_name'], aux_attr['units'] = 'Transformation from volume change', 'Sv'
         data_vars['dmoc_dvdt']=(list_dimname, np.zeros(list_dimsize), aux_attr)
+        
     # setup dmoc_zpos xarray in dataset, rescue attributes from data_MOC
     data_vars['dmoc_zpos'] = (list_dimname, np.zeros(list_dimsize), {'long_name':'Density MOC Z position', 'units':'m'})
     # setup dmoc xarray in dataset, rescue attributes from data_MOC
@@ -223,7 +280,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     dMOC = xr.Dataset(data_vars=data_vars, coords=coords,attrs=data_dMOC.attrs)
     del(data_vars, coords, aux_attr)
 
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # do zonal sum over latitudinal bins 
     if do_info==True: print(' --> do latitudinal bining')
     for bini in range(lat_i.min(), lat_i.max()):
@@ -237,6 +294,8 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
                 dMOC['dmoc_fw'  ].data[:,:, bini] = data_dMOC['std_frwt_flux'].isel(elem=lat_i==bini).sum(dim='elem')
             if 'dmoc_fr' in list(dMOC.keys()):
                 dMOC['dmoc_fr'  ].data[:,:, bini] = data_dMOC['std_rest_flux'].isel(elem=lat_i==bini).sum(dim='elem')
+            if 'dmoc_fd' in list(dMOC.keys()):
+                dMOC['dmoc_fd'  ].data[:,:, bini] = data_dMOC['std_dens_flux'].isel(elem=lat_i==bini).sum(dim='elem')
             if 'dmoc_dvdt' in list(dMOC.keys()):    
                 dMOC['dmoc_dvdt'].data[:,:, bini] = data_dMOC['std_dens_dVdT'].isel(elem=lat_i==bini).sum(dim='elem')
             dMOC['dmoc'     ].data[:,:, bini] = data_dMOC['std_dens_DIV' ].isel(elem=lat_i==bini).sum(dim='elem')
@@ -257,6 +316,8 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
                 dMOC['dmoc_fw'  ].data[:, bini] = data_dMOC['std_frwt_flux'].isel(elem=lat_i==bini).sum(dim='elem')
             if 'dmoc_fr' in list(dMOC.keys()):
                 dMOC['dmoc_fr'  ].data[:, bini] = data_dMOC['std_rest_flux'].isel(elem=lat_i==bini).sum(dim='elem')
+            if 'dmoc_fd' in list(dMOC.keys()):
+                dMOC['dmoc_fd'  ].data[:, bini] = data_dMOC['std_dens_flux'].isel(elem=lat_i==bini).sum(dim='elem')    
             if 'dmoc_dvdt' in list(dMOC.keys()):    
                 dMOC['dmoc_dvdt'].data[:, bini] = data_dMOC['std_dens_dVdT'].isel(elem=lat_i==bini).sum(dim='elem')
             dMOC['dmoc'     ].data[:, bini] = data_dMOC['std_dens_DIV' ].isel(elem=lat_i==bini).sum(dim='elem')
@@ -269,7 +330,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
             dMOC['dmoc_zpos'].data[:, bini] = aux.sum(dim='elem', skipna=True)/tvol.sum(dim='elem', skipna=True)
         del(aux,tvol)
 
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # cumulative sum over latitudes
     if do_info==True: print(' --> do cumsum over latitudes')
     # dMOC['dmoc_fh'  ] = dMOC['dmoc_fh'  ].cumsum(dim='nlat', skipna=True)
@@ -282,12 +343,12 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     for var in var_list:
         dMOC[ var ] = dMOC[ var ].cumsum(dim='nlat', skipna=True)
     
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # cumulative sum over depth 
     if do_info==True: print(' --> do cumsum over depth (bottom-->top)')
     dMOC[ 'dmoc' ] = dMOC[ 'dmoc' ].reindex(ndens=dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=dMOC['ndens'])
 
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     # substract northern boundary
     if do_info==True: print(' --> normalize to northern boundary')
     # for li in range(nlat):
@@ -303,7 +364,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
             else:    
                 dMOC[ var ].data[:, li] = dMOC[ var ].data[:, li] - dMOC[ var ].data[:, -1]
     
-    #______________________________________________________________________________________________________
+    #___________________________________________________________________________
     return(dMOC)
 
 
@@ -319,7 +380,7 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
               do_contour=True, do_clabel=True, title='descript', do_rescale=None,
               do_yrescale=True, do_zcoord=False, do_check=True, 
               pos_extend=[0.075, 0.075, 0.90, 0.95] ):
-    #____________________________________________________________________________
+    #___________________________________________________________________________
     fontsize = 12
     
     #___________________________________________________________________________
