@@ -223,8 +223,12 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         # periodic augment data
         vname = list(data[ii].keys())
         data_plot = data[ii][ vname[0] ].data.copy()
-        data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
         
+        if   data_plot.size==mesh.n2dn:
+            data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+        elif data_plot.size==mesh.n2de:
+            data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
+
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
         isnan   = np.isnan(data_plot)
@@ -238,12 +242,22 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # plot tri contourf/tripcolor
         if   do_plot=='tpc':
-            hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
-                                transform=which_transf,
-                                shading='flat',
-                                cmap=cinfo['cmap'],
-                                vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
-                                norm = which_norm)
+            # plot over elements
+            if data_plot.size == mesh.n2dea:
+                hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot[e_idxok],
+                                    #transform=which_transf,
+                                    shading='flat',
+                                    cmap=cinfo['cmap'],
+                                    vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
+                                    norm = which_norm)
+            # plot over vertices    
+            else:
+                hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
+                                    transform=which_transf,
+                                    shading='flat',
+                                    cmap=cinfo['cmap'],
+                                    vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
+                                    norm = which_norm)
             
         elif do_plot=='tcf': 
             # supress warning message when compared with nan
@@ -1411,7 +1425,7 @@ def do_ticksteps(mesh, box, ticknr=7):
 #| ___RETURNS_______________________________________________________________   |
 #| None                  
 #|_____________________________________________________________________________|  
-def do_savefigure(do_save, fig, dpi=300, transparent=True, pad_inches=0.1, **kw):
+def do_savefigure(do_save, fig, dpi=300, transparent=False, pad_inches=0.1, **kw):
     if do_save is not None:
         #_______________________________________________________________________
         # extract filename from do_save
