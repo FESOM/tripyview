@@ -1,8 +1,6 @@
 import os
 import sys
 import numpy as np
-#import matplotlib.pylab as plt
-import matplotlib.pyplot as plt
 import time as time
 import xarray as xr
 import cartopy.crs as ccrs
@@ -10,10 +8,11 @@ import cartopy.feature as cfeature
 from cartopy.mpl.ticker import (LongitudeFormatter, LatitudeFormatter)
 from cartopy.mpl.gridliner import Gridliner
 
-from matplotlib.tri import Triangulation,TriAnalyzer
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-import matplotlib.colors
+#import matplotlib.pylab as plt
+import matplotlib.pyplot as plt
+from matplotlib.tri import Triangulation,TriAnalyzer
 import matplotlib.ticker as mticker
 import matplotlib.path   as mpath
 import matplotlib.colors as mcolors
@@ -22,7 +21,6 @@ from matplotlib.colors import ListedColormap
 from .sub_mesh     import *
 from .sub_data     import *
 from .colormap_c2c import *
-
    
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
@@ -199,9 +197,13 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     ndata = len(data)
     
     #___________________________________________________________________________
-    # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
-    
+    # set up color info
+    #vname = list(data[ii].keys())
+    #if data[ii][ vname[0] ].size==mesh.n2dn:
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri, do_cweights=mesh.n_area)
+    #else:
+        #cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri, do_cweights=mesh.e_area)
+        
     #_______________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
@@ -232,7 +234,10 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
         isnan   = np.isnan(data_plot)
-        e_idxok = np.any(isnan[tri.triangles], axis=1)==False
+        if data_plot.size == mesh.n2dea:
+            e_idxok = isnan==False
+        else:
+            e_idxok = np.any(isnan[tri.triangles], axis=1)==False
         
         #_______________________________________________________________________
         # add color for ocean bottom
@@ -241,10 +246,11 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         
         #_______________________________________________________________________
         # plot tri contourf/tripcolor
-        if   do_plot=='tpc':
+        if   do_plot=='tpc' or data_plot.size == mesh.n2dea:
             # plot over elements
             if data_plot.size == mesh.n2dea:
                 hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot[e_idxok],
+                #hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[:,:], data_plot[:],
                                     #transform=which_transf,
                                     shading='flat',
                                     cmap=cinfo['cmap'],
@@ -253,7 +259,6 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
             # plot over vertices    
             else:
                 hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
-                                    transform=which_transf,
                                     shading='flat',
                                     cmap=cinfo['cmap'],
                                     vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
@@ -269,6 +274,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 transform=which_transf,
                                 norm=which_norm,
                                 levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+            
         hpall.append(hp)        
         #_______________________________________________________________________
         # add grid mesh on top
@@ -315,11 +321,12 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                       drawedges=True, pad=0.025, shrink=1.0,)                      
     
     # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
     
     # do labeling of colorbar
     if cbar_label is None: cbar_label = data[nax_fin-1][ vname[0] ].attrs['long_name']
-    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][ vname[0] ].attrs['units']+']'
+    #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][ vname[0] ].attrs['units']+']'
+    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
     else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][vname[0]].attrs.keys():
         cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
@@ -652,7 +659,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                       drawedges=True, pad=0.025, shrink=1.0)
     
     # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
     
     # do labeling of colorbar    
     if cbar_label is None: cbar_label = data[nax_fin-1][ vname[0] ].attrs['long_name']
@@ -937,7 +944,7 @@ def do_compute_scalingnorm(cinfo, do_rescale):
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
 def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
-                  do_index=False, do_moc=False, do_dmoc=None):
+                  do_index=False, do_moc=False, do_dmoc=None, do_cweights=None):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
@@ -947,6 +954,8 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     # check if dictionary keys exist, if they do not exist fill them up 
     cfac = 1
     if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
+    if 'chist'  not in cinfo.keys(): cinfo['chist']  = True
+    if 'ctresh' not in cinfo.keys(): cinfo['ctresh'] = 0.995
     if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
         #_______________________________________________________________________
         # loop over all the input data --> find out total cmin/cmax value
@@ -976,12 +985,36 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             
             #___________________________________________________________________
             if tri is None or do_index:
-                cmin = np.min([cmin,np.nanmin(data_plot) ])
-                cmax = np.max([cmax,np.nanmax(data_plot) ])
+                #cmin = np.min([cmin,np.nanmin(data_plot) ])
+                #cmax = np.max([cmax,np.nanmax(data_plot) ])
+                #print('cmin, cmax = ', cmin, cmax)
+                if cinfo['chist']:
+                    auxcmin,auxcmax = do_climit_hist(data_plot.flatten(),ctresh=cinfo['ctresh'], cweights=do_cweights)
+                    cmin, cmax = np.min([cmin,auxcmin]), np.max([cmax,auxcmax])
+                    print('--> histo: cmin, cmax = ', cmin, cmax)
+                else:    
+                    cmin = np.min([cmin,np.nanmin(data_plot) ])
+                    cmax = np.max([cmax,np.nanmax(data_plot) ])
+                    print('cmin, cmax = ', cmin, cmax)
             else:    
                 data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
-                cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
-                cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
+                #cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
+                #cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
+                #print('cmin, cmax = ', cmin, cmax)
+                if cinfo['chist']:
+                    if do_cweights is not None: 
+                        do_cweights_in = do_cweights.copy()
+                        if do_cweights_in.size==mesh.n2dn: do_cweights_in = np.hstack((do_cweights_in,do_cweights_in[mesh.n_pbnd_a]))
+                        do_cweights_in = do_cweights_in[tri.triangles.flatten()]
+                    else: 
+                        do_cweights_in = do_cweights
+                    auxcmin,auxcmax = do_climit_hist(data_plot[tri.triangles.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in)
+                    cmin, cmax = np.min([cmin,auxcmin]), np.max([cmax,auxcmax])
+                    print('--> histo: cmin, cmax = ', cmin, cmax)
+                else:    
+                    cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
+                    cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
+                    print('cmin, cmax = ', cmin, cmax)
             cmin, cmax = cmin*cfac, cmax*cfac
             
         #_______________________________________________________________________
@@ -1024,7 +1057,14 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 # case of symetric log10
                 cinfo['cref'] = np.power(10.0,-6)
             else:
-                cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
+                dez = 1
+                while True:
+                    new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
+                    if new_cref>cinfo['cmin'] and new_cref<cinfo['cmax']:
+                        break
+                    else: 
+                        dez=dez+1
+                cinfo['cref'] = new_cref
         
     #___________________________________________________________________________    
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 20
@@ -1038,6 +1078,8 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
         cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
         
+        print(cinfo)
+        print(cdmin,cdmax,cdref)
         #compute levels in decimal units
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
         
@@ -1062,11 +1104,30 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         cinfo['clevel'][ispos] = np.power(10.0, cinfo['clevel'][ispos])
         
     else:    
+        if cinfo['cref'] == 0.0:
+            if cinfo['cref'] > cinfo['cmax']: cinfo['cmax'] = cinfo['cref']+np.finfo(np.float32).eps
+            if cinfo['cref'] < cinfo['cmin']: cinfo['cmin'] = cinfo['cref']-np.finfo(np.float32).eps
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
         
     #___________________________________________________________________________
     print(cinfo)
     return(cinfo)    
+
+
+
+#| compute min/max value range by histogram, computation of cumulativ distribution
+#| function at certain cutoff treshold
+#|_____________________________________________________________________________|  
+def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
+    if cweights is None:
+        hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, density=False,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
+    else:
+        hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, weights=cweights[~np.isnan(data_in)], density=True,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
+    hist        = hist/hist.sum()
+    bin_m       = bin_e[:-1]+(bin_e[:-1]-bin_e[1:])/2
+    cmin        = bin_m[np.where(np.cumsum(hist[::-1])[::-1]>=ctresh)[0][-1]]
+    cmax        = bin_m[np.where(np.cumsum(hist)            >=ctresh)[0][ 0]]
+    return(cmin, cmax)
 
 
 
@@ -1255,20 +1316,23 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
 #| ___RETURNS_______________________________________________________________   |
 #| cbar         :   actual colorbar handle                                     |   
 #|_____________________________________________________________________________|  
-def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, pw_lim=[-3,4]):
-    # do formatting of colorbar 
+def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, clocs, pw_lim=[-3,4]):
+    # formatting of normal colorbar axis
     if not do_rescale == 'log10' and not do_rescale == 'slog10':
-        formatter = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
+        formatter     = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
         formatter.set_scientific(True)
         formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))      
         cbar.formatter= formatter
-        cbar.locator  = mticker.MaxNLocator(nbins=cbar_nl)
+        cbar.locator  = mticker.FixedLocator(clocs, nbins=cbar_nl)
         cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
+        cbar.update_ticks()
+    # formating for log and symlog colorbar axis    
     else:
+        cbar.set_ticks(clocs[np.mod(np.log10(np.abs(clocs)),1)==0.0])
         cbar.ax.minorticks_off()
+        cbar.update_ticks()
     cbar.ax.tick_params(labelsize=fontsize)
-    cbar.update_ticks()
-    
+
     #___________________________________________________________________________
     return(cbar)
 

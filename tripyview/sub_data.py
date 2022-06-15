@@ -220,13 +220,29 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
     if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): 
-        if vname in ['Kv', 'Av']: 
-            mat_iz= xr.DataArray(mesh.n_iz, dims='nod2')
-            for di in range(0,mesh.nlev): 
+        if   ('nod2' in data.dims):
+            if vname in ['Kv', 'Av']: 
+                if ('nz_1' in data.dims) or ('nz1' in data.dims):
+                    mat_iz= xr.DataArray(mesh.n_iz-1, dims='nod2')
+                    nlev = mesh.nlev-1
+                else:     
+                    mat_iz= xr.DataArray(mesh.n_iz, dims='nod2')
+                    nlev = mesh.nlev
+                for di in range(0,nlev): 
+                    data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
+            else:
+                data = data.where(data[vname]!=0)
+                
+        elif('elem' in data.dims):
+            if ('nz_1' in data.dims) or ('nz1' in data.dims):
+                mat_iz= xr.DataArray(mesh.e_iz-1, dims='elem')
+                nlev = mesh.nlev-1
+            else:     
+                mat_iz= xr.DataArray(mesh.e_iz, dims='elem')
+                nlev = mesh.nlev
+            for di in range(0,nlev): 
                 data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
-        else:
-            data = data.where(data[vname]!=0)
-        
+            
     #___________________________________________________________________________
     # select depth levels also for vertical interpolation 
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
@@ -272,6 +288,13 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                 if data['nz'].size>1:   
                     data = do_depth_arithmetic(data, do_zarithm, "nz") 
     
+    #___________________________________________________________________________
+    # select all depth levels but do vertical summation over it --> done for 
+    # merid heatflux
+    elif ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is None) and (do_zarithm=='sum'): 
+        if   ('nz1'  in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz1")
+        elif ('nz_1' in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz_1")
+        elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz")     
     # only 2D data found            
     else:
         depth=None
@@ -837,13 +860,20 @@ def do_interp_e2n(data, mesh, do_ie2n):
             #aux = grid_interp_e2n(mesh,data[vname].data)
             #with np.errstate(divide='ignore',invalid='ignore'):
             aux = grid_interp_e2n(mesh,data[vname].values)
-            
+            print(aux.shape)
             # new variable name 
             vname_new = 'n_'+vname
             
             # add vertice interpolated variable to dataset
-            data = xr.merge([ data, xr.Dataset({vname_new: ( 'nod2',aux)}) ])
-            
+            print(data)
+            if   'nz' in data.dims:
+                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nod2','nz'],aux)})], combine_attrs="no_conflicts")
+            elif 'nz1' in data.dims:
+                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nod2','nz1'],aux)})], combine_attrs="no_conflicts")
+            elif 'nz_1' in data.dims:
+                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nod2','nz_1'],aux)})], combine_attrs="no_conflicts")
+            else:
+                data = xr.merge([ data, xr.Dataset({vname_new: ( 'nod2',aux)})], combine_attrs="no_conflicts")
             # copy attributes from elem to vertice variable 
             data[vname_new].attrs = data[vname].attrs
             
