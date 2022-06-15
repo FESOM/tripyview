@@ -655,7 +655,7 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
                       drawedges=True, pad=0.025, shrink=1.0)
     
     # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
     
     # do labeling of colorbar
     if n_rc[0]==1:
@@ -704,14 +704,15 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
 #|                                                                             |
 #+_____________________________________________________________________________+
 def plot_dmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=['max'], 
-                       which_moc='amoc', do_allcycl=False, ymaxstep=1, xmaxstep=5,
-                       str_descript='', str_time='', figsize=[], 
+                       which_moc='amoc', do_allcycl=False, do_concat=False, ymaxstep=1, xmaxstep=5,
+                       str_descript='', str_time='', figsize=[], do_rapid=None, 
                        do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False ):    
     
     import matplotlib.patheffects as path_effects
     from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 
     if len(figsize)==0: figsize=[13,6.5]
+    if do_concat: figsize[0] = figsize[0]*2
     fig,ax= plt.figure(figsize=figsize),plt.gca()
     
     #___________________________________________________________________________
@@ -726,14 +727,15 @@ def plot_dmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
     
     #___________________________________________________________________________
     ii=0
+    ii_cycle=1
     for ii_ts, (tseries, tname) in enumerate(zip(moct_list, input_names)):
         
         if tseries.ndim>1: tseries = tseries.squeeze()
-        
+        auxtime = time.copy()
         if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
             
             hp=ax.plot(time,tseries, 
-                    linewidth=2, label=tname, color=cmap.colors[ii_ts,:], 
+                    linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], 
                     marker='o', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
                     zorder=2)
                 
@@ -754,10 +756,40 @@ def plot_dmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
         
         else:
             hp=ax.plot(time, tseries, 
-                   linewidth=2, label=tname, color=cmap.colors[ii_ts,:],
+                   linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:],
                    zorder=1) #marker='o', markerfacecolor='w', 
                    # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
+    
+    #___________________________________________________________________________
+    # add Rapid moc data @26.5°
+    if do_rapid is not None: 
+        path = do_rapid
+        rapid26 = xr.open_dataset(path)['moc_mar_hc10']
+        rapid26_ym = rapid26.groupby('time.year').mean('time', skipna=True)
+        time_rapid = rapid26_ym.year
+        if do_allcycl: 
+            time_rapid = time_rapid + (which_cycl-1)*(time[-1]-time[0]+1)
+            
+        hpr=plt.plot(time_rapid,rapid26_ym.data,
+                linewidth=2, label='Rapid @ 26.5°N', color='k', marker='o', markerfacecolor='w', 
+                markersize=5, zorder=2)
         
+        if do_pltmean: 
+            # plot mean value with trinagle 
+            plt.plot(time[0]-(time[-1]-time[0])*0.0120, rapid26_ym.data.mean(),
+                     marker='<', markersize=8, markeredgecolor='k', markeredgewidth=0.5,
+                     color=hpr[0].get_color(), clip_box=False,clip_on=False, zorder=3)
+        if do_pltstd:
+            # plot std. range
+            plt.plot(time[0]-(time[-1]-time[0])*0.015, rapid26_ym.data.mean()+rapid26_ym.data.std(),
+                    marker='^', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                    color=hpr[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+                
+            plt.plot(time[0]-(time[-1]-time[0])*0.015, rapid26_ym.data.mean()-rapid26_ym.data.std(),
+                    marker='v', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                    color=hpr[0].get_color(),clip_box=False,clip_on=False, zorder=3)    
+        del(rapid26)
+    
     #___________________________________________________________________________
     if which_lat[ii]=='max':
         str_label='max {:s}: 45°N<=lat<=60°N'.format(which_moc.upper(),which_lat[ii])

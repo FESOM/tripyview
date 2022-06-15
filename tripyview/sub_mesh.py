@@ -1541,24 +1541,58 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo' ):
     rlon, rlat = rlon*rad, rlat*rad
     
     #___________________________________________________________________________
-    # compute vector in rotated cartesian coordinates
-    vxr = -vrot*np.sin(rlat)*np.cos(rlon) - urot*np.sin(rlon)
-    vyr = -vrot*np.sin(rlat)*np.sin(rlon) + urot*np.cos(rlon)
-    vzr =  vrot*np.cos(rlat)
-    
+    # rotation of one dimensional vector data
+    if vrot.ndim==1 or urot.ndim==1: 
+        #_______________________________________________________________________
+        # compute vector in rotated cartesian coordinates
+        vxr = -vrot*np.sin(rlat)*np.cos(rlon) - urot*np.sin(rlon)
+        vyr = -vrot*np.sin(rlat)*np.sin(rlon) + urot*np.cos(rlon)
+        vzr =  vrot*np.cos(rlat)
+        
+        #_______________________________________________________________________
+        # compute vector in geo cartesian coordinates
+        vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
+        vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
+        vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
+        
+        #_______________________________________________________________________
+        # compute vector in geo coordinates 
+        vgeo= np.array(vxg*-np.sin(lat)*np.cos(lon) - 
+                    vyg* np.sin(lat)*np.sin(lon) + 
+                    vzg* np.cos(lat))
+        ugeo= np.array(vxg*-np.sin(lon) + vyg*np.cos(lon))
+        
     #___________________________________________________________________________
-    # compute vector in geo cartesian coordinates
-    vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
-    vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
-    vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
-    
-    #___________________________________________________________________________
-    # compute vector in geo coordinates 
-    vgeo= np.array(vxg*-np.sin(lat)*np.cos(lon) - 
-                   vyg* np.sin(lat)*np.sin(lon) + 
-                   vzg* np.cos(lat))
-    ugeo= np.array(vxg*-np.sin(lon) + vyg*np.cos(lon))
-    
+    # rotation of two dimensional vector data    
+    elif vrot.ndim==2 or urot.ndim==2: 
+        nd1,nd2=urot.shape
+        ugeo, vgeo = urot.copy(), vrot.copy()
+        print('nlev:{:d}'.format(nd2))
+        for nd2i in range(0,nd2):
+            print('{:02d}|'.format(nd2i), end='')
+            if np.mod(nd2i+1,10)==0: print('')
+            aux_urot, aux_vrot = urot[:,nd2i], vrot[:,nd2i]
+            #_______________________________________________________________________
+            # compute vector in rotated cartesian coordinates
+            vxr = -aux_vrot*np.sin(rlat)*np.cos(rlon) - aux_urot*np.sin(rlon)
+            vyr = -aux_vrot*np.sin(rlat)*np.sin(rlon) + aux_urot*np.cos(rlon)
+            vzr =  aux_vrot*np.cos(rlat)
+            
+            #_______________________________________________________________________
+            # compute vector in geo cartesian coordinates
+            vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
+            vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
+            vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
+            
+            #_______________________________________________________________________
+            # compute vector in geo coordinates 
+            vgeo[:,nd2i]= np.array(vxg*-np.sin(lat)*np.cos(lon) - 
+                                   vyg* np.sin(lat)*np.sin(lon) + 
+                                   vzg* np.cos(lat))
+            ugeo[:,nd2i]= np.array(vxg*-np.sin(lon) + vyg*np.cos(lon))
+        
+    #___________________________________________________________________________    
+    else: raise ValueError('This number of dimensions is in moment not supported for vector rotation')    
     #___________________________________________________________________________
     return(ugeo, vgeo)
 
@@ -1628,19 +1662,38 @@ def grid_interp_e2n(mesh,data_e):
     #___________________________________________________________________________
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
-    aux  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
-    aux  = aux * np.vstack((data_e,data_e,data_e)).transpose().flatten()
-    #___________________________________________________________________________
-    # single loop over self.e_i.flat is ~4 times faster than douple loop 
-    # over for i in range(3): ,for j in range(self.n2de):
-    data_n = np.zeros((mesh.n2dn,))
-    count = 0
-    for idx in mesh.e_i.flat:
-        data_n[idx]=data_n[idx] + aux[count]
-        count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-    del aux, count
-    #with np.errstate(divide='ignore',invalid='ignore'):
-    data_n=data_n/mesh.n_area/3.0
+    if data_e.ndim==1:
+        aux  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
+        aux  = aux * np.vstack((data_e,data_e,data_e)).transpose().flatten()
+        
+        #___________________________________________________________________________
+        # single loop over self.e_i.flat is ~4 times faster than douple loop 
+        # over for i in range(3): ,for j in range(self.n2de):
+        data_n = np.zeros((mesh.n2dn,))
+        count = 0
+        for idx in mesh.e_i.flat:
+            data_n[idx]=data_n[idx] + aux[count]
+            count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
+        del aux, count
+        #with np.errstate(divide='ignore',invalid='ignore'):
+        data_n=data_n/mesh.n_area/3.0
+        
+    elif data_e.ndim==2:
+        nd = data_e.shape[1]
+        data_n = np.zeros((mesh.n2dn,nd))
+        aux1  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
+        for ndi in range(0,nd):
+            aux  = aux1 * np.vstack((data_e[:,ndi],data_e[:,ndi],data_e[:,ndi])).transpose().flatten()
+            #___________________________________________________________________________
+            # single loop over self.e_i.flat is ~4 times faster than douple loop 
+            # over for i in range(3): ,for j in range(self.n2de):
+            count = 0
+            for idx in mesh.e_i.flat:
+                data_n[idx,ndi]=data_n[idx,ndi] + aux[count]
+                count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
+            del aux, count
+            #with np.errstate(divide='ignore',invalid='ignore'):
+            data_n[:,ndi]=data_n[:,ndi]/mesh.n_area/3.0
     #___________________________________________________________________________
     return(data_n)
 

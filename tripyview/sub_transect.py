@@ -294,7 +294,10 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         
         # copy local attributes from dataset
         local_attr  = data[vname].attrs
-        local_attr['long_name'] = " zonal mean {}".format(vname) 
+        if 'long_name' in local_attr:
+            local_attr['long_name'] = " zonal mean {}".format(local_attr['long_name']) 
+        else:
+            local_attr['long_name'] = " zonal mean {}".format(vname) 
         
         # create coordinates
         if 'time' in list(data.dims):
@@ -610,7 +613,7 @@ def plot_transects(data, transects, figsize=[12, 6],
                       drawedges=True, pad=0.025, shrink=1.0)
     
     # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
     
     # do labeling of colorbar
     if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
@@ -816,7 +819,7 @@ def plot_zmeantransects(data, figsize=[12, 6],
                       drawedges=True, pad=0.025, shrink=1.0)
     
     # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
     
     # do labeling of colorbar
     if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']

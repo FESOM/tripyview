@@ -152,6 +152,9 @@ def diagrun():
     analyses_driver_list["transect_vflx_t"] = drive_transect_vflx_t
     analyses_driver_list["zmeantrans"     ] = drive_zmeantrans
     analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
+    analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
+    analyses_driver_list["ghflx"          ] = drive_ghflx
+    analyses_driver_list["mhflx"          ] = drive_mhflx
     
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file

@@ -646,7 +646,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
                       drawedges=True, pad=0.025, shrink=1.0)
     
     # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize)
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
     
     # do labeling of colorbar
     if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
