@@ -20,7 +20,7 @@ def load_mesh_fesom2(
                     meshpath, abg=[50,15,-90], focus=0, do_rot='None', 
                     do_augmpbnd=True, do_cavity=False, do_info=True, 
                     do_lsmask=True, do_lsmshp=True, do_pickle=True, 
-                    do_earea=False, do_narea=False, 
+                    do_earea=True, do_narea=True,
                     do_eresol=[False,'mean'], do_nresol=[False,'e_resol'] 
                     ):
     """
@@ -317,8 +317,8 @@ class mesh_fesom2(object):
     #                                                                           
     #___________________________________________________________________________
     def __init__(self, meshpath, abg=[50,15,-90], focus=0, focus_old=0, do_rot='None', 
-                 do_augmpbnd=True, do_cavity=False, do_info=True, do_earea=False, 
-                 do_eresol=[False,'mean'], do_narea=False, do_nresol=[False,'e_resol'], 
+                 do_augmpbnd=True, do_cavity=False, do_info=True, do_earea=False,do_earea2=False, 
+                 do_eresol=[False,'mean'], do_narea=False, do_nresol=[False,'n_area'], 
                  do_lsmask=True, do_lsmshp=True, do_pickle=True ):
         
         #_______________________________________________________________________
@@ -693,7 +693,6 @@ ___________________________________________""".format(
         return(self)
     
 
-
     #___COMPUTE/LOAD AREA OF ELEMENTS__________________________________________
     #| either load area of elements from fesom.mesh.diag.nc if its found in    |
     #| meshpath or recompute it from scratch, [m^2]                            |
@@ -710,43 +709,33 @@ ___________________________________________""".format(
             else: 
                 print(' > comp e_area')
                 #_______________________________________________________________
-                e_y  = self.n_y[self.e_i]
-                e_xy = np.array([self.n_x[self.e_i], e_y])
+                # pi     = 3.14159265358979
+                rad    = np.pi/180.0  
+                cycl   = 360.0*rad
+                Rearth = 6367500.0
                 
-                #_______________________________________________________________
-                # calc jacobi matrix for all triangles 
-                # | dx_12 dy_12 |
-                # | dx_13 dy_13 |_i , i=1....n2dea
-                jacobian     = e_xy[:,:,1]-e_xy[:,:,0]
-                jacobian     = np.array([jacobian,e_xy[:,:,2]-e_xy[:,:,0] ])
+                e_y    = self.n_y[self.e_i].sum(axis=1)/3.0
+                e_y    = np.cos(e_y*rad)
+                        
+                n_xy   = np.vstack([self.n_x, self.n_y])*rad     
+                a      = n_xy[:,self.e_i[:,1]] - n_xy[:,self.e_i[:,0]]
+                b      = n_xy[:,self.e_i[:,2]] - n_xy[:,self.e_i[:,0]]  
+                del(n_xy)
                 
-                # account for triangles with periodic bounaries
-                for ii in range(2):
-                    idx = np.where(jacobian[ii,0,:]>180); 
-                    jacobian[ii,0,idx] = jacobian[ii,0,idx]-360;
-                    idx = np.where(jacobian[ii,0,:]<-180); 
-                    jacobian[ii,0,idx] = jacobian[ii,0,idx]+360;
-                    del idx
+                # trim cyclic
+                a[0,a[0,:]> cycl/2.0] = a[0,a[0,:]> cycl/2.0]-cycl
+                a[0,a[0,:]<-cycl/2.0] = a[0,a[0,:]<-cycl/2.0]+cycl
+                b[0,b[0,:]> cycl/2.0] = b[0,b[0,:]> cycl/2.0]-cycl
+                b[0,b[0,:]<-cycl/2.0] = b[0,b[0,:]<-cycl/2.0]+cycl
                 
-                # calc from geocoord to cartesian coord
-                rad        = np.pi/180
-                R_earth    = 12735/2*1000;
-                jacobian   = jacobian*R_earth*rad
-                cos_theta  = np.cos(e_y*rad).mean(axis=1)
-                del e_y
-                for ii in range(2):    
-                    jacobian[ii,0,:] = jacobian[ii,0,:]*cos_theta;
-                del cos_theta
+                a[0,:] = a[0,:]*e_y
+                b[0,:] = b[0,:]*e_y
+                del(e_y)
                 
-                #_______________________________________________________________
-                # calc triangle area through vector product
-                self.e_area = 0.5*np.abs(jacobian[0,0,:]*jacobian[1,1,:]-\
-                                        jacobian[0,1,:]*jacobian[1,0,:])
-                del jacobian
-        
+                self.e_area = 0.5 * np.abs(a[0,:]*b[1,:] - b[0,:]*a[1,:])*(Rearth**2.0)
+                del(a, b)
         #_______________________________________________________________________
         return(self)
-
     
     
     # ___COMPUTE RESOLUTION OF ELEMENTS________________________________________
@@ -817,7 +806,6 @@ ___________________________________________""".format(
         #_______________________________________________________________________
         return(self)
     
-    
 
     # ___COMPUTE/LOAD CLUSTERAREA OF VERTICES__________________________________
     #| either load clusterarea of vertices from fesom.mesh.diag.nc if its found|  
@@ -831,25 +819,28 @@ ___________________________________________""".format(
                 print(' > load n_area from fesom.mesh.diag.nc')
                 #_______________________________________________________________
                 fid = Dataset(os.path.join(self.path,'fesom.mesh.diag.nc'),'r')
-                self.n_area = fid.variables['nod_area'][1,:]
+                self.n_area = fid.variables['nod_area'][:,:]
             else: 
                 print(' > comp n_area')
                 #_______________________________________________________________
+                # be sure that elemente area already exists
                 self.compute_e_area()
-                aux_area = np.vstack((self.e_area,
-                                      self.e_area,
-                                      self.e_area)).transpose().flatten()
+                
+                #_______________________________________________________________
+                e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
+                e_iz_n    = np.vstack((self.e_iz  , self.e_iz  , self.e_iz  )).transpose().flatten()
                 
                 #_______________________________________________________________
                 # single loop over self.e_i.flat is ~4 times faster than douple loop 
                 # over for i in range(3): ,for j in range(self.n2de):
-                self.n_area = np.zeros((self.n2dn,))
-                count    = 0
+                self.n_area = np.zeros((self.nlev, self.n2dn))
+                count_e = 0
                 for idx in self.e_i.flat:
-                    self.n_area[idx]=self.n_area[idx]+aux_area[count]
-                    count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                del aux_area, count
-                self.n_area=self.n_area/3.
+                    e_iz = e_iz_n[count_e]
+                    self.n_area[:e_iz, idx] = self.n_area[:e_iz, idx] + e_area_x3[count_e]
+                    count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
+                self.n_area = self.n_area/3.0
+                del e_area_x3, e_iz_n, count_e
                 
         #_______________________________________________________________________
         return(self)
@@ -863,7 +854,7 @@ ___________________________________________""".format(
     #|           "e_resol": compute vertice resolution by interpolating elem   |
     #|                      resolution to vertices, default                    |
     #|_________________________________________________________________________|
-    def compute_n_resol(self,which='e_resol'):
+    def compute_n_resol(self,which='n_area'):
         # just compute e_area if mesh.area is empty 
         if len(self.n_resol)==0:
             self.do_nresol[0]=True
