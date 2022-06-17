@@ -155,6 +155,7 @@ def diagrun():
     analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
     analyses_driver_list["ghflx"          ] = drive_ghflx
     analyses_driver_list["mhflx"          ] = drive_mhflx
+    analyses_driver_list["var_tseries"    ] = drive_var_tseries
     
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file

@@ -655,6 +655,7 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
         else:
             cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
     else:
+        if do_concat: do_concat=False
         cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
     
     #___________________________________________________________________________

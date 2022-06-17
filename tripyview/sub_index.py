@@ -18,9 +18,9 @@ from   .sub_plot           import *
 from   .colormap_c2c       import *
 
 
-def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='median', 
+def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean', 
                       do_compute=True, do_outputidx=False):
-    
+    xr.set_options(keep_attrs=True)
     #___________________________________________________________________________
     # str_anod    = ''
     index_list  = []
@@ -42,7 +42,10 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='median',
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
         # points
-        index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm) )
+        if   'nod2' in data.dims:
+            index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2'))
+        elif 'elem' in data_dims():    
+            index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
         idxin_list.append(idx_IN)
         
         #_______________________________________________________________________
@@ -122,34 +125,6 @@ def do_boxmask(mesh, box, do_elem=False):
     #___________________________________________________________________________
     return(idx_IN)
 
-#
-#
-#_______________________________________________________________________________
-def do_horiz_arithmetic(data, do_harithm):
-    if do_harithm is not None:
-        
-        #_______________________________________________________________________
-        if   do_harithm=='mean':
-            data = data.mean(  dim="nod2", keep_attrs=True, skipna=True)
-        elif do_harithm=='median':
-            data = data.median(dim="nod2", keep_attrs=True, skipna=True)
-        elif do_harithm=='std':
-            data = data.std(   dim="nod2", keep_attrs=True, skipna=True) 
-        elif do_harithm=='var':
-            data = data.var(   dim="nod2", keep_attrs=True, skipna=True)       
-        elif do_harithm=='max':
-            data = data.max(   dim="nod2", keep_attrs=True, skipna=True)
-        elif do_harithm=='min':
-            data = data.min(   dim="nod2", keep_attrs=True, skipna=True)  
-        elif do_harithm=='sum':
-            data = data.sum(   dim="nod2", keep_attrs=True, skipna=True)      
-        elif do_harithm=='None':
-            ...
-        else:
-            raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
-    
-    #___________________________________________________________________________
-    return(data)
 
 #
 #
@@ -620,6 +595,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             #yticklog = np.array([5,10,25,50,100,250,500,1000,2000,4000,6000])
             yticklog = np.array([10,25,50,100,250,500,1000,2000,4000,6000])
             ax[ii].set_yticks(yticklog)
+            
             ax[ii].set_ylim(ylim[0], ylim[1])
             ax[ii].invert_yaxis()
             
@@ -754,6 +730,6 @@ def do_indexanomaly(index1,index2):
 
 # Function x**(1/2)
 def forward(x):
-    return x**(1/2.5)
+    return np.abs(x)**(1.0/2.5)
 def inverse(x):
-    return x**(2.5)
+    return np.abs(x)**(2.5)

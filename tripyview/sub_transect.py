@@ -922,6 +922,6 @@ def do_transectanomaly(index1,index2):
 
 # Function x**(1/2)
 def forward(x):
-    return x**(1/2.5)
+    return np.abs(x)**(1/2.5)
 def inverse(x):
-    return x**(2.5)
+    return np.abs(x)**(2.5)

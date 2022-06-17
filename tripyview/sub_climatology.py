@@ -185,7 +185,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                         'do_compute':do_compute, 'descript':descript, 'runid':'fesom'})
         do_additional_attrs(data, vname, attr_dict)
     
-    data = data.assign_coords(dict({'nz1':-mesh.zmid}))
+    data = data.assign_coords(nz1=('nz1' ,-mesh.zmid))
+    data = data.assign_coords(w_A=("nod2", mesh.n_area[0, :]))
     #___________________________________________________________________________
     if do_compute: data = data.compute()
     
