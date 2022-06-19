@@ -1243,3 +1243,69 @@ def drive_mhflx(yaml_settings, analysis_name):
     return webpage
 
 
+#
+#
+#_______________________________________________________________________________
+def drive_var_t(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    # loop over variable name  
+    for vname in driver_settings:
+        print(f'         --> compute: {vname}')
+        auxvname = vname.replace('/',':')
+        
+        # loop over depths
+        for box_region in driver_settings[vname]["box_regions"]:
+            print(f'             --> compute: {box_region}')
+            current_params2 = {}
+            current_params2 = current_params.copy()
+            current_params2["vname"] = vname
+            current_params2["box_region"] = list([box_region])
+            current_params2.update(driver_settings[vname])
+            del current_params2["box_regions"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
+            str_boxregion = box_region.split('/')[-1].split('.')[0]
+            
+            #___________________________________________________________________
+            save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{auxvname}_{str_boxregion}.png"
+            save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{auxvname}_{str_boxregion}.ipynb"
+            current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+            #___________________________________________________________________
+            pm.execute_notebook(
+                f"{templates_nb_path}/template_var_t.ipynb",
+                os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                parameters=current_params2,
+                nest_asyncio=True,
+            )
+            
+            #___________________________________________________________________
+            webpage[f"image_{image_count}"] = {}
+            webpage[f"image_{image_count}"][
+                "name"
+            ] = f"{auxvname.capitalize()} at {str_boxregion} m"
+            webpage[f"image_{image_count}"]["path"] = os.path.join('./figures/', save_fname)
+            webpage[f"image_{image_count}"]["path_nb"] = os.path.join('./notebooks/', save_fname_nb)
+            webpage[f"image_{image_count}"][
+                "short_name"
+            ] = f"{yaml_settings['workflow_name']}_{analysis_name}_{auxvname}_{str_boxregion}"
+            image_count += 1
+    return webpage
