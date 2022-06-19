@@ -1508,7 +1508,7 @@ def grid_focus(focus, rlon, rlat):
 #| ___RETURNS_______________________________________________________________   |
 #| ugeo,vgeo|   array, zonal and meridional velocities in normal geo frame     |
 #|_____________________________________________________________________________|    
-def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo' ):
+def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     
     #___________________________________________________________________________
     # create grid coorinates for geo and rotated frame
@@ -1549,8 +1549,8 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo' ):
         #_______________________________________________________________________
         # compute vector in geo coordinates 
         vgeo= np.array(vxg*-np.sin(lat)*np.cos(lon) - 
-                    vyg* np.sin(lat)*np.sin(lon) + 
-                    vzg* np.cos(lat))
+                       vyg* np.sin(lat)*np.sin(lon) + 
+                       vzg* np.cos(lat))
         ugeo= np.array(vxg*-np.sin(lon) + vyg*np.cos(lon))
         
     #___________________________________________________________________________
@@ -1558,24 +1558,27 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo' ):
     elif vrot.ndim==2 or urot.ndim==2: 
         nd1,nd2=urot.shape
         ugeo, vgeo = urot.copy(), vrot.copy()
-        print('nlev:{:d}'.format(nd2))
+        if do_info: print('nlev:{:d}'.format(nd2))
         for nd2i in range(0,nd2):
-            print('{:02d}|'.format(nd2i), end='')
-            if np.mod(nd2i+1,10)==0: print('')
+            #___________________________________________________________________
+            if do_info: 
+                print('{:02d}|'.format(nd2i), end='')
+                if np.mod(nd2i+1,10)==0: print('')
+            #___________________________________________________________________
             aux_urot, aux_vrot = urot[:,nd2i], vrot[:,nd2i]
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # compute vector in rotated cartesian coordinates
             vxr = -aux_vrot*np.sin(rlat)*np.cos(rlon) - aux_urot*np.sin(rlon)
             vyr = -aux_vrot*np.sin(rlat)*np.sin(rlon) + aux_urot*np.cos(rlon)
             vzr =  aux_vrot*np.cos(rlat)
             
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # compute vector in geo cartesian coordinates
             vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
             vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
             vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
             
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # compute vector in geo coordinates 
             vgeo[:,nd2i]= np.array(vxg*-np.sin(lat)*np.cos(lon) - 
                                    vyg* np.sin(lat)*np.sin(lon) + 

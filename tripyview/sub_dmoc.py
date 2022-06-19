@@ -15,10 +15,9 @@ from numpy.matlib import repmat
 from scipy import interpolate
 import numpy.ma as ma
 
-from .colormap_c2c    import *
-from .sub_index import *
-from .sub_moc import *
-from .sub_plot import *
+from .sub_colormap import *
+from .sub_utility  import *
+from .sub_plot     import *
 
 
 #+___CALCULATE MERIDIONAL OVERTURNING IN DENSITY COORDINATES___________________+

@@ -5,7 +5,6 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
     from matplotlib.colors import ListedColormap
     from scipy import interpolate
     
-    
     #import cmocean
     # cmin ... value of minimum color
     # cmax ... value of maximum color
@@ -269,3 +268,45 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
     
     #___________________________________________________________________________
     return(cmap,clevel,cref)
+
+
+
+#_______________________________________________________________________________
+# please see at:
+# --> https://stackoverflow.com/questions/47222585/matplotlib-generic-colormap-from-tab10
+# also https://www.py4u.net/discuss/222050
+#_______________________________________________________________________________
+def categorical_cmap(nc, nsc, cmap="tab10", cmap2='nipy_spectral', continuous=False):
+    from   matplotlib.colors import ListedColormap, rgb_to_hsv, hsv_to_rgb
+    import matplotlib.pylab as plt
+    import numpy as np
+    #if nc > plt.get_cmap(cmap).N: cmap = "hsv"
+        #raise ValueError("Too many categories for colormap.")
+        
+    if continuous:
+        if nc > plt.get_cmap(cmap).N:
+            ccolors = ListedColormap(plt.cm.get_cmap(cmap2, nc)(np.linspace(0,1,nc))).colors
+        else:    
+            ccolors = plt.get_cmap(cmap)(np.linspace(0,1,nc))
+            
+    else:
+        if nc > plt.get_cmap(cmap).N:
+            ccolors = ListedColormap(plt.cm.get_cmap(cmap2, nc)(np.arange(nc, dtype=int))).colors
+        else:
+            ccolors = plt.get_cmap(cmap)(np.arange(nc, dtype=int))
+            
+            
+    cols = np.zeros((nc*nsc, 3))
+    for i, c in enumerate(ccolors):
+        chsv = rgb_to_hsv(c[:3])
+        arhsv = np.tile(chsv,nsc).reshape(nsc,3)
+        if not chsv[0]==0.0 and not chsv[1]==0.0:
+            arhsv[:,1] = np.linspace(chsv[1],0.2,nsc)
+            arhsv[:,2] = np.linspace(chsv[2],1.0,nsc)
+        else:
+            arhsv[:,2] = np.linspace(chsv[2],0.8,nsc)
+        arhsv      = np.flipud(arhsv)
+        rgb = hsv_to_rgb(arhsv)
+        cols[i*nsc:(i+1)*nsc,:] = rgb       
+    cmap = ListedColormap(cols)
+    return cmap

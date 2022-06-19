@@ -4,18 +4,17 @@ import os
 import numpy as np
 import copy as  cp
 from   shapely.geometry   import Point, Polygon, MultiPolygon, shape
-from   shapely.vectorized import contains
 import shapefile as shp
 import json
 import geopandas as gpd
 import matplotlib.pylab as plt
-import matplotlib
-from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
+from   matplotlib.ticker import MultipleLocator, AutoMinorLocator, ScalarFormatter
 
 from   .sub_mesh           import * 
 from   .sub_data           import *
+from   .sub_utility        import *
 from   .sub_plot           import *
-from   .colormap_c2c       import *
+from   .sub_colormap       import *
 
 
 def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean', 
@@ -67,187 +66,8 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         return(index_list, idxin_list)
     else:
         return(index_list)
-#
-#
-#_______________________________________________________________________________
-def do_boxmask(mesh, box, do_elem=False):
-    #___________________________________________________________________________
-    if do_elem: mesh_x, mesh_y = mesh.n_x[mesh.e_i].sum(axis=1)/3.0, mesh.n_y[mesh.e_i].sum(axis=1)/3.0
-    else      : mesh_x, mesh_y = mesh.n_x, mesh.n_y
-    
-    #___________________________________________________________________________
-    # a rectangular box is given --> translate into shapefile object
-    if  box is None or box is 'global': # if None do global
-        idx_IN = np.ones((mesh_x.shape),dtype=bool)
-        
-    elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
-        px     = [box[0], box[1], box[1], box[0], box[0]]
-        py     = [box[2], box[2], box[3], box[3], box[2]]
-        p      = Polygon(list(zip(px,py)))
-        idx_IN = contains(p, mesh_x, mesh_y)
-            
-    # a polygon as list or ndarray is given --> translate into shape file object
-    elif isinstance(box,list) and len(box)==2: 
-        px, py = box[0], box[1]  
-        p      = Polygon(list(zip(px,py)))  
-        idx_IN = contains(p, mesh_x, mesh_y)
-            
-    elif isinstance(box, np.ndarray): 
-        if box.shape[0]==2:
-            px, py = list(box[0,:]), list(box[1,:])
-            p      = Polygon(list(zip(px,py)))
-            idx_IN = contains(p, mesh_x, mesh_y)
-                
-        else:
-            raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
-            
-    # a polygon as shapefile or shapefile collection is given
-    elif (isinstance(box, (Polygon, MultiPolygon))):
-        if   isinstance(box, Polygon): 
-            idx_IN = contains(box, mesh_x, mesh_y)
-                
-        elif isinstance(box, MultiPolygon):
-            idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
-            for p in box:
-                auxidx = contains(p, mesh_x, mesh_y)
-                idx_IN = np.logical_or(idx_IN, auxidx)
-        
-    elif (isinstance(box, shp.Reader)):
-        idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
-        for shape in box.shapes(): 
-            p      = Polygon(shape.points)
-            auxidx = contains(p, mesh_x, mesh_y)
-            idx_IN = np.logical_or(idx_IN, auxidx)
-    # otherwise
-    else:
-        raise ValueError('the given box information to compute the index has no valid format')
-        
-    #___________________________________________________________________________
-    return(idx_IN)
 
 
-#
-#
-#_______________________________________________________________________________
-def convert_geojson2shp(geojsonfilepath, shppath, do_plot=False):
-    with open(geojsonfilepath) as f:
-        #_______________________________________________________________________
-        # loop over features in geojson file 
-        features = json.load(f)["features"]
-        for feature in features:
-            
-            #___________________________________________________________________
-            # get geometry object 
-            #geom = shapely.geometry.shape(feature["geometry"])
-            geom = shape(feature["geometry"])
-            
-            #___________________________________________________________________
-            # get name of geometry object 
-            name = feature["properties"]["name"]
-            name_sav = name.replace(' ','_')
-            #___________________________________________________________________
-            # initialse geopanda DataFrame 
-            sf = gpd.GeoDataFrame()
-            
-            #___________________________________________________________________
-            # write into geopanda DataFrame 
-            if isinstance(geom, MultiPolygon):
-                polygon = list(geom)
-                for jj in range(0,len(polygon)):
-                    sf.loc[jj,'geometry'] = Polygon(np.transpose(polygon[jj].exterior.xy))
-                    sf.loc[jj,'location'] = '{}'.format(str(name))
-                    
-            else:
-                sf.loc[0,'geometry'] = Polygon(np.transpose(geom.exterior.xy))
-                sf.loc[0,'location'] = '{}'.format(str(name))
-            
-            #___________________________________________________________________
-            # save geopanda DataFrame into shape file 
-            shpfname = name_sav+'.shp'
-            sf.to_file(os.path.join(shppath, shpfname))
-    #___________________________________________________________________________
-    if do_plot: sf.plot()
-    #___________________________________________________________________________
-    return
-
-#
-#
-#_______________________________________________________________________________
-def convert_box2shp(boxlist, boxnamelist, shppath):
-    #___________________________________________________________________________
-    # if boxlistname is list write one shapefile for each defined box, 
-    if isinstance(boxnamelist, list):
-        for box, boxname in zip(boxlist, boxnamelist):
-            #___________________________________________________________________
-            # a rectangular box is given --> translate into shapefile object
-            if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
-                px     = [box[0], box[1], box[1], box[0], box[0]]
-                py     = [box[2], box[2], box[3], box[3], box[2]]
-                
-            # a polygon as list or ndarray is given --> translate into shape file object
-            elif isinstance(box,list) and len(box)==2: 
-                px, py = box[0], box[1]  
-                
-            elif isinstance(box, np.ndarray): 
-                if box.shape[0]==2:
-                    px, py = list(box[0,:]), list(box[1,:])
-                    
-                else:
-                    raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
-         
-            #___________________________________________________________________
-            name_sav = boxname.replace(' ','_')
-            
-            #___________________________________________________________________
-            # initialse geopanda DataFrame 
-            sf = gpd.GeoDataFrame()
-            
-            #___________________________________________________________________
-            sf.loc[0,'geometry'] = Polygon(list(zip(px,py)))
-            sf.loc[0,'location'] = '{}'.format(str(boxname))
-            
-            #___________________________________________________________________
-            # save geopanda DataFrame into shape file 
-            shpfname = name_sav+'.shp'
-            sf.to_file(os.path.join(shppath, shpfname))
-    
-    #___________________________________________________________________________
-    # elseif boxlistname is one string write all boxes in single shape shapefile
-    else:    
-        #_______________________________________________________________________
-        name_sav = boxnamelist.replace(' ','_')
-            
-        #_______________________________________________________________________
-        # initialse geopanda DataFrame 
-        sf = gpd.GeoDataFrame()
-        
-        #_______________________________________________________________________
-        for ii, box in enumerate(boxlist):
-            
-            #___________________________________________________________________
-            # a rectangular box is given --> translate into shapefile object
-            if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
-                px, py = [box[0], box[1], box[1], box[0], box[0]], [box[2], box[2], box[3], box[3], box[2]]
-                
-            # a polygon as list or ndarray is given --> translate into shape file object
-            elif isinstance(box,list) and len(box)==2: 
-                px, py = box[0], box[1]  
-                
-            elif isinstance(box, np.ndarray): 
-                if box.shape[0]==2: px, py = list(box[0,:]), list(box[1,:])                    
-                else: raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
-                
-            #___________________________________________________________________
-            sf.loc[ii,'geometry'] = Polygon(list(zip(px,py)))
-            sf.loc[ii,'location'] = '{}-{}'.format(str(boxnamelist),str(ii))
-                    
-        #_______________________________________________________________________
-        # save geopanda DataFrame into shape file 
-        shpfname = name_sav+'.shp'
-        sf.to_file(os.path.join(shppath, shpfname))
-    
-    #___________________________________________________________________________
-    return
     
 #
 #
@@ -433,7 +253,7 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
         
         ax[bi].set_yscale('log')
         ax[bi].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
-        ax[bi].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax[bi].get_yaxis().set_major_formatter(ScalarFormatter())
         
         ax[bi].xaxis.set_minor_locator(AutoMinorLocator())
     #___________________________________________________________________________
@@ -605,7 +425,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             ax[ii].grid(True,which='major')
         
         #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
-        ax[ii].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax[ii].get_yaxis().set_major_formatter(ScalarFormatter())
         
     nax_fin = ii+1
     
@@ -648,41 +468,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
 
 
 
-# please see at:
-# --> https://stackoverflow.com/questions/47222585/matplotlib-generic-colormap-from-tab10
-# also https://www.py4u.net/discuss/222050
-def categorical_cmap(nc, nsc, cmap="tab10", cmap2='nipy_spectral', continuous=False):
-    from matplotlib.colors import ListedColormap
-    #if nc > plt.get_cmap(cmap).N: cmap = "hsv"
-        #raise ValueError("Too many categories for colormap.")
-        
-    if continuous:
-        if nc > plt.get_cmap(cmap).N:
-            ccolors = ListedColormap(plt.cm.get_cmap(cmap2, nc)(np.linspace(0,1,nc))).colors
-        else:    
-            ccolors = plt.get_cmap(cmap)(np.linspace(0,1,nc))
-            
-    else:
-        if nc > plt.get_cmap(cmap).N:
-            ccolors = ListedColormap(plt.cm.get_cmap(cmap2, nc)(np.arange(nc, dtype=int))).colors
-        else:
-            ccolors = plt.get_cmap(cmap)(np.arange(nc, dtype=int))
-            
-            
-    cols = np.zeros((nc*nsc, 3))
-    for i, c in enumerate(ccolors):
-        chsv = matplotlib.colors.rgb_to_hsv(c[:3])
-        arhsv = np.tile(chsv,nsc).reshape(nsc,3)
-        if not chsv[0]==0.0 and not chsv[1]==0.0:
-            arhsv[:,1] = np.linspace(chsv[1],0.2,nsc)
-            arhsv[:,2] = np.linspace(chsv[2],1.0,nsc)
-        else:
-            arhsv[:,2] = np.linspace(chsv[2],0.8,nsc)
-        arhsv      = np.flipud(arhsv)
-        rgb = matplotlib.colors.hsv_to_rgb(arhsv)
-        cols[i*nsc:(i+1)*nsc,:] = rgb       
-    cmap = matplotlib.colors.ListedColormap(cols)
-    return cmap
+
+
 
 # ___DO ANOMALY________________________________________________________________
 #| compute anomaly between two xarray Datasets                                 |
@@ -726,10 +513,3 @@ def do_indexanomaly(index1,index2):
         anom_index.append(anom_idx)
     #___________________________________________________________________________
     return(anom_index)
-
-
-# Function x**(1/2)
-def forward(x):
-    return np.abs(x)**(1.0/2.5)
-def inverse(x):
-    return np.abs(x)**(2.5)

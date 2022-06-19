@@ -11,15 +11,14 @@ import json
 import geopandas as gpd
 import matplotlib.pylab as plt
 import matplotlib.colors as mcolors
-import matplotlib
-from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
+from   matplotlib.ticker import MultipleLocator, AutoMinorLocator, ScalarFormatter
 import pyfesom2 as pf
 
 from   .sub_mesh           import * 
 from   .sub_data           import *
 from   .sub_plot           import *
-from   .sub_index          import *
-from   .colormap_c2c       import *
+from   .sub_utility        import *
+from   .sub_colormap       import *
 
 def load_transect_fesom2(mesh, data, transect_list, do_compute=True, ):
     
@@ -590,7 +589,7 @@ def plot_transects(data, transects, figsize=[12, 6],
             ax[ii].grid(True,which='major')
             
         #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
-        ax[ii].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax[ii].get_yaxis().set_major_formatter(ScalarFormatter())
         
     nax_fin = ii+1
     
@@ -796,7 +795,7 @@ def plot_zmeantransects(data, figsize=[12, 6],
         
         #ax[ii].set_yscale('log')
         #ax[ii].set_yticks([5,10,25,50,100,250,500,1000,2000,4000,6000])
-        ax[ii].get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax[ii].get_yaxis().set_major_formatter(ScalarFormatter())
         
     nax_fin = ii+1
     
@@ -845,28 +844,6 @@ def plot_zmeantransects(data, figsize=[12, 6],
     return(fig, ax, cbar)
 
 
-
-## please see at:
-## --> https://stackoverflow.com/questions/47222585/matplotlib-generic-colormap-from-tab10
-## also https://www.py4u.net/discuss/222050
-#def categorical_cmap(nc, nsc, cmap="tab10", continuous=False):
-    #if nc > plt.get_cmap(cmap).N:
-        #raise ValueError("Too many categories for colormap.")
-    #if continuous:
-        #ccolors = plt.get_cmap(cmap)(np.linspace(0,1,nc))
-    #else:
-        #ccolors = plt.get_cmap(cmap)(np.arange(nc, dtype=int))
-    #cols = np.zeros((nc*nsc, 3))
-    #for i, c in enumerate(ccolors):
-        #chsv = matplotlib.colors.rgb_to_hsv(c[:3])
-        #arhsv = np.tile(chsv,nsc).reshape(nsc,3)
-        #arhsv[:,1] = np.linspace(chsv[1],0.25,nsc)
-        #arhsv[:,2] = np.linspace(chsv[2],1,nsc)
-        #arhsv      = np.flipud(arhsv)
-        #rgb = matplotlib.colors.hsv_to_rgb(arhsv)
-        #cols[i*nsc:(i+1)*nsc,:] = rgb       
-    #cmap = matplotlib.colors.ListedColormap(cols)
-    #return cmap
 
 # ___DO ANOMALY________________________________________________________________
 #| compute anomaly between two xarray Datasets                                 |
@@ -919,9 +896,3 @@ def do_transectanomaly(index1,index2):
         anom_index.append(anom_idx)
     #___________________________________________________________________________
     return(anom_index)
-
-# Function x**(1/2)
-def forward(x):
-    return np.abs(x)**(1/2.5)
-def inverse(x):
-    return np.abs(x)**(2.5)

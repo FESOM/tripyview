@@ -1,27 +1,24 @@
 import os
 import sys
-import numpy as np
-import time as time
-import xarray as xr
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-from cartopy.mpl.ticker import (LongitudeFormatter, LatitudeFormatter)
-from cartopy.mpl.gridliner import Gridliner
-
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-#import matplotlib.pylab as plt
-import matplotlib.pyplot as plt
-from matplotlib.tri import Triangulation,TriAnalyzer
-import matplotlib.ticker as mticker
-import matplotlib.path   as mpath
-import matplotlib.colors as mcolors
-from matplotlib.colors import ListedColormap
+import numpy                    as np
+import time                     as time
+import xarray                   as xr
+import cartopy.crs              as ccrs
+import cartopy.feature          as cfeature
+from   cartopy.mpl.ticker       import (LongitudeFormatter, LatitudeFormatter)
+from   cartopy.mpl.gridliner    import Gridliner
+from   mpl_toolkits.axes_grid1  import make_axes_locatable
+#import matplotlib.pylab         as plt
+import matplotlib.pyplot        as plt
+from   matplotlib.tri           import Triangulation,TriAnalyzer
+import matplotlib.ticker        as mticker
+import matplotlib.path          as mpath
+import matplotlib.colors        as mcolors
+from   matplotlib.colors        import ListedColormap
 
 from .sub_mesh     import *
 from .sub_data     import *
-from .colormap_c2c import *
-#from .sub_index    import *  
+from .sub_colormap import *
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
