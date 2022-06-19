@@ -15,16 +15,16 @@ from numpy.matlib import repmat
 from scipy import interpolate
 import numpy.ma as ma
 
-from .colormap_c2c    import *
-from .sub_index import *
-from .sub_moc import *
+from .sub_colormap import *
+from .sub_utility  import *
+from .sub_plot     import *
 
 
 #+___CALCULATE MERIDIONAL OVERTURNING IN DENSITY COORDINATES___________________+
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
 #|                                                                             |
 #+_____________________________________________________________________________+
-def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_area=None, e_area=None, 
+def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_area=None, e_area=None, 
                    do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
                    **kwargs, ):
     #___________________________________________________________________________
@@ -33,26 +33,26 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_are
     
     #___________________________________________________________________________
     # Load triangle and cluster area if not given 
-    if n_area is None or e_area is None:
-        if do_info==True: print(' --> load triangle and cluster area from diag .nc file')
-        fname = 'fesom.mesh.diag.nc'
-        # check for directory with diagnostic file
-        if   os.path.isfile( os.path.join(datapath, fname) ): 
-            dname = datapath
-        elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/'), fname) ): 
-            dname = os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/')
-        elif os.path.isfile( os.path.join(mesh.path,fname) ): 
-            dname = mesh.path
-        else:
-            raise ValueError('could not find directory with...mesh.diag.nc file')    
+    #if n_area is None or e_area is None:
+        #if do_info==True: print(' --> load triangle and cluster area from diag .nc file')
+        #fname = 'fesom.mesh.diag.nc'
+        ## check for directory with diagnostic file
+        #if   os.path.isfile( os.path.join(datapath, fname) ): 
+            #dname = datapath
+        #elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/'), fname) ): 
+            #dname = os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/')
+        #elif os.path.isfile( os.path.join(mesh.path,fname) ): 
+            #dname = mesh.path
+        #else:
+            #raise ValueError('could not find directory with...mesh.diag.nc file')    
         
-        # load diag file
-        meshdiag = xr.open_dataset(os.path.join(dname,fname))
+        ## load diag file
+        #meshdiag = xr.open_dataset(os.path.join(dname,fname))
         
-        # only need cluster area from the surface since density classes dont know 
-        # any information aboutthe bottom 
-        if n_area is None: n_area = meshdiag['nod_area'].isel(nz=0) 
-        if e_area is None: e_area = meshdiag['elem_area']
+        ## only need cluster area from the surface since density classes dont know 
+        ## any information aboutthe bottom 
+        #if n_area is None: n_area = meshdiag['nod_area'].isel(nz=0) 
+        #if e_area is None: e_area = meshdiag['elem_area']
     
     #___________________________________________________________________________
     # number of sigma2 density levels 
@@ -80,7 +80,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_are
             data      = data.rename({'std_heat_flux':'std_dens_flux'}).assign_coords({'ndens' :("ndens",std_dens)})
             data_DMOC = xr.merge([data_DMOC, data], combine_attrs="no_conflicts")
             data_DMOC = data_DMOC / weight_dens * 1024
-            data_DMOC = data_DMOC / e_area
+            #data_DMOC = data_DMOC / e_area
+            data_DMOC = data_DMOC / data['w_A']#--> element area
             data_DMOC = data_DMOC.assign_attrs(data.attrs)
             del(data)
         
@@ -112,7 +113,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_are
         # add vertical mean z-coordinate position of density classes
         data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
         data_zpos = data_zpos.assign_coords({'ndens' :("ndens",std_dens)})
-        data_zpos = data_zpos*e_area
+        #data_zpos = data_zpos*e_area
+        data_zpos = data_zpos*data_zpos['w_A']
         data_DMOC = xr.merge([data_DMOC, data_zpos], combine_attrs="no_conflicts")
         del(data_zpos)
     
@@ -125,7 +127,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_are
         #data_DMOC = data_DMOC.assign_attrs(data_div.attrs)
         
         # integrated divergence below isopcnal  --> size: [nod2d x ndens] --> size: [elem x ndens]
-        data_div  = data_div/n_area
+        #data_div  = data_div/n_area
+        data_div  = data_div/data_div['w_A'] # --> vertice area
         
         # skip this when doing diapycnal vertical velocity
         if not do_wdiap:
@@ -137,19 +140,20 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, n_are
                 data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][xr.DataArray(mesh.e_i, dims=["elem",'n3']),:].mean(dim="n3", keep_attrs=True) )
             
             # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
-            data_div  = data_div.drop(['nod2','lon','lat'])
-            data_div  = data_div*e_area
+            data_div  = data_div.drop(['nod2','lon','lat','w_A'])
+            #data_div  = data_div*e_area
+            data_div  = data_div*data_DMOC['w_A']# --> element area
         
         data_DMOC = xr.merge([data_DMOC, data_div], combine_attrs="no_conflicts")  
         del(data_div)
     
     # skip this when doing diapycnal vertical velocity
-    if not do_wdiap:
-        # add coordinates to xarray data set
-        data_DMOC = data_DMOC.assign_coords({'ndens' :("ndens",std_dens),
-                                             'lon'   :("elem",mesh.n_x[mesh.e_i].sum(axis=1)/3.0),
-                                             'lat'   :("elem",mesh.n_y[mesh.e_i].sum(axis=1)/3.0),
-                                             'elem_A':("elem",e_area.values)})
+    #if not do_wdiap:
+        ## add coordinates to xarray data set
+        #data_DMOC = data_DMOC.assign_coords({'ndens' :("ndens",std_dens),
+                                             #'lon'   :("elem",mesh.n_x[mesh.e_i].sum(axis=1)/3.0),
+                                             #'lat'   :("elem",mesh.n_y[mesh.e_i].sum(axis=1)/3.0),
+                                             #'w_A'   :("elem",e_area.values)})
     
     #___________________________________________________________________________
     # return combined xarray dataset object
@@ -302,7 +306,8 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
             
             # compute mean z-position of density levels over bins
             aux  = data_dMOC['std_dens_Z'].isel(elem=lat_i==bini)
-            tvol = data_dMOC['elem_A'].isel(elem=lat_i==bini).expand_dims({'time':time, 'ndens':std_dens}).transpose()
+            #tvol = data_dMOC['elem_A'].isel(elem=lat_i==bini).expand_dims({'time':time, 'ndens':std_dens}).transpose()
+            tvol = data_dMOC['w_A'].isel(elem=lat_i==bini).expand_dims({'time':time, 'ndens':std_dens}).transpose()
             tvol = tvol.where(aux<-1) # False condition is set nan
             aux  = aux.where(aux<-1,)  # False condition is set nan
             dMOC['dmoc_zpos'].data[:,:, bini] = aux.sum(dim='elem', skipna=True)/tvol.sum(dim='elem', skipna=True)
@@ -324,7 +329,8 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
             
             # compute mean z-position of density levels over bins
             aux  = data_dMOC['std_dens_Z'].isel(elem=lat_i==bini)
-            tvol = data_dMOC['elem_A'].isel(elem=lat_i==bini).expand_dims({'ndens':std_dens}).transpose()
+            #tvol = data_dMOC['elem_A'].isel(elem=lat_i==bini).expand_dims({'ndens':std_dens}).transpose()
+            tvol = data_dMOC['w_A'].isel(elem=lat_i==bini).expand_dims({'ndens':std_dens}).transpose()
             tvol = tvol.where(aux<-1) # False condition is set nan
             aux  = aux.where(aux<-1,)  # False condition is set nan
             dMOC['dmoc_zpos'].data[:, bini] = aux.sum(dim='elem', skipna=True)/tvol.sum(dim='elem', skipna=True)

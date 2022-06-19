@@ -15,7 +15,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=True, descript='',  runid='fesom', 
+                     do_compute=True, descript='',  runid='fesom',
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -75,6 +75,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     str_adep, str_atim = '', '' # string for arithmetic
     str_ldep, str_ltim = '', '' # string for labels
     str_lsave = ''    
+    xr.set_options(keep_attrs=True)
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
     if vname in ['depth', 'topo', 'topography','zcoord', 'narea', 'n_area', 'clusterarea', 'scalararea'
@@ -193,23 +194,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
-    if   ('nz_1' in data.dims): 
-        data = data.assign_coords(nz_1=("nz_1",-mesh.zmid))
-        data = data.assign_coords(idz=("nz_1",np.arange(0,mesh.zmid.size)))
-    elif ('nz1'  in data.dims): 
-        data = data.assign_coords(nz1=("nz1" ,-mesh.zmid))
-        data = data.assign_coords(idz=("nz1" ,np.arange(0,mesh.zmid.size)))
-    elif ('nz'   in data.dims): 
-        data = data.assign_coords(nz=("nz"  ,-mesh.zlev))
-        data = data.assign_coords(idz=("nz"  ,np.arange(0,mesh.zlev.size)))
-    if   ('nod2' in data.dims):
-        data = data.assign_coords(lon=("nod2",mesh.n_x))
-        data = data.assign_coords(lat=("nod2",mesh.n_y))
-        data = data.assign_coords(nod2=("nod2",np.arange(0,mesh.n2dn)))
-    elif ('elem' in data.dims):                          
-        data = data.assign_coords(lon=("elem",mesh.n_x[mesh.e_i].sum(axis=1)/3.0))
-        data = data.assign_coords(lat=("elem",mesh.n_y[mesh.e_i].sum(axis=1)/3.0))
-        data = data.assign_coords(elem=("elem",np.arange(0,mesh.n2de)))                      
+    # also add weights
+    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
     
     #___________________________________________________________________________
     # years are selected by the files that are open, need to select mon or day 
@@ -219,30 +205,9 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
-    if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): 
-        if   ('nod2' in data.dims):
-            if vname in ['Kv', 'Av']: 
-                if ('nz_1' in data.dims) or ('nz1' in data.dims):
-                    mat_iz= xr.DataArray(mesh.n_iz-1, dims='nod2')
-                    nlev = mesh.nlev-1
-                else:     
-                    mat_iz= xr.DataArray(mesh.n_iz, dims='nod2')
-                    nlev = mesh.nlev
-                for di in range(0,nlev): 
-                    data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
-            else:
-                data = data.where(data[vname]!=0)
-                
-        elif('elem' in data.dims):
-            if ('nz_1' in data.dims) or ('nz1' in data.dims):
-                mat_iz= xr.DataArray(mesh.e_iz-1, dims='elem')
-                nlev = mesh.nlev-1
-            else:     
-                mat_iz= xr.DataArray(mesh.e_iz, dims='elem')
-                nlev = mesh.nlev
-            for di in range(0,nlev): 
-                data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
-            
+    data = do_setbottomnan(mesh, data, vname, do_nan)
+    if vname2 is  not None: data = do_setbottomnan(mesh, data, vname2, do_nan)
+    
     #___________________________________________________________________________
     # select depth levels also for vertical interpolation 
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
@@ -291,10 +256,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
-    elif ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is None) and (do_zarithm=='sum'): 
-        if   ('nz1'  in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz1")
+    elif ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is None) and (do_zarithm in ['sum','mean','wmean']): 
+        if   ('nz1'  in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz1" )
         elif ('nz_1' in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz_1")
-        elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz")     
+        elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz"  )     
     # only 2D data found            
     else:
         depth=None
@@ -440,6 +405,128 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     
     #___________________________________________________________________________
     return(pathlist,str_mtim)
+
+
+
+# _____________________________________________________________________________
+#|                                                                             |
+#| ___INPUT_________________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#|                                                                             |
+#| ___RETURNS_______________________________________________________________   |
+#| data         :   returns xarray dataset object                              |
+#|_____________________________________________________________________________|
+def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=None):
+    dim_vert = None
+    if   ('nz_1' in data.dims): 
+        dim_vert = 'nz_1'
+        data = data.assign_coords(nz_1 = ("nz_1" , -mesh.zmid))
+        data = data.assign_coords(idz  = ("nz_1" , np.arange(0,mesh.zmid.size)))
+    elif ('nz1'  in data.dims): 
+        dim_vert = 'nz1'
+        data = data.assign_coords(nz1  = ("nz1"  , -mesh.zmid))
+        data = data.assign_coords(idz  = ("nz1"  , np.arange(0,mesh.zmid.size)))
+    elif ('nz'   in data.dims): 
+        dim_vert = 'nz'
+        data = data.assign_coords(nz   = ("nz"  , -mesh.zlev))
+        data = data.assign_coords(iz   = ("nz"  , np.arange(0,mesh.zlev.size)))
+    
+    dim_horz = None
+    if   ('nod2' in data.dims):
+        dim_horz = 'nod2'
+        data = data.assign_coords(lon  = ("nod2", mesh.n_x))
+        data = data.assign_coords(lat  = ("nod2", mesh.n_y))
+        data = data.assign_coords(nod2 = ("nod2", np.arange(0,mesh.n2dn)))
+        
+        # do weighting for weighted mean computation on nodes
+        if do_hweight:
+            data = data.assign_coords(w_A  = ("nod2", mesh.n_area[0, :]))
+        if do_zweight=='wmean':  
+            if   'nz1' == dim_vert:
+                w_An = xr.DataArray(mesh.n_area[:-1,:], dims=['nz1', 'nod2'])
+                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz1'])
+                #data = data.assign_coords(w_z=w_z*w_An)
+            elif 'nz_1' == dim_vert:
+                w_An = xr.DataArray(mesh.n_area[:-1,:], dims=['nz_1', 'nod2'])
+                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz_1'])
+                #data = data.assign_coords(w_z=w_z*w_An)
+            elif 'nz' == dim_vert:
+                w_An = xr.DataArray(mesh.n_area, dims=['nz', 'nod2'])
+                w_z  = xr.DataArray(np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh_zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0)), dims=['nz'])
+            data = data.assign_coords(w_z=w_z*w_An)
+            del(w_z, w_An)
+        
+    elif ('elem' in data.dims):                          
+        dim_horz = 'elem'
+        data = data.assign_coords(lon  = ("elem", mesh.n_x[mesh.e_i].sum(axis=1)/3.0))
+        data = data.assign_coords(lat  = ("elem", mesh.n_y[mesh.e_i].sum(axis=1)/3.0))
+        data = data.assign_coords(elem = ("elem", np.arange(0,mesh.n2de)))
+        
+        # do weighting for weighted mean computation on elements
+        if do_hweight:
+            data = data.assign_coords(w_A  = ("elem", mesh.e_area))
+        if do_zweight=='wmean':    
+            if   'nz1' == dim_vert:
+                w_A  = np.zeros((mesh.nlev-1, mesh.n2de))
+                for ei in range(0,mesh.n2de): w_A[mesh.e_iz[ei]+1-1:,ei]=np.nan
+                w_Ae = xr.DataArray(w_A, dims=['nz1', 'elem'])
+                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz1'])
+                #data = data.assign_coords(w_z=w_z*w_Ae)
+            elif 'nz_1' == dim_vert:
+                w_A  = np.zeros((mesh.nlev-1, mesh.n2de))
+                for ei in range(0,mesh.n2de): w_A[mesh.e_iz[ei]+1-1:,ei]=np.nan
+                w_Ae = xr.DataArray(w_A, dims=['nz_1', 'elem'])
+                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz_1'])
+                #data = data.assign_coords(w_z=w_z*w_Ae)
+            elif 'nz' == dim_vert:
+                w_A  = np.zeros((mesh.nlev, mesh.n2de))
+                for ei in range(0,mesh.n2de): w_A[mesh.e_iz[ei]+1:,ei]=np.nan
+                w_Ae = xr.DataArray(w_A, dims=['nz', 'elem'])
+                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz'])
+            data = data.assign_coords(w_z=w_z*w_Ae)
+            del(w_z, w_Ae, w_A)
+    
+    #___________________________________________________________________________
+    return(data, dim_vert, dim_horz)
+
+    
+
+# _____________________________________________________________________________
+#|                                                                             |
+#| ___INPUT_________________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#|                                                                             |
+#| ___RETURNS_______________________________________________________________   |
+#| data         :   returns xarray dataset object                              |
+#|_____________________________________________________________________________|
+def do_setbottomnan(mesh, data, vname, do_nan):
+    # set bottom to nan --> in moment the bottom fill value is zero would be 
+    # better to make here a different fill value in the netcdf files !!!
+    if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): 
+        if   ('nod2' in data.dims):
+            if vname in ['Kv', 'Av']: 
+                if ('nz_1' in data.dims) or ('nz1' in data.dims):
+                    mat_iz= xr.DataArray(mesh.n_iz-1, dims='nod2')
+                    nlev = mesh.nlev-1
+                else:     
+                    mat_iz= xr.DataArray(mesh.n_iz, dims='nod2')
+                    nlev = mesh.nlev
+                for di in range(0,nlev): 
+                    data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
+            else:
+                data = data.where(data[vname]!=0)
+                
+        elif('elem' in data.dims):
+            if ('nz_1' in data.dims) or ('nz1' in data.dims):
+                mat_iz= xr.DataArray(mesh.e_iz-1, dims='elem')
+                nlev = mesh.nlev-1
+            else:     
+                mat_iz= xr.DataArray(mesh.e_iz, dims='elem')
+                nlev = mesh.nlev
+            for di in range(0,nlev): 
+                data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
+    #___________________________________________________________________________
+    return(data)
 
 
 
@@ -676,6 +763,48 @@ def do_time_arithmetic(data, do_tarithm):
     return(data, str_atim)
 
 
+# ___COMPUTE HORIZONTAL ARITHMETICS ON DATA____________________________________
+#| do arithmetic on depth dimension                                            |
+#| ___INPUT_________________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#| do_harithm   :   str (default='mean') do arithmetic on selected vertical    |
+#|                  layers options are: None, 'None', 'mean', 'max', 'min',    |
+#|                  'sum'                                                      |
+#| dim_name     :   str, name of depth dimension, is different for full-level  |
+#|                  and mid-level data                                         |
+#| ___RETURNS_______________________________________________________________   |
+#| data         :   xarray dataset object                                      |
+#|_____________________________________________________________________________|    
+def do_horiz_arithmetic(data, do_harithm, dim_name):
+    if do_harithm is not None:
+        #_______________________________________________________________________
+        if   do_harithm=='mean':
+            data = data.mean(  dim=dim_name, keep_attrs=True, skipna=True)
+        elif do_harithm=='median':
+            data = data.median(dim=dim_name, keep_attrs=True, skipna=True)
+        elif do_harithm=='std':
+            data = data.std(   dim=dim_name, keep_attrs=True, skipna=True) 
+        elif do_harithm=='var':
+            data = data.var(   dim=dim_name, keep_attrs=True, skipna=True)       
+        elif do_harithm=='max':
+            data = data.max(   dim=dim_name, keep_attrs=True, skipna=True)
+        elif do_harithm=='min':
+            data = data.min(   dim=dim_name, keep_attrs=True, skipna=True)  
+        elif do_harithm=='sum':
+            data = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)            
+        elif do_harithm=='wmean':
+            weights = data['w_A']
+            weights = weights/weights.sum(dim=dim_name, skipna=True)
+            data    = data*weights
+            data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)  
+        elif do_harithm=='None':
+            ...
+        else:
+            raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
+    
+    #___________________________________________________________________________
+    return(data)
+
 
 # ___COMPUTE DEPTH ARITHMETICS ON DATA_________________________________________
 #| do arithmetic on depth dimension                                            |
@@ -694,13 +823,18 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
         
         #_______________________________________________________________________
         if   do_zarithm=='mean':
-            data = data.mean(  dim=dim_name, keep_attrs=True, skipna=True)
+            data    = data.mean(dim=dim_name, keep_attrs=True, skipna=True)
         elif do_zarithm=='max':
-            data = data.max(   dim=dim_name, keep_attrs=True)
+            data    = data.max( dim=dim_name, keep_attrs=True)
         elif do_zarithm=='min':
-            data = data.min(   dim=dim_name, keep_attrs=True)  
+            data    = data.min( dim=dim_name, keep_attrs=True)  
         elif do_zarithm=='sum':
-            data = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)      
+            data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True)
+        elif do_zarithm=='wmean':
+            weights = data['w_z']
+            weights = weights/weights.sum(dim=dim_name, skipna=True)
+            data    = data*weights
+            data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True)      
         elif do_zarithm=='None':
             ...
         else:

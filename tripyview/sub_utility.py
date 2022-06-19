@@ -1,7 +1,13 @@
 import os
+import time   as time
 import xarray as xr
 import pandas as pa
 import numpy  as np
+from   numba import jit, njit, prange
+import shapefile as shp
+from   shapely.geometry   import Point, Polygon, MultiPolygon, shape
+from   shapely.vectorized import contains
+
 #
 #
 #_____________________________________________________________________________________________
@@ -201,6 +207,595 @@ def do_elem_smoothing(mesh, data_orig, e_nghbr_e, weaksmth_boxlist, rel_cent_wei
             
     #_________________________________________________________________________________________
     return(data_smooth)
+
+
+
+#+___CALCULATE BASIN LIMITED DOMAIN____________________________________________+
+#| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited  |
+#| to corresponding basin. here the elemental index of the triangels in the    |
+#| closed basin is calcualted                                                  |
+#+_____________________________________________________________________________+
+def calc_basindomain(mesh,box_moc,do_output=False):
+    
+    if do_output==True: print(' --> calculate basin limited domain',end='')
+    t1=time.time()
+    
+    #___________________________________________________________________________
+    # 1st. pre-limit ocean domain by pre defined boxes for atlantic, 
+    # indo-pacific ... basin
+    box_moc = np.matrix(box_moc)
+    allbox_idx  =np.zeros((mesh.n2dea,),dtype=bool)
+    for bi in range(0,box_moc.shape[0]):
+        #_______________________________________________________________________
+        box_idx = mesh.nodes_2d_xg[mesh.elem_2d_i].sum(axis=1)/3.0<box_moc[bi,0]
+        box_idx = np.logical_or(box_idx,mesh.nodes_2d_xg[mesh.elem_2d_i].sum(axis=1)/3.0>box_moc[bi,1])
+        box_idx = np.logical_or(box_idx,mesh.nodes_2d_yg[mesh.elem_2d_i].sum(axis=1)/3.0<box_moc[bi,2])
+        box_idx = np.logical_or(box_idx,mesh.nodes_2d_yg[mesh.elem_2d_i].sum(axis=1)/3.0>box_moc[bi,3])
+        allbox_idx[np.where(box_idx==False)[0]]=True
+    
+    # kick out all the elements that are not located within predefined box
+    allbox_elem = mesh.elem_2d_i[allbox_idx==True,:]
+    
+    #fig = plt.figure(figsize=[10,5])
+    #plt.triplot(mesh.nodes_2d_xg,mesh.nodes_2d_yg,mesh.elem_2d_i[allbox_idx==True,:],linewidth=0.2)
+    #plt.axis('scaled')
+    #plt.title('Box limited domain')
+    #plt.show()
+    #fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # 2nd. select main ocean basin cluster for either atlantic or pacific by finding 
+    # the outer coastline of the main basin
+    edge    = np.concatenate((allbox_elem[:,[0,1]], allbox_elem[:,[0,2]], allbox_elem[:,[1,2]]),axis=0)
+    edge    = np.sort(edge,axis=1) 
+    
+    # python  sortrows algorythm --> matlab equivalent
+    # twice as fast as list sorting
+    sortidx = np.lexsort((edge[:,0],edge[:,1]))
+    edge    = edge[sortidx,:].squeeze()
+    edge    = np.array(edge)
+    
+    # list sorting
+    #edge    = edge.tolist()
+    #edge.sort()
+    #edge    = np.array(edge)
+        
+    idx     = np.diff(edge,axis=0)==0
+    idx     = np.all(idx,axis=1)
+    idx     = np.logical_or(np.concatenate((idx,np.array([False]))),np.concatenate((np.array([False]),idx)))
+        
+    # all outer ocean edges that belong to preselected boxes defined domain
+    bnde    = edge[idx==False,:]
+    nbnde    = bnde.shape[0];
+    
+    # find most northern ocean edge and start from there
+    maxi = np.argmax(mesh.nodes_2d_yg[bnde].sum(axis=1)/2)
+    
+    #fig = plt.figure(figsize=[10,5])
+    #plt.plot(mesh.nodes_2d_xg[np.unique(bnde.flatten())],mesh.nodes_2d_yg[np.unique(bnde.flatten())],'*')
+    #plt.plot(mesh.nodes_2d_xg[np.unique(bnde[maxi].flatten())],mesh.nodes_2d_yg[np.unique(bnde[maxi].flatten())],'*',color='red')
+    #plt.axis('scaled')
+    #plt.title('Outer boundary edges')
+    #plt.show()
+    #fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # start with on outer coastline edge and find the next edge that is 
+    # connected and so forth, like that build entire outer coastline of the main 
+    # basin
+    
+    run_cont        = np.zeros((1,nbnde+1))*np.nan
+    run_cont[0,:2]  = bnde[maxi,:] # initialise the first landmask edge
+    #run_bnde        = bnde[1:,:] # remaining edges that still need to be distributed
+    run_bnde        = np.delete(bnde, (maxi), axis=0)
+    count_init      = 1;
+    init_ind        = run_cont[0,0];
+    ind_lc_s        = 0;
+    
+    ocebasin_polyg = []
+    for ii in range(0,nbnde):
+        #_______________________________________________________________________
+        # search for next edge that contains the last node index from 
+        # run_cont
+        kk_rc = np.column_stack(np.where( run_bnde==np.int(run_cont[0,count_init]) ))
+        kk_r  = kk_rc[:,0]
+        kk_c  = kk_rc[:,1]
+        count_init  = count_init+1
+        if len(kk_c)==0 : break        
+        
+        #_______________________________________________________________________
+        if kk_c[0] == 0 :
+            run_cont[0,count_init] = run_bnde[kk_r[0],1]
+        else:
+            run_cont[0,count_init] = run_bnde[kk_r[0],0]
+            
+        #_______________________________________________________________________
+        # if a land sea mask polygon is closed
+        if  np.any(run_bnde[kk_r[0],:] == init_ind):
+            count_init  = count_init+1
+            
+            aux_lx = mesh.nodes_2d_xg[np.int64(run_cont[0,0:count_init])];
+            aux_ly = mesh.nodes_2d_yg[np.int64(run_cont[0,0:count_init])];
+            aux_xy = np.zeros((count_init,2))
+            aux_xy[:,0] = aux_lx
+            aux_xy[:,1] = aux_ly
+            ocebasin_polyg=aux_xy
+            del aux_lx; del aux_ly; del aux_xy
+            
+            ind_lc_s = ind_lc_s+count_init+1;
+            
+            count_init = count_init+1
+            aux_ind  = np.arange(0,run_bnde.shape[0],1)
+            run_bnde = run_bnde[aux_ind!=kk_r[0],:]
+            if np.size(run_bnde)==0:
+                break
+                
+            #___________________________________________________________________
+            run_cont        = np.zeros((1,nbnde))*np.nan
+            run_cont[0,:2]  = run_bnde[0,:]
+            run_bnde        = run_bnde[1:,:]
+            count_init=1;
+        else:
+            aux_ind =np.arange(0,run_bnde.shape[0],1)
+            run_bnde=run_bnde[aux_ind!=kk_r[0],:]
+            
+    #___________________________________________________________________________
+    # check which preselected triangle centroids are within main ocean basin 
+    # polygon 
+    ptsc = list(zip(mesh.nodes_2d_xg[allbox_elem].sum(axis=1)/3,mesh.nodes_2d_yg[allbox_elem].sum(axis=1)/3))
+    
+    #___________________________________________________________________________
+    # Option (1)
+    # python Matplotlib mplPath seems to be faster at least by a factor of 2 when
+    # compared to ray_tracing method
+    #print(' >> use mpltPath ',end='')
+    #path = mpltPath.Path(ocebasin_polyg)
+    #inside_ocebasin = path.contains_points(ptsc)
+    
+    # Option (2)
+    # determine points in polygon by ray tracing method
+    #print(' >> use rtracing ',end='')
+    #inside_ocebasin = [calc_ray_tracing(point[0], point[1], np.array(ocebasin_polyg)) for point in ptsc]
+    #inside_ocebasin = np.array(inside_ocebasin)
+    
+    # Option (3)
+    # determine points in polygon by parallel (numba optimized) ray tracing 
+    # method --> considerable faster for large meshes
+    print(' >> use rtracing parallel ',end='')
+    inside_ocebasin = calc_ray_tracing_parallel(np.array(ptsc),np.array(ocebasin_polyg),np.zeros((len(ptsc),),dtype=bool))
+    
+    #___________________________________________________________________________
+    # write out regional indices with respect to the global elemental array
+    allbox_tidx = np.where(allbox_idx==True)[0]
+    allbox_fin = allbox_tidx[inside_ocebasin==True]
+    
+    #fig = plt.figure(figsize=[10,5])
+    #plt.triplot(mesh.nodes_2d_xg,mesh.nodes_2d_yg,mesh.elem_2d_i[allbox_fin,:],linewidth=0.2)
+    #plt.axis('scaled')
+    #plt.title('Basin limited domain')
+    #plt.show()
+    #fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    t2=time.time()
+    print(" >> time: {:.3f} s".format(t2-t1))   
+    
+    return(allbox_fin)
+
+
+
+#+___CALCULATE BASIN LIMITED DOMAIN___________________________________________________________________+
+#| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
+#| here the elemental index of the triangels in the closed basin is calcualted
+#+____________________________________________________________________________________________________+
+def calc_basindomain_slow(mesh,box_moc,do_output=False):
+    
+    if do_output==True: print('     --> calculate regional basin limited domain')
+    box_moc = np.matrix(box_moc)
+    for bi in range(0,box_moc.shape[0]):
+        #_____________________________________________________________________________________________
+        box_idx = mesh.nodes_2d_xg[mesh.elem_2d_i].sum(axis=1)/3.0<box_moc[bi,0]
+        box_idx = np.logical_or(box_idx,mesh.nodes_2d_xg[mesh.elem_2d_i].sum(axis=1)/3.0>box_moc[bi,1])
+        box_idx = np.logical_or(box_idx,mesh.nodes_2d_yg[mesh.elem_2d_i].sum(axis=1)/3.0<box_moc[bi,2])
+        box_idx = np.logical_or(box_idx,mesh.nodes_2d_yg[mesh.elem_2d_i].sum(axis=1)/3.0>box_moc[bi,3])
+        box_idx = np.where(box_idx==False)[0]
+        box_elem2di = mesh.elem_2d_i[box_idx,:]
+
+        #_____________________________________________________________________________________________
+        # calculate edge indices of box limited domain
+        edge_12     = np.sort(np.array(box_elem2di[:,[0,1]]),axis=1)
+        edge_23     = np.sort(np.array(box_elem2di[:,[1,2]]),axis=1)
+        edge_31     = np.sort(np.array(box_elem2di[:,[2,0]]),axis=1)
+        edge_triidx = np.arange(0,box_elem2di.shape[0],1)
+
+        #_____________________________________________________________________________________________
+        # start with seed triangle
+        seed_pts     = [box_moc[bi,0]+(box_moc[bi,1]-box_moc[bi,0])/2.0,box_moc[bi,2]+(box_moc[bi,3]-box_moc[bi,2])/2.0]
+        seed_triidx  = np.argsort((mesh.nodes_2d_xg[box_elem2di].sum(axis=1)/3.0-seed_pts[0])**2 + (mesh.nodes_2d_yg[box_elem2di].sum(axis=1)/3.0-seed_pts[1])**2,axis=-0)[0]
+        seed_elem2di = box_elem2di[seed_triidx,:]
+        seed_edge    = np.concatenate((seed_elem2di[:,[0,1]], seed_elem2di[:,[1,2]], seed_elem2di[:,[2,0]]),axis=0)     
+        seed_edge    = np.sort(seed_edge,axis=1) 
+        
+        # already delete seed triangle and coresbonding edges from box limited domain list
+        edge_triidx = np.delete(edge_triidx,seed_triidx)
+        edge_12     = np.delete(edge_12,seed_triidx,0)
+        edge_23     = np.delete(edge_23,seed_triidx,0)
+        edge_31     = np.delete(edge_31,seed_triidx,0)
+
+        #_____________________________________________________________________________________________
+        # do iterative search of which triangles are connected to each other and form cluster
+        t1 = time.time()
+        tri_merge_idx = np.zeros((box_elem2di.shape[0],),dtype='int')
+        tri_merge_count = 0
+        for ii in range(0,10000): 
+            #print(ii,tri_merge_count,seed_edge.shape[0])
+        
+            # determine which triangles contribute to edge
+            triidx12 = ismember_rows(seed_edge,edge_12)
+            triidx23 = ismember_rows(seed_edge,edge_23)
+            triidx31 = ismember_rows(seed_edge,edge_31)
+        
+            # calculate new seed edges
+            seed_edge = np.concatenate((edge_23[triidx12,:],edge_31[triidx12,:],\
+                                        edge_12[triidx23,:],edge_31[triidx23,:],\
+                                        edge_12[triidx31,:],edge_23[triidx31,:]))
+            
+            # collect all found connected triagles    
+            triidx = np.concatenate((triidx12,triidx23,triidx31))
+            triidx = np.unique(triidx)
+            
+            # break out of iteration loop 
+            if triidx.size==0: break 
+                
+            # add found trinagles to final domain list    
+            tri_merge_idx[tri_merge_count:tri_merge_count+triidx.size]=edge_triidx[triidx]
+            tri_merge_count = tri_merge_count+triidx.size
+            
+            # delete already found trinagles and edges from list
+            edge_triidx = np.delete(edge_triidx,triidx)
+            edge_12     = np.delete(edge_12,triidx,0)
+            edge_23     = np.delete(edge_23,triidx,0)
+            edge_31     = np.delete(edge_31,triidx,0)
+    
+            del triidx,triidx12,triidx23,triidx31
+        
+        tri_merge_idx = tri_merge_idx[:tri_merge_count-1]
+        t2=time.time()
+        if do_output==True: print('         elpased time:'+str(t2-t1)+'s')
+        
+        #_____________________________________________________________________________________________
+        # calculate final domain limited trinagle cluster element index
+        if bi==0:
+            box_idx_fin = box_idx[tri_merge_idx]
+        else:
+            box_idx_fin = np.concatenate((box_idx_fin,box_idx[tri_merge_idx]))
+        
+    return(box_idx_fin)
+
+
+
+#+___CALCULATE BASIN LIMITED DOMAIN___________________________________________________________________+
+#| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
+#| 
+#+___________________________________________________________________________________________________
+def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True):
+    #___________________________________________________________________________
+    # calculate/use index for basin domain limitation
+    if which_moc=='gmoc':
+        if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
+        else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
+    else:    
+        tt1=time.time()
+        box_list = list()
+        
+        #_______________________________________________________________________
+        # set proper directory so he can find the moc basin shape files
+        pkg_path = os.path.dirname(__file__)
+        mocbaspath=os.path.join(pkg_path,'shapefiles/moc_basins/')
+        
+        #_______________________________________________________________________
+        # amoc2 ... calculate amoc without arctic
+        if   which_moc=='amoc':
+            # for calculation of amoc mesh focus must be on 0 degree longitude
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Atlantic_MOC.shp') ))
+            
+        #_______________________________________________________________________
+        # amoc ... calculate amoc including arctic
+        elif which_moc=='aamoc':
+            # for calculation of amoc mesh focus must be on 0 degree longitude
+            box_list.append( [-180.0,180.0,65.0,90.0] )
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Atlantic_MOC.shp') ))
+        #_______________________________________________________________________
+        # pmoc ... calculate pacific moc
+        elif which_moc=='pmoc':
+            # for calculation of pmoc mesh focus must be on 180 degree longitude
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Pacific_MOC.shp') ))
+        
+        #_______________________________________________________________________
+        # ipmoc ... calculate indo-pacific moc
+        elif which_moc=='ipmoc':
+            # for calculation of pmoc mesh focus must be on 180 degree longitude
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'IndoPacific_MOC.shp') ))
+            
+        #_______________________________________________________________________
+        # imoc ... calculate indian ocean moc
+        elif which_moc=='imoc':
+            box_list.append( shp.Reader(os.path.join(mocbaspath,'Indian_MOC.shp') ))
+        
+        #_______________________________________________________________________
+        else: raise ValueError("The option which_moc={} is not supported.".format(str(which_moc)))
+        
+        #_______________________________________________________________________
+        # compute vertice index for in box 
+        n_idxin = np.zeros((mesh.n2dn,), dtype=bool)
+        for box in box_list:
+            n_idxin = np.logical_or(n_idxin, do_boxmask(mesh, box, do_elem=False))
+        
+        if do_onelem: 
+            # e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1
+            e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+    
+    #___________________________________________________________________________
+    if do_onelem: return(e_idxin)
+    else        : return(n_idxin)
+ 
+
+
+#
+#
+#_______________________________________________________________________________
+def do_boxmask(mesh, box, do_elem=False):
+    #___________________________________________________________________________
+    if do_elem: mesh_x, mesh_y = mesh.n_x[mesh.e_i].sum(axis=1)/3.0, mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+    else      : mesh_x, mesh_y = mesh.n_x, mesh.n_y
+    
+    #___________________________________________________________________________
+    # a rectangular box is given --> translate into shapefile object
+    if  box is None or box is 'global': # if None do global
+        idx_IN = np.ones((mesh_x.shape),dtype=bool)
+        
+    elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+        px     = [box[0], box[1], box[1], box[0], box[0]]
+        py     = [box[2], box[2], box[3], box[3], box[2]]
+        p      = Polygon(list(zip(px,py)))
+        idx_IN = contains(p, mesh_x, mesh_y)
+            
+    # a polygon as list or ndarray is given --> translate into shape file object
+    elif isinstance(box,list) and len(box)==2: 
+        px, py = box[0], box[1]  
+        p      = Polygon(list(zip(px,py)))  
+        idx_IN = contains(p, mesh_x, mesh_y)
+            
+    elif isinstance(box, np.ndarray): 
+        if box.shape[0]==2:
+            px, py = list(box[0,:]), list(box[1,:])
+            p      = Polygon(list(zip(px,py)))
+            idx_IN = contains(p, mesh_x, mesh_y)
+                
+        else:
+            raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+            
+    # a polygon as shapefile or shapefile collection is given
+    elif (isinstance(box, (Polygon, MultiPolygon))):
+        if   isinstance(box, Polygon): 
+            idx_IN = contains(box, mesh_x, mesh_y)
+                
+        elif isinstance(box, MultiPolygon):
+            idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+            for p in box:
+                auxidx = contains(p, mesh_x, mesh_y)
+                idx_IN = np.logical_or(idx_IN, auxidx)
+        
+    elif (isinstance(box, shp.Reader)):
+        idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+        for shape in box.shapes(): 
+            p      = Polygon(shape.points)
+            auxidx = contains(p, mesh_x, mesh_y)
+            idx_IN = np.logical_or(idx_IN, auxidx)
+    # otherwise
+    else:
+        raise ValueError('the given box information to compute the index has no valid format')
+        
+    #___________________________________________________________________________
+    return(idx_IN) 
+    
+
+#+___EQUIVALENT OF MATLAB ISMEMBER FUNCTION___________________________________________________________+
+#|                                                                                                    |
+#+____________________________________________________________________________________________________+
+def ismember_rows(a, b):
+    return np.flatnonzero(np.in1d(b[:,0], a[:,0]) & np.in1d(b[:,1], a[:,1]))
+
+
+
+#+___RAY TRACING METHOD TO CHECK IF POINT IS IN POLYGON________________________+
+#| see...https://stackoverflow.com/questions/36399381/whats-the-fastest-way-of-
+#| checking-if-a-point-is-inside-a-polygon-in-python
+#| 
+#+_____________________________________________________________________________+
+@jit(nopython=True)
+def calc_ray_tracing(x,y,poly):
+    n = len(poly)
+    inside = False
+    p1x,p1y = poly[0]
+    for i in range(n+1):
+        p2x,p2y = poly[i % n]
+        if y > min(p1y,p2y):
+            if y <= max(p1y,p2y):
+                if x <= max(p1x,p2x):
+                    if p1y != p2y:
+                        xints = (y-p1y)*(p2x-p1x)/(p2y-p1y)+p1x
+                    if p1x == p2x or x <= xints:
+                        inside = not inside
+        p1x,p1y = p2x,p2y
+
+    return inside
+
+
+#
+#
+#_______________________________________________________________________________
+def convert_geojson2shp(geojsonfilepath, shppath, do_plot=False):
+    with open(geojsonfilepath) as f:
+        #_______________________________________________________________________
+        # loop over features in geojson file 
+        features = json.load(f)["features"]
+        for feature in features:
+            
+            #___________________________________________________________________
+            # get geometry object 
+            #geom = shapely.geometry.shape(feature["geometry"])
+            geom = shape(feature["geometry"])
+            
+            #___________________________________________________________________
+            # get name of geometry object 
+            name = feature["properties"]["name"]
+            name_sav = name.replace(' ','_')
+            #___________________________________________________________________
+            # initialse geopanda DataFrame 
+            sf = gpd.GeoDataFrame()
+            
+            #___________________________________________________________________
+            # write into geopanda DataFrame 
+            if isinstance(geom, MultiPolygon):
+                polygon = list(geom)
+                for jj in range(0,len(polygon)):
+                    sf.loc[jj,'geometry'] = Polygon(np.transpose(polygon[jj].exterior.xy))
+                    sf.loc[jj,'location'] = '{}'.format(str(name))
+                    
+            else:
+                sf.loc[0,'geometry'] = Polygon(np.transpose(geom.exterior.xy))
+                sf.loc[0,'location'] = '{}'.format(str(name))
+            
+            #___________________________________________________________________
+            # save geopanda DataFrame into shape file 
+            shpfname = name_sav+'.shp'
+            sf.to_file(os.path.join(shppath, shpfname))
+    #___________________________________________________________________________
+    if do_plot: sf.plot()
+    #___________________________________________________________________________
+    return
+
+
+
+#
+#
+#_______________________________________________________________________________
+def convert_box2shp(boxlist, boxnamelist, shppath):
+    #___________________________________________________________________________
+    # if boxlistname is list write one shapefile for each defined box, 
+    if isinstance(boxnamelist, list):
+        for box, boxname in zip(boxlist, boxnamelist):
+            #___________________________________________________________________
+            # a rectangular box is given --> translate into shapefile object
+            if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+                px     = [box[0], box[1], box[1], box[0], box[0]]
+                py     = [box[2], box[2], box[3], box[3], box[2]]
+                
+            # a polygon as list or ndarray is given --> translate into shape file object
+            elif isinstance(box,list) and len(box)==2: 
+                px, py = box[0], box[1]  
+                
+            elif isinstance(box, np.ndarray): 
+                if box.shape[0]==2:
+                    px, py = list(box[0,:]), list(box[1,:])
+                    
+                else:
+                    raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+         
+            #___________________________________________________________________
+            name_sav = boxname.replace(' ','_')
+            
+            #___________________________________________________________________
+            # initialse geopanda DataFrame 
+            sf = gpd.GeoDataFrame()
+            
+            #___________________________________________________________________
+            sf.loc[0,'geometry'] = Polygon(list(zip(px,py)))
+            sf.loc[0,'location'] = '{}'.format(str(boxname))
+            
+            #___________________________________________________________________
+            # save geopanda DataFrame into shape file 
+            shpfname = name_sav+'.shp'
+            sf.to_file(os.path.join(shppath, shpfname))
+    
+    #___________________________________________________________________________
+    # elseif boxlistname is one string write all boxes in single shape shapefile
+    else:    
+        #_______________________________________________________________________
+        name_sav = boxnamelist.replace(' ','_')
+            
+        #_______________________________________________________________________
+        # initialse geopanda DataFrame 
+        sf = gpd.GeoDataFrame()
+        
+        #_______________________________________________________________________
+        for ii, box in enumerate(boxlist):
+            
+            #___________________________________________________________________
+            # a rectangular box is given --> translate into shapefile object
+            if  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+                px, py = [box[0], box[1], box[1], box[0], box[0]], [box[2], box[2], box[3], box[3], box[2]]
+                
+            # a polygon as list or ndarray is given --> translate into shape file object
+            elif isinstance(box,list) and len(box)==2: 
+                px, py = box[0], box[1]  
+                
+            elif isinstance(box, np.ndarray): 
+                if box.shape[0]==2: px, py = list(box[0,:]), list(box[1,:])                    
+                else: raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+                
+            #___________________________________________________________________
+            sf.loc[ii,'geometry'] = Polygon(list(zip(px,py)))
+            sf.loc[ii,'location'] = '{}-{}'.format(str(boxnamelist),str(ii))
+                    
+        #_______________________________________________________________________
+        # save geopanda DataFrame into shape file 
+        shpfname = name_sav+'.shp'
+        sf.to_file(os.path.join(shppath, shpfname))
+    
+    #___________________________________________________________________________
+    return
+
+
+#
+#
+#+_____________________________________________________________________________+
+def forward(x):
+    return np.abs(x)**(1.0/2.5)
+def inverse(x):
+    return np.abs(x)**(2.5)
+
+
+
+#+___RAY TRACING METHOD PARALLEL TO CHECK IF POINT IS IN POLYGON_______________+
+#| see...https://stackoverflow.com/questions/36399381/whats-the-fastest-way-of-|
+#| checking-if-a-point-is-inside-a-polygon-in-python                           |
+#|                                                                             |
+#+_____________________________________________________________________________+
+#@njit(parallel=True,nopython=True)
+@njit(parallel=True)
+def calc_ray_tracing_parallel(pts,poly,inside):
+    n = len(poly)
+    npts=len(pts)
+    for j in prange(npts):
+        x,y = pts[j]
+        p1x,p1y = poly[0]
+        for i in range(n+1):
+            p2x,p2y = poly[i % n]
+            if y > min(p1y,p2y):
+                if y <= max(p1y,p2y):
+                    if x <= max(p1x,p2x):
+                        if p1y != p2y:
+                            xints = (y-p1y)*(p2x-p1x)/(p2y-p1y)+p1x
+                        if p1x == p2x or x <= xints:
+                            inside[j] = not inside[j]
+            p1x,p1y = p2x,p2y
+
+    return inside
+
+
+
 #
 #
 #_______________________________________________________________________________
@@ -208,7 +803,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox, Layout
 import ipywidgets as widgets
-from .sub_index import do_boxmask
 from matplotlib.tri import Triangulation
 from matplotlib.patches import Rectangle
 from shapely.geometry   import Polygon, shape

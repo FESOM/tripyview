@@ -40,7 +40,7 @@ over depth and time averaged over specific region that defined by shapefile (see
 * `zmeantransect`- plot zonally averaged transects of 3d ocean varíables
 * `zmeantransect_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
 
-* `xmoc`         - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
+* `zmoc`         - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
 
 <p align="left" width="100%">
@@ -49,7 +49,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
   <img width=32% src="tripyview/tripyview_zGMOC.png">
 </p>
 
-* `xmoc_tseries` - plot timeseries of atlantic meridional overturning circulation at specific latitudes 
+* `zmoc_t`       - plot timeseries of atlantic meridional overturning circulation at specific latitudes 
 (default: which_lats: [26, 40, 'max'])
 
 * `dmoc`         - plot meridional overturning circulation in density  coordinates using FESOM2 density MOC diagnostics (graditues goes to **Dmitry.Sidorenko@awi.de**), Globally, 
@@ -75,13 +75,18 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 
 * `dmoc_srfcbflx`- plot surface buoyancy flux transformation for specific water-class
 
-* `dmoc_tseries` - plot timeseries of atlantic meridional overturning circulation in density coordinates at specific latitudes 
+* `dmoc_t`       - plot timeseries of atlantic meridional overturning circulation in density coordinates at specific latitudes 
 (default: which_lats: [26, 55, 'max'])
 
 * `transect`     - plot point wise transects of 3d ocean varíables
 * `transect_clim`- plot point wise transects of 3d temperature, salinity and density climatology
 * `transect_vflx_t`- plot timeseries of volume transport trough zonal or meridional transect (default: Drake Passage, 
 uses pyfesom2 transport utility)
+
+* `gmhflx`       - plots global meridional heat flux computed from surface heatfluxes fh
+* `mhflx`        - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
+
+* `var_t`        - plots time series of of globally averaged 2d and 3d variables 
 
 * `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface
 <p align="center" width="100%">

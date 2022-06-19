@@ -133,8 +133,8 @@ def diagrun():
     analyses_driver_list["hslice_clim_sp" ] = drive_hslice_clim
     analyses_driver_list["hovm"           ] = drive_hovm
     analyses_driver_list["hovm_clim"      ] = drive_hovm_clim
-    analyses_driver_list["xmoc"           ] = drive_xmoc
-    analyses_driver_list["xmoc_tseries"   ] = drive_xmoc_tseries
+    analyses_driver_list["xmoc"           ] = drive_zmoc
+    analyses_driver_list["xmoc_t"         ] = drive_zmoc_t
     analyses_driver_list["dmoc"           ] = drive_dmoc
     analyses_driver_list["dmoc_z"         ] = drive_dmoc
     analyses_driver_list["dmoc_srf"       ] = drive_dmoc
@@ -144,7 +144,7 @@ def diagrun():
     analyses_driver_list["dmoc_inner_z"   ] = drive_dmoc
     analyses_driver_list["dmoc_wdiap"     ] = drive_dmoc_wdiap
     analyses_driver_list["dmoc_srfcbflx"  ] = drive_dmoc_srfcbflx
-    analyses_driver_list["dmoc_tseries"   ] = drive_dmoc_tseries
+    analyses_driver_list["dmoc_t"         ] = drive_dmoc_t
     analyses_driver_list["vprofile"       ] = drive_vprofile
     analyses_driver_list["vprofile_clim"  ] = drive_vprofile_clim
     analyses_driver_list["transect"       ] = drive_transect
@@ -155,6 +155,7 @@ def diagrun():
     analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
     analyses_driver_list["ghflx"          ] = drive_ghflx
     analyses_driver_list["mhflx"          ] = drive_mhflx
+    analyses_driver_list["var_t"          ] = drive_var_t
     
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file

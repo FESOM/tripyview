@@ -3,7 +3,7 @@ import numpy as np
 import vtk
 
 from   .sub_mesh           import * 
-from   .colormap_c2c       import *
+from   .sub_colormap       import *
 R_earth  = 6371.0e3
 
 #

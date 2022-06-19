@@ -16,10 +16,11 @@ from .sub_plot        import *
 from .sub_climatology import *
 from .sub_index       import *
 from .sub_transect    import *
-from .sub_moc         import *
+from .sub_zmoc        import *
 from .sub_dmoc        import *
+from .sub_transp      import *
 from .sub_utility     import *
-from .colormap_c2c    import colormap_c2c
+from .sub_colormap    import *
 from .sub_diagdriver  import *
 from .sub_diagrun     import *
 from .sub_3dsphere    import *

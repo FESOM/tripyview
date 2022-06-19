@@ -1,27 +1,24 @@
 import os
 import sys
-import numpy as np
-import time as time
-import xarray as xr
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-from cartopy.mpl.ticker import (LongitudeFormatter, LatitudeFormatter)
-from cartopy.mpl.gridliner import Gridliner
-
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-#import matplotlib.pylab as plt
-import matplotlib.pyplot as plt
-from matplotlib.tri import Triangulation,TriAnalyzer
-import matplotlib.ticker as mticker
-import matplotlib.path   as mpath
-import matplotlib.colors as mcolors
-from matplotlib.colors import ListedColormap
+import numpy                    as np
+import time                     as time
+import xarray                   as xr
+import cartopy.crs              as ccrs
+import cartopy.feature          as cfeature
+from   cartopy.mpl.ticker       import (LongitudeFormatter, LatitudeFormatter)
+from   cartopy.mpl.gridliner    import Gridliner
+from   mpl_toolkits.axes_grid1  import make_axes_locatable
+#import matplotlib.pylab         as plt
+import matplotlib.pyplot        as plt
+from   matplotlib.tri           import Triangulation,TriAnalyzer
+import matplotlib.ticker        as mticker
+import matplotlib.path          as mpath
+import matplotlib.colors        as mcolors
+from   matplotlib.colors        import ListedColormap
 
 from .sub_mesh     import *
 from .sub_data     import *
-from .colormap_c2c import *
-   
+from .sub_colormap import *
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
@@ -200,7 +197,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     # set up color info
     #vname = list(data[ii].keys())
     #if data[ii][ vname[0] ].size==mesh.n2dn:
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri, do_cweights=mesh.n_area)
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
     #else:
         #cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri, do_cweights=mesh.e_area)
         
@@ -860,6 +857,119 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
 
 
 
+#+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def plot_tseries(time, tseries_list, input_names, sect_name, which_cycl=None, 
+                       do_allcycl=False, do_concat=False, str_descript='', str_time='', figsize=[], 
+                       do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
+                       ymaxstep=None, xmaxstep=5):    
+    
+    import matplotlib.patheffects as path_effects
+    from matplotlib.ticker import AutoMinorLocator, MultipleLocator
+
+    if len(figsize)==0: figsize=[13,6.5]
+    if do_concat: figsize[0] = figsize[0]*2
+    fig,ax= plt.figure(figsize=figsize),plt.gca()
+    
+    #___________________________________________________________________________
+    # setup colormap
+    if do_allcycl: 
+        if which_cycl is not None:
+            cmap = categorical_cmap(np.int32(len(tseries_list)/which_cycl), which_cycl, cmap="tab10")
+        else:
+            cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
+    else:
+        if do_concat: do_concat=False
+        cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
+    
+    #___________________________________________________________________________
+    ii=0
+    ii_cycle=1
+    for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
+        #_______________________________________________________________________
+        if isinstance(tseries,list): tseries = tseries[0]
+        
+        if 'keys' in dir(tseries):
+            vname = list(tseries.keys())[0]
+            tseries = tseries[vname]
+        
+        #_______________________________________________________________________
+        if tseries.ndim>1: tseries = tseries.squeeze()
+        auxtime = time.copy()
+        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
+            
+            if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
+            hp=ax.plot(auxtime,tseries, 
+                   linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], 
+                   marker='o', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
+                   zorder=2)
+            
+            if do_pltmean: 
+                # plot mean value with triangle 
+                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(),
+                        marker='<', markersize=8, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+            if do_pltstd:
+                # plot std. range
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(),
+                        marker='^', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+                
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(),
+                        marker='v', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
+                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+        
+        else:
+            if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
+            hp=ax.plot(auxtime, tseries, 
+                   linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:],
+                   zorder=1) #marker='o', markerfacecolor='w', 
+                   # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
+        
+        ii_cycle=ii_cycle+1
+        if ii_cycle>which_cycl: ii_cycle=1
+        
+    #___________________________________________________________________________
+    ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
+              bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+              #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
+    ax.set_xlabel('Time [years]',fontsize=12)
+    ax.set_ylabel('{:s} in [{:s}]'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
+    ax.set_title(sect_name, fontsize=12, fontweight='bold')
+    
+    #___________________________________________________________________________
+    if do_concat: xmaxstep=20
+    xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
+    ax.xaxis.set_major_locator(xmajor_locator)
+    if ymaxstep is not None: 
+        ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
+        ax.yaxis.set_major_locator(ymajor_locator)
+    #if not do_concat:
+        #xminor_locator = AutoMinorLocator(5)
+        #yminor_locator = AutoMinorLocator(4)
+        #ax.yaxis.set_minor_locator(yminor_locator)
+        #ax.xaxis.set_minor_locator(xminor_locator)
+    
+    plt.grid(which='major')
+    if not do_concat:
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
+    else:    
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(which_cycl-1)+(time[-1]-time[0])*0.015)    
+    
+    #___________________________________________________________________________
+    plt.show()
+    fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, fig, dpi=save_dpi)
+    
+    #___________________________________________________________________________
+    return(fig,ax)
+
+
+
 # ___DO RESCALE DATA___________________________________________________________
 #| rescale data towards multiple of 10  or 1/10 or usinjg log10                |
 #| ___INPUT_________________________________________________________________   |
@@ -944,12 +1054,12 @@ def do_compute_scalingnorm(cinfo, do_rescale):
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
 def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
-                  do_index=False, do_moc=False, do_dmoc=None, do_cweights=None):
+                  do_index=False, do_moc=False, do_dmoc=None):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
     else            : cinfo=cinfo.copy()
-    
+    do_cweights=None
     #___________________________________________________________________________
     # check if dictionary keys exist, if they do not exist fill them up 
     cfac = 1
@@ -973,10 +1083,13 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     elif do_dmoc=='srf'   : data_plot = -(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
                     elif do_dmoc=='inner' : data_plot = data_ii['dmoc'].data.copy() + \
                                                         (data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
-                else         : data_plot = data_ii[ vname[0] ].data.copy()
+                else         : 
+                    data_plot   = data_ii[ vname[0] ].data.copy()
+                    if cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
             else:
                 # compute norm when vector data
                 data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
+                cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
             
             # for logarythmic rescaling cmin or cmax can not be zero
             if do_rescale=='log10' or do_rescale=='slog10': 
