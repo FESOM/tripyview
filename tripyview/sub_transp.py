@@ -129,6 +129,85 @@ def calc_gmhflx(mesh, data, lat):
 
 
 
+#+___COMPUTE HORIZONTAL BAROTROPIC STREAM FUNCTION TROUGH BINNING______________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def calc_hbarstreamf(mesh, data, lon, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
+    
+    #___________________________________________________________________________
+    vname_list = list(data.keys())
+    vname, vname2 = vname_list[0], vname_list[1]
+    
+    #___________________________________________________________________________
+    # Create xarray dataset
+    list_dimname, list_dimsize = ['nlon','nlat'], [lon.size, lat.size]
+    
+    data_vars = dict()
+    aux_attr  = data[vname].attrs
+    aux_attr['long_name'], aux_attr['units'] = 'Horiz. Barotrop. Streamfunction', 'Sv'
+    data_vars['hbstreamf'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+    # define coordinates
+    coords    = {'nlon' : (['nlon' ], lon ), 'nlat' : (['nlat' ], lat ), }
+    
+    # create dataset
+    hbstreamf = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+    del(data_vars, coords, aux_attr)
+    
+    #___________________________________________________________________________
+    # factors for heatflux computation
+    inSv = 1.0e-6
+    #mask = np.zeros((list_dimsize))
+    
+    #___________________________________________________________________________
+    # loop over longitudinal bins 
+    for ix, lon_i in enumerate(lon):
+        ind  = ((mesh.n_x[edge[0,:]]-lon_i)*(mesh.n_x[edge[1,:]]-lon_i) <= 0.) & (abs(mesh.n_x[edge[0,:]]-lon_i)<50.) & (abs(mesh.n_x[edge[1,:]]-lon_i)<50.)
+        ind2 =  (mesh.n_x[edge[0,:]] <= lon_i)
+            
+        #_______________________________________________________________________
+        edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+        edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+        
+        #_______________________________________________________________________
+        u1dxl = (edge_dxdy_l[0,ind] * data[vname ].values[edge_tri[0,ind],:].T)
+        v1dyl = (edge_dxdy_l[1,ind] * data[vname2].values[edge_tri[0,ind],:].T)
+        u2dxr = (edge_dxdy_r[0,ind] * data[vname ].values[edge_tri[1,ind],:].T)
+        v2dyr = (edge_dxdy_r[1,ind] * data[vname2].values[edge_tri[1,ind],:].T)
+        AUX   =-(u1dxl+v1dyl+u2dxr+v2dyr)*inSv
+        del(u1dxl, v1dyl, u2dxr, v2dyr)
+        
+        #_______________________________________________________________________
+        # loop over latitudinal bins 
+        for iy in range(0, lat.size-1):
+            iind=(mesh.n_y[edge[:,ind]].mean(axis=0)>lat[iy]) & (mesh.n_y[edge[:,ind]].mean(axis=0)<=lat[iy+1])
+            hbstreamf['hbstreamf'].data[ix, iy] = np.nansum(np.diff(-mesh.zlev)*np.nansum(AUX[:,iind],axis=1))
+            #if not np.any(iind): continue
+            #mask[ix,iy] = 1
+            
+        #_______________________________________________________________________
+        edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+        edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+        del(ind, ind2)
+        
+    #___________________________________________________________________________
+    hbstreamf['hbstreamf'] =-hbstreamf['hbstreamf'].cumsum(dim='nlat', skipna=True)#+150.0 
+    hbstreamf['hbstreamf'] = hbstreamf['hbstreamf'].transpose()
+    hbstreamf['hbstreamf'].data = hbstreamf['hbstreamf'].data-hbstreamf['hbstreamf'].data[-1,:]
+    
+    # impose periodic boundary condition
+    hbstreamf['hbstreamf'].data[:,-1] = hbstreamf['hbstreamf'].data[:,-2]
+    hbstreamf['hbstreamf'].data[:,0] = hbstreamf['hbstreamf'].data[:,1]
+    #mask[-1,:] = mask[0,:]
+    
+    # set land sea mask 
+    #hbstreamf['hbstreamf'].data[mask.T==0] = np.nan
+    
+    #del(mask)
+    #___________________________________________________________________________
+    return(hbstreamf)
+
+
+
 #+___PLOT MERIDIONAL HEAT FLUX OVER LATITUDES__________________________________+
 #|                                                                             |
 #+_____________________________________________________________________________+
@@ -292,3 +371,205 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
     
     #___________________________________________________________________________
     return(fig,ax)
+
+
+
+def plot_hbstreamf(mesh, data, input_names, cinfo=None, box=None, proj='pc', figsize=[9,4.5], 
+                n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
+                cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
+                do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
+                color_bot=[0.75,0.75,0.75],  title=None,
+                pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
+                linecolor='k', linewidth=0.5, ):
+    
+    fontsize = 12
+    rescale_str = None
+    rescale_val = 1.0
+    
+    #___________________________________________________________________________
+    # make matrix with row colum index to know where to put labels
+    rowlist = np.zeros((n_rc[0],n_rc[1]))
+    collist = np.zeros((n_rc[0],n_rc[1]))       
+    for ii in range(0,n_rc[0]): rowlist[ii,:]=ii
+    for ii in range(0,n_rc[1]): collist[:,ii]=ii
+    rowlist = rowlist.flatten()
+    collist = collist.flatten()
+    
+    #___________________________________________________________________________
+    # create box if not exist
+    if box is None or box=="None": box = [ -180, 180, -90, 90 ]
+    
+    #___________________________________________________________________________
+    ticknr=7
+    tickstep = np.array([0.5,1.0,2.0,2.5,5.0,10.0,15.0,20.0,30.0,45.0, 360])
+    idx     = int(np.argmin(np.abs( tickstep-(box[1]-box[0])/ticknr )))
+    if np.abs(box[1]-box[0])==360:
+        xticks   = np.arange(-180, 180+1, tickstep[idx])
+    else:    
+        xticks   = np.arange(box[0], box[1]+1, tickstep[idx]) 
+    idx     = int(np.argmin(np.abs( tickstep-(box[3]-box[2])/ticknr )))
+    if np.abs(box[3]-box[2])==180:
+        yticks   = np.arange(-90, 90+1, tickstep[idx])  
+    else:   
+        yticks   = np.arange(box[2], box[3]+1, tickstep[idx])  
+    xticks = np.unique(np.hstack((box[0], xticks, box[1])))
+    yticks = np.unique(np.hstack((box[2], yticks, box[3])))
+     
+    #___________________________________________________________________________
+    # Create projection
+    if proj=='pc':
+        which_proj=ccrs.PlateCarree()
+        which_transf = None
+    elif proj=='merc':
+        which_proj=ccrs.Mercator()    
+        which_transf = ccrs.PlateCarree()
+    elif proj=='nps':    
+        which_proj=ccrs.NorthPolarStereo()    
+        which_transf = ccrs.PlateCarree()
+        if box[2]<0: box[2]=0
+    elif proj=='sps':        
+        which_proj=ccrs.SouthPolarStereo()    
+        which_transf = ccrs.PlateCarree()
+        if box[3]>0: box[2]=0
+    elif proj=='rob':        
+        which_proj=ccrs.Robinson()    
+        which_transf = ccrs.PlateCarree() 
+        
+    #___________________________________________________________________________    
+    # create figure and axes
+    fig, ax = plt.subplots( n_rc[0],n_rc[1], figsize=figsize, 
+                            subplot_kw =dict(projection=which_proj),
+                            gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
+                            constrained_layout=False)
+
+    #___________________________________________________________________________    
+    # flatt axes if there are more than 1
+    if isinstance(ax, np.ndarray): ax = ax.flatten()
+    else:                          ax = [ax] 
+    nax = len(ax)
+
+    #___________________________________________________________________________
+    # data must be list filled with xarray data
+    if not isinstance(data, list): data = [data]
+    ndata = len(data)
+    
+    #___________________________________________________________________________
+    # set up color info
+    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_hbstf=True)
+
+    #___________________________________________________________________________
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    
+    #___________________________________________________________________________
+    # loop over axes
+    hpall=list()
+    for ii in range(0,ndata):
+        #_______________________________________________________________________
+        # set axes extent
+        ax[ii].set_extent(box, crs=ccrs.PlateCarree())
+        
+        #_______________________________________________________________________
+        # periodic augment data
+        vname = list(data[ii].keys())[0]
+        data_plot = data[ii][vname].data.copy()
+        data_x    = data[ii]['nlon']
+        data_y    = data[ii]['nlat']
+        
+        #_______________________________________________________________________
+        # plot tri contourf/pcolor
+        if   do_plot=='tpc':
+            hp=ax[ii].pcolor(data_x, data_y, data_plot,
+                             shading='flat',
+                             cmap=cinfo['cmap'],
+                             vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
+                             norm = which_norm)
+            
+        elif do_plot=='tcf': 
+            # supress warning message when compared with nan
+            with np.errstate(invalid='ignore'):
+                data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
+                data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
+            
+            hp=ax[ii].contourf(data_x, data_y, data_plot, 
+                               transform=which_transf,
+                               norm=which_norm,
+                               levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+        hpall.append(hp)  
+        
+        #_______________________________________________________________________
+        # add mesh land-sea mask
+        ax[ii] = do_plotlsmask(ax[ii],mesh, do_lsmask, box, which_proj,
+                               color_lsmask=color_lsmask, edgecolor=linecolor, linewidth=linewidth)
+        
+        #_______________________________________________________________________
+        # add gridlines
+        ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
+                                  xticks, yticks, proj, which_proj)
+        
+        #_______________________________________________________________________
+        # set title and axes labels
+        if title is not None: 
+            # is title  string:
+            if   isinstance(title,str) : 
+                # if title string is 'descript' than use descript attribute from 
+                # data to set plot title 
+                if title=='descript' and ('descript' in data[ii][ vname ].attrs.keys() ):
+                    ax[ii].set_title(data[ii][ vname ].attrs['descript'], fontsize=fontsize+2)
+                    
+                else:
+                    ax[ii].set_title(title, fontsize=fontsize+2)
+            # is title list of string        
+            elif isinstance(title,list): ax[ii].set_title(title[ii], fontsize=fontsize+2)
+    nax_fin = ii+1
+
+    #___________________________________________________________________________
+    # delete axes that are not needed
+    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    for jj in range(ndata, nax): fig.delaxes(ax[jj])
+    if nax != nax_fin-1: ax = ax[0:nax_fin]
+   
+    #___________________________________________________________________________
+    # create colorbar 
+    cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                      extendrect=False, extendfrac=None,
+                      drawedges=True, pad=0.025, shrink=1.0,)                      
+    
+    # do formatting of colorbar 
+    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+    
+    # do labeling of colorbar
+    if cbar_label is None: cbar_label = data[nax_fin-1][vname].attrs['long_name']
+    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][vname].attrs['units']+']'
+    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+    if 'str_ltim' in data[0][vname].attrs.keys():
+        cbar_label = cbar_label+'\n'+data[0][vname].attrs['str_ltim']
+    if 'str_ldep' in data[0][vname].attrs.keys():
+        cbar_label = cbar_label+data[0][vname].attrs['str_ldep']
+    cbar.set_label(cbar_label, size=fontsize+2)
+    
+    #___________________________________________________________________________
+    # repositioning of axes and colorbar
+    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
+    fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, fig, dpi=save_dpi, transparent=True)
+    plt.show(block=False)
+    
+    #___________________________________________________________________________
+    return(fig, ax, cbar)
+
+
+
+
+
+
+
+
+
+
+
+
