@@ -26,6 +26,7 @@ pip install -e .
 ## Different diagnostics
 ### see ./template_notebook/:
 
+#### General plotting: 
 * `hslice`       - plot horizontal slices for ocean variable (compute depth and time averages)
 * `hslice_clim`  - plot horizontal slices of temperature, salinity and density climatology (compute depth and time averages)
 
@@ -40,6 +41,12 @@ over depth and time averaged over specific region that defined by shapefile (see
 * `zmeantransect`- plot zonally averaged transects of 3d ocean varíables
 * `zmeantransect_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
 
+* `transect`     - plot point wise transects of 3d ocean varíables
+* `transect_clim`- plot point wise transects of 3d temperature, salinity and density climatology
+
+* `var_t`        - plots time series of of globally averaged 2d and 3d variables 
+
+#### Transports/Streamfunctions: 
 * `zmoc`         - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
 
@@ -78,16 +85,15 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `dmoc_t`       - plot timeseries of atlantic meridional overturning circulation in density coordinates at specific latitudes 
 (default: which_lats: [26, 55, 'max'])
 
-* `transect`     - plot point wise transects of 3d ocean varíables
-* `transect_clim`- plot point wise transects of 3d temperature, salinity and density climatology
+* `hbarstreamf`  - plot horizontal barotropic streamfunction 
+
 * `transect_vflx_t`- plot timeseries of volume transport trough zonal or meridional transect (default: Drake Passage, 
 uses pyfesom2 transport utility)
 
-* `gmhflx`       - plots global meridional heat flux computed from surface heatfluxes fh
+* `ghflx`        - plots global meridional heat flux computed from surface heatfluxes fh
 * `mhflx`        - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
 
-* `var_t`        - plots time series of of globally averaged 2d and 3d variables 
-
+#### 3D plotting: 
 * `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface
 <p align="center" width="100%">
   <img width=75% src="tripyview/tripyview_icon_NH.png">
