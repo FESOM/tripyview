@@ -159,11 +159,11 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
                                 constrained_layout=False)
     
-    ##___________________________________________________________________________    
-    ## flatt axes if there are more than 1
-    #if isinstance(ax, np.ndarray): ax = ax.flatten()
-    #else:                          ax = [ax] 
-    #nax = len(ax)
+    #___________________________________________________________________________    
+    # flatt axes if there are more than 1
+    if isinstance(ax, np.ndarray): ax = ax.flatten()
+    else:                          ax = [ax] 
+    nax = len(ax)
     
     #___________________________________________________________________________
     # create mesh triangulation

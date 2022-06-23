@@ -144,7 +144,7 @@ def calc_hbarstreamf(mesh, data, lon, lat, edge, edge_tri, edge_dxdy_l, edge_dxd
     
     data_vars = dict()
     aux_attr  = data[vname].attrs
-    aux_attr['long_name'], aux_attr['units'] = 'Horiz. Barotrop. Streamfunction', 'Sv'
+    aux_attr['long_name'], aux_attr['units'] = 'Horizontal. Barotropic \n Streamfunction', 'Sv'
     data_vars['hbstreamf'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
     # define coordinates
     coords    = {'nlon' : (['nlon' ], lon ), 'nlat' : (['nlat' ], lat ), }
@@ -543,7 +543,7 @@ def plot_hbstreamf(mesh, data, input_names, cinfo=None, box=None, proj='pc', fig
     if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][vname].attrs['units']+']'
     else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
     if 'str_ltim' in data[0][vname].attrs.keys():
-        cbar_label = cbar_label+'\n'+data[0][vname].attrs['str_ltim']
+        cbar_label = cbar_label+', '+data[0][vname].attrs['str_ltim']
     if 'str_ldep' in data[0][vname].attrs.keys():
         cbar_label = cbar_label+data[0][vname].attrs['str_ldep']
     cbar.set_label(cbar_label, size=fontsize+2)

@@ -715,6 +715,58 @@ def drive_dmoc_srfcbflx(yaml_settings, analysis_name):
     return webpage
 
 
+#
+#
+#_______________________________________________________________________________
+def drive_hbarstreamf(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #            
+    if not yaml_settings[analysis_name]: driver_settings = dict()
+    else                               : driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = dict()
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis
+    webpage = {}
+    image_count = 0
+    print(f'         --> compute: hbarstreamf')
+    if not current_params: current_params2 = dict()
+    else                 : current_params2 = current_params.copy()
+    current_params2.update(driver_settings)
+            
+    #_______________________________________________________________________
+    save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}.png"
+    save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}.ipynb"
+    current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+    #_______________________________________________________________________
+    pm.execute_notebook(
+            f"{templates_nb_path}/template_transp_hbstreamf.ipynb",
+            os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+            parameters=current_params2,
+            nest_asyncio=True)
+            
+    #_______________________________________________________________________
+    webpage[f"image_{image_count}"] = {}
+    webpage[f"image_{image_count}"]["name"]       = f"{'horiz. barotrop. streamfunction'}"
+    webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+    webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+    webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}"
+    image_count += 1
+    return webpage
+
+
 
 #
 #
