@@ -201,7 +201,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     #else:
         #cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri, do_cweights=mesh.e_area)
         
-    #_______________________________________________________________________
+    #___________________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
         
@@ -1054,7 +1054,7 @@ def do_compute_scalingnorm(cinfo, do_rescale):
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
 def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
-                  do_index=False, do_moc=False, do_dmoc=None):
+                  do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
@@ -1083,6 +1083,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     elif do_dmoc=='srf'   : data_plot = -(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
                     elif do_dmoc=='inner' : data_plot = data_ii['dmoc'].data.copy() + \
                                                         (data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
+                elif do_hbstf: data_plot = data_ii[ vname[0] ].data.copy() 
                 else         : 
                     data_plot   = data_ii[ vname[0] ].data.copy()
                     if cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
