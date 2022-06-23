@@ -1673,9 +1673,9 @@ def grid_interp_e2n(mesh,data_e):
         data_n=data_n/mesh.n_area/3.0
         
     elif data_e.ndim==2:
-        nd = data_e.shape[1]
-        data_n = np.zeros((mesh.n2dn,nd))
-        aux1  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
+        nd     = data_e.shape[1]
+        data_n = np.zeros((mesh.n2dn, nd))
+        aux1   = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
         for ndi in range(0,nd):
             aux  = aux1 * np.vstack((data_e[:,ndi],data_e[:,ndi],data_e[:,ndi])).transpose().flatten()
             #___________________________________________________________________________
@@ -1683,11 +1683,12 @@ def grid_interp_e2n(mesh,data_e):
             # over for i in range(3): ,for j in range(self.n2de):
             count = 0
             for idx in mesh.e_i.flat:
-                data_n[idx,ndi]=data_n[idx,ndi] + aux[count]
+                data_n[idx, ndi]=data_n[idx, ndi] + aux[count]
                 count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
             del aux, count
             #with np.errstate(divide='ignore',invalid='ignore'):
-            data_n[:,ndi]=data_n[:,ndi]/mesh.n_area/3.0
+            data_n[:, ndi]=data_n[:, ndi]/mesh.n_area[ndi, :]/3.0
+        
     #___________________________________________________________________________
     return(data_n)
 
