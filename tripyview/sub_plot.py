@@ -1432,6 +1432,9 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
 #|_____________________________________________________________________________|  
 def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, clocs, pw_lim=[-3,4]):
     # formatting of normal colorbar axis
+    
+    if len(clocs)>=48: cbar.dividers.set_color('None')
+    
     if not do_rescale == 'log10' and not do_rescale == 'slog10':
         formatter     = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
         formatter.set_scientific(True)

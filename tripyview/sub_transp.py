@@ -241,8 +241,11 @@ def plot_mhflx(mhflx_list, input_names, sect_name=None, str_descript='', str_tim
     #___________________________________________________________________________
     ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.02,0.5), loc="center left", borderaxespad=0)
     ax.set_xlabel('Latitude [deg]',fontsize=12)
-    if   vname == 'gmhflx': y_label = 'Global Meridional Heat Transport [TW]'
-    elif vname == 'mhflx' : y_label = 'Meridional Heat Transport [TW]'
+    if   vname == 'gmhflx': y_label = 'Global Meridional Heat Transport'
+    elif vname == 'mhflx' : y_label = 'Meridional Heat Transport'
+    
+    if 'units' in mhflx_list[0][vname].attrs.keys():
+        y_label = y_label + ' [' + mhflx_list[0][vname].attrs['units'] +']'
     if 'str_ltim' in mhflx_list[0][vname].attrs.keys():
         y_label = y_label+'\n'+mhflx_list[0][vname].attrs['str_ltim']
     ax.set_ylabel(y_label, fontsize=12)  

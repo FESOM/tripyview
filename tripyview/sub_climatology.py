@@ -4,7 +4,6 @@ import time
 import os
 import xarray as xr
 import seawater as sw
-
 from .sub_data import *
 
     
@@ -66,7 +65,6 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                         ).transpose(dim_zlev,dim_lat,dim_lon)
         data[vname_temp].data = sw.ptmp(data[vname_salt].data, data[vname_temp].data, data_depth )
         
-    
     #___________________________________________________________________________
     # if there are multiple variables, than kick out varaible that is not needed
     vname_drop = list(data.keys())            
@@ -172,11 +170,24 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     if do_zinterp and (depth is None):
         #add fesom2 mesh coordinatesro xarray dataset
         zmid = xr.DataArray(np.abs(mesh.zmid), dims="nz1")
-            
+        
+        # improvise extrapolation --> fesom depth levels reach usually deeper than 
+        # the levels of the climatology --> therefor expand last layers of climatology 
+        # so they cover the fesom depth range
+        addlay = 3
+        zlev   = data[coord_zlev].data
+        dd_mat = np.ones((addlay,))*(zlev[-1]-zlev[-2])
+        dd_mat = zlev[-1]+dd_mat.cumsum()
+        zlev   = np.hstack([zlev, dd_mat])
+        data   = data.pad({dim_zlev:(0, addlay)}, mode='edge')
+        data   = data.assign_coords(dict({dim_zlev:zlev}))
+        del(zlev, dd_mat)
+        
         # interp data on nodes --> method linear
         data = data.interp(dict({dim_zlev:zmid}), method='linear')
         
     data = data.transpose()    
+    
     #___________________________________________________________________________
     # write additional attribute info
     for vname in list(data.keys()):
@@ -187,6 +198,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     
     data = data.assign_coords(nz1=('nz1' ,-mesh.zmid))
     data = data.assign_coords(w_A=("nod2", mesh.n_area[0, :]))
+    
     #___________________________________________________________________________
     if do_compute: data = data.compute()
     

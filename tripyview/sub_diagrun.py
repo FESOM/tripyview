@@ -125,38 +125,44 @@ def diagrun():
     #___________________________________________________________________________
     # define analyses drivers
     analyses_driver_list = {}
-    analyses_driver_list["hslice"         ] = drive_hslice
-    analyses_driver_list["hslice_np"      ] = drive_hslice
-    analyses_driver_list["hslice_sp"      ] = drive_hslice
-    analyses_driver_list["hslice_clim"    ] = drive_hslice_clim
-    analyses_driver_list["hslice_clim_np" ] = drive_hslice_clim
-    analyses_driver_list["hslice_clim_sp" ] = drive_hslice_clim
-    analyses_driver_list["hovm"           ] = drive_hovm
-    analyses_driver_list["hovm_clim"      ] = drive_hovm_clim
-    analyses_driver_list["zmoc"           ] = drive_zmoc
-    analyses_driver_list["zmoc_t"         ] = drive_zmoc_t
-    analyses_driver_list["dmoc"           ] = drive_dmoc
-    analyses_driver_list["dmoc_z"         ] = drive_dmoc
-    analyses_driver_list["dmoc_srf"       ] = drive_dmoc
-    analyses_driver_list["dmoc_srf_z"     ] = drive_dmoc
-    analyses_driver_list["dmoc_inner"     ] = drive_dmoc
-    analyses_driver_list["dmoc_inner_z"   ] = drive_dmoc
-    analyses_driver_list["dmoc_inner_z"   ] = drive_dmoc
-    analyses_driver_list["dmoc_wdiap"     ] = drive_dmoc_wdiap
-    analyses_driver_list["dmoc_srfcbflx"  ] = drive_dmoc_srfcbflx
-    analyses_driver_list["dmoc_t"         ] = drive_dmoc_t
-    analyses_driver_list["vprofile"       ] = drive_vprofile
-    analyses_driver_list["vprofile_clim"  ] = drive_vprofile_clim
-    analyses_driver_list["transect"       ] = drive_transect
-    analyses_driver_list["transect_clim"  ] = drive_transect_clim
-    analyses_driver_list["transect_vflx_t"] = drive_transect_vflx_t
-    analyses_driver_list["zmeantrans"     ] = drive_zmeantrans
-    analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
-    analyses_driver_list["zmeantrans_clim"] = drive_zmeantrans_clim
-    analyses_driver_list["ghflx"          ] = drive_ghflx
-    analyses_driver_list["mhflx"          ] = drive_mhflx
-    analyses_driver_list["var_t"          ] = drive_var_t
-    analyses_driver_list["hbarstreamf"    ] = drive_hbarstreamf
+    analyses_driver_list["hslice"             ] = drive_hslice
+    analyses_driver_list["hslice_np"          ] = drive_hslice
+    analyses_driver_list["hslice_sp"          ] = drive_hslice
+    analyses_driver_list["hslice_clim"        ] = drive_hslice_clim
+    analyses_driver_list["hslice_clim_np"     ] = drive_hslice_clim
+    analyses_driver_list["hslice_clim_sp"     ] = drive_hslice_clim
+    
+    analyses_driver_list["hovm"               ] = drive_hovm
+    analyses_driver_list["hovm_clim"          ] = drive_hovm_clim
+    
+    analyses_driver_list["transect"           ] = drive_transect
+    analyses_driver_list["transect_clim"      ] = drive_transect_clim
+    analyses_driver_list["transect_transp"    ] = drive_transect_transp
+    analyses_driver_list["transect_transp_t"  ] = drive_transect_transp_t
+    analyses_driver_list["transect_zmean"     ] = drive_transect_zmean
+    analyses_driver_list["transect_zmean_clim"] = drive_transect_zmean_clim
+    
+    analyses_driver_list["vprofile"           ] = drive_vprofile
+    analyses_driver_list["vprofile_clim"      ] = drive_vprofile_clim
+    
+    analyses_driver_list["var_t"              ] = drive_var_t
+    
+    analyses_driver_list["zmoc"               ] = drive_zmoc
+    analyses_driver_list["zmoc_t"             ] = drive_zmoc_t
+    analyses_driver_list["dmoc"               ] = drive_dmoc
+    analyses_driver_list["dmoc_z"             ] = drive_dmoc
+    analyses_driver_list["dmoc_srf"           ] = drive_dmoc
+    analyses_driver_list["dmoc_srf_z"         ] = drive_dmoc
+    analyses_driver_list["dmoc_inner"         ] = drive_dmoc
+    analyses_driver_list["dmoc_inner_z"       ] = drive_dmoc
+    analyses_driver_list["dmoc_inner_z"       ] = drive_dmoc
+    analyses_driver_list["dmoc_wdiap"         ] = drive_dmoc_wdiap
+    analyses_driver_list["dmoc_srfcbflx"      ] = drive_dmoc_srfcbflx
+    analyses_driver_list["dmoc_t"             ] = drive_dmoc_t
+    
+    analyses_driver_list["hbarstreamf"        ] = drive_hbarstreamf
+    analyses_driver_list["ghflx"              ] = drive_ghflx
+    analyses_driver_list["mhflx"              ] = drive_mhflx
     
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file
