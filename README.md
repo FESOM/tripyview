@@ -28,21 +28,26 @@ pip install -e .
 
 #### General plotting: 
 * `hslice`       - plot horizontal slices for ocean variable (compute depth and time averages)
+* `hslice_np`    - plot horizontal slices for ocean variable north polar stereographic projection
+* `hslice_sp`    - plot horizontal slices for ocean variable south polar stereographic projection
 * `hslice_clim`  - plot horizontal slices of temperature, salinity and density climatology (compute depth and time averages)
+* `hslice_clim_np` - plot horizontal slices of temperature, salinity and density climatology in north polar stereographic projection
+* `hslice_clim_sp` - plot horizontal slices of temperature, salinity and density climatology in south polar stereographic projection
 
 * `hovm`         - plot hovmöller diagramms for 3d ocean varaible over depth and time averaged over
 specific region that defined by shapefile (see. tripyview/shapefiles/...)
 * `hovm_clim`    - plot hovmöller diagramms for  temperature, salinity and density climatology 
 over depth and time averaged over specific region that defined by shapefile (see. tripyview/shapefiles/...)
 
+* `transect`         - plot point wise transects of 3d ocean varíables
+* `transect_clim`    - plot point wise transects of 3d temperature, salinity and density climatology
+* `transect_transp`  - plot volume transport through arbitrary transects (model accurate transport)
+* `transect_transp_t`- plot time-series of volume transport through arbitrary transects (model accurate transport)
+* `transect_zmean`   - plot zonally averaged transects of 3d ocean varíables
+* `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
+
 * `vprofile`     - plot lines for averaged vertical profile of 3d ocean varíables
 * `vprofile_clim`- plot lines for averaged vertical profile of 3d temperature, salinity and density climatology
-
-* `zmeantransect`- plot zonally averaged transects of 3d ocean varíables
-* `zmeantransect_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
-
-* `transect`     - plot point wise transects of 3d ocean varíables
-* `transect_clim`- plot point wise transects of 3d temperature, salinity and density climatology
 
 * `var_t`        - plots time series of of globally averaged 2d and 3d variables 
 
@@ -86,9 +91,6 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 (default: which_lats: [26, 55, 'max'])
 
 * `hbarstreamf`  - plot horizontal barotropic streamfunction 
-
-* `transect_vflx_t`- plot timeseries of volume transport trough zonal or meridional transect (default: Drake Passage, 
-uses pyfesom2 transport utility)
 
 * `ghflx`        - plots global meridional heat flux computed from surface heatfluxes fh
 * `mhflx`        - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
