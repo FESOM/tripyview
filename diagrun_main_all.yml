@@ -247,138 +247,139 @@ vprofile_clim:
             - mpas_region/Southern_Ocean.shp
             - mpas_region/Western_Weddell_Sea.shp
             
-#_______________________________________________________________________________
-# plot transect of 3d ocean variable 
+#_______________________________________________________________________________     
 transect:
+    which_transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        - [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
+        - [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
+        - [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+        - [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
+        - [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
     temp:
-        30W_80S-90N:
-            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
-            cstr: 'blue2red'
-            cnum: 25  
-            climit: [-3, 20]
-            do_contour: True
-        170W_80S-90N:
-            input_transect: [[[-170, -170],[-80, 90], 'Transect: -170°W, -80°S-90°N']]
-            cstr: 'blue2red'
-            cnum: 25  
-            climit: [-3, 20]
-            do_contour: True 
+        cstr: 'blue2red'
+        cnum: 25  
+        climit: [-3, 20]
+        do_contour: True
     salt:
-        30W_80S-90N:
-            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
-            cstr: 'green2orange'
-            cnum: 25  
-            climit: [34.25, 36.0]
-            do_contour: True
-        170W_80S-90N:
-            input_transect: [[[-170, -170],[-80, 90], 'Transect: -170°W, -80°S-90°N']]
-            cstr: 'green2orange'
-            cnum: 25  
-            climit: [34.25, 36.0]
-            do_contour: True
+        cstr: 'green2orange'
+        cnum: 25  
+        climit: [34.25, 36.0]
+        do_contour: True
     Kv:
-        30W_80S-90N:
-            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
-            cstr: 'wbgyr'
-            do_rescale: 'log10'
-            crange: [-1.0e-6, 1.0e-1, 1.0e-4]
-            cnum: 25  
-            do_contour: False
-        170W_80S-90N:
-            input_transect: [[[-170, -170],[-80, 90], 'Transect: -170°W, -80°S-90°N']]
-            cstr: 'wbgyr'
-            do_rescale: 'log10'
-            crange: [-1.0e-6, 1.0e-1, 1.0e-4]
-            cnum: 25  
-            do_contour: False    
+        cstr: 'wbgyr'
+        do_rescale: 'log10'
+        crange: [-1.0e-6, 1.0e-1, 1.0e-4]
+        cnum: 25  
+        do_contour: False
+    KvN2:
+        cstr: 'blue2red'
+        do_rescale: 'slog10'
+        crange: [-1.0e-8, 1.0e-8, 1.0e-12]
+        cnum: 25  
+        do_contour: False
 
 #_______________________________________________________________________________
-# plot transect of 3d ocean temperature/salinity/density climatology anomaly 
 transect_clim:
+    which_transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        - [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
+        - [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
+        - [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+        - [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
+        - [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
     temp:
-        30W_80S-90N:
-            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
-            cstr: 'blue2red' 
-            crange: [-4, 4, 0]
-            do_contour: False    
+        cstr: 'blue2red'
+        cnum: 25  
+        crange: [-4, 4, 0]
+        do_contour: False
     salt:
-        30W_80S-90N:
-            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
-            cstr: 'green2orange' 
-            do_contour: False    
+        cstr: 'green2orange'
+        cnum: 25  
+        crange: [-0.5, 0.5, 0]
+        do_contour: False
     sigma2:
-        30W_80S-90N:
-            input_transect: [[[-30, -30],[-80, 90], 'Transect: -30°W, -80°S-90°N']]
-            cstr: 'grads' 
-            do_contour: False    
-
-#_______________________________________________________________________________
-# plot transport through zonal or meridional ocean section 
-transect_vflx_t:
-    Drake_Passage:
-        input_transect: [[[-66, -66,  -67, -55], 'Drake Passage @ 66°W, 67°S-55°S']] #use transect input from pyfesom2
-        year: [1958, 2019]
-        do_allcycl: False
-        do_concat: False
+        cstr: 'grads'
+        cnum: 25  
+        do_contour: False     
         
 #_______________________________________________________________________________
-# plot zonal mean section (zonal binning) of 3d ocean variables
-zmeantrans:
+transect_transp:
+    which_transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        - [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
+        - [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
+        - [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+        - [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
+        - [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
+    vec+u+v:
+        cstr: 'blue2red'
+        cnum: 25  
+        do_contour: False
+        
+transect_transp_t:
+    which_transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+    vec+u+v:
+        year: [1958, 2019]
+        do_allcycl: True
+        do_concat: True
+
+#_______________________________________________________________________________     
+transect_zmean:
+    which_box_regions:
+        - global
+        - ocean_basins/Atlantic_Basin.shp
+        - ocean_basins/Pacific_Basin.shp
+        - ocean_basins/Indian_Basin.shp
     temp:
-        box_regions: 
-           - global
         cstr: 'blue2red'  
         climit: [-3.0, 15.0]
     salt:
-        box_regions: 
-           - global
         cstr: 'green2orange'
         climit: [34, 35.0]
     sigma2:
-        box_regions: 
-           - global
         cstr: 'grads'
         climit: [35.5, 37.5]
     Kv:
-        box_regions: 
-           - global
         do_rescale: 'log10'
         cstr: 'wbgyr'
         crange: [1.0e-6, 1.0e-0, 1.0e-4]
         cnum: 20
         do_contour: False
     N2:
-        box_regions: 
-           - global
         do_rescale: 'log10'   
         cstr: 'wbgyr'
         crange: [1.0e-8, 1.0e-4, 1.0e-6]
         cnum: 20
         do_contour: False
-       
+    KvN2:
+        do_rescale: 'slog10'   
+        cstr: 'blue2red'
+        crange: [1.0e-8, 1.0e-8, 1.0e-12]
+        cnum: 20
+        do_contour: False
+        
 #_______________________________________________________________________________
-# plot zonal mean section (zonal binning) of 3d temp/salt/density climatology 
-# anomaly
-zmeantrans_clim:
+transect_zmean_clim:
+    which_box_regions:
+        - global
+        - ocean_basins/Atlantic_Basin.shp
+        - ocean_basins/Pacific_Basin.shp
+        - ocean_basins/Indian_Basin.shp
     temp:
-        box_regions: 
-           - global
         crange: [-2.0,2.0,0] 
         cstr: 'blue2red'
         do_contour: False
     salt:
-        box_regions: 
-           - global
         crange: [-0.75,0.75,0]    
         cstr: 'green2orange'
         do_contour: False
     sigma2:
-        box_regions: 
-           - global
         crange: [-0.35,0.35,0]        
         cstr: 'grads'
         do_contour: False
-        
+
 #_______________________________________________________________________________
 # plot time-series of 2d and 3d globally averaged (volume weighted) variables 
 var_t:
