@@ -15,7 +15,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=True, descript='',  runid='fesom',
+                     do_compute=True, descript='',  runid='fesom', chunks={'elem':1e4, 'nod2':1e4},
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -162,19 +162,19 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # load multiple files
     # load normal FESOM2 run file
     if do_file=='run':
-        data = xr.open_mfdataset(pathlist, parallel=True, **kwargs) 
+        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, **kwargs) 
         
         # in case of vector load also meridional data and merge into 
         # dataset structure
         if do_vec or do_norm or do_pdens:
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
-            data     = xr.merge([data, xr.open_mfdataset(pathlist,**kwargs)])
+            data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=True, chunks=chunks, **kwargs)])
             if do_vec: is_data='vector'
             
     # load restart or blowup files
     else:
         print(pathlist)
-        data = xr.open_mfdataset(pathlist, parallel=True, **kwargs)
+        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, **kwargs)
         if do_vec or do_norm or do_pdens:
             # which variables should be dropped 
             vname_drop = list(data.keys())
@@ -191,7 +191,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         # remove variables that are not needed
         data = data.drop(labels=vname_drop)
         record=0
-        
+    
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
     # also add weights
@@ -504,17 +504,18 @@ def do_setbottomnan(mesh, data, vname, do_nan):
     # better to make here a different fill value in the netcdf files !!!
     if do_nan and any(x in data.dims for x in ['nz_1','nz1','nz']): 
         if   ('nod2' in data.dims):
-            if vname in ['Kv', 'Av']: 
-                if ('nz_1' in data.dims) or ('nz1' in data.dims):
-                    mat_iz= xr.DataArray(mesh.n_iz-1, dims='nod2')
-                    nlev = mesh.nlev-1
-                else:     
-                    mat_iz= xr.DataArray(mesh.n_iz, dims='nod2')
-                    nlev = mesh.nlev
-                for di in range(0,nlev): 
-                    data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
-            else:
-                data = data.where(data[vname]!=0)
+            #if vname in ['Kv', 'Av']: 
+            if ('nz_1' in data.dims) or ('nz1' in data.dims):
+                mat_iz= xr.DataArray(mesh.n_iz-1, dims='nod2')
+                nlev = mesh.nlev-1
+            else:     
+                mat_iz= xr.DataArray(mesh.n_iz, dims='nod2')
+                nlev = mesh.nlev
+            for di in range(0,nlev): 
+                #data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
+                data[vname].data[:, np.where(di>mat_iz)[0], di]=np.nan
+            #else:
+                #data = data.where(data[vname]!=0)
                 
         elif('elem' in data.dims):
             if ('nz_1' in data.dims) or ('nz1' in data.dims):
@@ -524,7 +525,8 @@ def do_setbottomnan(mesh, data, vname, do_nan):
                 mat_iz= xr.DataArray(mesh.e_iz, dims='elem')
                 nlev = mesh.nlev
             for di in range(0,nlev): 
-                data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
+                #data[vname].data[:, np.where(di>=mat_iz)[0], di]=np.nan
+                data[vname].data[:, np.where(di>mat_iz)[0], di]=np.nan
     #___________________________________________________________________________
     return(data)
 
@@ -961,7 +963,8 @@ def do_potential_desnsity(data, do_pdens, vname, vname2, vname_tmp):
             data_depth = data['nz1'].expand_dims(dict({'time':data.dims['time'], 'nod2':data.dims['nod2']}))
         else:
             data_depth = data['nz1'].expand_dims(dict({'nod2':data.dims['nod2']}))
-        data = data.assign({vname_tmp: (list(data.dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.025)})
+            
+        data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.025)})
         del(data_depth)
         data = data.drop(labels=[vname, vname2])
         data[vname_tmp].attrs['units'] = 'kg/m^3'
