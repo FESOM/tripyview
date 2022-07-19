@@ -208,6 +208,117 @@ def drive_hslice_clim(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
+def drive_hslice_isotherm_z(yaml_settings, analysis_name):
+    print(' --> drive_hslice:',analysis_name)
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    #___________________________________________________________________________
+    # loop over isotherms
+    for which_isotherm in driver_settings['which_isotherms']:
+        print(f'         --> compute isotherm depth @: {which_isotherm}')
+        which_mon = ''
+        which_mon2 = ''
+        if 'mon' in driver_settings.keys(): 
+            which_mon  = f"_m{driver_settings['mon']}"
+            which_mon2 = f" @ mon:{driver_settings['mon']}"
+        
+        current_params2 = {}
+        current_params2 = current_params.copy()
+        current_params2["which_isotherm"] = which_isotherm
+        current_params2.update(driver_settings)
+        del current_params2["which_isotherms"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
+            
+        #___________________________________________________________________
+        # make no loops over the months
+        if 'months' not in driver_settings.keys(): 
+            #_______________________________________________________________
+            if 'proj' in current_params2.keys(): 
+                save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isotherm}.png"
+                save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isotherm}.ipynb"
+                short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isotherm}"
+            else:
+                save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isotherm}.png"
+                save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isotherm}.ipynb"
+                short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isotherm}"
+            current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+            #_______________________________________________________________
+            pm.execute_notebook(
+                f"{templates_nb_path}/template_hslice_isotherm_z.ipynb",
+                os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                parameters=current_params2,
+                nest_asyncio=True,)
+            
+            #_______________________________________________________________
+            webpage[f"image_{image_count}"] = {}
+            webpage[f"image_{image_count}"]["name"]       = f"depth of {which_isotherm}°C isotherm"
+            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+            webpage[f"image_{image_count}"]["short_name"] = short_name
+            image_count += 1
+            
+        #___________________________________________________________________
+        # make loops over the single months    
+        else:
+            #_______________________________________________________________
+            # loop over depths
+            del current_params2["months"]
+            for month in driver_settings["months"]:
+                print(f'                 --> mon: {month}')
+                current_params2["mon"] = month
+                current_params2.update(driver_settings)
+                #___________________________________________________________
+                if 'proj' in current_params2.keys(): 
+                    save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isotherm}_m{month}.png"
+                    save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isotherm}_m{month}.ipynb"
+                    short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{current_params2['proj']}_{which_isotherm}_m{month}"
+                else:
+                    save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isotherm}_m{month}.png"
+                    save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isotherm}_m{month}.ipynb"
+                    short_name    = f"{yaml_settings['workflow_name']}_{analysis_name}_{which_isotherm}_m{month}"
+                current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+                
+                #___________________________________________________________
+                pm.execute_notebook(
+                    f"{templates_nb_path}/template_hslice_isotherm_z.ipynb",
+                    os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                    parameters=current_params2,
+                    nest_asyncio=True,)
+                
+                #___________________________________________________________
+                webpage[f"image_{image_count}"] = {}
+                webpage[f"image_{image_count}"]["name"]       = f"depth of {which_isotherm}°C isotherm, @mon:{month}"
+                webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+                webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+                webpage[f"image_{image_count}"]["short_name"] = short_name
+                image_count += 1
+        
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
 def drive_hovm(yaml_settings, analysis_name):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
@@ -374,7 +485,7 @@ def drive_zmoc(yaml_settings, analysis_name):
         current_params2 = {}
         current_params2 = current_params.copy()
         current_params2["vname"] = vname
-#         current_params2.update(driver_settings[vname])
+        current_params2.update(driver_settings[vname])
             
         #_______________________________________________________________________
         save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.png"
@@ -506,7 +617,7 @@ def drive_dmoc(yaml_settings, analysis_name):
         elif analysis_name == 'dmoc_inner_z': 
             current_params2["which_transf"], str_mode = 'inner', '_inner_z'
             current_params2["do_zcoord"] = True
-        
+        current_params2.update(driver_settings[vname])
         #_______________________________________________________________________
         save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.png"
         save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.ipynb"
@@ -1173,6 +1284,76 @@ def drive_transect_transp_t(yaml_settings, analysis_name):
             image_count += 1
     return webpage
 
+#
+#
+#_______________________________________________________________________________
+def drive_transect_transp_t_OSNAP(yaml_settings, analysis_name):
+    # copy yaml settings for  analysis driver --> hslice: 
+    #                                         
+    driver_settings = yaml_settings[analysis_name].copy()
+    
+    # create current primary parameter from yaml settings
+    current_params = {}
+    for key, value in yaml_settings.items():
+        # if value is a dictionary its not a primary paramter anymore e.g.
+        # hslice: --> dict(...)
+        #    temp:
+        #        levels: [-2, 30, 41]
+        #        depths: [0, 100, 400, 1000]
+        # ....
+        if isinstance(value, dict):
+            pass
+        else:
+            current_params[key] = value
+    # initialse webpage for analyis 
+    webpage = {}
+    image_count = 0
+    
+    #___________________________________________________________________________
+    which_transects = driver_settings['which_transects']
+    driver_settings2 = yaml_settings[analysis_name].copy()
+    del driver_settings2['which_transects']
+    
+    #___________________________________________________________________________
+    # loop over variable name
+    for vname in driver_settings2: 
+        auxvname = vname.replace('/',':')
+        print(f'            -->{vname}')
+        
+        #_______________________________________________________________________
+        # loop over transect name  
+        for transect in which_transects:
+            tname = transect[2]
+            tname = tname.replace(' ','_')
+            print(f'         -->{tname}')
+            
+            #___________________________________________________________________
+            current_params2 = {}
+            current_params2 = current_params.copy()
+            current_params2["vname"] = vname
+            current_params2["input_transect"] = list([transect])
+            current_params2.update(driver_settings2[vname])    
+            
+            #_______________________________________________________________________
+            save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{auxvname}_{tname}.png"
+            save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{auxvname}_{tname}.ipynb"
+            current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
+            
+            #_______________________________________________________________________
+            pm.execute_notebook(
+                    f"{templates_nb_path}/template_transect_transp_t_OSNAP.ipynb",
+                    os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                    parameters=current_params2,
+                    nest_asyncio=True)
+            
+            #_______________________________________________________________________
+            webpage[f"image_{image_count}"] = {}
+            webpage[f"image_{image_count}"]["name"]       = f"{auxvname.upper()} @ {tname}"
+            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
+            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+            webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['workflow_name']}_{analysis_name}_{auxvname}_{tname}"
+            image_count += 1
+    return webpage
 
 
 #

@@ -1,5 +1,5 @@
 import numpy as np
-import time as time
+import time as clock
 import os
 import xarray as xr
 import matplotlib
@@ -73,10 +73,16 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         
         # compute combined density flux: heat_flux+freshwater_flux+restoring_flux
         if do_dflx: 
-            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
+            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, 
+                                    descript=descript , do_info=do_info, do_ie2n=False, 
+                                    do_tarithm=do_tarithm, do_nan=False, do_compute=False)
             data['std_heat_flux'].data = data['std_heat_flux'].data +\
-                        load_data_fesom2(mesh, datapath, vname='std_frwt_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)['std_frwt_flux'].data + \
-                        load_data_fesom2(mesh, datapath, vname='std_rest_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)['std_rest_flux'].data
+                        load_data_fesom2(mesh, datapath, vname='std_frwt_flux', 
+                                         year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                         do_tarithm=do_tarithm, do_nan=False, do_compute=False)['std_frwt_flux'].data + \
+                        load_data_fesom2(mesh, datapath, vname='std_rest_flux', 
+                                         year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                         do_tarithm=do_tarithm, do_nan=False, do_compute=False)['std_rest_flux'].data
             data      = data.rename({'std_heat_flux':'std_dens_flux'}).assign_coords({'ndens' :("ndens",std_dens)})
             data_DMOC = xr.merge([data_DMOC, data], combine_attrs="no_conflicts")
             data_DMOC = data_DMOC / weight_dens * 1024
@@ -88,13 +94,19 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         # compute single flux from heat_flux & freshwater_flux &restoring_flux
         else:
             data_DMOC = xr.merge([data_DMOC, 
-                                load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                load_data_fesom2(mesh, datapath, vname='std_heat_flux', 
+                                                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                                 do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                                 combine_attrs="no_conflicts") 
             data_DMOC = xr.merge([data_DMOC, 
-                                load_data_fesom2(mesh, datapath, vname='std_frwt_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                load_data_fesom2(mesh, datapath, vname='std_frwt_flux', 
+                                                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                                 do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                                 combine_attrs="no_conflicts")   
             data_DMOC = xr.merge([data_DMOC, 
-                                load_data_fesom2(mesh, datapath, vname='std_rest_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                load_data_fesom2(mesh, datapath, vname='std_rest_flux', 
+                                                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                                 do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                                 combine_attrs="no_conflicts")   
             data_attrs= data_DMOC.attrs # rescue attributes will get lost during multipolication
             data_DMOC = data_DMOC.assign_coords({'ndens' :("ndens",std_dens)})
@@ -105,13 +117,17 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     # add volume trend  
     if add_trend:  
         data_DMOC = xr.merge([data_DMOC, 
-                              load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                              load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', 
+                                               year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                               do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                               combine_attrs="no_conflicts")
     
     # skip this when doing diapycnal vertical velocity
     if (not do_wdiap) and (not do_dflx):
         # add vertical mean z-coordinate position of density classes
-        data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
+        data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
+                                     year=year, descript=descript , do_info=do_info, 
+                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=False)
         data_zpos = data_zpos.assign_coords({'ndens' :("ndens",std_dens)})
         #data_zpos = data_zpos*e_area
         data_zpos = data_zpos*data_zpos['w_A']
@@ -120,7 +136,9 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     
     if (not do_dflx):
         # add divergence of density classes --> diapycnal velocity
-        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm) 
+        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
+                                     year=year, descript=descript , do_info=do_info, 
+                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=False) 
         data_div  = data_div.assign_coords({'ndens' :("ndens",std_dens)})
         
         # save global attributes into allocated DMOC dataset
@@ -138,6 +156,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                 data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][:, xr.DataArray(mesh.e_i, dims=["elem",'n3']), :].mean(dim="n3", keep_attrs=True) )
             else:
                 data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][xr.DataArray(mesh.e_i, dims=["elem",'n3']),:].mean(dim="n3", keep_attrs=True) )
+            
+            data_div = data_div.chunk({'elem':1e4, 'nod2':1e4})
             
             # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
             data_div  = data_div.drop(['nod2','lon','lat','w_A'])
@@ -180,7 +200,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     idxin     = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=True)
 
     # reduce to dMOC data to basin domain
-    data_dMOC = data_dMOC.isel(elem=idxin) 
+    data_dMOC = data_dMOC.isel(elem=idxin)
     
     # check basin selection 
     if do_checkbasin:
@@ -286,6 +306,8 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
 
     #___________________________________________________________________________
     # do zonal sum over latitudinal bins 
+    data_dMOC = data_dMOC.load()
+    
     if do_info==True: print(' --> do latitudinal bining')
     for bini in range(lat_i.min(), lat_i.max()):
         

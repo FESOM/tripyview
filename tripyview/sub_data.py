@@ -81,20 +81,21 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     if vname in ['depth', 'topo', 'topography','zcoord', 'narea', 'n_area', 'clusterarea', 'scalararea'
                  'nresol', 'n_resol', 'resolution', 'resol', 'earea', 'e_area', 'triarea',
                  'eresol','e_resol','triresolution','triresol']:
-        data = xr.Dataset(coords={"lon"  :( "nod2"         ,mesh.n_x), 
-                                  "lat"  :( "nod2"         ,mesh.n_y), 
-                                  "faces":(["elem","three"],mesh.e_i),
-                                  "zlev" :( "nz"           ,mesh.zlev),
-                                  "zmid" :( "nz1"          ,mesh.zmid)} )
-                                
+        #data = xr.Dataset(coords={"lon"  :( "nod2"         ,mesh.n_x), 
+                                  #"lat"  :( "nod2"         ,mesh.n_y), 
+                                  #"faces":(["elem","three"],mesh.e_i),
+                                  #"zlev" :( "nz"           ,mesh.zlev),
+                                  #"zmid" :( "nz1"          ,mesh.zmid)} )
+        data = xr.Dataset()                        
     #___________________________________________________________________________
     # store topography in data
     if   any(x in vname for x in ['depth','topo','topography','zcoord']):
-        data['topo'] = ("nod2", -mesh.n_z)
+        data['topo'] = ("nod2", -np.abs(mesh.n_z))
         data['topo'].attrs["description"]='Depth'
         data['topo'].attrs["long_name"  ]='Depth'
         data['topo'].attrs["units"      ]='m'
         data['topo'].attrs["is_data"    ]=is_data
+        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store vertice cluster area in data    
     elif any(x in vname for x in ['narea','n_area','clusterarea','scalararea']):
@@ -104,6 +105,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['narea'].attrs["long_name"  ]='Vertice area'
         data['narea'].attrs["units"      ]='m^2'
         data['narea'].attrs["is_data"    ]=is_data
+        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store vertice resolution in data               
     elif any(x in vname for x in ['nresol','n_resol','resolution','resol']):
@@ -113,6 +115,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['nresol'].attrs["long_name"  ]='Resolution'
         data['nresol'].attrs["units"      ]='km'
         data['nresol'].attrs["is_data"    ]=is_data
+        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store element area in data    
     elif any(x in vname for x in ['earea','e_area','triarea']):
@@ -122,6 +125,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['earea'].attrs["long_name"  ]='Element area'
         data['earea'].attrs["units"      ]='m^2'
         data['earea'].attrs["is_data"    ]=is_data
+        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store element resolution in data               
     elif any(x in vname for x in ['eresol','e_resol','triresolution','triresol']):
@@ -131,6 +135,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['eresol'].attrs["long_name"  ]='Element resolution'
         data['eresol'].attrs["units"      ]='km'
         data['eresol'].attrs["is_data"    ]=is_data
+        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
         
     #___________________________________________________________________________
@@ -201,6 +206,12 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # years are selected by the files that are open, need to select mon or day 
     # or record 
     data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
+    
+    #___________________________________________________________________________
+    # make sure datas are alligned in [time, elem, nz] and not [time, nz, elem]
+    if 'time' in data.dims: data = data.transpose('time', dim_horz, dim_vert)
+    else                  : data = data.transpose(dim_horz, dim_vert)
+    
     
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 

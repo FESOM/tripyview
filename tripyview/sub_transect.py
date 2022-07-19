@@ -140,6 +140,7 @@ def _do_init_transect():
     transect['path_dx'      ] = [] # dx of path sections
     transect['path_dy'      ] = [] # dy of path sections
     transect['path_dist'    ] = [] # dy of path sections
+    transect['path_nvec_cs' ] = [] # normal vector of transection segment
     
     #___________________________________________________________________________
     return(transect)
@@ -166,6 +167,7 @@ def _do_concat_subtransects(sub_transect):
     transect['path_ni'      ] = sub_transect['path_ni'      ][0]
     transect['path_dx'      ] = sub_transect['path_dx'      ][0]
     transect['path_dy'      ] = sub_transect['path_dy'      ][0]
+    transect['path_nvec_cs' ] = sub_transect['path_nvec_cs' ][0]
     
     #___________________________________________________________________________
     if sub_transect['ncs'] > 1:    
@@ -181,6 +183,7 @@ def _do_concat_subtransects(sub_transect):
             transect['path_ni'      ] = np.vstack((transect['path_ni'      ], sub_transect['path_ni'      ][ii]))
             transect['path_dx'      ] = np.hstack((transect['path_dx'      ], sub_transect['path_dx'      ][ii]))
             transect['path_dy'      ] = np.hstack((transect['path_dy'      ], sub_transect['path_dy'      ][ii]))
+            transect['path_nvec_cs' ] = np.vstack((transect['path_nvec_cs' ], sub_transect['path_nvec_cs' ][ii]))
     del(sub_transect)
     
     #___________________________________________________________________________
@@ -401,6 +404,11 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     transect['path_dx'].append(np.asarray(path_dx))
     transect['path_dy'].append(np.asarray(path_dy))
     
+    aux = np.ones((transect['path_dx'][-1].size,2))
+    aux[:,0], aux[:,1] = transect['n_vec'][-1][0], transect['n_vec'][-1][1]
+    transect['path_nvec_cs'].append(aux)
+    del(aux)
+    
     # !!! Make sure positive Transport is defined S-->N and W-->E
     # --> Preliminary --> not 100% sure its universal
     rad = np.pi/180
@@ -409,6 +417,8 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
         #print(' >-))))°>.°oO :1')
         transect['path_dx'][-1] = -transect['path_dx'][-1]
         transect['path_dy'][-1] = -transect['path_dy'][-1]
+        
+        transect['path_nvec_cs'][-1] = transect['path_nvec_cs'][-1]
     del(path_xy, path_ei, path_ni, path_dx, path_dy, edge_elem)
 
     #___________________________________________________________________________
@@ -663,6 +673,9 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
                                        mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
                                        vel_u[nti,:,:], vel_v[nti,:,:])            
         else: 
+            print(vel_u.shape)
+            print(vel_v.shape)
+            print(transect['path_ei'].shape)
             for ii, ei in enumerate(transect['path_ei']):
                 vel_u[ii, mesh.e_iz[ei]:], vel_v[ii,mesh.e_iz[ei]:] = np.nan, np.nan
                  
@@ -749,6 +762,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
 
 
 
+
 #+___COMPUTE TRANSECT OF SCALAR VERTICE/ELEMENTAL VARIABLE_____________________+
 #|                                                                             |
 #+_____________________________________________________________________________+ 
@@ -786,11 +800,13 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
             # interpolate scalar vertice values onto cutting point position where
             # cross-section intersects with edge
             scalarPcut = scalarP1.T + (scalarP2.T-scalarP1.T)*transect['edge_cut_lint']
+            #scalarPcut = scalarP1.T 
+            #scalarPcut = scalarP2.T 
             del(scalarP1, scalarP2)
             
             # define lon, lat , distance arrays
-            lon = transect['edge_cut_midP'][:,0]
-            lat = transect['edge_cut_midP'][:,1]
+            lon = transect['edge_cut_P'][:,0]
+            lat = transect['edge_cut_P'][:,1]
             dst = transect['edge_cut_dist']
         
         #_______________________________________________________________________
@@ -808,8 +824,8 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 scalarPcut = scalarPcut.T
                 
                 # define lon, lat , distance arrays
-                lon = transect['edge_cut_midP'][:-1,0]
-                lat = transect['edge_cut_midP'][:-1,1]
+                lon = transect['edge_cut_P'][:-1,0]
+                lat = transect['edge_cut_P'][:-1,1]
                 dst = transect['edge_cut_dist'][:-1]
                 
             else:
@@ -1067,20 +1083,24 @@ def plot_transect(data, transects, figsize=[12, 6],
         
         #_______________________________________________________________________
         # setup x-coord and y-coord
-        # determine if lonand lat are valid axis for plotting
-        is_ok = (np.isnan(data[0][0]['lon'].values)==False)
-        aux   = np.diff(data[0][0]['lat'].values[is_ok])
-        aux   = aux*np.sign(aux[np.where(aux!=0)[0][0]])
-        if   which_xaxis=='lat' and (not np.all(aux>=0)): which_xaxis='lon'
-        aux   = np.diff(data[0][0]['lon'].values[is_ok])
-        aux   = aux*np.sign(aux[np.where(aux!=0)[0][0]])
-        if   which_xaxis=='lon' and (not np.all(aux>=0)): which_xaxis='dist'
+        # determine if lon and lat are valid axis for plotting if not use distance
+        # as x-axis
+        auxdst = np.diff(data[0][0]['dst'].values)
+        auxlat, auxlon = data[0][0]['lat'].values[1:], data[0][0]['lon'].values[1:]
+        auxlat, auxlon = auxlat[auxdst!=0.0], auxlon[auxdst!=0.0]
+        is_ok = (np.isnan(auxlon)==False)
+        auxlat, auxlon = auxlat[is_ok], auxlon[is_ok]
+        if   np.all(np.diff(auxlat)==0) : which_xaxis='lon'
+        elif np.all(np.diff(auxlon)==0) : which_xaxis='lat'
+        elif np.any(np.diff(auxlat)==0) and not np.any(np.diff(auxlon)==0): which_xaxis='lon'
+        elif np.any(np.diff(auxlon)==0) and not np.any(np.diff(auxlat)==0): which_xaxis='lat'
+        else                            : which_xaxis='dist' 
         
         if   which_xaxis=='lat' : data_x, str_xlabel = data[ii][0]['lat'].values, 'Latitude [deg]'
         elif which_xaxis=='lon' : data_x, str_xlabel = data[ii][0]['lon'].values, 'Longitude [deg]'
         elif which_xaxis=='dist': data_x, str_xlabel = data[ii][0]['dst'].values, 'Distance from start point [km]'
         else: raise ValueError('these definition for which_xaxis is not supported')
-        del(is_ok, aux)
+        
         data_y, str_ylabel = data[ii][0]['depth'].values, 'Depth [m]'    
         data_y = np.abs(data_y)
         
@@ -1277,7 +1297,7 @@ def plot_transect(data, transects, figsize=[12, 6],
 def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl=None, 
                        do_allcycl=False, do_concat=False, str_descript='', str_time='', figsize=[], 
                        do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
-                       ymaxstep=5, xmaxstep=5):    
+                       ymaxstep=None, xmaxstep=5, ylabel=None):    
     
     if len(figsize)==0: figsize=[13,6.5]
     if do_concat: figsize[0] = figsize[0]*2
@@ -1339,15 +1359,19 @@ def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl
               bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
               #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
     ax.set_xlabel('Time [years]',fontsize=12)
-    ax.set_ylabel('{:s} in [Sv]'.format('Transport'),fontsize=12)
+    
+    if ylabel is None: ax.set_ylabel('{:s} in [Sv]'.format('Transport'),fontsize=12)
+    else             : ax.set_ylabel('{:s} in [Sv]'.format(ylabel),fontsize=12)
     ax.set_title(transect['Name'], fontsize=12, fontweight='bold')
     
     #___________________________________________________________________________
     if do_concat: xmaxstep=20
     xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
-    ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
     ax.xaxis.set_major_locator(xmajor_locator)
-    ax.yaxis.set_major_locator(ymajor_locator)
+    
+    if ymaxstep is not None: 
+        ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
+        ax.yaxis.set_major_locator(ymajor_locator)
     
     if not do_concat:
         xminor_locator = AutoMinorLocator(5)

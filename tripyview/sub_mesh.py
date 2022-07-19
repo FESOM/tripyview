@@ -78,7 +78,8 @@ def load_mesh_fesom2(
     # check if pickle file can be found somewhere either in mesh folder or in 
     # cache folder 
     #picklefname = 'mypymesh_fesom2.pckl'
-    picklefname = 'tripyview_fesom2_'+meshid+'.pckl'
+    #picklefname = 'tripyview_fesom2_'+meshid+'.pckl'
+    picklefname = 'tripyview_fesom2_{}_focus{}.pckl'.format(meshid,focus)
     if do_pickle:
         # check if mypy pickle meshfile is found in meshfolder
         if    ( os.path.isfile(os.path.join(meshpath, picklefname)) ):
@@ -868,7 +869,7 @@ ___________________________________________""".format(
                 self.compute_n_area()
                 print(' > comp n_resol from n_area')
                 #_______________________________________________________________
-                self.n_resol = np.sqrt(self.n_area/np.pi)*2.0
+                self.n_resol = np.sqrt(self.n_area[0,:]/np.pi)*2.0
             
             #___________________________________________________________________
             # compute vertices resolution based on interpolation from resolution
@@ -1657,6 +1658,7 @@ def grid_interp_e2n(mesh,data_e):
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
     if data_e.ndim==1:
+        # print('~~ >-)))°> .°oO A')
         aux  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
         aux  = aux * np.vstack((data_e,data_e,data_e)).transpose().flatten()
         
@@ -1670,9 +1672,10 @@ def grid_interp_e2n(mesh,data_e):
             count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
         del aux, count
         #with np.errstate(divide='ignore',invalid='ignore'):
-        data_n=data_n/mesh.n_area/3.0
+        data_n=data_n/mesh.n_area[0,:]/3.0
         
     elif data_e.ndim==2:
+        # print('~~ >-)))°> .°oO B')
         nd     = data_e.shape[1]
         data_n = np.zeros((mesh.n2dn, nd))
         aux1   = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()

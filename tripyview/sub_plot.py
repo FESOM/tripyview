@@ -1,7 +1,7 @@
 import os
 import sys
 import numpy                    as np
-import time                     as time
+import time                     as clock
 import xarray                   as xr
 import cartopy.crs              as ccrs
 import cartopy.feature          as cfeature
@@ -29,7 +29,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
-                color_bot=[0.75,0.75,0.75],  title=None,
+                color_bot=[0.75,0.75,0.75],  title=None, do_ie2n = True, 
                 pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
                 linecolor='k', linewidth=0.5, ):
     """
@@ -126,26 +126,21 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     #___________________________________________________________________________
     # create box if not exist
     if box is None or box=="None": box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
-    
+    print(box)
     #___________________________________________________________________________
     # Create projection
-    if proj=='pc':
-        which_proj=ccrs.PlateCarree()
-        which_transf = None
-    elif proj=='merc':
-        which_proj=ccrs.Mercator()    
-        which_transf = ccrs.PlateCarree()
-    elif proj=='nps':    
-        which_proj=ccrs.NorthPolarStereo()    
-        which_transf = ccrs.PlateCarree()
+    if   proj=='pc'     : which_proj, which_transf = ccrs.PlateCarree()     , ccrs.PlateCarree()
+    elif proj=='merc'   : which_proj, which_transf = ccrs.Mercator()        , ccrs.PlateCarree()
+    elif proj=='rob'    : which_proj, which_transf = ccrs.Robinson()        , ccrs.PlateCarree()
+    #elif proj=='mol'    : which_proj, which_transf = ccrs.Mollweide()       , ccrs.PlateCarree()        
+    elif proj=='eqearth': which_proj, which_transf = ccrs.EqualEarth(central_longitude=mesh.focus)      , ccrs.PlateCarree()        
+    elif proj=='nps'    : 
+        which_proj, which_transf = ccrs.NorthPolarStereo(), ccrs.PlateCarree()
         if box[2]<0: box[2]=0
-    elif proj=='sps':        
-        which_proj=ccrs.SouthPolarStereo()    
-        which_transf = ccrs.PlateCarree()
+    elif proj=='sps'    : 
+        which_proj, which_transf = ccrs.SouthPolarStereo(), ccrs.PlateCarree()
         if box[3]>0: box[2]=0
-    elif proj=='rob':        
-        which_proj=ccrs.Robinson()    
-        which_transf = ccrs.PlateCarree()    
+    else: raise ValueError('The projection {} is not supporrted!'.format(proj))    
     
     #___________________________________________________________________________    
     # create lon, lat ticks 
@@ -172,8 +167,13 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                         np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
     
     # Limit points to projection box
-    if proj=='nps' or proj=='sps' or 'pc':
+    if proj in ['nps', 'sps', 'pc']:
         e_idxbox = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
+    elif proj in ['rob', 'eqearth'] :   
+        #box = [-179.750, 179.750, -90.0, 90.0]
+        box[0], box[1] = box[0]+0.25, box[1]-0.25
+        # otherwise produces strange artefacts when using robinson projection
+        e_idxbox = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='hard')
     else:    
         points = which_transf.transform_points(which_proj, 
                                                 tri.x[tri.triangles].sum(axis=1)/3, 
@@ -185,7 +185,9 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         fig_pts = ax[0].transData.transform(crs_pts)
         ax_pts  = ax[0].transAxes.inverted().transform(fig_pts)
         x, y =  ax_pts[:,0], ax_pts[:,1]
+        # print(x.min(), x.max(), y.min(), y.max())
         e_idxbox = (x>=-0.05) & (x<=1.05) & (y>=-0.05) & (y<=1.05)
+    
     tri.triangles = tri.triangles[e_idxbox,:]    
     
     #___________________________________________________________________________
@@ -195,11 +197,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # set up color info
-    #vname = list(data[ii].keys())
-    #if data[ii][ vname[0] ].size==mesh.n2dn:
     cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
-    #else:
-        #cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri, do_cweights=mesh.e_area)
         
     #___________________________________________________________________________
     # setup normalization log10, symetric log10, None
@@ -220,42 +218,56 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         
         #_______________________________________________________________________
         # periodic augment data
-        vname = list(data[ii].keys())
+        vname     = list(data[ii].keys())
         data_plot = data[ii][ vname[0] ].data.copy()
-        
+        is_onvert = True
         if   data_plot.size==mesh.n2dn:
+            is_onvert = True
             data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
         elif data_plot.size==mesh.n2de:
-            data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
-
+            if not do_ie2n:
+                is_onvert = False
+                data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
+                data_plot = data_plot[e_idxbox]
+            else:
+                # interpolate from elements to vertices --> cartopy plotting is faster
+                is_onvert = True
+                data_plot = grid_interp_e2n(mesh,data_plot)
+                data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+        
         #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
         isnan   = np.isnan(data_plot)
-        if data_plot.size == mesh.n2dea:
+        if not is_onvert:
             e_idxok = isnan==False
         else:
             e_idxok = np.any(isnan[tri.triangles], axis=1)==False
-        
+            
         #_______________________________________________________________________
         # add color for ocean bottom
         if do_bottom and np.any(e_idxok==False):
-            hbot = ax[ii].triplot(tri.x, tri.y, tri.triangles[e_idxok==False,:], color=color_bot)
-        
+            #ts = clock.time()
+            hbot = ax[ii].triplot(tri.x, tri.y, tri.triangles[e_idxok==False,:], 
+                                  color=color_bot, transform=which_transf)
+            #print(' -bottom-> elapsed time: {} min'.format((clock.time()-ts)/60))   
+            
         #_______________________________________________________________________
         # plot tri contourf/tripcolor
-        if   do_plot=='tpc' or data_plot.size == mesh.n2dea:
+        #ts = clock.time()
+        if   do_plot=='tpc' or (do_plot=='tcf' and not is_onvert):
             # plot over elements
-            if data_plot.size == mesh.n2dea:
+            if not is_onvert:
                 hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot[e_idxok],
-                #hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[:,:], data_plot[:],
-                                    #transform=which_transf,
+                                    transform=which_transf,
                                     shading='flat',
                                     cmap=cinfo['cmap'],
                                     vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
                                     norm = which_norm)
+                
             # plot over vertices    
             else:
                 hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
+                                    transform=which_transf,
                                     shading='flat',
                                     cmap=cinfo['cmap'],
                                     vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
@@ -266,29 +278,43 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
             with np.errstate(invalid='ignore'):
                 data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
                 data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
-            
-            hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot, 
-                                transform=which_transf,
-                                norm=which_norm,
-                                levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
-            
+                
+            if proj=='pc':    
+                hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
+                                      norm=which_norm,
+                                      levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+            else: 
+                hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
+                                        transform=which_transf,
+                                        norm=which_norm,
+                                        levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+                
         hpall.append(hp)        
-        #_______________________________________________________________________
-        # add grid mesh on top
-        if do_grid: ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
-                                   color='k', linewidth=0.2, alpha=0.75) 
-                                   #transform=which_transf)
+        #print(' -DATA-> elapsed time: {} min'.format((clock.time()-ts)/60)) 
         
         #_______________________________________________________________________
+        # add grid mesh on top
+        if do_grid: 
+            #ts = clock.time()
+            ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
+                                   color='k', linewidth=0.2, alpha=0.75, 
+                                   transform=which_transf)
+            #print(' -GRID-> elapsed time: {} min'.format((clock.time()-ts)/60))
+            
+        #_______________________________________________________________________
         # add mesh land-sea mask
+        #ts = clock.time()
         ax[ii] = do_plotlsmask(ax[ii],mesh, do_lsmask, box, which_proj,
                                color_lsmask=color_lsmask, edgecolor=linecolor, linewidth=linewidth)
+        #print(' -MASK-> elapsed time: {} min'.format((clock.time()-ts)/60))
         
         #_______________________________________________________________________
         # add gridlines
+        #ts = clock.time()
         ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
                                   xticks, yticks, proj, which_proj)
-       
+        #print(' -LINE-> elapsed time: {} min'.format((clock.time()-ts)/60)) 
+        
         #_______________________________________________________________________
         # set title and axes labels
         if title is not None: 
@@ -303,8 +329,12 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                     ax[ii].set_title(title, fontsize=fontsize+2)
             # is title list of string        
             elif isinstance(title,list): ax[ii].set_title(title[ii], fontsize=fontsize+2)
+            
+        fig.canvas.draw()    
+        
     nax_fin = ii+1
     
+    #ts = clock.time()
     #___________________________________________________________________________
     # delete axes that are not needed
     #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
@@ -341,6 +371,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, fig, dpi=save_dpi, transparent=True)
     plt.show(block=False)
+    #print(' -AXES-> elapsed time: {} min'.format((clock.time()-ts)/60))
     
     #___________________________________________________________________________
     return(fig, ax, cbar)
@@ -1171,9 +1202,10 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 # case of symetric log10
                 cinfo['cref'] = np.power(10.0,-6)
             else:
-                dez = 1
+                dez = 0
                 while True:
                     new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
+                    #print(cref, new_cref, cinfo['cmin'], cinfo['cmax'])
                     if new_cref>cinfo['cmin'] and new_cref<cinfo['cmax']:
                         break
                     else: 
@@ -1363,8 +1395,9 @@ def do_add_gridlines(ax, rowlist, collist, xticks, yticks, proj, which_proj):
         circle = mpath.Path(verts * radius + center)
         ax.set_boundary(circle, transform=ax.transAxes)
         
-    elif proj=='rob':
-        ax.gridlines(color='black', linestyle='-', alpha=0.25, xlocs=xticks, ylocs=yticks,)
+    elif proj in ['rob', 'mol', 'eqearth']:
+        ax.gridlines(color='black', linestyle='-', alpha=0.25, xlocs=xticks, ylocs=yticks,
+                     draw_labels=False)
     
     #___________________________________________________________________________
     return(ax)
@@ -1627,3 +1660,4 @@ def do_savefigure(do_save, fig, dpi=300, transparent=False, pad_inches=0.1, **kw
         fig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
                     bbox_inches='tight', pad_inches=pad_inches,\
                     transparent=transparent, **kw)
+
