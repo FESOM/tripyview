@@ -1035,6 +1035,8 @@ def drive_transect(yaml_settings, analysis_name):
         for transect in which_transects:
             tname = transect[2]
             tname = tname.replace(' ','_')
+            tname = tname.replace(',','')
+            tname = tname.replace('°','')
             print(f'         -->{tname}')
             
             #___________________________________________________________________
@@ -1108,6 +1110,8 @@ def drive_transect_clim(yaml_settings, analysis_name):
         for transect in which_transects:
             tname = transect[2]
             tname = tname.replace(' ','_')
+            tname = tname.replace(',','')
+            tname = tname.replace('°','')
             print(f'         -->{tname}')
             
             #___________________________________________________________________
@@ -1181,6 +1185,8 @@ def drive_transect_transp(yaml_settings, analysis_name):
         for transect in which_transects:
             tname = transect[2]
             tname = tname.replace(' ','_')
+            tname = tname.replace(',','')
+            tname = tname.replace('°','')
             print(f'         -->{tname}')
             
             #___________________________________________________________________
