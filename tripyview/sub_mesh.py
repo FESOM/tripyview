@@ -1701,3 +1701,27 @@ def grid_interp_e2n(mesh,data_e):
 #|_____________________________________________________________________________|
 def ismember_rows(a, b):
     return np.flatnonzero(np.in1d(b[:,0], a[:,0]) & np.in1d(b[:,1], a[:,1]))
+
+
+# ___COMPUTE BOUNDARY EDGES____________________________________________________
+#| compute edges that have only one adjacenbt trinagle                         |
+#|_____________________________________________________________________________|
+def compute_boundary_edges(e_i):
+    # set boundary depth to zero
+    edge    = np.concatenate((e_i[:,[0,1]], e_i[:,[0,2]], e_i[:,[1,2]]),axis=0)
+    edge    = np.sort(edge,axis=1) 
+        
+    ## python  sortrows algorythm --> matlab equivalent
+    edge    = edge.tolist()
+    edge.sort()
+    edge    = np.array(edge)
+        
+    idx     = np.diff(edge,axis=0)==0
+    idx     = np.all(idx,axis=1)
+    idx     = np.logical_or(np.concatenate((idx,np.array([False]))),\
+                            np.concatenate((np.array([False]),idx)))
+
+    # all edges that belong to boundary own jsut one triangle 
+    bnde    = edge[idx==False,:]
+    
+    return(bnde)
