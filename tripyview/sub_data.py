@@ -209,8 +209,11 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     
     #___________________________________________________________________________
     # make sure datas are alligned in [time, elem, nz] and not [time, nz, elem]
-    if 'time' in data.dims: data = data.transpose('time', dim_horz, dim_vert)
-    else                  : data = data.transpose(dim_horz, dim_vert)
+    if 'time' in data.dims:
+        if dim_vert is not None: data = data.transpose('time', dim_horz, dim_vert)
+    else: 
+        if dim_vert is not None: data = data.transpose(dim_horz, dim_vert)
+        
     
     
     #___________________________________________________________________________
