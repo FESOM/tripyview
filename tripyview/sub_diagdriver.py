@@ -485,7 +485,8 @@ def drive_zmoc(yaml_settings, analysis_name):
         current_params2 = {}
         current_params2 = current_params.copy()
         current_params2["vname"] = vname
-        current_params2.update(driver_settings[vname])
+        if driver_settings[vname] is not None:
+            current_params2.update(driver_settings[vname])
             
         #_______________________________________________________________________
         save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.png"
