@@ -512,7 +512,7 @@ def create_3dflat_ocean_wall(xs, ys, zs, e_i, which_wall='N', nsigma=20):
 #
 #___CREATE PYVISTA OCEAN MESH___________________________________________________
 # make potatoefication of Earth radius 
-def create_3dflat_ocean_botwall(xs, ys , zs, e_i, scalfac, botdepth=7000 ):
+def create_3dflat_ocean_botwall(xs, ys , zs, e_i, box, scalfac, botdepth=7000 ):
     print(' --> compute 3d flat ocean mesh')
     
     #___________________________________________________________________________
@@ -521,13 +521,13 @@ def create_3dflat_ocean_botwall(xs, ys , zs, e_i, scalfac, botdepth=7000 ):
     
         
     #___COMPUTE lower ocean box boundary____________________________________
-    box_bnde = bnde.copy()
-    #ed_xs, ed_ys = xs[bnde].copy(),  ys[bnde].copy()
-    #box_ibnde = (((ed_xs[:,0]==box[0]) & (ed_xs[:,1]==box[0])) |
-                    #((ed_xs[:,0]==box[1]) & (ed_xs[:,1]==box[1])) |
-                    #((ed_ys[:,0]==box[2]) & (ed_ys[:,1]==box[2])) |
-                    #((ed_ys[:,0]==box[3]) & (ed_ys[:,1]==box[3])))
-    #box_bnde  = bnde[box_ibnde,:]
+    #box_bnde = bnde.copy()
+    ed_xs, ed_ys = xs[bnde].copy(),  ys[bnde].copy()
+    box_ibnde = (((ed_xs[:,0]==box[0]) & (ed_xs[:,1]==box[0])) |
+                    ((ed_xs[:,0]==box[1]) & (ed_xs[:,1]==box[1])) |
+                    ((ed_ys[:,0]==box[2]) & (ed_ys[:,1]==box[2])) |
+                    ((ed_ys[:,0]==box[3]) & (ed_ys[:,1]==box[3])))
+    box_bnde  = bnde[box_ibnde,:]
     #del box_ibnde, bnde
         
     #_______________________________________________________________________
@@ -544,7 +544,7 @@ def create_3dflat_ocean_botwall(xs, ys , zs, e_i, scalfac, botdepth=7000 ):
     # ed[0,:] o<-----o ed[1,:] 
     box_xs = np.hstack([box_xs, box_xs])
     box_ys = np.hstack([box_ys, box_ys])
-    box_zs = np.hstack([box_zs, box_zs*0+botdepth**1/scalfac])
+    box_zs = np.hstack([box_zs, box_zs*0+botdepth**(1/scalfac)])
     box_e_i = np.column_stack([box_bnde[:,0], box_bnde[:,1], box_bnde[:,1]+box_npts, box_bnde[:,0]+box_npts])
     
     ocean_botwall=dict()
@@ -600,9 +600,13 @@ def create_3dflat_land_mesh(mesh, resol=1, box=None, do_topo=False, topo_path=[]
         
         xmin, xmax     = np.floor(poly_x).min(), np.ceil(poly_x).max()
         ymin, ymax     = np.floor(poly_y).min(), np.ceil(poly_y).max()
-        
         #resol = 1
-        x_m, y_m  = np.meshgrid(np.arange(xmin, xmax, resol),np.arange(ymin, ymax, resol))
+        x_m, y_m  = np.meshgrid(np.arange(xmin, xmax, resol, dtype=np.float32),np.arange(ymin, ymax, resol, dtype=np.float32))
+        
+        #xmin, xmax     = box[0], box[1]
+        #ymin, ymax     = box[2], box[3]
+        #nresol = np.int32(np.ceil((xmax-xmin)/resol))
+        #x_m, y_m  = np.meshgrid(np.linspace(xmin, xmax, nresol),np.linspace(ymin, ymax, nresol))
         x_m, y_m  = x_m.reshape((x_m.size, 1)), y_m.reshape((y_m.size, 1))
         
         #_______________________________________________________________________
@@ -657,10 +661,11 @@ def create_3dflat_land_mesh(mesh, resol=1, box=None, do_topo=False, topo_path=[]
         lat  = fid.variables[topo_dimname[1]][:]
         fid.close()
         mlon,mlat=np.meshgrid(lon,lat)
-        zs = -griddata( np.transpose( (mlon.flatten(),mlat.flatten() ) ), topo.flatten(), land_points, method='linear')
+        zs = griddata( np.transpose( (mlon.flatten(),mlat.flatten() ) ), topo.flatten(), land_points, method='linear')
         del topo,lon,lat,mlon,mlat
     
-    zs = zs**1/scalfac
+    zs = -zs**(1/scalfac)
+    
     #___________________________________________________________________________
     # limit vertie array to box 
     if box is not None:
@@ -721,7 +726,7 @@ def create_3dflat_land_mesh(mesh, resol=1, box=None, do_topo=False, topo_path=[]
         #_______________________________________________________________________
         box_xs = np.hstack([box_xs, box_xs])
         box_ys = np.hstack([box_ys, box_ys])
-        box_zs = np.hstack([box_zs, box_zs*0+botdepth**1/scalfac])
+        box_zs = np.hstack([box_zs, box_zs*0+botdepth**(1/scalfac)])
         box_e_i = np.column_stack([box_bnde[:,0], box_bnde[:,1], box_bnde[:,1]+box_npts, box_bnde[:,0]+box_npts])
         
         land_botwall=dict()
@@ -822,31 +827,79 @@ def reindex_regional_elem(faces):
 
 
 
-def combine_ocean_land_botwall(ocean_botwall, land_botwall):
+def combine_ocean_land_botwall(ocean_botwall, land_botwall, box ):
     #___________________________________________________________________________
     ocean_npts = ocean_botwall['xs'].size
+    
     xs  = np.hstack((ocean_botwall['xs' ], land_botwall['xs']))
     ys  = np.hstack((ocean_botwall['ys' ], land_botwall['ys']))
     zs  = np.hstack((ocean_botwall['zs' ], land_botwall['zs']))
     e_i = np.vstack((ocean_botwall['e_i'], land_botwall['e_i']+ocean_npts))
     
     #___________________________________________________________________________
-    points = np.column_stack([xs, ys, zs])
+    # need to kickout identical vertice points
+    # --> https://itecnote.com/tecnote/python-checking-for-and-indexing-non-unique-duplicate-values-in-a-numpy-array/
+    points   = np.column_stack([xs, ys, zs])
+    unq, unq_idx, unq_cnt = np.unique(points,axis=0, return_inverse=True, return_counts=True)
+    cnt_mask = unq_cnt > 1
+    dup_ids  = unq[cnt_mask]
+    cnt_idx, = np.nonzero(cnt_mask)
+    idx_mask = np.in1d(unq_idx, cnt_idx)
+    idx_idx, = np.nonzero(idx_mask)
+    srt_idx  = np.argsort(unq_idx[idx_mask])
+    dup_idx  = np.split(idx_idx[srt_idx], np.cumsum(unq_cnt[cnt_mask])[:-1])
+    for arr in dup_idx: 
+        e_i[e_i==arr[1]] = arr[0]
         
-    #___________________________________________________________________________
-    cell_size = np.ones(e_i.shape[0], dtype=np.uint8)*4
-    cells     = np.column_stack([cell_size, e_i])
-    cells     = cells.ravel()
-    del cell_size
-
-    # each cell is a VTK_TRIANGLE
-    celltypes = np.empty(e_i.shape[0], dtype=np.uint8)
+    #re-index regional elem index
+    e_i, idx_n = reindex_regional_elem(e_i)
+    points = points[idx_n,:]    
+    
+    # select northern bottom wall 
+    ys =  points[:,1]
+    idx_W        = np.all( ys[e_i]==np.float32(box[3]), axis=1)
+    e_i_W        = e_i[idx_W,:]
+    e_i_W, idx_n = reindex_regional_elem(e_i_W)
+    points_W     = points[idx_n,:].copy()
+    cell_size    = np.ones(e_i_W.shape[0], dtype=np.uint8)*4
+    cells        = np.column_stack([cell_size, e_i_W]).ravel()
+    celltypes    = np.empty(e_i_W.shape[0], dtype=np.uint8)
     celltypes[:] = vtk.VTK_QUAD
+    meshpv_botwall_N = pv.UnstructuredGrid(cells, celltypes, points_W)
+    
+    # select southern bottom wall 
+    idx_W        = np.all( ys[e_i]==np.float32(box[2]), axis=1)
+    e_i_W        = e_i[idx_W,:]
+    e_i_W, idx_n = reindex_regional_elem(e_i_W)
+    points_W     = points[idx_n,:].copy()
+    cell_size    = np.ones(e_i_W.shape[0], dtype=np.uint8)*4
+    cells        = np.column_stack([cell_size, e_i_W]).ravel()
+    celltypes    = np.empty(e_i_W.shape[0], dtype=np.uint8)
+    celltypes[:] = vtk.VTK_QUAD
+    meshpv_botwall_S = pv.UnstructuredGrid(cells, celltypes, points_W)
+    
+    # select western bottom wall 
+    xs =  points[:,0]
+    idx_W        = np.all( xs[e_i]==np.float32(box[0]), axis=1)
+    e_i_W        = e_i[idx_W,:]
+    e_i_W, idx_n = reindex_regional_elem(e_i_W)
+    points_W     = points[idx_n,:].copy()
+    cell_size    = np.ones(e_i_W.shape[0], dtype=np.uint8)*4
+    cells        = np.column_stack([cell_size, e_i_W]).ravel()
+    celltypes    = np.empty(e_i_W.shape[0], dtype=np.uint8)
+    celltypes[:] = vtk.VTK_QUAD
+    meshpv_botwall_W = pv.UnstructuredGrid(cells, celltypes, points_W)
+    
+    # select western bottom wall 
+    idx_W        = np.all( xs[e_i]==np.float32(box[1]), axis=1)
+    e_i_W        = e_i[idx_W,:]
+    e_i_W, idx_n = reindex_regional_elem(e_i_W)
+    points_W     = points[idx_n,:].copy()
+    cell_size    = np.ones(e_i_W.shape[0], dtype=np.uint8)*4
+    cells        = np.column_stack([cell_size, e_i_W]).ravel()
+    celltypes    = np.empty(e_i_W.shape[0], dtype=np.uint8)
+    celltypes[:] = vtk.VTK_QUAD
+    meshpv_botwall_E = pv.UnstructuredGrid(cells, celltypes, points_W)
     
     #___________________________________________________________________________
-    # create pyvista unstrucutred mesh object
-    meshpv_botwall = pv.UnstructuredGrid(cells, celltypes, points)
-    del cells, celltypes, points
-    
-    #___________________________________________________________________________
-    return meshpv_botwall    
+    return meshpv_botwall_N, meshpv_botwall_S, meshpv_botwall_W, meshpv_botwall_E

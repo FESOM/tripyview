@@ -15,7 +15,6 @@ import matplotlib.ticker        as mticker
 import matplotlib.path          as mpath
 import matplotlib.colors        as mcolors
 from   matplotlib.colors        import ListedColormap
-import cmocean
 
 from .sub_mesh     import *
 from .sub_data     import *
@@ -227,6 +226,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         # periodic augment data
         vname     = list(data[ii].keys())
         data_plot = data[ii][ vname[0] ].data.copy()
+        #data_plot = data[ii][ vname[0] ].values.copy()
+            
         is_onvert = True
         if   data_plot.size==mesh.n2dn:
             is_onvert = True
@@ -255,7 +256,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
             e_idxok = isnan==False
         else:
             e_idxok = np.any(isnan[tri.triangles], axis=1)==False
-            
+        del(isnan)  
+        
         #_______________________________________________________________________
         # add color for ocean bottom
         if do_bottom and np.any(e_idxok==False):
