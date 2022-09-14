@@ -978,7 +978,8 @@ def do_potential_desnsity(data, do_pdens, vname, vname2, vname_tmp):
         else:
             data_depth = data['nz1'].expand_dims(dict({'nod2':data.dims['nod2']}))
             
-        data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.025)})
+        # data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.025)})
+        data = data.assign({vname_tmp: (list(data[vname].dims), sw.dens(data[vname2].data, data[vname].data, pref)-1000.025)})
         del(data_depth)
         data = data.drop(labels=[vname, vname2])
         data[vname_tmp].attrs['units'] = 'kg/m^3'
@@ -1091,7 +1092,12 @@ def do_anomaly(data1,data2):
         for key in attrs_data1.keys():
             if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
                 if key in ['long_name']:
-                   anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key] 
+                   # anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key]
+                   anom[vname].attrs[key] = 'anom. '+anom[vname].attrs[key]
+                   
+                elif key in ['short_name']:
+                   # anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key]
+                   anom[vname].attrs[key] = 'anom. '+anom[vname].attrs[key]    
                    
                 elif key in ['units']: 
                     continue
