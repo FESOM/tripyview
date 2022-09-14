@@ -62,7 +62,8 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
     if   'matplotlib' in cname:
         dum, cstr = cname.rsplit('.')
         if '_i' in cname: cstr, dum = cstr.rsplit('_i')
-        cmap_def = get_cmap(cstr)(np.linspace(0,1,7))
+        cmap_def = get_cmap(cstr)(np.linspace(0,1,11))
+        #cmap_def = get_cmap(cstr)(np.linspace(0,1,cnumb))
         cmap_def = cmap_def[:,:-1]
         if '_i' in cname: cmap_def = np.flipud(cmap_def)
         
@@ -70,7 +71,8 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
         dum, cstr = cname.rsplit('.')
         if '_i' in cname: cstr, dum = cstr.rsplit('_i')
         cmap = eval("cmocean.cm.{}".format(cstr))
-        cmap_def = cmap(np.linspace(0,1,7))
+        cmap_def = cmap(np.linspace(0,1,11))
+        #cmap_def = cmap(np.linspace(0,1,cnumb))
         cmap_def = cmap_def[:,:-1]    
         if '_i' in cname: cmap_def = np.flipud(cmap_def)
     else:
@@ -347,23 +349,26 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
     #___________________________________________________________________________
     # define RGBA interpolator  
     cmap_idx = np.linspace(0,1,cmap_def.shape[0])
-    cint_idx = clevel[:-1]+ (clevel[1:]-clevel[:-1])/2
+    cint_idx0 = clevel[:-1]+(clevel[1:]-clevel[:-1])/2
+    #cint_idx0 = clevel
     
     if cnmb_aref<=sum(cmap_idx>0.5):
-        cint_idx = interpolate.interp1d([cint_idx[0], cref], [0.0, 0.5], fill_value='extrapolate')(cint_idx)
+        cint_idx = interpolate.interp1d([cint_idx0[0],  cref], [0.0, 0.5], fill_value='extrapolate')(cint_idx0)
     elif cnmb_bref<=sum(cmap_idx<0.5):
-        cint_idx = interpolate.interp1d([cref, cint_idx[-1]], [0.5, 1.0], fill_value='extrapolate')(cint_idx) 
+        cint_idx = interpolate.interp1d([cref, cint_idx0[-1]], [0.5, 1.0], fill_value='extrapolate')(cint_idx0) 
     else:    
-        cint_idx = interpolate.interp1d([cint_idx[0], cref, cint_idx[-1]], [0.0, 0.5, 1.0], fill_value='extrapolate')(cint_idx) 
+        cint_idx = interpolate.interp1d([cint_idx0[0], cref, cint_idx0[-1]], [0.0, 0.5, 1.0], fill_value='extrapolate')(cint_idx0) 
     
     #___________________________________________________________________________
     # define RGBA color matrix
+    #print(cmap_def)
     r    = np.interp(x=cint_idx, xp=cmap_idx, fp=cmap_def[:,0])
     g    = np.interp(x=cint_idx, xp=cmap_idx, fp=cmap_def[:,1])
     b    = np.interp(x=cint_idx, xp=cmap_idx, fp=cmap_def[:,2])
     a    = np.ones(cint_idx.shape)
     rgba = np.vstack((r, g, b, a)).transpose()
     del(r, g, b, a)
+    #print(rgba[:,:-1])
     
     #___________________________________________________________________________
     # define colormap 
