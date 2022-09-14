@@ -15,6 +15,7 @@ import matplotlib.ticker        as mticker
 import matplotlib.path          as mpath
 import matplotlib.colors        as mcolors
 from   matplotlib.colors        import ListedColormap
+import cmocean
 
 from .sub_mesh     import *
 from .sub_data     import *
@@ -31,7 +32,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.75,0.75,0.75],  title=None, do_ie2n = True, 
                 pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
-                linecolor='k', linewidth=0.5, ):
+                linecolor='k', linewidth=0.5, do_reffig=False, ref_cinfo=None, ref_rescale=None):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -197,11 +198,17 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     
     #___________________________________________________________________________
     # set up color info
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, mesh=mesh, tri=tri)
+        cinfo     = do_setupcinfo(cinfo,      data[1:], do_rescale, mesh=mesh, tri=tri)        
+    else:
+        cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
         
     #___________________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    if do_reffig:     
+        which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
         
     #___________________________________________________________________________
     # loop over axes
@@ -236,6 +243,12 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
         
         #_______________________________________________________________________
+        if do_reffig: 
+            if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
+            else    : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        else        : cinfo_plot, which_norm_plot = cinfo    , which_norm
+            
+        #_______________________________________________________________________
         # kick out triangles with Nan cut elements to box size        
         isnan   = np.isnan(data_plot)
         if not is_onvert:
@@ -260,34 +273,38 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot[e_idxok],
                                     transform=which_transf,
                                     shading='flat',
-                                    cmap=cinfo['cmap'],
-                                    vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
-                                    norm = which_norm)
+                                    cmap=cinfo_plot['cmap'],
+                                    vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
+                                    norm = which_norm_plot)
                 
             # plot over vertices    
             else:
                 hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
                                     transform=which_transf,
                                     shading='flat',
-                                    cmap=cinfo['cmap'],
-                                    vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
-                                    norm = which_norm)
+                                    cmap=cinfo_plot['cmap'],
+                                    vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
+                                    norm = which_norm_plot)
             
         elif do_plot=='tcf': 
             # supress warning message when compared with nan
             with np.errstate(invalid='ignore'):
-                data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
-                data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
-                
+                data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
+                data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
+            #dum, cstr = cinfo_plot['cstr'].rsplit('.')   
             if proj=='pc':    
                 hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
-                                      norm=which_norm,
-                                      levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+                                      norm=which_norm_plot,
+                                      levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both')
+                                      #levels=cinfo_plot['clevel'], cmap=eval("cmocean.cm.{}".format(cstr)), extend='both')
+                
             else: 
                 hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
                                         transform=which_transf,
-                                        norm=which_norm,
-                                        levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+                                        norm=which_norm_plot,
+                                        levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both')
+                                        #levels=cinfo_plot['clevel'], cmap=eval("cmocean.cm.{}".format(cstr)), extend='both')
+                
                 
         hpall.append(hp)        
         #print(' -DATA-> elapsed time: {} min'.format((clock.time()-ts)/60)) 
@@ -343,28 +360,65 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
    
     #___________________________________________________________________________
     # create colorbar 
-    cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
-                      extendrect=False, extendfrac=None,
-                      drawedges=True, pad=0.025, shrink=1.0,)                      
-    
-    # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
-    
-    # do labeling of colorbar
-    if cbar_label is None: cbar_label = data[nax_fin-1][ vname[0] ].attrs['long_name']
-    #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[nax_fin-1][ vname[0] ].attrs['units']+']'
-    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
-    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
-    if 'str_ltim' in data[0][vname[0]].attrs.keys():
-        cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
-    if 'str_ldep' in data[0][vname[0]].attrs.keys():
-        cbar_label = cbar_label+data[0][vname[0]].attrs['str_ldep']
-    cbar.set_label(cbar_label, size=fontsize+2)
+    if do_reffig==False:
+        cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                        extendrect=False, extendfrac=None,
+                        drawedges=True, pad=0.025, shrink=1.0,)                      
+        
+        # do formatting of colorbar 
+        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+        
+        # do labeling of colorbar
+        if cbar_label is None: 
+            if   'short_name' in data[0][vname[0]].attrs:
+                cbar_label = data[0][vname[0]].attrs['short_name']
+            elif 'long_name' in data[0][vname[0]].attrs:
+                cbar_label = data[0][vname[0]].attrs['long_name']
+        #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
+        if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
+        else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+        if 'str_ltim' in data[0][vname[0]].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
+        if 'str_ldep' in data[0][vname[0]].attrs.keys():
+            cbar_label = cbar_label+data[0][vname[0]].attrs['str_ldep']
+        cbar.set_label(cbar_label, size=fontsize+2)
+    else:
+        cbar=list()
+        for ii, aux_ax in enumerate(ax): 
+            cbar_label=''
+            if ii==0: 
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                # do formatting of colorbar 
+                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
+            else:     
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                # do formatting of colorbar 
+                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+                #cbar_label='anom. '
+                
+            # do labeling of colorbar
+            # cbar_label=None
+            # if cbar_label is None: 
+            if   'short_name' in data[ii][vname[0]].attrs:
+                cbar_label = cbar_label+data[ii][vname[0]].attrs['short_name']
+            elif 'long_name' in data[ii][vname[0]].attrs:
+                cbar_label = cbar_label+data[ii][vname[0]].attrs['long_name']
+            if cbar_unit  is None: cbar_label = cbar_label+' ['+data[ii][ vname[0] ].attrs['units']+']'
+            else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+            if 'str_ltim' in data[ii][vname[0]].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][vname[0]].attrs['str_ltim']
+            if 'str_ldep' in data[ii][vname[0]].attrs.keys():
+                cbar_label = cbar_label+data[ii][vname[0]].attrs['str_ldep']
+            aux_cbar.set_label(cbar_label, size=fontsize+2)
+            cbar.append(aux_cbar)        
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
-                                     pos_gap, title=title, proj=proj, extend=pos_extend)
+    if do_reffig==False:
+        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                        pos_gap, title=title, proj=proj, extend=pos_extend)
     fig.canvas.draw()
     
     #___________________________________________________________________________
@@ -376,6 +430,240 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     #___________________________________________________________________________
     return(fig, ax, cbar)
     
+
+def plot_hslice_reg(mesh, data, input_names, cinfo=None, box=None, proj='pc', figsize=[9,4.5], 
+                n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
+                do_reffig=False, ref_cinfo=None, ref_rescale=None,
+                cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
+                do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
+                color_bot=[0.75,0.75,0.75],  title=None,
+                pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
+                linecolor='k', linewidth=0.5, ):
+    
+    fontsize = 12
+    
+    #___________________________________________________________________________
+    # make matrix with row colum index to know where to put labels
+    rowlist = np.zeros((n_rc[0],n_rc[1]))
+    collist = np.zeros((n_rc[0],n_rc[1]))       
+    for ii in range(0,n_rc[0]): rowlist[ii,:]=ii
+    for ii in range(0,n_rc[1]): collist[:,ii]=ii
+    rowlist = rowlist.flatten()
+    collist = collist.flatten()
+    
+    #___________________________________________________________________________
+    # create box if not exist
+    if box is None or box=="None": box = [ -180, 180, -90, 90 ]
+    
+    #___________________________________________________________________________
+    ticknr=7
+    tickstep = np.array([0.5,1.0,2.0,2.5,5.0,10.0,15.0,20.0,30.0,45.0, 360])
+    idx     = int(np.argmin(np.abs( tickstep-(box[1]-box[0])/ticknr )))
+    if np.abs(box[1]-box[0])==360:
+        xticks   = np.arange(-180, 180+1, tickstep[idx])
+    else:    
+        xticks   = np.arange(box[0], box[1]+1, tickstep[idx]) 
+    idx     = int(np.argmin(np.abs( tickstep-(box[3]-box[2])/ticknr )))
+    if np.abs(box[3]-box[2])==180:
+        yticks   = np.arange(-90, 90+1, tickstep[idx])  
+    else:   
+        yticks   = np.arange(box[2], box[3]+1, tickstep[idx])  
+    xticks = np.unique(np.hstack((box[0], xticks, box[1])))
+    yticks = np.unique(np.hstack((box[2], yticks, box[3])))
+     
+    #___________________________________________________________________________
+    # Create projection
+    if proj=='pc':
+        which_proj=ccrs.PlateCarree()
+        which_transf = None
+    elif proj=='merc':
+        which_proj=ccrs.Mercator()    
+        which_transf = ccrs.PlateCarree()
+    elif proj=='nps':    
+        which_proj=ccrs.NorthPolarStereo()    
+        which_transf = ccrs.PlateCarree()
+        if box[2]<0: box[2]=0
+    elif proj=='sps':        
+        which_proj=ccrs.SouthPolarStereo()    
+        which_transf = ccrs.PlateCarree()
+        if box[3]>0: box[2]=0
+    elif proj=='rob':        
+        which_proj=ccrs.Robinson()    
+        which_transf = ccrs.PlateCarree() 
+        
+    #___________________________________________________________________________    
+    # create figure and axes
+    fig, ax = plt.subplots( n_rc[0],n_rc[1], figsize=figsize, 
+                            subplot_kw =dict(projection=which_proj),
+                            gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
+                            constrained_layout=False)
+
+    #___________________________________________________________________________    
+    # flatt axes if there are more than 1
+    if isinstance(ax, np.ndarray): ax = ax.flatten()
+    else:                          ax = [ax] 
+    nax = len(ax)
+
+    #___________________________________________________________________________
+    # data must be list filled with xarray data
+    if not isinstance(data, list): data = [data]
+    ndata = len(data)
+    
+    #___________________________________________________________________________
+    # set up color info
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_hbstf=True)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_hbstf=True)
+    else:    
+        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_hbstf=True)
+
+    #___________________________________________________________________________
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    if do_reffig:
+        which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
+        
+    #___________________________________________________________________________
+    # loop over axes
+    hpall=list()
+    for ii in range(0,ndata):
+        #_______________________________________________________________________
+        # set axes extent
+        ax[ii].set_extent(box, crs=ccrs.PlateCarree())
+        
+        #_______________________________________________________________________
+        # periodic augment data
+        vname = list(data[ii].keys())[0]
+        data_plot = data[ii][vname].data.copy()
+        data_x    = data[ii]['nlon']
+        data_y    = data[ii]['nlat']
+        
+        #_______________________________________________________________________
+        if do_reffig: 
+            if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
+            else    : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        else        : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        
+        #_______________________________________________________________________
+        # plot tri contourf/pcolor
+        if   do_plot=='tpc':
+            hp=ax[ii].pcolor(data_x, data_y, data_plot,
+                             shading='flat',
+                             cmap=cinfo_plot['cmap'],
+                             vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
+                             norm = which_norm)
+            
+        elif do_plot=='tcf': 
+            # supress warning message when compared with nan
+            with np.errstate(invalid='ignore'):
+                data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
+                data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
+            
+            hp=ax[ii].contourf(data_x, data_y, data_plot, 
+                               transform=which_transf,
+                               norm=which_norm,
+                               levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both')
+        hpall.append(hp)  
+        
+        #_______________________________________________________________________
+        # add mesh land-sea mask
+        ax[ii] = do_plotlsmask(ax[ii],mesh, do_lsmask, box, which_proj,
+                               color_lsmask=color_lsmask, edgecolor=linecolor, linewidth=linewidth)
+        
+        #_______________________________________________________________________
+        # add gridlines
+        ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
+                                  xticks, yticks, proj, which_proj)
+        
+        #_______________________________________________________________________
+        # set title and axes labels
+        if title is not None: 
+            # is title  string:
+            if   isinstance(title,str) : 
+                # if title string is 'descript' than use descript attribute from 
+                # data to set plot title 
+                if title=='descript' and ('descript' in data[ii][ vname ].attrs.keys() ):
+                    ax[ii].set_title(data[ii][ vname ].attrs['descript'], fontsize=fontsize+2)
+                    
+                else:
+                    ax[ii].set_title(title, fontsize=fontsize+2)
+            # is title list of string        
+            elif isinstance(title,list): ax[ii].set_title(title[ii], fontsize=fontsize+2)
+    nax_fin = ii+1
+
+    #___________________________________________________________________________
+    # delete axes that are not needed
+    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
+    for jj in range(ndata, nax): fig.delaxes(ax[jj])
+    if nax != nax_fin-1: ax = ax[0:nax_fin]
+   
+    #___________________________________________________________________________
+    # create colorbar 
+    if do_reffig==False:
+        cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                        extendrect=False, extendfrac=None,
+                        drawedges=True, pad=0.025, shrink=1.0,)                      
+        
+        # do formatting of colorbar 
+        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+        
+        # do labeling of colorbar
+        if cbar_label is None: 
+            if   'short_name' in data[0][vname].attrs:
+                cbar_label = data[0][vname].attrs['short_name']
+            elif 'long_name' in data[0][vname].attrs:
+                cbar_label = data[0][vname].attrs['long_name']
+        if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][vname].attrs['units']+']'
+        else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+        if 'str_ltim' in data[0][vname].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0][vname].attrs['str_ltim']
+            #cbar_label = cbar_label+', '+data[0][vname].attrs['str_ltim']
+        if 'str_ldep' in data[0][vname].attrs.keys():
+            cbar_label = cbar_label+data[0][vname].attrs['str_ldep']
+        cbar.set_label(cbar_label, size=fontsize+2)
+    else:
+        cbar=list()
+        for ii, aux_ax in enumerate(ax): 
+            cbar_label =''
+            if ii==0: 
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
+            else:     
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+                cbar_label ='anom. '
+            # do labeling of colorbar
+            #if cbar_label is None: 
+            if   'short_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][vname].attrs['short_name']
+            elif 'long_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][vname].attrs['long_name']    
+            if cbar_unit  is None: cbar_label = cbar_label+' ['+data[ii][vname].attrs['units']+']'
+            else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+            if 'str_ltim' in data[ii][vname].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][vname].attrs['str_ltim']
+                #cbar_label = cbar_label+', '+data[ii][vname].attrs['str_ltim']
+            if 'str_ldep' in data[ii][vname].attrs.keys():
+                cbar_label = cbar_label+data[ii][vname].attrs['str_ldep']
+            aux_cbar.set_label(cbar_label, size=fontsize+2)
+            cbar.append(aux_cbar)
+    #___________________________________________________________________________
+    # repositioning of axes and colorbar
+    if do_reffig==False:
+        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                     pos_gap, title=title, proj=proj, extend=pos_extend)
+    fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, fig, dpi=save_dpi, transparent=True)
+    plt.show(block=False)
+    
+    #___________________________________________________________________________
+    return(fig, ax, cbar)
+
 
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
@@ -1661,3 +1949,23 @@ def do_savefigure(do_save, fig, dpi=300, transparent=False, pad_inches=0.1, **kw
                     bbox_inches='tight', pad_inches=pad_inches,\
                     transparent=transparent, **kw)
 
+
+
+
+def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh):
+    cinfo=dict()   
+    if cstr     is not None: cinfo['cstr'  ]=cstr
+    if cnum     is not None: cinfo['cnum'  ]=cnum
+    if crange   is not None: cinfo['crange']=crange
+    if cmin     is not None: cinfo['cmin'  ]=cmin
+    if cmax     is not None: cinfo['cmax'  ]=cmax
+    if cref     is not None: cinfo['cref'  ]=cref
+    if cfac     is not None: cinfo['cfac'  ]=cfac
+    if climit   is not None: cinfo['climit']=climit    
+    if chist    is not None: cinfo['chist' ]=chist
+    if ctresh   is not None: cinfo['ctresh']=ctresh
+    return(cinfo)
+    
+    
+    
+    
