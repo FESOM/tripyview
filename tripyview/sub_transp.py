@@ -145,6 +145,7 @@ def calc_hbarstreamf(mesh, data, lon, lat, edge, edge_tri, edge_dxdy_l, edge_dxd
     data_vars = dict()
     aux_attr  = data[vname].attrs
     aux_attr['long_name'], aux_attr['units'] = 'Horizontal. Barotropic \n Streamfunction', 'Sv'
+    aux_attr['short_name']= 'Horiz. Barotr. Streamf.'
     data_vars['hbstreamf'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
     # define coordinates
     coords    = {'nlon' : (['nlon' ], lon ), 'nlat' : (['nlat' ], lat ), }
@@ -579,14 +580,14 @@ def plot_hbstreamf(mesh, data, input_names, cinfo=None, box=None, proj='pc', fig
                 #cbar_label ='anom. '
             # do labeling of colorbar
             #if cbar_label is None : 
-            if   'short_name' in data[ii][0][vname].attrs:
-                cbar_label = cbar_label+data[ii][0][ vname ].attrs['short_name']
-            elif 'long_name' in data[ii][0][vname].attrs:
-                cbar_label = cbar_label+data[ii][0][ vname ].attrs['long_name']
-            if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][0][ vname ].attrs['units']+']'
+            if   'short_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][ vname ].attrs['short_name']
+            elif 'long_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][ vname ].attrs['long_name']
+            if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][ vname ].attrs['units']+']'
             else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
-            if 'str_ltim' in data[ii][0][vname].attrs.keys():
-                cbar_label = cbar_label+'\n'+data[ii][0][vname].attrs['str_ltim']
+            if 'str_ltim' in data[ii][vname].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][vname].attrs['str_ltim']
             aux_cbar.set_label(cbar_label, size=fontsize+2)
             cbar.append(aux_cbar)    
     
