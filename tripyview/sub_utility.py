@@ -167,6 +167,46 @@ def do_node_smoothing(mesh, data_orig, n_nghbr_n, weaksmth_boxlist, rel_cent_wei
     #_________________________________________________________________________________________
     return(data_smooth)
 
+
+#
+#
+#_____________________________________________________________________________________________
+def do_node_smoothing_fast(mesh, data_orig, n_nghbr_n, rel_cent_weight, num_iter):
+    print(' --> compute node smoothing')
+    #_________________________________________________________________________________________
+    data_smooth = data_orig.copy()
+    # set coeff
+    coeff1=1.0
+            
+    # compute smoothing
+    for it in range(num_iter):
+        print('     iter: {}'.format(str(it)))
+        # loop over nodes
+        data_done = data_smooth.copy()
+        
+        list_idx = np.argsort(data_done)
+        for idx in list_idx:
+            data_done[idx] = -999999.0
+        
+            # do convolution over neighbours (weight of neighbours = 1)
+            # sum depth over neighbouring nodes 
+            dsum=0.0
+            nmb_n_nghbr=0
+            for ni in n_nghbr_n[idx]: 
+                dsum=dsum+data_smooth[ni]
+                nmb_n_nghbr=nmb_n_nghbr+1
+
+            # add contribution from center weight 
+            dsum=dsum + np.real(coeff1*rel_cent_weight*(nmb_n_nghbr-1.0)-1.0)*data_smooth[idx]
+            data_smooth[idx]=dsum/np.real( nmb_n_nghbr + coeff1*rel_cent_weight*(nmb_n_nghbr-1)-1.0 )
+            #                                  |                       | 
+            #                   sum over weight (=1)          center weight (depends
+            #                   of neighbours                 on number of neighbours)
+    #_________________________________________________________________________________________
+    return(data_smooth)
+
+
+
 #
 #
 #_____________________________________________________________________________________________

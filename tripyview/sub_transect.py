@@ -140,6 +140,7 @@ def _do_init_transect():
     transect['path_dx'      ] = [] # dx of path sections
     transect['path_dy'      ] = [] # dy of path sections
     transect['path_dist'    ] = [] # dy of path sections
+    transect['path_nvec_cs' ] = [] # normal vector of transection segment
     
     #___________________________________________________________________________
     return(transect)
@@ -166,6 +167,7 @@ def _do_concat_subtransects(sub_transect):
     transect['path_ni'      ] = sub_transect['path_ni'      ][0]
     transect['path_dx'      ] = sub_transect['path_dx'      ][0]
     transect['path_dy'      ] = sub_transect['path_dy'      ][0]
+    transect['path_nvec_cs' ] = sub_transect['path_nvec_cs' ][0]
     
     #___________________________________________________________________________
     if sub_transect['ncs'] > 1:    
@@ -181,6 +183,7 @@ def _do_concat_subtransects(sub_transect):
             transect['path_ni'      ] = np.vstack((transect['path_ni'      ], sub_transect['path_ni'      ][ii]))
             transect['path_dx'      ] = np.hstack((transect['path_dx'      ], sub_transect['path_dx'      ][ii]))
             transect['path_dy'      ] = np.hstack((transect['path_dy'      ], sub_transect['path_dy'      ][ii]))
+            transect['path_nvec_cs' ] = np.vstack((transect['path_nvec_cs' ], sub_transect['path_nvec_cs' ][ii]))
     del(sub_transect)
     
     #___________________________________________________________________________
@@ -401,6 +404,11 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     transect['path_dx'].append(np.asarray(path_dx))
     transect['path_dy'].append(np.asarray(path_dy))
     
+    aux = np.ones((transect['path_dx'][-1].size,2))
+    aux[:,0], aux[:,1] = transect['n_vec'][-1][0], transect['n_vec'][-1][1]
+    transect['path_nvec_cs'].append(aux)
+    del(aux)
+    
     # !!! Make sure positive Transport is defined S-->N and W-->E
     # --> Preliminary --> not 100% sure its universal
     rad = np.pi/180
@@ -409,6 +417,8 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
         #print(' >-))))°>.°oO :1')
         transect['path_dx'][-1] = -transect['path_dx'][-1]
         transect['path_dy'][-1] = -transect['path_dy'][-1]
+        
+        transect['path_nvec_cs'][-1] = transect['path_nvec_cs'][-1]
     del(path_xy, path_ei, path_ni, path_dx, path_dy, edge_elem)
 
     #___________________________________________________________________________
@@ -663,6 +673,9 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
                                        mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
                                        vel_u[nti,:,:], vel_v[nti,:,:])            
         else: 
+            print(vel_u.shape)
+            print(vel_v.shape)
+            print(transect['path_ei'].shape)
             for ii, ei in enumerate(transect['path_ei']):
                 vel_u[ii, mesh.e_iz[ei]:], vel_v[ii,mesh.e_iz[ei]:] = np.nan, np.nan
                  
@@ -749,6 +762,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
 
 
 
+
 #+___COMPUTE TRANSECT OF SCALAR VERTICE/ELEMENTAL VARIABLE_____________________+
 #|                                                                             |
 #+_____________________________________________________________________________+ 
@@ -786,11 +800,13 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
             # interpolate scalar vertice values onto cutting point position where
             # cross-section intersects with edge
             scalarPcut = scalarP1.T + (scalarP2.T-scalarP1.T)*transect['edge_cut_lint']
+            #scalarPcut = scalarP1.T 
+            #scalarPcut = scalarP2.T 
             del(scalarP1, scalarP2)
             
             # define lon, lat , distance arrays
-            lon = transect['edge_cut_midP'][:,0]
-            lat = transect['edge_cut_midP'][:,1]
+            lon = transect['edge_cut_P'][:,0]
+            lat = transect['edge_cut_P'][:,1]
             dst = transect['edge_cut_dist']
         
         #_______________________________________________________________________
@@ -808,8 +824,8 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 scalarPcut = scalarPcut.T
                 
                 # define lon, lat , distance arrays
-                lon = transect['edge_cut_midP'][:-1,0]
-                lat = transect['edge_cut_midP'][:-1,1]
+                lon = transect['edge_cut_P'][:-1,0]
+                lat = transect['edge_cut_P'][:-1,1]
                 dst = transect['edge_cut_dist'][:-1]
                 
             else:
@@ -1011,6 +1027,7 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
 #+_____________________________________________________________________________+
 def plot_transect(data, transects, figsize=[12, 6], 
               n_rc=[1, 1], do_grid=True, cinfo=None, do_rescale=False,
+              do_reffig=False, ref_cinfo=None, ref_rescale=False,
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, max_dep=[], color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
@@ -1050,14 +1067,21 @@ def plot_transect(data, transects, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
-    
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True)
+    else:    
+        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+
     #_______________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
-    
+    if do_reffig:
+        which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
+        
     #___________________________________________________________________________
     # loop over axes
+    hpall=list()
     for ii in range(0,ndata):
         
         #_______________________________________________________________________
@@ -1067,27 +1091,37 @@ def plot_transect(data, transects, figsize=[12, 6],
         
         #_______________________________________________________________________
         # setup x-coord and y-coord
-        # determine if lonand lat are valid axis for plotting
-        is_ok = (np.isnan(data[0][0]['lon'].values)==False)
-        aux   = np.diff(data[0][0]['lat'].values[is_ok])
-        aux   = aux*np.sign(aux[np.where(aux!=0)[0][0]])
-        if   which_xaxis=='lat' and (not np.all(aux>=0)): which_xaxis='lon'
-        aux   = np.diff(data[0][0]['lon'].values[is_ok])
-        aux   = aux*np.sign(aux[np.where(aux!=0)[0][0]])
-        if   which_xaxis=='lon' and (not np.all(aux>=0)): which_xaxis='dist'
+        # determine if lon and lat are valid axis for plotting if not use distance
+        # as x-axis
+        auxdst = np.diff(data[0][0]['dst'].values)
+        auxlat, auxlon = data[0][0]['lat'].values[1:], data[0][0]['lon'].values[1:]
+        auxlat, auxlon = auxlat[auxdst!=0.0], auxlon[auxdst!=0.0]
+        is_ok = (np.isnan(auxlon)==False)
+        auxlat, auxlon = auxlat[is_ok], auxlon[is_ok]
+        if   np.all(np.diff(auxlat)==0) : which_xaxis='lon'
+        elif np.all(np.diff(auxlon)==0) : which_xaxis='lat'
+        elif np.any(np.diff(auxlat)==0) and not np.any(np.diff(auxlon)==0): which_xaxis='lon'
+        elif np.any(np.diff(auxlon)==0) and not np.any(np.diff(auxlat)==0): which_xaxis='lat'
+        else                            : which_xaxis='dist' 
         
         if   which_xaxis=='lat' : data_x, str_xlabel = data[ii][0]['lat'].values, 'Latitude [deg]'
         elif which_xaxis=='lon' : data_x, str_xlabel = data[ii][0]['lon'].values, 'Longitude [deg]'
         elif which_xaxis=='dist': data_x, str_xlabel = data[ii][0]['dst'].values, 'Distance from start point [km]'
         else: raise ValueError('these definition for which_xaxis is not supported')
-        del(is_ok, aux)
+        
         data_y, str_ylabel = data[ii][0]['depth'].values, 'Depth [m]'    
         data_y = np.abs(data_y)
         
         #_______________________________________________________________________
+        if do_reffig: 
+            if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
+            else    : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        else        : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        
+        #_______________________________________________________________________
         # be sure there are no holes
-        data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
-        data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
+        data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]+np.finfo(np.float32).eps
+        data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]-np.finfo(np.float32).eps
         
         #___________________________________________________________________________
         # apply horizontal smoothing filter
@@ -1106,13 +1140,14 @@ def plot_transect(data, transects, figsize=[12, 6],
         #_______________________________________________________________________
         # plot MOC
         hp=ax[ii].contourf(data_x, data_y, data_plot, 
-                           levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'],
-                           norm = which_norm)
+                           levels=cinfo_plot['clevel'], extend='both', cmap=cinfo_plot['cmap'],
+                           norm = which_norm_plot)
+        hpall.append(hp)
         
         if do_contour: 
-            tickl    = cinfo['clevel']
+            tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
-            idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+            idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
             idx_cref = np.asscalar(idx_cref)
             nstep    = ncbar_l/cbar_nl
             nstep    = np.max([np.int(np.floor(nstep)),1])
@@ -1124,11 +1159,11 @@ def plot_transect(data, transects, figsize=[12, 6],
             idx_yes = idx[idxb==False]
             
             cont=ax[ii].contour(data_x, data_y, data_plot,
-                            levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5],
-                            norm = which_norm) #linewidths=[0.5,0.25])
+                            levels=cinfo_plot['clevel'][idx_yes], colors='k', linewidths=[0.5],
+                            norm = which_norm_plot) #linewidths=[0.5,0.25])
             #if do_clabel: 
                 #ax[ii].clabel(cont, cont.levels, inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
-                #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
+                #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo_plot['cref'])], 
                             #inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
             
         #___________________________________________________________________
@@ -1160,7 +1195,7 @@ def plot_transect(data, transects, figsize=[12, 6],
         ax[ii].set_facecolor(color_bot) 
         #_______________________________________________________________________
         # fix color range
-        for im in ax[ii].get_images(): im.set_clim(cinfo['clevel'][ 0], cinfo['clevel'][-1])
+        for im in ax[ii].get_images(): im.set_clim(cinfo_plot['clevel'][ 0], cinfo_plot['clevel'][-1])
         
         #_______________________________________________________________________
         # plot grid lines 
@@ -1232,33 +1267,63 @@ def plot_transect(data, transects, figsize=[12, 6],
     
     #___________________________________________________________________________
     # delete axes that are not needed
-    cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
-                      extendrect=False, extendfrac=None,
-                      drawedges=True, pad=0.025, shrink=1.0)
-    
-    # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
-    
-    # do labeling of colorbar
-    if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
-    if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
-    else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
-    if 'str_ltim' in data[0][0][vname].attrs.keys():
-        cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
-    cbar.set_label(cbar_label, size=fontsize+2)
-    
+    if do_reffig==False:
+        cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                        extendrect=False, extendfrac=None,
+                        drawedges=True, pad=0.025, shrink=1.0)
+        
+        # do formatting of colorbar 
+        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+        
+        # do labeling of colorbar
+        if cbar_label is None : 
+            if   'short_name' in data[0][0][vname].attrs:
+                cbar_label = data[0][0][ vname ].attrs['short_name']
+            elif 'long_name' in data[0][0][vname].attrs:
+                cbar_label = data[0][0][ vname ].attrs['long_name']
+        if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
+        else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
+        if 'str_ltim' in data[0][0][vname].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
+        cbar.set_label(cbar_label, size=fontsize+2)
+    else:
+        cbar=list()
+        for ii, aux_ax in enumerate(ax): 
+            cbar_label =''
+            if ii==0: 
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
+            else:     
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+                #cbar_label ='anom. '
+            # do labeling of colorbar
+            #if cbar_label is None : 
+            if   'short_name' in data[ii][0][vname].attrs:
+                cbar_label = cbar_label+data[ii][0][ vname ].attrs['short_name']
+            elif 'long_name' in data[ii][0][vname].attrs:
+                cbar_label = cbar_label+data[ii][0][ vname ].attrs['long_name']
+            if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][0][ vname ].attrs['units']+']'
+            else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
+            if 'str_ltim' in data[ii][0][vname].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][0][vname].attrs['str_ltim']
+            aux_cbar.set_label(cbar_label, size=fontsize+2)
+            cbar.append(aux_cbar)
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
-                                     title=None, extend=pos_extend)
+    if do_reffig==False:
+        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
+                                        title=None, extend=pos_extend)
     
-    if do_position==True and mesh is not None:
-        cbar_pos = cbar.ax.get_tightbbox(fig.canvas.get_renderer())
-        fsize_dpi= fig.get_size_inches()*fig.dpi
-        cbar_x, cbar_y = cbar_pos.x1/fsize_dpi[0], cbar_pos.y0/fsize_dpi[1]
-        fig, axp = plot_transect_position(mesh, transects[0], fig=fig, 
-                                           do_labels=False, do_path=False, do_title=False, 
-                                           ax_pos=[cbar_x-0.05, cbar_y, 0.25, 0.25])
+        if do_position==True and mesh is not None:
+            cbar_pos = cbar.ax.get_tightbbox(fig.canvas.get_renderer())
+            fsize_dpi= fig.get_size_inches()*fig.dpi
+            cbar_x, cbar_y = cbar_pos.x1/fsize_dpi[0], cbar_pos.y0/fsize_dpi[1]
+            fig, axp = plot_transect_position(mesh, transects[0], fig=fig, 
+                                            do_labels=False, do_path=False, do_title=False, 
+                                            ax_pos=[cbar_x-0.05, cbar_y, 0.25, 0.25])
         
     plt.show()
     fig.canvas.draw()
@@ -1277,7 +1342,7 @@ def plot_transect(data, transects, figsize=[12, 6],
 def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl=None, 
                        do_allcycl=False, do_concat=False, str_descript='', str_time='', figsize=[], 
                        do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
-                       ymaxstep=5, xmaxstep=5):    
+                       ymaxstep=None, xmaxstep=5, ylabel=None):    
     
     if len(figsize)==0: figsize=[13,6.5]
     if do_concat: figsize[0] = figsize[0]*2
@@ -1339,15 +1404,19 @@ def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl
               bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
               #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
     ax.set_xlabel('Time [years]',fontsize=12)
-    ax.set_ylabel('{:s} in [Sv]'.format('Transport'),fontsize=12)
+    
+    if ylabel is None: ax.set_ylabel('{:s} in [Sv]'.format('Transport'),fontsize=12)
+    else             : ax.set_ylabel('{:s} in [Sv]'.format(ylabel),fontsize=12)
     ax.set_title(transect['Name'], fontsize=12, fontweight='bold')
     
     #___________________________________________________________________________
     if do_concat: xmaxstep=20
     xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
-    ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
     ax.xaxis.set_major_locator(xmajor_locator)
-    ax.yaxis.set_major_locator(ymajor_locator)
+    
+    if ymaxstep is not None: 
+        ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
+        ax.yaxis.set_major_locator(ymajor_locator)
     
     if not do_concat:
         xminor_locator = AutoMinorLocator(5)
@@ -1661,6 +1730,7 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
 #+_____________________________________________________________________________+
 def plot_zmeantransects(data, figsize=[12, 6], 
               n_rc=[1, 1], do_grid=True, cinfo=None, do_rescale=False,
+              do_reffig=False, ref_cinfo=None, ref_rescale=False,
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, max_dep=[], color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
@@ -1698,14 +1768,21 @@ def plot_zmeantransects(data, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
-    
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True)
+    else:    
+        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+
     #_______________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    if do_reffig:
+        which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
     
     #___________________________________________________________________________
     # loop over axes
+    hpall=list()
     for ii in range(0,ndata):
         
         #_______________________________________________________________________
@@ -1720,18 +1797,26 @@ def plot_zmeantransects(data, figsize=[12, 6],
         depth = np.abs(depth)
         
         #_______________________________________________________________________
+        if do_reffig: 
+            if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
+            else    : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        else        : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        
+        #_______________________________________________________________________
         # be sure there are no holes
-        data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
-        data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
+        data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]+np.finfo(np.float32).eps
+        data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]-np.finfo(np.float32).eps
         
         #_______________________________________________________________________
         # plot zonal mean data
-        hp=ax[ii].contourf(lat, depth, data_plot, levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'],
+        hp=ax[ii].contourf(lat, depth, data_plot, levels=cinfo_plot['clevel'], extend='both', cmap=cinfo_plot['cmap'],
                            norm = which_norm)
+        hpall.append(hp) 
+        
         if do_contour: 
-            tickl    = cinfo['clevel']
+            tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
-            idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+            idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
             idx_cref = np.asscalar(idx_cref)
             nstep    = ncbar_l/cbar_nl
             nstep    = np.max([np.int(np.floor(nstep)),1])
@@ -1741,12 +1826,12 @@ def plot_zmeantransects(data, figsize=[12, 6],
             idxb[idx_cref::nstep]  = False
             idxb[idx_cref::-nstep] = False
             idx_yes = idx[idxb==False]
-            cont=ax[ii].contour(lat, depth, data_plot, levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5],
+            cont=ax[ii].contour(lat, depth, data_plot, levels=cinfo_plot['clevel'][idx_yes], colors='k', linewidths=[0.5],
                                 norm = which_norm) #linewidths=[0.5,0.25])
             
             if do_clabel: 
                 ax[ii].clabel(cont, cont.levels, inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f',zorder=1)
-                #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
+                #ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo_plot['cref'])], 
                             #inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
             
         #___________________________________________________________________
@@ -1770,7 +1855,7 @@ def plot_zmeantransects(data, figsize=[12, 6],
         
         #_______________________________________________________________________
         # fix color range
-        for im in ax[ii].get_images(): im.set_clim(cinfo['clevel'][ 0], cinfo['clevel'][-1])
+        for im in ax[ii].get_images(): im.set_clim(cinfo_plot['clevel'][ 0], cinfo_plot['clevel'][-1])
         
         #_______________________________________________________________________
         # plot grid lines 
@@ -1832,25 +1917,54 @@ def plot_zmeantransects(data, figsize=[12, 6],
     
     #___________________________________________________________________________
     # delete axes that are not needed
-    cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
-                      extendrect=False, extendfrac=None,
-                      drawedges=True, pad=0.025, shrink=1.0)
-    
-    # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
-    
-    # do labeling of colorbar
-    if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
-    if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
-    else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
-    if 'str_ltim' in data[0][0][vname].attrs.keys():
-        cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
-    cbar.set_label(cbar_label, size=fontsize+2)
-    
+    if do_reffig==False:
+        cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                        extendrect=False, extendfrac=None,
+                        drawedges=True, pad=0.025, shrink=1.0)
+        
+        # do formatting of colorbar 
+        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+        
+        # do labeling of colorbar
+        if cbar_label is None : 
+            if   'short_name' in data[0][0][vname].attrs:
+                cbar_label = data[0][0][ vname ].attrs['short_name']
+            elif 'long_name' in data[0][0][vname].attrs:
+                cbar_label = data[0][0][ vname ].attrs['long_name']
+        if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
+        else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
+        if 'str_ltim' in data[0][0][vname].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
+        cbar.set_label(cbar_label, size=fontsize+2)
+    else:
+        cbar=list()
+        for ii, aux_ax in enumerate(ax): 
+            cbar_label =''
+            if ii==0: 
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
+            else:     
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+                #cbar_label ='anom. '
+            if   'short_name' in data[ii][0][vname].attrs:
+                cbar_label = cbar_label+data[ii][0][ vname ].attrs['short_name']
+            elif 'long_name' in data[ii][0][vname].attrs:
+                cbar_label = cbar_label+data[ii][0][ vname ].attrs['long_name']
+            if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][0][ vname ].attrs['units']+']'
+            else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
+            if 'str_ltim' in data[ii][0][vname].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][0][vname].attrs['str_ltim']
+            aux_cbar.set_label(cbar_label, size=fontsize+2)
+            cbar.append(aux_cbar)
+            
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
-                                     title=None, extend=pos_extend)
+    if do_reffig==False:
+        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
+                                        title=None, extend=pos_extend)
     
     plt.show()
     fig.canvas.draw()

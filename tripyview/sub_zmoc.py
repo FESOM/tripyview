@@ -26,7 +26,7 @@ from .sub_plot     import *
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
 #|                                                                             |
 #+_____________________________________________________________________________+
-def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True, 
+def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=False, 
               do_info=True, diagpath=None, **kwargs,
              ):
     #_________________________________________________________________________________________________
@@ -70,6 +70,7 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         
     # compute area weighted vertical velocities on elements
     if do_onelem:
+        which_hdim='elem'
         #_______________________________________________________________________
         # load elem area from diag file
         if ( os.path.isfile(diagpath)):
@@ -121,53 +122,46 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         del mat_area
     
     # compute area weighted vertical velocities on vertices
-    else:     
+    else:    
+        which_hdim='nod2'
         #_______________________________________________________________________
         # load vertice cluster area from diag file
         if ( os.path.isfile(diagpath)):
-            mat_area = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area'].transpose() 
-            mat_area = mat_area.isel(nod2=idxin).compute()  
-            mat_iz   = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nlevels_nod2D']-1
-            mat_iz   = mat_iz.isel(nod2=idxin).compute()   
+            mat_area = xr.open_mfdataset(diagpath, parallel=True, chunks=dict(data.chunks), **kwargs)['nod_area']
+            mat_area = mat_area.isel(nod2=idxin).drop('nz').load().transpose() 
         else: 
             raise ValueError('could not find ...mesh.diag.nc file')
+        
+        #_______________________________________________________________________    
+        # select MOC basin 
+        mat_mean = data['w'].isel(nod2=idxin)
+        
+        #_______________________________________________________________________
+        # calculate area weighted mean
+        #mat_mean.data = mat_mean*mat_area*1e-6
+        mat_mean = mat_mean*mat_area*1e-6
+        del mat_area
+        
+        #_______________________________________________________________________
+        # load all necessary data int o memory do this befor binning loop 
+        # otherwise binning loop takes forever
+        mat_mean = mat_mean.load()
         
         #_______________________________________________________________________
         # create meridional bins
         lat   = np.arange(np.floor(mesh.n_y[idxin].min())+dlat/2, 
                           np.ceil( mesh.n_y[idxin].max())-dlat/2, 
                           dlat)
-        lat_i = ( (mesh.n_y[n_idxin]-lat[0])/dlat ).astype('int')
-            
-        #_______________________________________________________________________    
-        # select MOC basin 
-        mat_mean = data['w'].isel(nod2=idxin)*1e-6
-        mat_mean = mat_mean.fillna(0.0)
+        lat_i = ( (mesh.n_y[idxin]-lat[0])/dlat ).astype('int')
         
-        #_______________________________________________________________________
-        # calculate area weighted mean
-        if 'time' in list(data.dims):
-            nt = data['time'].values.size
-            for nti in range(nt):
-                mat_mean.data[nti,:,:] = np.multiply(mat_mean.data[nti,:,:], mat_area.data)    
-                
-            # be sure ocean floor is setted to zero 
-            for di in range(0,mesh.nlev): 
-                mat_mean.data[:, np.where(di>=mat_iz)[0], di]=0.0
-                
-        else:
-            mat_mean.data = np.multiply(mat_mean.data, mat_area.data)
-            
-            # be sure ocean floor is setted to zero 
-            for di in range(0,mesh.nlev): 
-                mat_mean.data[np.where(di>=mat_iz)[0], di]=0.0
-        del mat_area
-    
     #___________________________________________________________________________
     # This approach is five time faster than the original from dima at least for
     # COREv2 mesh but needs probaply a bit more RAM
-    if 'time' in list(data.dims): auxmoc  = np.zeros([nt, mesh.nlev, lat.size])
-    else                        : auxmoc  = np.zeros([mesh.nlev, lat.size])
+    if 'time' in list(data.dims): 
+        nt = data.dims['time']
+        auxmoc  = np.zeros([nt, mesh.nlev, lat.size])
+    else                        : 
+        auxmoc  = np.zeros([mesh.nlev, lat.size])
     bottom  = np.zeros([lat.size,])
     numbtri = np.zeros([lat.size,])
     
@@ -185,9 +179,10 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
     # loop over meridional bins
     if 'time' in list(data.dims):
         for bini in range(lat_i.min(), lat_i.max()):
-            numbtri[bini]= np.sum(lat_i==bini)
-            auxmoc[:,:, bini]=mat_mean[:,lat_i==bini,:].sum(axis=1)
-            bottom[bini] = np.nanpercentile(topo[lat_i==bini],15)
+            numbtri[bini]    = np.sum(lat_i==bini)
+            #auxmoc[:,:, bini]= mat_mean[:,lat_i==bini,:].sum(axis=1)
+            auxmoc[:,:, bini]= mat_mean.isel({which_hdim:lat_i==bini}).sum(dim=which_hdim)
+            bottom[bini]     = np.nanpercentile(topo[lat_i==bini],15)
         
         # kickout outer bins where eventually no triangles are found
         idx    = numbtri>0
@@ -195,9 +190,10 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         
     else:        
         for bini in range(lat_i.min(), lat_i.max()):
-            numbtri[bini]= np.sum(lat_i==bini)
-            auxmoc[:, bini]=mat_mean[lat_i==bini,:].sum(axis=0)
-            bottom[bini] = np.nanpercentile(topo[lat_i==bini],15)
+            numbtri[bini]   = np.sum(lat_i==bini)
+            #auxmoc[:, bini] = mat_mean[lat_i==bini,:].sum(axis=0)
+            auxmoc[:, bini] = mat_mean.isel({which_hdim:lat_i==bini}).sum(dim=which_hdim)
+            bottom[bini]    = np.nanpercentile(topo[lat_i==bini],15)
             
         # kickout outer bins where eventually no triangles are found
         idx    = numbtri>0
@@ -215,7 +211,6 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
         auxmoc = np.fliplr(auxmoc)
         auxmoc = -auxmoc.cumsum(axis=1)
         auxmoc = np.fliplr(auxmoc)    
-    
     
     #___________________________________________________________________________
     # smooth bottom line a bit 
@@ -274,11 +269,12 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=True,
 #|                                                                             |
 #+_____________________________________________________________________________+
 def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6], 
-              n_rc=[1, 1], do_grid=True, cinfo=None,
+              n_rc=[1, 1], do_grid=True, cinfo=None, do_rescale=None, 
+              do_reffig=False, ref_cinfo=None, ref_rescale=None,
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.01, 0.01], do_save=None, save_dpi=600, 
-              do_contour=True, do_clabel=True, title='descript', do_rescale=None, 
+              do_contour=True, do_clabel=True, title='descript', 
               pos_extend=[0.075, 0.075, 0.90, 0.95] ):
     #____________________________________________________________________________
     fontsize = 12
@@ -312,11 +308,16 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_moc=True)
-    
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_moc=True)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_moc=True)
+    else:
+        cinfo     = do_setupcinfo(cinfo    , data     , do_rescale , do_moc=True)
+        
     #___________________________________________________________________________
     # loop over axes
     ndi, nli, nbi =0, 0, 0
+    hpall=list()
     for ii in range(0,ndata):
         
         #_______________________________________________________________________
@@ -325,18 +326,26 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
         lat       = data[ii]['lat'].values
         depth     = data[ii]['depth'].values
         
-        data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
-        data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
+        #_______________________________________________________________________
+        if do_reffig: 
+            if ii==0: cinfo_plot = ref_cinfo
+            else    : cinfo_plot = cinfo
+        else: cinfo_plot = cinfo
+        
+        #_______________________________________________________________________
+        data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]+np.finfo(np.float32).eps
+        data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]-np.finfo(np.float32).eps
         
         #_______________________________________________________________________
         # plot MOC
         hp=ax[ii].contourf(lat, depth, data_plot, 
-                           levels=cinfo['clevel'], extend='both', cmap=cinfo['cmap'])
+                           levels=cinfo_plot['clevel'], extend='both', cmap=cinfo_plot['cmap'])
+        hpall.append(hp)
         
         if do_contour: 
-            tickl    = cinfo['clevel']
+            tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
-            idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+            idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
             idx_cref = np.asscalar(idx_cref)
             nstep    = ncbar_l/cbar_nl
             nstep    = np.max([np.int(np.floor(nstep)),1])
@@ -348,9 +357,9 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
             idx_yes = idx[idxb==False]
             
             cont=ax[ii].contour(lat, depth, data_plot, 
-                            levels=cinfo['clevel'][idx_yes], colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
+                            levels=cinfo_plot['clevel'][idx_yes], colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
             if do_clabel: 
-                ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
+                ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo_plot['cref'])], 
                             inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
             ax[ii].contour(lat, depth, data_plot, 
                             levels=[0.0], colors='k', linewidths=[1.25]) #linewidths=[0.5,0.25])
@@ -362,7 +371,7 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
         
         #_______________________________________________________________________
         # fix color range
-        for im in ax[ii].get_images(): im.set_clim(cinfo['clevel'][ 0], cinfo['clevel'][-1])
+        for im in ax[ii].get_images(): im.set_clim(cinfo_plot['clevel'][ 0], cinfo_plot['clevel'][-1])
         
         #_______________________________________________________________________
         # plot grid lines 
@@ -397,44 +406,91 @@ def plot_xmoc(data, which_moc='gmoc', figsize=[12, 6],
     
     #___________________________________________________________________________
     # delete axes that are not needed
-    cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
-                      extendrect=False, extendfrac=None,
-                      drawedges=True, pad=0.025, shrink=1.0)
-    
-    # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
-    
-    # do labeling of colorbar
-    if n_rc[0]==1:
-        if   which_moc=='gmoc' : cbar_label = 'Global Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
+    if do_reffig==False:
+        cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                        extendrect=False, extendfrac=None,
+                        drawedges=True, pad=0.025, shrink=1.0)
+        
+        # do formatting of colorbar 
+        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+        
+        # do labeling of colorbar
+        #if n_rc[0]==1:
+            #if   which_moc=='gmoc' : cbar_label = 'Global Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
+        #else:    
+            #if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
+        if   which_moc=='gmoc' : cbar_label = 'Global MOC [Sv]'
+        elif which_moc=='amoc' : cbar_label = 'Atlantic MOC [Sv]'
+        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic MOC [Sv]'
+        elif which_moc=='pmoc' : cbar_label = 'Pacific MOC [Sv]'
+        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific MOC [Sv]'
+        elif which_moc=='imoc' : cbar_label = 'Indo MOC [Sv]'    
+        if 'str_ltim' in data[0]['moc'].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0]['moc'].attrs['str_ltim']
+        cbar.set_label(cbar_label, size=fontsize+2)
+        
     else:    
-        if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
-        elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
-        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
-        elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
-        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
-        elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
-    
-    
-    if 'str_ltim' in data[0]['moc'].attrs.keys():
-        cbar_label = cbar_label+'\n'+data[0]['moc'].attrs['str_ltim']
-    cbar.set_label(cbar_label, size=fontsize+2)
+        cbar=list()
+        for ii, aux_ax in enumerate(ax): 
+            cbar_label = ''
+            if ii==0:
+                aux_cbar = fig.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
+                                        extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0)
+                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
+            else:
+                aux_cbar = fig.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
+                                        extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0)
+                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+                #cbar_label = 'anomalous '
+                cbar_label = 'anom. '
+            # do labeling of colorbar
+            #if n_rc[0]==1:
+                #if   which_moc=='gmoc' : cbar_label = 'Global Meridional \n Overturning Circulation [Sv]'
+                #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional \n Overturning Circulation [Sv]'
+                #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional \n Overturning Circulation [Sv]'
+                #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
+                #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
+                #elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
+            #else:    
+                #if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
+                #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
+                #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
+                #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
+                #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
+                #elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
+            if   which_moc=='gmoc' : cbar_label = cbar_label+'Global MOC [Sv]'
+            elif which_moc=='amoc' : cbar_label = cbar_label+'Atlantic MOC [Sv]'
+            elif which_moc=='aamoc': cbar_label = cbar_label+'Arctic-Atlantic MOC [Sv]'
+            elif which_moc=='pmoc' : cbar_label = cbar_label+'Pacific MOC [Sv]'
+            elif which_moc=='ipmoc': cbar_label = cbar_label+'Indo-Pacific MOC [Sv]'
+            elif which_moc=='imoc' : cbar_label = cbar_label+'Indo MOC [Sv]'    
+            if 'str_ltim' in data[0]['moc'].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[0]['moc'].attrs['str_ltim']
+                #cbar_label = cbar_label+', '+data[0]['moc'].attrs['str_ltim']
+            aux_cbar.set_label(cbar_label, size=fontsize+2)
+            cbar.append(aux_cbar)
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
+    if do_reffig==False:
+        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
                                      title=None, extend=pos_extend)
-    
-    plt.show()
     fig.canvas.draw()
+    
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, fig, dpi=save_dpi)
+    plt.show(block=False)
     
     #___________________________________________________________________________
     return(fig, ax, cbar)

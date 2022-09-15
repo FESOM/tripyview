@@ -1,5 +1,5 @@
 import numpy as np
-import time as time
+import time as clock
 import os
 import xarray as xr
 import matplotlib
@@ -73,10 +73,16 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         
         # compute combined density flux: heat_flux+freshwater_flux+restoring_flux
         if do_dflx: 
-            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
+            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, 
+                                    descript=descript , do_info=do_info, do_ie2n=False, 
+                                    do_tarithm=do_tarithm, do_nan=False, do_compute=False)
             data['std_heat_flux'].data = data['std_heat_flux'].data +\
-                        load_data_fesom2(mesh, datapath, vname='std_frwt_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)['std_frwt_flux'].data + \
-                        load_data_fesom2(mesh, datapath, vname='std_rest_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)['std_rest_flux'].data
+                        load_data_fesom2(mesh, datapath, vname='std_frwt_flux', 
+                                         year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                         do_tarithm=do_tarithm, do_nan=False, do_compute=False)['std_frwt_flux'].data + \
+                        load_data_fesom2(mesh, datapath, vname='std_rest_flux', 
+                                         year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                         do_tarithm=do_tarithm, do_nan=False, do_compute=False)['std_rest_flux'].data
             data      = data.rename({'std_heat_flux':'std_dens_flux'}).assign_coords({'ndens' :("ndens",std_dens)})
             data_DMOC = xr.merge([data_DMOC, data], combine_attrs="no_conflicts")
             data_DMOC = data_DMOC / weight_dens * 1024
@@ -88,13 +94,19 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         # compute single flux from heat_flux & freshwater_flux &restoring_flux
         else:
             data_DMOC = xr.merge([data_DMOC, 
-                                load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                load_data_fesom2(mesh, datapath, vname='std_heat_flux', 
+                                                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                                 do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                                 combine_attrs="no_conflicts") 
             data_DMOC = xr.merge([data_DMOC, 
-                                load_data_fesom2(mesh, datapath, vname='std_frwt_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                load_data_fesom2(mesh, datapath, vname='std_frwt_flux', 
+                                                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                                 do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                                 combine_attrs="no_conflicts")   
             data_DMOC = xr.merge([data_DMOC, 
-                                load_data_fesom2(mesh, datapath, vname='std_rest_flux', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                                load_data_fesom2(mesh, datapath, vname='std_rest_flux', 
+                                                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                                 do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                                 combine_attrs="no_conflicts")   
             data_attrs= data_DMOC.attrs # rescue attributes will get lost during multipolication
             data_DMOC = data_DMOC.assign_coords({'ndens' :("ndens",std_dens)})
@@ -105,13 +117,17 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     # add volume trend  
     if add_trend:  
         data_DMOC = xr.merge([data_DMOC, 
-                              load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)],
+                              load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', 
+                                               year=year, descript=descript , do_info=do_info, do_ie2n=False, 
+                                               do_tarithm=do_tarithm, do_nan=False, do_compute=False)],
                               combine_attrs="no_conflicts")
     
     # skip this when doing diapycnal vertical velocity
     if (not do_wdiap) and (not do_dflx):
         # add vertical mean z-coordinate position of density classes
-        data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm)
+        data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
+                                     year=year, descript=descript , do_info=do_info, 
+                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=False)
         data_zpos = data_zpos.assign_coords({'ndens' :("ndens",std_dens)})
         #data_zpos = data_zpos*e_area
         data_zpos = data_zpos*data_zpos['w_A']
@@ -120,9 +136,10 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     
     if (not do_dflx):
         # add divergence of density classes --> diapycnal velocity
-        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , year=year, descript=descript , do_info=do_info, do_ie2n=False, do_tarithm=do_tarithm) 
+        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
+                                     year=year, descript=descript , do_info=do_info, 
+                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=False) 
         data_div  = data_div.assign_coords({'ndens' :("ndens",std_dens)})
-        
         # save global attributes into allocated DMOC dataset
         #data_DMOC = data_DMOC.assign_attrs(data_div.attrs)
         
@@ -139,8 +156,10 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             else:
                 data_div  = data_div.assign( std_dens_DIV=data_div[list(data_div.keys())[0]][xr.DataArray(mesh.e_i, dims=["elem",'n3']),:].mean(dim="n3", keep_attrs=True) )
             
+            data_div = data_div.chunk({'elem':1e4, 'nod2':1e4})
+            
             # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
-            data_div  = data_div.drop(['nod2','lon','lat','w_A'])
+            data_div  = data_div.drop(['nodi','lon','lat','w_A'])
             #data_div  = data_div*e_area
             data_div  = data_div*data_DMOC['w_A']# --> element area
         
@@ -180,7 +199,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     idxin     = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=True)
 
     # reduce to dMOC data to basin domain
-    data_dMOC = data_dMOC.isel(elem=idxin) 
+    data_dMOC = data_dMOC.isel(elem=idxin)
     
     # check basin selection 
     if do_checkbasin:
@@ -286,6 +305,8 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
 
     #___________________________________________________________________________
     # do zonal sum over latitudinal bins 
+    data_dMOC = data_dMOC.load()
+    
     if do_info==True: print(' --> do latitudinal bining')
     for bini in range(lat_i.min(), lat_i.max()):
         
@@ -379,11 +400,12 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
 #|                                                                             |
 #+_____________________________________________________________________________+
 def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6], 
-              n_rc=[1, 1], do_grid=True, cinfo=None,
+              n_rc=[1, 1], do_grid=True, cinfo=None, do_rescale=None,
+              do_reffig=False, ref_cinfo=None, ref_rescale=None,
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
               do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.01, 0.02], do_save=None, save_dpi=600, 
-              do_contour=True, do_clabel=True, title='descript', do_rescale=None,
+              do_contour=True, do_clabel=True, title='descript', 
               do_yrescale=True, do_zcoord=False, do_check=True, 
               pos_extend=[0.075, 0.075, 0.90, 0.95] ):
     #___________________________________________________________________________
@@ -418,7 +440,11 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
     
     #___________________________________________________________________________
     # set up color info 
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_dmoc=which_transf)
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_dmoc=which_transf)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_dmoc=which_transf)
+    else:
+        cinfo     = do_setupcinfo(cinfo    , data     , do_rescale , do_dmoc=which_transf)
     
     #___________________________________________________________________________
     # compute remapping zcoord-->dens --> compute interpolants !!!
@@ -450,6 +476,7 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
     #___________________________________________________________________________
     # loop over axes
     ndi, nli, nbi =0, 0, 0
+    hpall=list()
     for ii in range(0,ndata):
         
         #_______________________________________________________________________
@@ -530,9 +557,16 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
                         (data[ii]['dmoc_fh'].values[1:-1,:].copy()+ \
                          data[ii]['dmoc_fw'].values[1:-1,:].copy()+ \
                          data[ii]['dmoc_fr'].values[1:-1,:].copy())
-                    
-        data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]+np.finfo(np.float32).eps
-        data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]-np.finfo(np.float32).eps
+        
+        #_______________________________________________________________________
+        if do_reffig: 
+            if ii==0: cinfo_plot = ref_cinfo
+            else    : cinfo_plot = cinfo
+        else: cinfo_plot = cinfo
+        
+        #_______________________________________________________________________
+        data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]+np.finfo(np.float32).eps
+        data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]-np.finfo(np.float32).eps
         
         #_______________________________________________________________________
         # if plot in density-coordinates first scale to regular y-axes, and flip  
@@ -544,13 +578,14 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
            
         #_______________________________________________________________________
         # plot DATA
-        hp=ax[ii].contourf(data_x, data_y, data_plot, levels=cinfo['clevel'], 
-                           extend='both', cmap=cinfo['cmap'])
+        hp=ax[ii].contourf(data_x, data_y, data_plot, levels=cinfo_plot['clevel'], 
+                           extend='both', cmap=cinfo_plot['cmap'])
+        hpall.append(hp)
         
         if do_contour: 
-            tickl    = cinfo['clevel']
+            tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
-            idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+            idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
             idx_cref = np.asscalar(idx_cref)
             nstep    = ncbar_l/(cbar_nl)
             nstep    = np.max([np.int(np.floor(nstep)),1])
@@ -561,12 +596,12 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
             idxb[idx_cref::-nstep] = False
             idx_yes = idx[idxb==False]
             
-            aux_clvl = cinfo['clevel'][idx_yes]
-            aux_clvl = aux_clvl[aux_clvl!=cinfo['cref']]
+            aux_clvl = cinfo_plot['clevel'][idx_yes]
+            aux_clvl = aux_clvl[aux_clvl!=cinfo_plot['cref']]
             cont=ax[ii].contour(data_x, data_y, data_plot, 
                                 levels=aux_clvl, colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
             if do_clabel: 
-                ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo['cref'])], 
+                ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo_plot['cref'])], 
                             inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
             ax[ii].contour(data_x, data_y, data_plot, 
                                 levels=[0.0], colors='k', linewidths=[1.25]) #linewidths=[0.5,0.25])
@@ -609,7 +644,7 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
         
         #_______________________________________________________________________
         # fix color range
-        for im in ax[ii].get_images(): im.set_clim(cinfo['clevel'][ 0], cinfo['clevel'][-1])
+        for im in ax[ii].get_images(): im.set_clim(cinfo_plot['clevel'][ 0], cinfo_plot['clevel'][-1])
         
         #_______________________________________________________________________
         # plot grid lines 
@@ -656,50 +691,84 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
     
     #___________________________________________________________________________
     # initialise colorbar
-    cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
-                      extendrect=False, extendfrac=None,
-                      drawedges=True, pad=0.025, shrink=1.0)
-    
-    # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
-    
-    # do labeling of colorbar
-    if n_rc[0]==1:
-        if   which_moc=='gmoc' : cbar_label = 'Global Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
-        elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
+    if do_reffig==False:
+        cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo_plot['clevel'], 
+                        extendrect=False, extendfrac=None,
+                        drawedges=True, pad=0.025, shrink=1.0)
+        
+        # do formatting of colorbar 
+        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo_plot['clevel'])
+        
+        # do labeling of colorbar
+        #if n_rc[0]==1:
+            #if   which_moc=='gmoc' : cbar_label = 'Global Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
+            #elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
+        #else:
+            #if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
+            #elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
+        if   which_moc=='gmoc' : cbar_label = 'Global MOC [Sv]'
+        elif which_moc=='amoc' : cbar_label = 'Atlantic MOC [Sv]'
+        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic MOC [Sv]'
+        elif which_moc=='pmoc' : cbar_label = 'Pacific MOC [Sv]'
+        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific MOC [Sv]'
+        elif which_moc=='imoc' : cbar_label = 'Indo MOC [Sv]'    
+        if 'str_ltim' in data[0]['dmoc'].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0]['dmoc'].attrs['str_ltim']
+            
+        if which_transf=='dmoc':    
+            cbar.set_label('Density - '+cbar_label, size=fontsize+2)
+        elif which_transf=='srf':    
+            cbar.set_label('Srf. Transf. - '+cbar_label, size=fontsize+2)
+        elif which_transf=='inner':    
+            cbar.set_label('Inner. Transf. - '+cbar_label, size=fontsize+2)
     else:
-        if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
-        elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
-        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
-        elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
-        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
-        elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
-    
-    if 'str_ltim' in data[0]['dmoc'].attrs.keys():
-        cbar_label = cbar_label+'\n'+data[0]['dmoc'].attrs['str_ltim']
-        
-    if which_transf=='dmoc':    
-        cbar.set_label('Density - '+cbar_label, size=fontsize+2)
-    elif which_transf=='srf':    
-        cbar.set_label('Srf. Transf. - '+cbar_label, size=fontsize+2)
-    elif which_transf=='inner':    
-        cbar.set_label('Inner. Transf. - '+cbar_label, size=fontsize+2)
-        
+        cbar=list()
+        for ii, aux_ax in enumerate(ax): 
+            cbar_label = ''
+            if ii==0:
+                aux_cbar = fig.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
+                                        extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0)
+                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
+            else:
+                aux_cbar = fig.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
+                                        extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0)
+                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+                cbar_label = 'anom. '
+            if   which_moc=='gmoc' : cbar_label = cbar_label+'Global MOC [Sv]'
+            elif which_moc=='amoc' : cbar_label = cbar_label+'Atlantic MOC [Sv]'
+            elif which_moc=='aamoc': cbar_label = cbar_label+'Arctic-Atlantic MOC [Sv]'
+            elif which_moc=='pmoc' : cbar_label = cbar_label+'Pacific MOC [Sv]'
+            elif which_moc=='ipmoc': cbar_label = cbar_label+'Indo-Pacific MOC [Sv]'
+            elif which_moc=='imoc' : cbar_label = cbar_label+'Indo MOC [Sv]'    
+            if 'str_ltim' in data[0]['dmoc'].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[0]['dmoc'].attrs['str_ltim']
+            if which_transf=='dmoc':    
+                aux_cbar.set_label('Density - '+cbar_label, size=fontsize+2)
+            elif which_transf=='srf':    
+                aux_cbar.set_label('Srf. Transf. - '+cbar_label, size=fontsize+2)
+            elif which_transf=='inner':    
+                aux_cbar.set_label('Inner. Transf. - '+cbar_label, size=fontsize+2) 
+            cbar.append(aux_cbar)
+            
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
-                                     title=None, extend=pos_extend)
-    
-    plt.show()
+    if do_reffig==False:
+        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
+                                        title=None, extend=pos_extend)
     fig.canvas.draw()
     
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, fig, dpi=save_dpi)
+    plt.show()
     
     #___________________________________________________________________________
     return(fig, ax, cbar)

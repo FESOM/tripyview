@@ -131,6 +131,7 @@ def diagrun():
     analyses_driver_list["hslice_clim"        ] = drive_hslice_clim
     analyses_driver_list["hslice_clim_np"     ] = drive_hslice_clim
     analyses_driver_list["hslice_clim_sp"     ] = drive_hslice_clim
+    analyses_driver_list["hslice_isotherm_z"  ] = drive_hslice_isotherm_z
     
     analyses_driver_list["hovm"               ] = drive_hovm
     analyses_driver_list["hovm_clim"          ] = drive_hovm_clim
@@ -139,6 +140,7 @@ def diagrun():
     analyses_driver_list["transect_clim"      ] = drive_transect_clim
     analyses_driver_list["transect_transp"    ] = drive_transect_transp
     analyses_driver_list["transect_transp_t"  ] = drive_transect_transp_t
+    analyses_driver_list["transect_transp_t_OSNAP"] = drive_transect_transp_t_OSNAP
     analyses_driver_list["transect_zmean"     ] = drive_transect_zmean
     analyses_driver_list["transect_zmean_clim"] = drive_transect_zmean_clim
     
@@ -154,7 +156,6 @@ def diagrun():
     analyses_driver_list["dmoc_srf"           ] = drive_dmoc
     analyses_driver_list["dmoc_srf_z"         ] = drive_dmoc
     analyses_driver_list["dmoc_inner"         ] = drive_dmoc
-    analyses_driver_list["dmoc_inner_z"       ] = drive_dmoc
     analyses_driver_list["dmoc_inner_z"       ] = drive_dmoc
     analyses_driver_list["dmoc_wdiap"         ] = drive_dmoc_wdiap
     analyses_driver_list["dmoc_srfcbflx"      ] = drive_dmoc_srfcbflx
