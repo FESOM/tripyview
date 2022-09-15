@@ -140,7 +140,6 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                                      year=year, descript=descript , do_info=do_info, 
                                      do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=False) 
         data_div  = data_div.assign_coords({'ndens' :("ndens",std_dens)})
-        
         # save global attributes into allocated DMOC dataset
         #data_DMOC = data_DMOC.assign_attrs(data_div.attrs)
         
@@ -160,7 +159,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             data_div = data_div.chunk({'elem':1e4, 'nod2':1e4})
             
             # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
-            data_div  = data_div.drop(['nod2','lon','lat','w_A'])
+            data_div  = data_div.drop(['nodi','lon','lat','w_A'])
             #data_div  = data_div*e_area
             data_div  = data_div*data_DMOC['w_A']# --> element area
         
