@@ -505,6 +505,7 @@ class mesh_fesom2(object):
         with open(self.fname_aux3d) as f:
             self.nlev= int(next(f))
             self.zlev= np.array([next(f).rstrip() for x in range(self.nlev)]).astype(float)
+            self.zlev= -np.abs(self.zlev)
         self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
         
         #____load number of levels at each node_________________________________
