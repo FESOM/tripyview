@@ -533,13 +533,15 @@ def plot_xmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
         cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
     
     #___________________________________________________________________________
-    ii=0
-    ii_cycle=1
+    ii, ii_cycle = 0, 1
+    if which_cycl is None: aux_which_cycl = 1
+    else                 : aux_which_cycl = which_cycl
+    
     for ii_ts, (tseries, tname) in enumerate(zip(moct_list, input_names)):
         
         if tseries.ndim>1: tseries = tseries.squeeze()
         auxtime = time.copy()
-        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
+        if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
             
             if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
             hp=ax.plot(auxtime,tseries, 
@@ -574,7 +576,7 @@ def plot_xmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
                 #hp[0].set_markersize(5)
                 
         ii_cycle=ii_cycle+1
-        if ii_cycle>which_cycl: ii_cycle=1
+        if ii_cycle>aux_which_cycl: ii_cycle=1
     
     #___________________________________________________________________________
     # add Rapid moc data @26.5°
@@ -585,7 +587,7 @@ def plot_xmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
         
         time_rapid = rapid26_ym.year
         if do_allcycl: 
-            time_rapid = time_rapid + (which_cycl-1)*(time[-1]-time[0]+1)
+            time_rapid = time_rapid + (aux_which_cycl-1)*(time[-1]-time[0]+1)
         hpr=plt.plot(time_rapid,rapid26_ym.data,
                 linewidth=2, label='Rapid @ 26.5°N', color='k', marker='o', markerfacecolor='w', 
                 markersize=5, zorder=2)
@@ -637,7 +639,7 @@ def plot_xmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
     if not do_concat:
         plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
     else:    
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(which_cycl-1)+(time[-1]-time[0])*0.015)    
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(aux_which_cycl-1)+(time[-1]-time[0])*0.015)    
     #___________________________________________________________________________
     plt.show()
     fig.canvas.draw()

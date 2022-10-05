@@ -92,11 +92,11 @@ def do_analyse_transects(input_transect, mesh, edge, edge_tri, edge_dxdy_l, edge
         # buld distance from start point array [km]
         transect = _do_compute_distance_from_startpoint(transect)
         
-    #___________________________________________________________________________    
-    #if len(input_transect)>1:
-    transect_list.append(transect)
-    #else:
-        #transect_list = transect
+        #___________________________________________________________________________    
+        #if len(input_transect)>1:
+        transect_list.append(transect)
+        #else:
+            #transect_list = transect
         
     #___________________________________________________________________________
     return(transect_list)

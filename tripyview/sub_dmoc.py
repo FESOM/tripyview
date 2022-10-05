@@ -124,16 +124,52 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     
     # skip this when doing diapycnal vertical velocity
     if (not do_wdiap) and (not do_dflx):
+        #_______________________________________________________________________
         # add vertical mean z-coordinate position of density classes
         data_zpos = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
                                      year=year, descript=descript , do_info=do_info, 
                                      do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=False)
         data_zpos = data_zpos.assign_coords({'ndens' :("ndens",std_dens)})
+        
+        # multiply here with element area --> for later area weighted binned zonal mean
         #data_zpos = data_zpos*e_area
         data_zpos = data_zpos*data_zpos['w_A']
+        
+        # add to Dataset
         data_DMOC = xr.merge([data_DMOC, data_zpos], combine_attrs="no_conflicts")
         del(data_zpos)
-    
+        
+        #_______________________________________________________________________
+        # load sigma2 density on nodes 
+        data_sigma2 = load_data_fesom2(mesh, datapath, vname='density_dMOC', 
+                       year=year, descript=descript , do_info=do_info, 
+                       do_ie2n=False, do_tarithm=do_tarithm, do_zarithm=None, do_nan=False, do_compute=False)
+        
+        # make land sea mask nan
+        data_sigma2 = data_sigma2.where(data_sigma2.density_dMOC!=0.0)
+        
+        # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
+        # array an save the attributes in the same time
+        if 'time' in list(data_sigma2.dims):
+            data_sigma2  = data_sigma2.assign( density_dMOC=data_sigma2[list(data_sigma2.keys())[0]][:, xr.DataArray(mesh.e_i, dims=["elem",'n3']), :].mean(dim="n3", keep_attrs=True) )
+        else:
+            data_sigma2  = data_sigma2.assign( density_dMOC=data_sigma2[list(data_sigma2.keys())[0]][xr.DataArray(mesh.e_i, dims=["elem",'n3']),:].mean(dim="n3", keep_attrs=True) )
+        
+        # be sure it properly chunked
+        data_sigma2 = data_sigma2.chunk({'elem':1e4, 'nod2':1e4})
+            
+        # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
+        data_sigma2  = data_sigma2.drop(['nodi','nodiz','lon','lat','w_A'])
+        
+        # multiply here with element area --> for later area weighted binned zonal mean
+        data_sigma2  = data_sigma2*data_DMOC['w_A']# --> element area
+        
+        # add to Dataset
+        data_DMOC = xr.merge([data_DMOC, data_sigma2], combine_attrs="no_conflicts")
+        
+        
+        
+        
     if (not do_dflx):
         # add divergence of density classes --> diapycnal velocity
         data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
@@ -801,13 +837,15 @@ def plot_dmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
         cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
     
     #___________________________________________________________________________
-    ii=0
-    ii_cycle=1
+    ii, ii_cycle = 0, 1
+    if which_cycl is None: aux_which_cycl = 1
+    else                 : aux_which_cycl = which_cycl
+    
     for ii_ts, (tseries, tname) in enumerate(zip(moct_list, input_names)):
         
         if tseries.ndim>1: tseries = tseries.squeeze()
         auxtime = time.copy()
-        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
+        if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
             
             hp=ax.plot(time,tseries, 
                     linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], 
@@ -843,7 +881,7 @@ def plot_dmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
         rapid26_ym = rapid26.groupby('time.year').mean('time', skipna=True)
         time_rapid = rapid26_ym.year
         if do_allcycl: 
-            time_rapid = time_rapid + (which_cycl-1)*(time[-1]-time[0]+1)
+            time_rapid = time_rapid + (aux_which_cycl-1)*(time[-1]-time[0]+1)
             
         hpr=plt.plot(time_rapid,rapid26_ym.data,
                 linewidth=2, label='Rapid @ 26.5°N', color='k', marker='o', markerfacecolor='w', 
@@ -891,8 +929,10 @@ def plot_dmoc_tseries(time, moct_list, input_names, which_cycl=None, which_lat=[
     ax.xaxis.set_minor_locator(xminor_locator)
     
     plt.grid(which='major')
-    plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
-    
+    if not do_concat:
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
+    else:    
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(aux_which_cycl-1)+(time[-1]-time[0])*0.015)    
     #___________________________________________________________________________
     plt.show()
     fig.canvas.draw()
