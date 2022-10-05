@@ -75,6 +75,9 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=False,
         # load elem area from diag file
         if ( os.path.isfile(diagpath)):
             mat_area = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['elem_area']
+            if 'elem_n' in list(mat_area.dims): mat_area = mat_area.rename({'elem_n':'elem'})
+            if 'nl'     in list(mat_area.dims): mat_area = mat_area.rename({'nl'    :'nz'  })
+            if 'nl1'    in list(mat_area.dims): mat_area = mat_area.rename({'nl1'   :'nz1' }) 
             mat_area = mat_area.isel(elem=idxin).compute()   
             mat_area = mat_area.expand_dims({'nz':mesh.zlev}).transpose()
             mat_iz   = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nlevels']-1
@@ -128,7 +131,13 @@ def calc_xmoc(mesh, data, dlat=0.5, which_moc='gmoc', do_onelem=False,
         # load vertice cluster area from diag file
         if ( os.path.isfile(diagpath)):
             mat_area = xr.open_mfdataset(diagpath, parallel=True, chunks=dict(data.chunks), **kwargs)['nod_area']
-            mat_area = mat_area.isel(nod2=idxin).drop('nz').load().transpose() 
+            if 'nod_n' in list(mat_area.dims): mat_area = mat_area.rename({'nod_n':'nod2'})
+            if 'nl'    in list(mat_area.dims): mat_area = mat_area.rename({'nl'   :'nz'  })
+            if 'nl1'   in list(mat_area.dims): mat_area = mat_area.rename({'nl1'  :'nz1' })
+            mat_area = mat_area.isel(nod2=idxin)
+            if 'nz' in list(mat_area.coords): mat_area = mat_area.drop('nz')
+            mat_area = mat_area.load().transpose() 
+            # mat_area = mat_area.isel(nod2=idxin).drop('nz').load().transpose() 
         else: 
             raise ValueError('could not find ...mesh.diag.nc file')
         
