@@ -652,9 +652,11 @@ ___________________________________________""".format(
         self.n_za = self.n_z[self.n_pbnd_a]
         # self.n_ia = self.n_i[self.n_pbnd_a]
         self.n_iza= self.n_iz[self.n_pbnd_a]
-        if bool(self.n_c):
-            self.n_ca  = self.n_c[self.n_pbnd_a]
-            self.n_ica = self.n_ica[self.n_pbnd_a]
+        
+        # if there is cavity information
+        if isinstance(self.n_c , np.ndarray): self.n_ca  = self.n_c[self.n_pbnd_a]
+        if isinstance(self.n_ic, np.ndarray): self.n_ica = self.n_ic[self.n_pbnd_a]
+        
         self.n2dna = self.n2dn + self.n_pbnd_a.size
         
         #_______________________________________________________________________
