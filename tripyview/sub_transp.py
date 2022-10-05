@@ -8,6 +8,7 @@ import matplotlib.ticker as mticker
 from .sub_colormap import *
 from .sub_mesh     import vec_r2g
 from .sub_plot     import *
+from .sub_utility  import *
 
 #+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
 #|                                                                             |
@@ -126,6 +127,71 @@ def calc_gmhflx(mesh, data, lat):
     
     #___________________________________________________________________________
     return(ghflx)
+
+
+#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def calc_gmhflx_box(mesh, data, box_list, dlat=1.0):
+    list_ghflx=list()
+    #___________________________________________________________________________
+    vname       = list(data.keys())[0]
+    data[vname] = data[vname]*data['w_A']
+    # factors for heatflux computation
+    inPW = 1.0e-15
+    
+    #___________________________________________________________________________
+    # Loop over boxes
+    for box in box_list:
+        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+            if len(box)==2: boxname, box = box[1], box[0]
+        elif isinstance(box, shp.Reader):
+            boxname = box.shapeName.split('/')[-1].replace('_',' ')
+        elif box =='global':    
+            boxname = 'global'
+            
+        #_______________________________________________________________________
+        # compute box mask index for nodes 
+        n_idxin=do_boxmask(mesh,box)
+        
+        #_______________________________________________________________________
+        # do zonal sum over latitudinal bins 
+        lat   = np.arange(np.floor(mesh.n_y[n_idxin].min())+dlat/2, 
+                          np.ceil( mesh.n_y[n_idxin].max())-dlat/2, 
+                          dlat)
+        lat_i = (( mesh.n_y[n_idxin]-lat[0])/dlat ).astype('int')    
+        
+        #_______________________________________________________________________
+        # Create xarray dataset
+        list_dimname, list_dimsize = ['nlat'], [lat.size]
+        data_vars = dict()
+        aux_attr  = data[vname].attrs
+        aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
+        aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
+        aux_attr['units']      = 'PW'
+        data_vars['gmhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+        # define coordinates
+        coords    = {'nlat' : (['nlat' ], lat )}
+        # create dataset
+        ghflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+        del(data_vars, coords, aux_attr)
+        
+        #_______________________________________________________________________
+        data_box = data[vname].isel(nod2=n_idxin)
+        for bini in range(lat_i.min(), lat_i.max()):
+            # sum over latitudinal bins
+            ghflx['gmhflx'].data[bini] = data_box.isel(nod2=lat_i==bini).sum(dim='nod2')*inPW
+        
+        #_______________________________________________________________________
+        # do cumulative sum over latitudes    
+        ghflx['gmhflx'] = -ghflx['gmhflx'].cumsum(dim='nlat', skipna=True) 
+    
+        #_______________________________________________________________________
+        if len(box_list)==1: list_ghflx = ghflx
+        else               : list_ghflx.append(ghflx)
+        
+    #___________________________________________________________________________
+    return(list_ghflx)
 
 
 
@@ -299,13 +365,15 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
         cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
     
     #___________________________________________________________________________
-    ii=0
-    ii_cycle=1
+    ii, ii_cycle = 0, 1
+    if which_cycl is None: aux_which_cycl = 1
+    else                 : aux_which_cycl = which_cycl
+    
     for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
         
         if tseries.ndim>1: tseries = tseries.squeeze()
         auxtime = time.copy()
-        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
+        if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
             
             if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
             hp=ax.plot(auxtime,tseries, 
@@ -336,7 +404,7 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
                    # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
         
         ii_cycle=ii_cycle+1
-        if ii_cycle>which_cycl: ii_cycle=1
+        if ii_cycle>aux_which_cycl: ii_cycle=1
         
     #___________________________________________________________________________
     ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
@@ -363,7 +431,7 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
     if not do_concat:
         plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
     else:    
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(which_cycl-1)+(time[-1]-time[0])*0.015)    
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(aux_which_cycl-1)+(time[-1]-time[0])*0.015)    
     
     #___________________________________________________________________________
     plt.show()
