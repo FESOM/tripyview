@@ -2177,7 +2177,7 @@ def arrange_axes(nx, ny,
     y_ax_cent = pos_axcm[-1,1]+0.5*(pos_axcm[0,1] +pos_axcm[0,3] -pos_axcm[-1,1])
     
     # --- make figure and axes
-    fig = plt.figure(figsize=(wfig*cm2inch, hfig*cm2inch))
+    fig = plt.figure(figsize=(wfig*cm2inch, hfig*cm2inch), facecolor='white')
   
     hca = [0]*(nx*ny)
     hcb = [0]*(nx*ny)

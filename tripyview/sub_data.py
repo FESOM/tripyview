@@ -15,7 +15,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=True, descript='',  runid='fesom', chunks={'elem':1e4, 'nod2':1e4},
+                     do_compute=True, descript='',  runid='fesom', chunks={'time':100, 'elem':1e4, 'nod2':1e4},
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -175,7 +175,9 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
             data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=True, chunks=chunks, **kwargs)])
             if do_vec: is_data='vector'
-            
+        
+        data = data.chunk({'time': data.sizes['time']})
+        
     # load restart or blowup files
     else:
         print(pathlist)
@@ -484,7 +486,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=None):
         
         # do weighting for weighted mean computation on elements
         if do_hweight:
-            data = data.assign_coords(w_A  = ("elem", mesh.e_area))
+            data = data.assign_coords(w_A  = xr.DataArray(mesh.e_area                   , dims=['elem']).chunk(data.chunksizes['elem']))
         if do_zweight=='wmean':    
             if   'nz1' == dim_vert:
                 w_A  = np.zeros((mesh.nlev-1, mesh.n2de))
@@ -1029,12 +1031,12 @@ def do_interp_e2n(data, mesh, do_ie2n):
             #aux = grid_interp_e2n(mesh,data[vname].data)
             #with np.errstate(divide='ignore',invalid='ignore'):
             aux = grid_interp_e2n(mesh,data[vname].values)
-            print(aux.shape)
+            #print(aux.shape)
             # new variable name 
             vname_new = 'n_'+vname
             
             # add vertice interpolated variable to dataset
-            print(data)
+            #print(data)
             if   'nz' in data.dims:
                 data = xr.merge([ data, xr.Dataset({vname_new: ( ['nod2','nz'],aux)})], combine_attrs="no_conflicts")
             elif 'nz1' in data.dims:
