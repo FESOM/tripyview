@@ -523,12 +523,25 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
 #| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
 #| 
 #+___________________________________________________________________________________________________
-def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True):
+def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False):
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
     if which_moc=='gmoc':
+        #_______________________________________________________________________
         if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
         else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
+        
+        #_______________________________________________________________________
+        if exclude_meditoce:
+            pkg_path = os.path.dirname(__file__)
+            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
+            idx_excl = do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)
+            if do_onelem:
+                idx_excl = idx_excl[mesh.e_i].sum(axis=1)>=1
+                e_idxin[idx_excl]=False
+            else:    
+                n_idxin[idx_excl]=False
+        
     else:    
         tt1=time.time()
         box_list = list()
@@ -576,9 +589,16 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True):
         for box in box_list:
             n_idxin = np.logical_or(n_idxin, do_boxmask(mesh, box, do_elem=False))
         
-        if do_onelem: 
-            # e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1
-            e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+        #_______________________________________________________________________
+        # exclude the mediterranean basin when computing MOC
+        if exclude_meditoce:
+            pkg_path = os.path.dirname(__file__)
+            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
+            n_idxin[do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)]=False
+        
+        #_______________________________________________________________________
+        if do_onelem: e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+    
     
     #___________________________________________________________________________
     if do_onelem: return(e_idxin)
@@ -632,7 +652,8 @@ def do_boxmask(mesh, box, do_elem=False):
                 idx_IN = np.logical_or(idx_IN, auxidx)
         
     elif (isinstance(box, shp.Reader)):
-        idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+        if do_elem: idx_IN = np.zeros((mesh.n2de,), dtype=bool)
+        else      : idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
         for shape in box.shapes(): 
             p      = Polygon(shape.points)
             auxidx = contains(p, mesh_x, mesh_y)
