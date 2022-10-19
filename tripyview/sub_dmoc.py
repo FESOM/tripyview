@@ -423,7 +423,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION  _________________________________+
 #|                                                                             |
 #+_____________________________________________________________________________+
-def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6], 
+def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6], 
               n_rc=[1, 1], do_grid=True, cinfo=None, do_rescale=None,
               do_reffig=False, ref_cinfo=None, ref_rescale=None,
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
@@ -603,9 +603,19 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
         #_______________________________________________________________________
         # plot bottom representation in case of z-coordinates
         if do_zcoord: 
-            data_bot = np.nanmin(data_y, axis=0)
+            #data_bot = np.nanmin(data_y, axis=0)
+            data_bot = mesh.zlev[data[ii]['botmaxi'].max()+1]
             ax[ii].plot(data[ii]['lat'], -data[ii]['botmax'], color='k')
-            ax[ii].fill_between(data[ii]['lat'], -data[ii]['botmax'], data_bot.min(), color=color_bot, zorder=2)#,alpha=0.95)
+            ax[ii].fill_between(data[ii]['lat'], -data[ii]['botmax'], data_bot, color=color_bot, zorder=2)#,alpha=0.95)
+            ax[ii].set_ylim([data_bot,0])
+        
+        #_______________________________________________________________________
+        # set latitude limits
+        xlim = list(ax[ii].get_xlim())  
+        if   which_moc=='amoc' : xlim[1]=75
+        elif which_moc=='ipmoc': xlim[1]=60
+        elif which_moc=='pmoc' : xlim[1]=60
+        ax[ii].set_xlim(xlim)
             
         #_______________________________________________________________________
         # in case y-axes should be rescaled (do_yrescale=true) and plot is density
@@ -652,8 +662,9 @@ def plot_dmoc(data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6],
                 txty = data_y[0]+(data_y[-1]-data_y[0])*0.025    
             else:
                 txtx = data_x.min()+(data_x.max()-data_x.min())*0.025
-                txty = data_y.min()+(data_y.max()-data_y.min())*0.025    
-            
+                #txty = data_y.min()+(data_y.max()-data_y.min())*0.025
+                txty = data_bot+(0-data_bot)*0.025    
+                data_bot
             if   isinstance(title,str) : 
                 # if title string is 'descript' than use descript attribute from 
                 # data to set plot title 
