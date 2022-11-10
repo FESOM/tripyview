@@ -18,7 +18,7 @@ from   .sub_colormap       import *
 
 
 def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean', 
-                      do_compute=True, do_outputidx=False):
+                      do_zarithm=None, do_compute=True, do_outputidx=False):
     xr.set_options(keep_attrs=True)
     #___________________________________________________________________________
     # str_anod    = ''
@@ -42,10 +42,20 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         # selected points in xarray dataset object and  average over selected 
         # points
         if   'nod2' in data.dims:
-            index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2'))
+            #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2'))
+            index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2')
         elif 'elem' in data_dims():    
-            index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
+            #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
+            index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem')
+            
+            
+        if   'nz1' in data.dims and do_harithm is not None:
+            index = do_depth_arithmetic(index, do_zarithm, 'nz1')
+        elif 'nz'  in data.dims and do_harithm is not None:        
+            index = do_depth_arithmetic(index, do_zarithm, 'nz')
+        index_list.append(index)
         idxin_list.append(idx_IN)
+        del(index)
         
         #_______________________________________________________________________
         if do_compute: index_list[cnt] = index_list[cnt].compute()
