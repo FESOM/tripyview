@@ -25,6 +25,18 @@ from .sub_plot     import *
 #+___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________+
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
 #|                                                                             |
+#| which_moc=:                                                                 |
+#| 'gmoc'  ... compute global MOC                                              |
+#| 'amoc'  ... compute MOC for Atlantic Basin                                  |
+#| 'aamoc' ... compute MOC for Atlantic+Artic Basin                            |
+#| 'pmoc'  ... compute MOC for Pacific Basin                                   |
+#| 'ipmoc' ... compute MOC for Indo-Pacific Basin (PMOC how it should be)      |
+#| 'imoc'  ... compute MOC for Indian-Ocean Basin                              |
+#|                                                                             |
+#| Important:                                                                  |
+#| Between 'amoc' and 'aamoc' there is not much difference in variability, but |
+#| upto 1.5Sv in amplitude. Where 'aamoc' is stronger than 'amoc'. There is no |
+#| clear rule which one is better, just be sure you are consistent             |
 #+_____________________________________________________________________________+
 def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False, 
               do_info=True, diagpath=None,  do_compute=False, do_checkbasin=False, 
