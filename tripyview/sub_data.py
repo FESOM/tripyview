@@ -3,9 +3,10 @@ import numpy as np
 import time  as clock
 import os
 import xarray as xr
+import netCDF4 as nc
 import seawater as sw
 from .sub_mesh import *
-
+xr.set_options(enable_cftimeindex=True)
 # ___LOAD FESOM2 DATA INTO XARRAY DATASET CLASS________________________________
 #|                                                                             |
 #|           *** LOAD FESOM2 DATA INTO --> XARRAY DATASET CLASS ***            |
@@ -16,6 +17,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
                      do_compute=True, descript='',  runid='fesom', chunks={'time':100, 'elem':1e4, 'nod2':1e4},
+                     do_showtime=False, 
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -167,8 +169,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # load multiple files
     # load normal FESOM2 run file
     if do_file=='run':
-        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, **kwargs) 
-        
+        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, **kwargs)
+        if do_showtime: print(data.time.data)
         # in case of vector load also meridional data and merge into 
         # dataset structure
         if do_vec or do_norm or do_pdens:
@@ -197,7 +199,6 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
             
         # remove variables that are not needed
         data = data.drop(labels=vname_drop)
-        record=0
     
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
@@ -210,7 +211,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
     
     # do time arithmetic on data
-    data, str_atim = do_time_arithmetic(data, do_tarithm)
+    if 'time' in data.dims:
+        data, str_atim = do_time_arithmetic(data, do_tarithm)
     
     #___________________________________________________________________________
     # make sure datas are alligned in [time, elem, nz] and not [time, nz, elem]
@@ -480,9 +482,9 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=None):
         data = data.assign_coords(lat  = xr.DataArray(mesh.n_y[mesh.e_i].sum(axis=1)/3.0, dims=['elem']).chunk(data.chunksizes['elem']))
         data = data.assign_coords(elemi= xr.DataArray(np.arange(0,mesh.n2de)            , dims=['elem']).chunk(data.chunksizes['elem']))
         if dim_vert in ['nz_1', 'nz1']: 
-            data = data.assign_coords(elemz= xr.DataArray(mesh.e_iz-1                   , dims=['elem']).chunk(data.chunksizes['elem']))
+            data = data.assign_coords(elemiz= xr.DataArray(mesh.e_iz-1                   , dims=['elem']).chunk(data.chunksizes['elem']))
         elif dim_vert in ['nz']: 
-            data = data.assign_coords(elemz= xr.DataArray(mesh.e_iz                     , dims=['elem']).chunk(data.chunksizes['elem']))
+            data = data.assign_coords(elemiz= xr.DataArray(mesh.e_iz                     , dims=['elem']).chunk(data.chunksizes['elem']))
         
         # do weighting for weighted mean computation on elements
         if do_hweight:
@@ -576,7 +578,7 @@ def do_select_time(data, mon, day, record, str_mtim):
     #___________________________________________________________________________
     # select time based on record index --> overwrites mon and day selection        
     elif (record is not None):
-        data.isel(time=record)
+        data = data.isel(time=record)
         
         # do time information string 
         str_mtim = '{}, rec: {}'.format(str_mtim, record)
@@ -814,13 +816,16 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
             data = data.min(   dim=dim_name, keep_attrs=True, skipna=True)  
         elif do_harithm=='sum':
             data = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)            
+        elif do_harithm=='wint':
+            data    = data*data['w_A']
+            data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)      
         elif do_harithm=='wmean':
             weights = data['w_A']
             weights = weights/weights.sum(dim=dim_name, skipna=True)
             data    = data*weights
             del weights
             data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)  
-        elif do_harithm=='None':
+        elif do_harithm=='None' or do_zarithm is None:
             ...
         else:
             raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
@@ -853,13 +858,16 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
             data    = data.min( dim=dim_name, keep_attrs=True)  
         elif do_zarithm=='sum':
             data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True)
+        elif do_zarithm=='wint':
+            data    = data*data['w_z']
+            data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)          
         elif do_zarithm=='wmean':
             weights = data['w_z']
             weights = weights/weights.sum(dim=dim_name, skipna=True)
             data    = data*weights
             data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True) 
             del weights
-        elif do_zarithm=='None':
+        elif do_zarithm=='None' or do_zarithm is None:
             ...
         else:
             raise ValueError(' the depth arithmetic of do_zarithm={} is not supported'.format(str(do_zarithm))) 
