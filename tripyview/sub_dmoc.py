@@ -916,5 +916,3 @@ def plot_dmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
     
     #___________________________________________________________________________
     return(fig,ax)
-
-

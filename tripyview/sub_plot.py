@@ -153,7 +153,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                                 figsize=figsize, 
                                 subplot_kw =dict(projection=which_proj),
                                 gridspec_kw=dict(left=0.06, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False)
+                                constrained_layout=False, sharex=True, sharey=True)
     
     #___________________________________________________________________________    
     # flatt axes if there are more than 1
@@ -1182,7 +1182,7 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
 #|                                                                             |
 #+_____________________________________________________________________________+
-def plot_tseries(time, tseries_list, input_names, sect_name, which_cycl=None, 
+def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None, 
                        do_allcycl=False, do_concat=False, str_descript='', str_time='', figsize=[], 
                        do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
                        ymaxstep=None, xmaxstep=5):    
@@ -1211,6 +1211,8 @@ def plot_tseries(time, tseries_list, input_names, sect_name, which_cycl=None,
     if which_cycl is None: aux_which_cycl = 1
     else                 : aux_which_cycl = which_cycl
     for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
+        
+        time = tseries[0]['time.year'].values + (tseries[0]['time.dayofyear'].values-1)/365
         #_______________________________________________________________________
         if isinstance(tseries,list): tseries = tseries[0]
         
@@ -1226,7 +1228,7 @@ def plot_tseries(time, tseries_list, input_names, sect_name, which_cycl=None,
             if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
             hp=ax.plot(auxtime,tseries, 
                    linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], 
-                   marker='o', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
+                   marker='None', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
                    zorder=2)
             
             if do_pltmean: 
@@ -1256,7 +1258,7 @@ def plot_tseries(time, tseries_list, input_names, sect_name, which_cycl=None,
         
     #___________________________________________________________________________
     ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
-              bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+              bbox_to_anchor=(1.01,0.5), loc="center left", borderaxespad=0)
               #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
     ax.set_xlabel('Time [years]',fontsize=12)
     ax.set_ylabel('{:s} in [{:s}]'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
@@ -1401,7 +1403,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             #___________________________________________________________________
             if do_vec==False:
                 if   do_index: data_plot = data_ii[0][ vname[0] ].data.copy()
-                elif do_moc  : data_plot = data_ii['moc'].isel(nz=data_ii['depth']<=-700).data.copy()
+                elif do_moc  : data_plot = data_ii['zmoc'].isel(nz=np.abs(data_ii['depth'])>=700).values.copy()
                 elif do_dmoc is not None  : 
                     if   do_dmoc=='dmoc'  : data_plot = data_ii['dmoc'].data.copy()
                     elif do_dmoc=='srf'   : data_plot = -(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
