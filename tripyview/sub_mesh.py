@@ -78,7 +78,8 @@ def load_mesh_fesom2(
     # check if pickle file can be found somewhere either in mesh folder or in 
     # cache folder 
     #picklefname = 'mypymesh_fesom2.pckl'
-    picklefname = 'tripyview_fesom2_'+meshid+'.pckl'
+    #picklefname = 'tripyview_fesom2_'+meshid+'.pckl'
+    picklefname = 'tripyview_fesom2_{}_focus{}.pckl'.format(meshid,focus)
     if do_pickle:
         # check if mypy pickle meshfile is found in meshfolder
         if    ( os.path.isfile(os.path.join(meshpath, picklefname)) ):
@@ -504,6 +505,7 @@ class mesh_fesom2(object):
         with open(self.fname_aux3d) as f:
             self.nlev= int(next(f))
             self.zlev= np.array([next(f).rstrip() for x in range(self.nlev)]).astype(float)
+            self.zlev= -np.abs(self.zlev)
         self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
         
         #____load number of levels at each node_________________________________
@@ -651,9 +653,11 @@ ___________________________________________""".format(
         self.n_za = self.n_z[self.n_pbnd_a]
         # self.n_ia = self.n_i[self.n_pbnd_a]
         self.n_iza= self.n_iz[self.n_pbnd_a]
-        if bool(self.n_c):
-            self.n_ca  = self.n_c[self.n_pbnd_a]
-            self.n_ica = self.n_ica[self.n_pbnd_a]
+        
+        # if there is cavity information
+        if isinstance(self.n_c , np.ndarray): self.n_ca  = self.n_c[self.n_pbnd_a]
+        if isinstance(self.n_ic, np.ndarray): self.n_ica = self.n_ic[self.n_pbnd_a]
+        
         self.n2dna = self.n2dn + self.n_pbnd_a.size
         
         #_______________________________________________________________________
@@ -868,7 +872,7 @@ ___________________________________________""".format(
                 self.compute_n_area()
                 print(' > comp n_resol from n_area')
                 #_______________________________________________________________
-                self.n_resol = np.sqrt(self.n_area/np.pi)*2.0
+                self.n_resol = np.sqrt(self.n_area[0,:]/np.pi)*2.0
             
             #___________________________________________________________________
             # compute vertices resolution based on interpolation from resolution
@@ -1657,6 +1661,7 @@ def grid_interp_e2n(mesh,data_e):
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
     if data_e.ndim==1:
+        # print('~~ >-)))°> .°oO A')
         aux  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
         aux  = aux * np.vstack((data_e,data_e,data_e)).transpose().flatten()
         
@@ -1670,9 +1675,10 @@ def grid_interp_e2n(mesh,data_e):
             count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
         del aux, count
         #with np.errstate(divide='ignore',invalid='ignore'):
-        data_n=data_n/mesh.n_area/3.0
+        data_n=data_n/mesh.n_area[0,:]/3.0
         
     elif data_e.ndim==2:
+        # print('~~ >-)))°> .°oO B')
         nd     = data_e.shape[1]
         data_n = np.zeros((mesh.n2dn, nd))
         aux1   = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
@@ -1698,3 +1704,27 @@ def grid_interp_e2n(mesh,data_e):
 #|_____________________________________________________________________________|
 def ismember_rows(a, b):
     return np.flatnonzero(np.in1d(b[:,0], a[:,0]) & np.in1d(b[:,1], a[:,1]))
+
+
+# ___COMPUTE BOUNDARY EDGES____________________________________________________
+#| compute edges that have only one adjacenbt trinagle                         |
+#|_____________________________________________________________________________|
+def compute_boundary_edges(e_i):
+    # set boundary depth to zero
+    edge    = np.concatenate((e_i[:,[0,1]], e_i[:,[0,2]], e_i[:,[1,2]]),axis=0)
+    edge    = np.sort(edge,axis=1) 
+        
+    ## python  sortrows algorythm --> matlab equivalent
+    edge    = edge.tolist()
+    edge.sort()
+    edge    = np.array(edge)
+        
+    idx     = np.diff(edge,axis=0)==0
+    idx     = np.all(idx,axis=1)
+    idx     = np.logical_or(np.concatenate((idx,np.array([False]))),\
+                            np.concatenate((np.array([False]),idx)))
+
+    # all edges that belong to boundary own jsut one triangle 
+    bnde    = edge[idx==False,:]
+    
+    return(bnde)

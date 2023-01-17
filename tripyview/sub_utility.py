@@ -167,6 +167,46 @@ def do_node_smoothing(mesh, data_orig, n_nghbr_n, weaksmth_boxlist, rel_cent_wei
     #_________________________________________________________________________________________
     return(data_smooth)
 
+
+#
+#
+#_____________________________________________________________________________________________
+def do_node_smoothing_fast(mesh, data_orig, n_nghbr_n, rel_cent_weight, num_iter):
+    print(' --> compute node smoothing')
+    #_________________________________________________________________________________________
+    data_smooth = data_orig.copy()
+    # set coeff
+    coeff1=1.0
+            
+    # compute smoothing
+    for it in range(num_iter):
+        print('     iter: {}'.format(str(it)))
+        # loop over nodes
+        data_done = data_smooth.copy()
+        
+        list_idx = np.argsort(data_done)
+        for idx in list_idx:
+            data_done[idx] = -999999.0
+        
+            # do convolution over neighbours (weight of neighbours = 1)
+            # sum depth over neighbouring nodes 
+            dsum=0.0
+            nmb_n_nghbr=0
+            for ni in n_nghbr_n[idx]: 
+                dsum=dsum+data_smooth[ni]
+                nmb_n_nghbr=nmb_n_nghbr+1
+
+            # add contribution from center weight 
+            dsum=dsum + np.real(coeff1*rel_cent_weight*(nmb_n_nghbr-1.0)-1.0)*data_smooth[idx]
+            data_smooth[idx]=dsum/np.real( nmb_n_nghbr + coeff1*rel_cent_weight*(nmb_n_nghbr-1)-1.0 )
+            #                                  |                       | 
+            #                   sum over weight (=1)          center weight (depends
+            #                   of neighbours                 on number of neighbours)
+    #_________________________________________________________________________________________
+    return(data_smooth)
+
+
+
 #
 #
 #_____________________________________________________________________________________________
@@ -483,12 +523,25 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
 #| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
 #| 
 #+___________________________________________________________________________________________________
-def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True):
+def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False):
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
     if which_moc=='gmoc':
+        #_______________________________________________________________________
         if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
         else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
+        
+        #_______________________________________________________________________
+        if exclude_meditoce:
+            pkg_path = os.path.dirname(__file__)
+            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
+            idx_excl = do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)
+            if do_onelem:
+                idx_excl = idx_excl[mesh.e_i].sum(axis=1)>=1
+                e_idxin[idx_excl]=False
+            else:    
+                n_idxin[idx_excl]=False
+        
     else:    
         tt1=time.time()
         box_list = list()
@@ -536,9 +589,16 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True):
         for box in box_list:
             n_idxin = np.logical_or(n_idxin, do_boxmask(mesh, box, do_elem=False))
         
-        if do_onelem: 
-            # e_idxin = n_idxin[np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))].sum(axis=1)>=1
-            e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+        #_______________________________________________________________________
+        # exclude the mediterranean basin when computing MOC
+        if exclude_meditoce:
+            pkg_path = os.path.dirname(__file__)
+            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
+            n_idxin[do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)]=False
+        
+        #_______________________________________________________________________
+        if do_onelem: e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+    
     
     #___________________________________________________________________________
     if do_onelem: return(e_idxin)
@@ -592,7 +652,8 @@ def do_boxmask(mesh, box, do_elem=False):
                 idx_IN = np.logical_or(idx_IN, auxidx)
         
     elif (isinstance(box, shp.Reader)):
-        idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+        if do_elem: idx_IN = np.zeros((mesh.n2de,), dtype=bool)
+        else      : idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
         for shape in box.shapes(): 
             p      = Polygon(shape.points)
             auxidx = contains(p, mesh_x, mesh_y)

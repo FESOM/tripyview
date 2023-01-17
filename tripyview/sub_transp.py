@@ -8,6 +8,7 @@ import matplotlib.ticker as mticker
 from .sub_colormap import *
 from .sub_mesh     import vec_r2g
 from .sub_plot     import *
+from .sub_utility  import *
 
 #+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
 #|                                                                             |
@@ -128,6 +129,71 @@ def calc_gmhflx(mesh, data, lat):
     return(ghflx)
 
 
+#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def calc_gmhflx_box(mesh, data, box_list, dlat=1.0):
+    list_ghflx=list()
+    #___________________________________________________________________________
+    vname       = list(data.keys())[0]
+    data[vname] = data[vname]*data['w_A']
+    # factors for heatflux computation
+    inPW = 1.0e-15
+    
+    #___________________________________________________________________________
+    # Loop over boxes
+    for box in box_list:
+        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+            if len(box)==2: boxname, box = box[1], box[0]
+        elif isinstance(box, shp.Reader):
+            boxname = box.shapeName.split('/')[-1].replace('_',' ')
+        elif box =='global':    
+            boxname = 'global'
+            
+        #_______________________________________________________________________
+        # compute box mask index for nodes 
+        n_idxin=do_boxmask(mesh,box)
+        
+        #_______________________________________________________________________
+        # do zonal sum over latitudinal bins 
+        lat   = np.arange(np.floor(mesh.n_y[n_idxin].min())+dlat/2, 
+                          np.ceil( mesh.n_y[n_idxin].max())-dlat/2, 
+                          dlat)
+        lat_i = (( mesh.n_y[n_idxin]-lat[0])/dlat ).astype('int')    
+        
+        #_______________________________________________________________________
+        # Create xarray dataset
+        list_dimname, list_dimsize = ['nlat'], [lat.size]
+        data_vars = dict()
+        aux_attr  = data[vname].attrs
+        aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
+        aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
+        aux_attr['units']      = 'PW'
+        data_vars['gmhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+        # define coordinates
+        coords    = {'nlat' : (['nlat' ], lat )}
+        # create dataset
+        ghflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+        del(data_vars, coords, aux_attr)
+        
+        #_______________________________________________________________________
+        data_box = data[vname].isel(nod2=n_idxin)
+        for bini in range(lat_i.min(), lat_i.max()):
+            # sum over latitudinal bins
+            ghflx['gmhflx'].data[bini] = data_box.isel(nod2=lat_i==bini).sum(dim='nod2')*inPW
+        
+        #_______________________________________________________________________
+        # do cumulative sum over latitudes    
+        ghflx['gmhflx'] = -ghflx['gmhflx'].cumsum(dim='nlat', skipna=True) 
+    
+        #_______________________________________________________________________
+        if len(box_list)==1: list_ghflx = ghflx
+        else               : list_ghflx.append(ghflx)
+        
+    #___________________________________________________________________________
+    return(list_ghflx)
+
+
 
 #+___COMPUTE HORIZONTAL BAROTROPIC STREAM FUNCTION TROUGH BINNING______________+
 #|                                                                             |
@@ -145,6 +211,7 @@ def calc_hbarstreamf(mesh, data, lon, lat, edge, edge_tri, edge_dxdy_l, edge_dxd
     data_vars = dict()
     aux_attr  = data[vname].attrs
     aux_attr['long_name'], aux_attr['units'] = 'Horizontal. Barotropic \n Streamfunction', 'Sv'
+    aux_attr['short_name']= 'Horiz. Barotr. Streamf.'
     data_vars['hbstreamf'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
     # define coordinates
     coords    = {'nlon' : (['nlon' ], lon ), 'nlat' : (['nlat' ], lat ), }
@@ -298,13 +365,15 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
         cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
     
     #___________________________________________________________________________
-    ii=0
-    ii_cycle=1
+    ii, ii_cycle = 0, 1
+    if which_cycl is None: aux_which_cycl = 1
+    else                 : aux_which_cycl = which_cycl
+    
     for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
         
         if tseries.ndim>1: tseries = tseries.squeeze()
         auxtime = time.copy()
-        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
+        if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
             
             if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
             hp=ax.plot(auxtime,tseries, 
@@ -335,7 +404,7 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
                    # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
         
         ii_cycle=ii_cycle+1
-        if ii_cycle>which_cycl: ii_cycle=1
+        if ii_cycle>aux_which_cycl: ii_cycle=1
         
     #___________________________________________________________________________
     ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
@@ -362,7 +431,7 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
     if not do_concat:
         plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
     else:    
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(which_cycl-1)+(time[-1]-time[0])*0.015)    
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(aux_which_cycl-1)+(time[-1]-time[0])*0.015)    
     
     #___________________________________________________________________________
     plt.show()
@@ -378,13 +447,14 @@ def plot_vflx_tseries(time, tseries_list, input_names, sect_name, which_cycl=Non
 
 
 def plot_hbstreamf(mesh, data, input_names, cinfo=None, box=None, proj='pc', figsize=[9,4.5], 
-                n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
+                n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=False,
+                do_reffig=False, ref_cinfo=None, ref_rescale=False,
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.75,0.75,0.75],  title=None,
                 pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
                 linecolor='k', linewidth=0.5, ):
-    
+    #____________________________________________________________________________
     fontsize = 12
     rescale_str = None
     rescale_val = 1.0
@@ -458,11 +528,17 @@ def plot_hbstreamf(mesh, data, input_names, cinfo=None, box=None, proj='pc', fig
     
     #___________________________________________________________________________
     # set up color info
-    cinfo = do_setupcinfo(cinfo, data, do_rescale, do_hbstf=True)
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_hbstf=True)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_hbstf=True)
+    else:    
+        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_hbstf=True)
 
     #___________________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    if do_reffig:
+        which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
     
     #___________________________________________________________________________
     # loop over axes
@@ -480,24 +556,30 @@ def plot_hbstreamf(mesh, data, input_names, cinfo=None, box=None, proj='pc', fig
         data_y    = data[ii]['nlat']
         
         #_______________________________________________________________________
+        if do_reffig: 
+            if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
+            else    : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        else        : cinfo_plot, which_norm_plot = cinfo    , which_norm
+        
+        #_______________________________________________________________________
         # plot tri contourf/pcolor
         if   do_plot=='tpc':
             hp=ax[ii].pcolor(data_x, data_y, data_plot,
                              shading='flat',
-                             cmap=cinfo['cmap'],
-                             vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1],
-                             norm = which_norm)
+                             cmap=cinfo_plot['cmap'],
+                             vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
+                             norm = which_norm_plot)
             
         elif do_plot=='tcf': 
             # supress warning message when compared with nan
             with np.errstate(invalid='ignore'):
-                data_plot[data_plot<cinfo['clevel'][ 0]] = cinfo['clevel'][ 0]
-                data_plot[data_plot>cinfo['clevel'][-1]] = cinfo['clevel'][-1]
+                data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
+                data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
             
             hp=ax[ii].contourf(data_x, data_y, data_plot, 
                                transform=which_transf,
-                               norm=which_norm,
-                               levels=cinfo['clevel'], cmap=cinfo['cmap'], extend='both')
+                               norm=which_norm_plot,
+                               levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both')
         hpall.append(hp)  
         
         #_______________________________________________________________________
@@ -533,28 +615,55 @@ def plot_hbstreamf(mesh, data, input_names, cinfo=None, box=None, proj='pc', fig
     if nax != nax_fin-1: ax = ax[0:nax_fin]
    
     #___________________________________________________________________________
-    # create colorbar 
-    cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
-                      extendrect=False, extendfrac=None,
-                      drawedges=True, pad=0.025, shrink=1.0,)                      
-    
-    # do formatting of colorbar 
-    cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
-    
-    # do labeling of colorbar
-    if cbar_label is None: cbar_label = data[nax_fin-1][vname].attrs['long_name']
-    if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][vname].attrs['units']+']'
-    else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
-    if 'str_ltim' in data[0][vname].attrs.keys():
-        cbar_label = cbar_label+', '+data[0][vname].attrs['str_ltim']
-    if 'str_ldep' in data[0][vname].attrs.keys():
-        cbar_label = cbar_label+data[0][vname].attrs['str_ldep']
-    cbar.set_label(cbar_label, size=fontsize+2)
+    # create colorbar
+    if do_reffig==False:
+        cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
+                        extendrect=False, extendfrac=None,
+                        drawedges=True, pad=0.025, shrink=1.0,)                      
+        
+        # do formatting of colorbar 
+        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+        
+        # do labeling of colorbar
+        if cbar_label is None: cbar_label = data[nax_fin-1][vname].attrs['long_name']
+        if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][vname].attrs['units']+']'
+        else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
+        if 'str_ltim' in data[0][vname].attrs.keys():
+            cbar_label = cbar_label+', '+data[0][vname].attrs['str_ltim']
+        if 'str_ldep' in data[0][vname].attrs.keys():
+            cbar_label = cbar_label+data[0][vname].attrs['str_ldep']
+        cbar.set_label(cbar_label, size=fontsize+2)
+    else:
+        cbar=list()
+        for ii, aux_ax in enumerate(ax): 
+            cbar_label =''
+            if ii==0: 
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
+            else:     
+                aux_cbar = plt.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
+                            extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
+                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
+                #cbar_label ='anom. '
+            # do labeling of colorbar
+            #if cbar_label is None : 
+            if   'short_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][ vname ].attrs['short_name']
+            elif 'long_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][ vname ].attrs['long_name']
+            if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][ vname ].attrs['units']+']'
+            else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
+            if 'str_ltim' in data[ii][vname].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][vname].attrs['str_ltim']
+            aux_cbar.set_label(cbar_label, size=fontsize+2)
+            cbar.append(aux_cbar)    
     
     #___________________________________________________________________________
     # repositioning of axes and colorbar
-    ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
-                                     pos_gap, title=title, proj=proj, extend=pos_extend)
+    if do_reffig==False:
+        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, 
+                                        pos_gap, title=title, proj=proj, extend=pos_extend)
     fig.canvas.draw()
     
     #___________________________________________________________________________
