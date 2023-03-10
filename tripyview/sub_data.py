@@ -2,6 +2,7 @@
 import numpy as np
 import time  as clock
 import os
+import warnings
 import xarray as xr
 import netCDF4 as nc
 import seawater as sw
@@ -164,7 +165,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # create path name list that needs to be loaded
     pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
-    
+    if len(pathlist)==0: 
+        data = None
+        return data
+
     #___________________________________________________________________________
     # load multiple files
     # load normal FESOM2 run file
@@ -411,13 +415,20 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
         # loop over year to create filename list 
         for yr in year_in:
             fname = do_fnamemask(do_file,vname,runid,yr)
-            path = os.path.join(datapath,fname)
-            pathlist.append(path)  
+            path  = os.path.join(datapath,fname)
+            if os.path.isfile(path):
+                pathlist.append(path)  
+            else:
+                print(f'--> No file: {path}\n')
     
     # a single year is given to load
     elif isinstance(year, int):
         fname = do_fnamemask(do_file,vname,runid,year)
-        pathlist.append(os.path.join(datapath,fname))
+        path  = os.path.join(datapath,fname)
+        if os.path.isfile(path):
+            pathlist.append(path)  
+        else:
+            print(f'--> No file: {path}\n')
         str_mtim = 'y:{}'.format(year)
     else:
         raise ValueError( " year can be integer, list, np.array or range(start,end)")
