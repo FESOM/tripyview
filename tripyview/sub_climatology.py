@@ -156,7 +156,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
             # fill up nan gaps as far as possible with nearest neighbours -->
             # gives better coastal edges
             if depth is not None:
-                isnan = xr.ufuncs.isnan(data_lin[vname])
+                #isnan = xr.ufuncs.isnan(data_lin[vname])
+                isnan = np.isnan(data_lin[vname])
                 #data_lin[vname][isnan] = data[vname].interp(dim_lon=n_x.sel(nod2=isnan), dim_lat=n_y.sel(nod2=isnan), method='nearest')
                 data_lin[vname][isnan] = data[vname].interp(dict({dim_lon:n_x.sel(nod2=isnan), dim_lat:n_y.sel(nod2=isnan)}), method='nearest')
                 del isnan
