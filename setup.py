@@ -78,3 +78,8 @@ setup(
     version='0.1.0',
     zip_safe=False,
 )
+
+
+
+
+# conda install -c conda-forge cartopy cmocean dask ipython joblib jupyter matplotlib pickle5 netCDF4 numba numpy pandas geopandas scipy seawater shapely  xarray  pyfesom2 pyresample pytest papermill  jinja2  pyyaml pyvista vtk ipyvtklink
