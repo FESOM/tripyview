@@ -909,12 +909,22 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         if do_transectattr: aux_attr['transect'] = transect
         
         data_vars['transp'] = (list_dimname, scalarPcut, aux_attr) 
+        
         # define coordinates
-        coords    = {'depth' : (list_dimname[0], list_dimval[0]),
-                     'lon'   : (list_dimname[1], lon),
-                     'lat'   : (list_dimname[1], lat),
-                     'dst'   : (list_dimname[1], dst),
-                    }
+        coords = dict()
+        for ii, dim in enumerate(list_dimname): 
+            if 'npts' in dim:
+                coords['lon'] = (dim, lon)
+                coords['lat'] = (dim, lat)
+                coords['dst'] = (dim, dst)
+            if 'nz' in dim:
+                coords['depth'] = (dim, list_dimval[ii])
+                                  
+        #coords    = {'depth' : (list_dimname[0], list_dimval[0]),
+                     #'lon'   : (list_dimname[1], lon),
+                     #'lat'   : (list_dimname[1], lat),
+                     #'dst'   : (list_dimname[1], dst),
+                    #}
         # create dataset
         if is_list:
             csects.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs))

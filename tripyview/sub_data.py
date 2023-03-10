@@ -169,13 +169,13 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # load multiple files
     # load normal FESOM2 run file
     if do_file=='run':
-        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, **kwargs)
+        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, autoclose=False, **kwargs)
         if do_showtime: print(data.time.data)
         # in case of vector load also meridional data and merge into 
         # dataset structure
         if do_vec or do_norm or do_pdens:
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
-            data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=True, chunks=chunks, **kwargs)])
+            data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=True, chunks=chunks, autoclose=False, **kwargs)])
             if do_vec: is_data='vector'
         
         data = data.chunk({'time': data.sizes['time']})
@@ -183,7 +183,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # load restart or blowup files
     else:
         print(pathlist)
-        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, **kwargs)
+        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, autoclose=False, **kwargs)
         if do_vec or do_norm or do_pdens:
             # which variables should be dropped 
             vname_drop = list(data.keys())
@@ -199,6 +199,9 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
             
         # remove variables that are not needed
         data = data.drop(labels=vname_drop)
+        
+        # rename old vertices dimension name to new 'node' --> 'nod2'
+        if ('node' in data.dims): data = data.rename_dims({'node':'nod2'})
     
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
@@ -446,7 +449,9 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=None):
         dim_vert = 'nz'
         data = data.assign_coords(nz   = ("nz"  , -mesh.zlev))
         data = data.assign_coords(nzi  = ("nz"  , np.arange(0,mesh.zlev.size)))
-    
+    elif ('ndens'   in data.dims): 
+        dim_vert = 'ndens'
+        
     dim_horz = None
     if   ('nod2' in data.dims):
         dim_horz = 'nod2'

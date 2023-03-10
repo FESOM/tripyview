@@ -1568,6 +1568,8 @@ def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
     bin_m       = bin_e[:-1]+(bin_e[:-1]-bin_e[1:])/2
     cmin        = bin_m[np.where(np.cumsum(hist[::-1])[::-1]>=ctresh)[0][-1]]
     cmax        = bin_m[np.where(np.cumsum(hist)            >=ctresh)[0][ 0]]
+    if cmin==cmax: 
+        cmax        = bin_m[np.where(np.cumsum(hist)        >=ctresh)[0][1]]
     return(cmin, cmax)
 
 

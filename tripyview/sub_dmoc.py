@@ -26,7 +26,7 @@ from .sub_plot     import *
 #+_____________________________________________________________________________+
 def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_area=None, e_area=None, 
                    do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
-                   do_sgm2z=False, do_ndensz=False, do_compute=False, **kwargs, ):
+                   do_sgm2z=False, do_ndensz=False, do_compute=False, do_bolus=True, **kwargs, ):
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
     xr.set_options(keep_attrs=True)
@@ -213,7 +213,41 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         
         data_DMOC = xr.merge([data_DMOC, data_div], combine_attrs="no_conflicts")  
         del(data_div)
-    
+        
+        # load density class divergence from bolus velolcity
+        if (do_bolus): 
+            # add divergence of density classes --> diapycnal velocity
+            data_div_bolus  = load_data_fesom2(mesh, datapath, vname='std_dens_DIVbolus' , 
+                                        year=year, descript=descript , do_info=do_info, 
+                                        do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute) 
+            data_div_bolus = data_div_bolus.rename({'std_dens_DIVbolus':'dmoc_bolus'})
+            
+            data_div_bolus  = data_div_bolus.assign_coords({'ndens' :("ndens",std_dens)})
+            # save global attributes into allocated DMOC dataset
+            #data_DMOC = data_DMOC.assign_attrs(data_div_bolus.attrs)
+            
+            # integrated divergence below isopcnal  --> size: [nod2d x ndens] --> size: [elem x ndens]
+            data_div_bolus  = data_div_bolus/data_div_bolus['w_A'] # --> vertice area
+            
+            # skip this when doing diapycnal vertical velocity
+            if not do_wdiap:
+                # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
+                # array an save the attributes in the same time
+                if 'time' in list(data_div_bolus.dims):
+                    data_div_bolus  = data_div_bolus.assign( dmoc_bolus =data_div_bolus[list(data_div_bolus.keys())[0]][:, xr.DataArray(mesh.e_i, dims=["elem",'n3']), :].mean(dim="n3", keep_attrs=True) )
+                else:
+                    data_div_bolus  = data_div_bolus.assign( dmoc_bolus=data_div_bolus[list(data_div_bolus.keys())[0]][xr.DataArray(mesh.e_i, dims=["elem",'n3']),:].mean(dim="n3", keep_attrs=True) )
+                
+                if do_compute==False: data_div_bolus = data_div_bolus.chunk({'elem':1e4, 'nod2':1e4})
+                
+                # drop nod2 dimensional coordiantes become later replaced with elemental coordinates
+                data_div_bolus  = data_div_bolus.drop(['nodi','lon','lat','w_A'])
+                #data_div_bolus  = data_div_bolus*e_area
+                data_div_bolus  = data_div_bolus*data_DMOC['w_A']# --> element area
+            
+            data_DMOC = xr.merge([data_DMOC, data_div_bolus], combine_attrs="no_conflicts")  
+            del(data_div_bolus)
+        
     #___________________________________________________________________________
     # drop unnecessary coordinates
     if (not do_wdiap):
@@ -231,7 +265,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
 #|                                                                             |
 #+_____________________________________________________________________________+
 def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_checkbasin=False,
-              do_compute=False, exclude_meditoce=True, **kwargs):
+              do_compute=False, exclude_meditoce=True, do_bolus=True, **kwargs):
     
     
     # number of sigma2 density levels 
@@ -294,12 +328,13 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     #___________________________________________________________________________
     # scale surface density fluxes are already area weighted for zonal 
     # integration
-    if 'dmoc_fh'   in list(data_dMOC.keys()): data_dMOC['dmoc_fh'  ] = data_dMOC['dmoc_fh'  ] * 1.0e-6 
-    if 'dmoc_fw'   in list(data_dMOC.keys()): data_dMOC['dmoc_fw'  ] = data_dMOC['dmoc_fw'  ] * 1.0e-6
-    if 'dmoc_fr'   in list(data_dMOC.keys()): data_dMOC['dmoc_fr'  ] = data_dMOC['dmoc_fr'  ] * 1.0e-6 
-    if 'dmoc_fd'   in list(data_dMOC.keys()): data_dMOC['dmoc_fd'  ] = data_dMOC['dmoc_fd'  ] * 1.0e-6     
-    if 'dmoc_dvdt' in list(data_dMOC.keys()): data_dMOC['dmoc_dvdt'] = data_dMOC['dmoc_dvdt'] * 1.0e-6
-    if 'dmoc'      in list(data_dMOC.keys()): data_dMOC['dmoc'     ] = data_dMOC['dmoc'     ] * 1.0e-6
+    if 'dmoc_fh'   in list(data_dMOC.keys()): data_dMOC['dmoc_fh'   ] = data_dMOC['dmoc_fh'   ] * 1.0e-6 
+    if 'dmoc_fw'   in list(data_dMOC.keys()): data_dMOC['dmoc_fw'   ] = data_dMOC['dmoc_fw'   ] * 1.0e-6
+    if 'dmoc_fr'   in list(data_dMOC.keys()): data_dMOC['dmoc_fr'   ] = data_dMOC['dmoc_fr'   ] * 1.0e-6 
+    if 'dmoc_fd'   in list(data_dMOC.keys()): data_dMOC['dmoc_fd'   ] = data_dMOC['dmoc_fd'   ] * 1.0e-6     
+    if 'dmoc_dvdt' in list(data_dMOC.keys()): data_dMOC['dmoc_dvdt' ] = data_dMOC['dmoc_dvdt' ] * 1.0e-6
+    if 'dmoc'      in list(data_dMOC.keys()): data_dMOC['dmoc'      ] = data_dMOC['dmoc'      ] * 1.0e-6
+    if 'dmoc_bolus'in list(data_dMOC.keys()): data_dMOC['dmoc_bolus'] = data_dMOC['dmoc_bolus'] * 1.0e-6
 
     # multiply with weights to prepare for area weighted zonal means 
     data_dMOC['ndens_h'].data = data_dMOC['ndens_h'].data*data_dMOC['ndens_w_A'].data
@@ -352,6 +387,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     # cumulative sum over depth 
     if do_info==True: print(' --> do cumsum over depth (bottom-->top)')
     data_dMOC[ 'dmoc' ] = data_dMOC[ 'dmoc' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
+    data_dMOC[ 'dmoc_bolus' ] = data_dMOC[ 'dmoc_bolus' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
     
     #___________________________________________________________________________
     # compute z-position (z) from (f) density class thickness (h)
@@ -379,6 +415,9 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     if 'dmoc'      in list(data_dMOC.keys()): 
         attr_list = dict({'long_name':'Density MOC', 'units':'Sv'})
         data_dMOC['dmoc'     ] = data_dMOC['dmoc'     ].assign_attrs(attr_list)
+    if 'dmoc_bolus'in list(data_dMOC.keys()): 
+        attr_list = dict({'long_name':'Density MOC bolus vel.', 'units':'Sv'})
+        data_dMOC['dmoc_bolus'] = data_dMOC['dmoc_bolus'].assign_attrs(attr_list)    
     if 'ndens_h'   in list(data_dMOC.keys()): 
         attr_list = dict({'long_name':'Density class thickness', 'units':'m'})
         data_dMOC['ndens_h'  ] = data_dMOC['ndens_h'  ].assign_attrs(attr_list)
@@ -391,6 +430,11 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     if 'nz_rho'    in list(data_dMOC.keys()): 
         attr_list = dict({'long_name':'sigma2 density in zcoord', 'units':'kg/m³'})
         data_dMOC['nz_rho'   ] = data_dMOC['nz_rho'   ].assign_attrs(attr_list)
+    
+    #___________________________________________________________________________
+    # Add bolus MOC to normal MOC
+    if 'dmoc_bolus'in list(data_dMOC.keys()) and do_bolus:  
+        data_dMOC['dmoc'].data = data_dMOC['dmoc'].data + data_dMOC['dmoc_bolus'].data 
     
     #___________________________________________________________________________
     # compute depth of max and mean bottom topography
