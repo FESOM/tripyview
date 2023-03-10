@@ -14,6 +14,8 @@ from   .sub_data                import *
 from   .sub_plot                import *
 from   .sub_utility             import *
 from   .sub_colormap            import *
+import pandas as pd
+xr.set_options(enable_cftimeindex=True)
 
 #+___PRE-ANALYSE ARBITRARY CROSS-SECTION LINE__________________________________+
 #|                                                                             |
@@ -712,8 +714,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
         #_______________________________________________________________________
         # define dimensions
         list_dimname, list_dimsize, list_dimval = list(), list(), list()
-        
-        if   'time' in data.dims: list_dimname.append('time'), list_dimsize.append(data.dims['time']), list_dimval.append(data['time'].values)             
+        if   'time' in data.dims: list_dimname.append('time'), list_dimsize.append(data.dims['time']), list_dimval.append(pd.to_datetime(data.time))             
         if   'nz1'  in data.dims: list_dimname.append('nz1' ), list_dimsize.append(mesh.zmid.size   ), list_dimval.append(mesh.zmid) 
         elif 'nz_1' in data.dims: list_dimname.append('nz1' ), list_dimsize.append(mesh.zmid.size   ), list_dimval.append(mesh.zmid)  
         elif 'nz'   in data.dims: list_dimname.append('nz'  ), list_dimsize.append(mesh.zlev.size   ), list_dimval.append(mesh.zlev)  
@@ -730,9 +731,11 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
         if do_transectattr: aux_attr['transect'] = transect
         
         data_vars['transp'] = (list_dimname, aux_transp, aux_attr) 
+        
         # define coordinates
         if 'time' in data.dims:
-            coords = {'time ' : (list_dimname[0], list_dimval[0]),
+            coords = {
+                      #'time ' : (list_dimname[0], list_dimval[0]),
                       'depth' : (list_dimname[1], list_dimval[1]),
                       'lon'   : (list_dimname[2], lon),
                       'lat'   : (list_dimname[2], lat),
@@ -742,16 +745,26 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
                       'lon'   : (list_dimname[1], lon),
                       'lat'   : (list_dimname[1], lat),
                       'dst'   : (list_dimname[1], dst)}
-         
+        
         # create dataset
         if is_list:
             transp.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs))
+            # we have to set the time here with assign_coords otherwise if its 
+            # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
+            # recognize the cfttime format and things like data['time.year']
+            # are not possible
+            if 'time' in data.dims: transp[-1] = transp[-1].assign_coords(time=data.time)  
             if do_info:
                 print('neto transport:', transp[-1]['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
                 print(' (+) transport:', transp[-1]['transp'].where(transp[-1]['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
                 print(' (-) transport:', transp[-1]['transp'].where(transp[-1]['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
         else:
-            transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+            transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs, )
+            # we have to set the time here with assign_coords otherwise if its 
+            # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
+            # recognize the cfttime format and things like data['time.year']
+            # are not possible
+            if 'time' in data.dims: transp = transp.assign_coords(time=data.time)  
             if do_info:
                 print('neto transport:', transp['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
                 print(' (+) transport:', transp['transp'].where(transp['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
@@ -812,6 +825,7 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         #_______________________________________________________________________
         elif 'elem' in list(data.dims):
             if nodeinelem is None:
+                #print(" >-)))°> DICK FICH <°(((-< (1.1)")
                 # select only necessary elements 
                 scalarPcut = data[vname].isel(elem=transect['path_ei'][::2]).load().values
                 
@@ -823,13 +837,28 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 
                 scalarPcut = scalarPcut.T
                 
-                # define lon, lat , distance arrays
-                lon = transect['edge_cut_P'][:-1,0]
-                lat = transect['edge_cut_P'][:-1,1]
-                dst = transect['edge_cut_dist'][:-1]
+                if scalarPcut.shape[1] == transect['edge_cut_P'][:,0].shape[0]: 
+                    # define lon, lat , distance arrays
+                    lon = transect['edge_cut_P'][:,0]
+                    lat = transect['edge_cut_P'][:,1]
+                    dst = transect['edge_cut_dist'][:]
+                else:
+                    # define lon, lat , distance arrays
+                    lon = transect['edge_cut_P'][:-1,0]
+                    lat = transect['edge_cut_P'][:-1,1]
+                    dst = transect['edge_cut_dist'][:-1]
                 
             else:
-                # average elemental values to edge node 1
+                #print(" >-)))°> DICK FICH <°(((-< (1.2)")
+                # average over all elemental values that contribute to edge node 1
+                #        o-----o
+                #       / \   / \
+                #      /   \ / x-\-----elem_i_p
+                #     o-----O-----o 
+                #      \   /1\   /
+                #       \ /   \ /  
+                #        o-----o  
+                #
                 elem_i_P = nodeinelem[:,transects[0]['edge_cut_ni'][:,0]]
                 elem_A_P = mesh.e_area[elem_i_P]
                 elem_A_P[elem_i_P<0]=0.0
@@ -895,6 +924,7 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         #_______________________________________________________________________
         # define dimensions
         list_dimname, list_dimsize, list_dimval = list(), list(), list()
+        if   'time' in data.dims: list_dimname.append('time'), list_dimsize.append(data.dims['time']), list_dimval.append(pd.to_datetime(data.time))             
         if   'nz1'  in data.dims: list_dimname.append('nz1' ), list_dimsize.append(mesh.zmid.size), list_dimval.append(mesh.zmid) 
         elif 'nz_1' in data.dims: list_dimname.append('nz_1'), list_dimsize.append(mesh.zmid.size), list_dimval.append(mesh.zmid)  
         elif 'nz'   in data.dims: list_dimname.append('nz'  ), list_dimsize.append(mesh.zlev.size), list_dimval.append(mesh.zlev)  
@@ -910,16 +940,34 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         
         data_vars['transp'] = (list_dimname, scalarPcut, aux_attr) 
         # define coordinates
-        coords    = {'depth' : (list_dimname[0], list_dimval[0]),
-                     'lon'   : (list_dimname[1], lon),
-                     'lat'   : (list_dimname[1], lat),
-                     'dst'   : (list_dimname[1], dst),
-                    }
+        if 'time' in data.dims:
+            coords = {
+                      #'time ' : (list_dimname[0], list_dimval[0]),
+                      'depth' : (list_dimname[1], list_dimval[1]),
+                      'lon'   : (list_dimname[2], lon),
+                      'lat'   : (list_dimname[2], lat),
+                      'dst'   : (list_dimname[2], dst)}
+        else:    
+            coords = {'depth' : (list_dimname[0], list_dimval[0]),
+                      'lon'   : (list_dimname[1], lon),
+                      'lat'   : (list_dimname[1], lat),
+                      'dst'   : (list_dimname[1], dst)}
+        
         # create dataset
         if is_list:
             csects.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs))
+            # we have to set the time here with assign_coords otherwise if its 
+            # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
+            # recognize the cfttime format and things like data['time.year']
+            # are not possible
+            if 'time' in data.dims: csects[-1] = csects[-1].assign_coords(time=data.time)  
         else:
             csects = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+            # we have to set the time here with assign_coords otherwise if its 
+            # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
+            # recognize the cfttime format and things like data['time.year']
+            # are not possible
+            if 'time' in data.dims: csects = csects.assign_coords(time=data.time)  
             
     #___________________________________________________________________________
     if do_info: print('        elapsed time: {:3.2f}min.'.format((clock.time()-t1)/60.0))
@@ -1339,7 +1387,7 @@ def plot_transect(data, transects, figsize=[12, 6],
 #+___PLOT TIME SERIES OF TRANSPORT THROUGH SECTION_____________________________+
 #|                                                                             |
 #+_____________________________________________________________________________+
-def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl=None, 
+def plot_transect_transp_t(tseries_list, input_names, transect, which_cycl=None, 
                        do_allcycl=False, do_concat=False, str_descript='', str_time='', figsize=[], 
                        do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
                        ymaxstep=None, xmaxstep=5, ylabel=None):    
@@ -1360,42 +1408,35 @@ def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl
         cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
     
     #___________________________________________________________________________
-    ii=0
-    ii_cycle=1
+    ii, ii_cycle = 0, 1
+    if which_cycl is None: aux_which_cycl = 1
+    else                 : aux_which_cycl = which_cycl
+    tbnd=[np.inf, -np.inf]
+    #___________________________________________________________________________
     for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
         
-        if tseries.ndim>1: tseries = tseries.squeeze()
-        auxtime = time.copy()
-        if np.mod(ii_ts+1,which_cycl)==0 or do_allcycl==False:
-            
-            if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
-            hp=ax.plot(auxtime,tseries, 
-                   linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], 
-                   marker='o', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
-                   zorder=2)
-            
+        var  = list(tseries.keys())[0]
+        data = tseries[var]
+        #if tseries.ndim>1: tseries = tseries.squeeze()
+        #_______________________________________________________________________    
+        year, mon = data['time.year'], data['time.month']
+        if np.unique(tseries_list[0]['time.month']).size ==1:
+            time = auxtime = year
+        else: 
+            time = auxtime = year+(mon-1)/12
+        tlim, tdel = [time[0], time[-1]], time[-1]-time[0]
+        if do_concat: auxtime = auxtime + (tdel+1)*(ii_cycle-1)
+        tbnd[0], tbnd[1] = min([tbnd[0],auxtime[0]]), max([tbnd[1],auxtime[-1]])
+        #_______________________________________________________________________    
+        hp=ax.plot(auxtime, data, linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], marker='o', markerfacecolor='w', markersize=5, zorder=2)
+        if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
+            dict_plt = {'markeredgecolor':'k', 'markeredgewidth':0.5, 'color':hp[0].get_color(), 'clip_box':False, 'clip_on':False, 'zorder':3}
             if do_pltmean: 
-                # plot mean value with triangle 
-                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(),
-                        marker='<', markersize=8, markeredgecolor='k', markeredgewidth=0.5,
-                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+                plt.plot(time[0]-(tdel)*0.0120, data.mean(), marker='<', **dict_plt)
             if do_pltstd:
-                # plot std. range
-                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(),
-                        marker='^', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
-                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
-                
-                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(),
-                        marker='v', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
-                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
-        
-        else:
-            if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
-            hp=ax.plot(auxtime, tseries, 
-                   linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:],
-                   zorder=1) #marker='o', markerfacecolor='w', 
-                   # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
-        
+                plt.plot(time[0]-(tdel)*0.015, data.mean()+data.std(), marker='^', markersize=6, **dict_plt)
+                plt.plot(time[0]-(tdel)*0.015, data.mean()-data.std(), marker='v', markersize=6, **dict_plt)
+        #_______________________________________________________________________
         ii_cycle=ii_cycle+1
         if ii_cycle>which_cycl: ii_cycle=1
         
@@ -1404,7 +1445,6 @@ def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl
               bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
               #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
     ax.set_xlabel('Time [years]',fontsize=12)
-    
     if ylabel is None: ax.set_ylabel('{:s} in [Sv]'.format('Transport'),fontsize=12)
     else             : ax.set_ylabel('{:s} in [Sv]'.format(ylabel),fontsize=12)
     ax.set_title(transect['Name'], fontsize=12, fontweight='bold')
@@ -1426,10 +1466,11 @@ def plot_transect_transp_t(time, tseries_list, input_names, transect, which_cycl
     
     plt.grid(which='major')
     if not do_concat:
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
+        #plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)
+        plt.xlim(tbnd[0]-(tbnd[1]-tbnd[0])*0.015,tbnd[1]+(tbnd[1]-tbnd[0])*0.015)    
     else:    
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(which_cycl-1)+(time[-1]-time[0])*0.015)    
-    
+        #plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(which_cycl-1)+(time[-1]-time[0])*0.015)    
+        plt.xlim(tbnd[0]-(tbnd[1]-tbnd[0])*0.015,tbnd[1]+(tbnd[1]-tbnd[0])*0.015)    
     #___________________________________________________________________________
     plt.show()
     fig.canvas.draw()
