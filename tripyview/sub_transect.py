@@ -675,9 +675,9 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_info=T
                                        mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
                                        vel_u[nti,:,:], vel_v[nti,:,:])            
         else: 
-            print(vel_u.shape)
-            print(vel_v.shape)
-            print(transect['path_ei'].shape)
+            #print(vel_u.shape)
+            #print(vel_v.shape)
+            #print(transect['path_ei'].shape)
             for ii, ei in enumerate(transect['path_ei']):
                 vel_u[ii, mesh.e_iz[ei]:], vel_v[ii,mesh.e_iz[ei]:] = np.nan, np.nan
                  

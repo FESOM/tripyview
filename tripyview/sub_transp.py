@@ -63,16 +63,18 @@ def calc_mhflx(mesh, data, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
         tu2, tv2 = data[vname].values[edge_tri[1, ind], :], data[vname2].values[edge_tri[1, ind], :]
         
         # can not rotate them together
-        dum, tv1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], tu1, tv1)
-        dx1, dum = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], dx1, dy1)
-        dum, tv2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], tu2, tv2)
-        dx2, dum = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], dx2, dy2)
+        #tu1, tv1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], tu1, tv1)
+        #dx1, dy1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], dx1, dy1)
+        #tu2, tv2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], tu2, tv2)
+        #dx2, dy2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], dx2, dy2)
         tv1, tv2 = tv1.T, tv2.T
-        del(dum, dy1, dy2, tu1, tu2)
+        tu1, tu2 = tu1.T, tu2.T
+        #del(dum, dy1, dy2, tu1, tu2)
         
         #_______________________________________________________________________
         # integrate along latitude bin--> int(t*u)dx 
-        tv_dx    = np.nansum(tv1*np.abs(dx1) + tv2*np.abs(dx2), axis=1)
+        tv_dx    = -np.nansum(tu1*dx1 + tu2*dx2 + tv1*dy1 + tv2*dy2, axis=1)
+        #tv_dx    = np.nansum(tv1*np.abs(dx1) + tv2*np.abs(dx2), axis=1)
         
         #_______________________________________________________________________
         # integrate vertically --> int()dz
@@ -84,6 +86,174 @@ def calc_mhflx(mesh, data, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
         
     #___________________________________________________________________________
     return(mhflx)
+
+
+#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_r, 
+                   datat=None, dlat=1.0, do_checkbasin=True, do_buflay=True):
+    #___________________________________________________________________________
+    vname_list = list(data.keys())
+    vname, vname2 = vname_list[0], vname_list[1]
+    u = data[vname].values.T.copy()
+    v = data[vname2].values.T.copy()
+    
+    # in case you only wrote out u, v and temp instead of u*temp and v*temp
+    if datat != None: 
+        vnamet = list(datat.keys())[0]
+        temp=datat[vnamet].values.T.copy()
+        
+    #___________________________________________________________________________
+    # factors for heatflux computation
+    rho0 = 1030 # kg/m^3
+    cp   = 3850 # J/kg/K
+    inPW = 1.0e-15
+    
+    #___________________________________________________________________________
+    # coordinates of triangle centroids
+    e_x  = mesh.n_x[mesh.e_i].sum(axis=1)/3.0
+    e_y  = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+    
+    #___________________________________________________________________________
+    # Loop over boxes
+    list_mhflx=list()
+    for box in box_list:
+        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+            if len(box)==2: boxname, box = box[1], box[0]
+        elif isinstance(box, shp.Reader):
+            #boxname = box.shapeName.split('/')[-1].replace('_',' ')
+            boxname = box.shapeName.split('/')[-1]
+            boxname = boxname.split('_')[0].replace('_',' ')
+            print(boxname)
+        elif box =='global':    
+            boxname = 'global'
+        
+        #_______________________________________________________________________
+        # compute box mask index for nodes
+        #n_idxin=do_boxmask(mesh,box,do_elem=False)
+        if boxname=='global':
+            n_idxin = np.ones(mesh.n2dn,dtype='bool')
+        else:    
+            e_idxin = do_boxmask(mesh,box,do_elem=True)
+            e_i     = mesh.e_i[e_idxin,:]
+            e_i     = np.unique(e_i.flatten())
+            n_idxin = np.zeros(mesh.n2dn,dtype='bool')
+            n_idxin[e_i]=True
+            del(e_i, e_idxin)
+            
+        #_______________________________________________________________________
+        # create meridional bins
+        #lat  = np.arange(np.floor(mesh.n_y[n_idxin].min())-dlat/2, np.ceil(mesh.n_y[n_idxin].max())+dlat/2, dlat)
+        lat  = np.arange(np.ceil(mesh.n_y[n_idxin].min())-dlat/2, np.floor(mesh.n_y[n_idxin].max())+dlat/2, dlat)
+ 
+        #___________________________________________________________________
+        if do_buflay and boxname!='global':
+            # add a buffer layer of selected triangles --> sometimes it can be be that 
+            # the shapefile is to small in this case boundary triangles might not get 
+            # selected
+            e_idxin = n_idxin[mesh.e_i].max(axis=1)
+            e_i = mesh.e_i[e_idxin,:]
+            e_i = np.unique(e_i.flatten())
+            n_idxin[e_i]=True
+            del(e_i, e_idxin)
+ 
+        #__________________________________________________________________________
+        # Create xarray dataset
+        list_dimname, list_dimsize = ['nlat'], [lat.size]
+        data_vars = dict()
+        aux_attr  = data[vname].attrs
+        #aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
+        #aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
+        aux_attr['long_name']  = f'Meridional Heat Transport'
+        aux_attr['short_name'] = f'Merid. Heat Transp.'
+        aux_attr['boxname'] = boxname
+        aux_attr['units']      = 'PW'
+        data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+        # define coordinates
+        coords    = {'nlat' : (['nlat' ], lat )}
+        # create dataset
+        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+        del(data_vars, coords, aux_attr)
+    
+        #___________________________________________________________________________
+        # do zonal sum over latitudinal bins 
+        #n_check= np.zeros(mesh.n2dn,dtype='bool')
+        for bini, lat_i in enumerate(lat):
+            # indices of edges crossed by lat_i
+            if boxname=='global':
+                ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i)<=0.0)
+            else:    
+                ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i)<=0.0) & ((n_idxin[edge[0,:]]==True) | (n_idxin[edge[1,:]]==True))
+            ind2 = (mesh.n_y[edge[0,:]]<=lat_i) # & ((n_idxin[edge[0,:]]==True) | (n_idxin[edge[1,:]]==True))
+            if not np.any(ind): continue
+            
+            #print(lat_i, np.sum(ind))
+            #n_check[edge[0, ind]]=True
+            #n_check[edge[1, ind]]=True
+            #_______________________________________________________________________
+            edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+            edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+            
+            ##_______________________________________________________________________
+            u1 , v1  = u[:, edge_tri[0,ind]], v[:, edge_tri[0,ind]]
+            u2 , v2  = u[:, edge_tri[1,ind]], v[:, edge_tri[1,ind]]
+            ny1, nx1 = edge_dxdy_l[1,ind]   , edge_dxdy_l[0,ind]
+            ny2, nx2 = edge_dxdy_r[1,ind]   , edge_dxdy_r[0,ind]
+            
+            ##___________________________________________________________________
+            ## extra rotation is not necessary !
+            #u1, v1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], u1.T, v1.T)
+            #u2, v2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], u2.T, v2.T)
+            #u1, v1 = u1.T, v1.T
+            #u2, v2 = u2.T, v2.T
+            #nx1  , ny1   = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], nx1  , ny1)
+            #nx2  , ny2   = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], nx2  , ny2)
+            
+            #___________________________________________________________________
+            u1dy1, v1dx1=nx1*u1, ny1*v1
+            u2dy2, v2dx2=nx2*u2, ny2*v2
+            
+            #___________________________________________________________________
+            # compute u*t, v*t if data wasnt already ut,vt
+            if datat != None: 
+                etemp = (temp[:,edge[0, ind]] + temp[:, edge[1, ind]])*0.5
+                u1dy1, v1dx1 = u1dy1*etemp, v1dx1*etemp
+                u2dy2, v2dx2 = u2dy2*etemp, v2dx2*etemp
+                
+            #___________________________________________________________________
+            # integrate along latitudinal bin 
+            u1dy1, v1dx1 = np.nansum(u1dy1,axis=1), np.nansum(v1dx1,axis=1)
+            u2dy2, v2dx2 = np.nansum(u2dy2,axis=1), np.nansum(v2dx2,axis=1)
+            HT=-(u1dy1+v1dx1+u2dy2+v2dx2)
+            
+            #_______________________________________________________________________
+            # integrate vertically --> int()dz
+            mhflx['mhflx'].data[bini] = np.sum(np.diff(-mesh.zlev)*HT)*rho0*cp*inPW
+            
+            #_______________________________________________________________________
+            edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+            edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+        
+        #if do_checkbasin:
+            #from matplotlib.tri import Triangulation
+            #tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            #plt.figure()
+            #plt.triplot(tri, color='k')
+            ##if do_onelem:
+                ##plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
+            ##else:
+            #plt.plot(mesh.n_x[n_check], mesh.n_y[n_check], 'or', linestyle='None', markersize=2)
+            #plt.title('Basin selection')
+            #plt.show()
+        
+        #STOP
+        #_______________________________________________________________________
+        if len(box_list)==1: list_mhflx = mhflx
+        else               : list_mhflx.append(mhflx)
+    #___________________________________________________________________________
+    return(list_mhflx)
+
 
 
 #+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
@@ -129,7 +299,7 @@ def calc_gmhflx(mesh, data, lat):
     return(ghflx)
 
 
-#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+#+___COMPUTE MERIDIONAL HEATFLUX FROM TRACER ADVECTION TROUGH BINNING_________+
 #|                                                                             |
 #+_____________________________________________________________________________+
 def calc_gmhflx_box(mesh, data, box_list, dlat=1.0):
@@ -146,7 +316,10 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0):
         if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
             if len(box)==2: boxname, box = box[1], box[0]
         elif isinstance(box, shp.Reader):
-            boxname = box.shapeName.split('/')[-1].replace('_',' ')
+            #boxname = box.shapeName.split('/')[-1].replace('_',' ')
+            boxname = box.shapeName.split('/')[-1]
+            boxname = boxname.split('_')[0].replace('_',' ')
+            print(boxname)
         elif box =='global':    
             boxname = 'global'
             
@@ -166,8 +339,11 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0):
         list_dimname, list_dimsize = ['nlat'], [lat.size]
         data_vars = dict()
         aux_attr  = data[vname].attrs
-        aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
-        aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
+        #aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
+        #aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
+        aux_attr['long_name']  = f'Meridional Heat Transport'
+        aux_attr['short_name'] = f'Merid. Heat Transp.'
+        aux_attr['boxname']    = boxname
         aux_attr['units']      = 'PW'
         data_vars['gmhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
         # define coordinates
@@ -286,35 +462,58 @@ def plot_mhflx(mhflx_list, input_names, sect_name=None, str_descript='', str_tim
     
     #___________________________________________________________________________
     # setup colormap
-    if do_allcycl: 
-        if which_cycl is not None:
-            cmap = categorical_cmap(np.int32(len(mhflx_list)/which_cycl), which_cycl, cmap="tab10")
+    #if do_allcycl: 
+        #if which_cycl is not None:
+            #cmap = categorical_cmap(np.int32(len(mhflx_list)/which_cycl), which_cycl, cmap="tab10")
+        #else:
+            #cmap = categorical_cmap(len(mhflx_list), 1, cmap="tab10")
+    #else:
+    cmap = categorical_cmap(len(mhflx_list), 1, cmap="tab10")
+    lstyle = ['-','--','-.',':']
+    str_units, str_ltim = None, None
+    xmin, xmax = np.inf, -np.inf
+    #___________________________________________________________________________
+    for ii_ts, (datap, datap_name) in enumerate(zip(mhflx_list, input_names)):
+        if isinstance(datap,list)  :
+            for jj_ts, datap1 in enumerate(datap):
+                vname = list(datap1.keys())[0]
+                boxname   = datap1[vname].attrs['boxname']
+                
+                if 'units'    in datap1[vname].attrs.keys(): str_units = datap1[vname].attrs['units']
+                if 'str_ltim' in datap1[vname].attrs.keys(): str_ltim  = datap1[vname].attrs['str_ltim']
+                #_______________________________________________________________
+                datap_x, datap_y = datap1['nlat'].values, datap1[vname].values
+                hp=ax.plot(datap_x, datap_y, 
+                        linewidth=1, linestyle=lstyle[jj_ts], label=f"{datap_name} {boxname}", color=cmap.colors[ii_ts,:], 
+                        marker='None', markerfacecolor='w', markersize=5, 
+                        zorder=2)
+                #_______________________________________________________________
+                xmin = np.min([xmin, datap_x.min()])
+                xmax = np.max([xmax, datap_x.max()])
+                
         else:
-            cmap = categorical_cmap(len(mhflx_list), 1, cmap="tab10")
-    else:
-        cmap = categorical_cmap(len(mhflx_list), 1, cmap="tab10")
-    
+            vname = list(datap.keys())[0]
+            if 'units'    in datap[vname].attrs.keys(): str_units = datap[vname].attrs['units']
+            if 'str_ltim' in datap[vname].attrs.keys(): str_ltim  = datap[vname].attrs['str_ltim']
+            #___________________________________________________________________
+            datap_x, datap_y = datap['nlat'].values, datap[vname].values
+            hp=ax.plot(datap_x, datap_y, 
+                    linewidth=1, label=datap_name, color=cmap.colors[ii_ts,:], 
+                    marker='None', markerfacecolor='w', markersize=5, 
+                    zorder=2)
+            #_______________________________________________________________
+            xmin = np.min([xmin, datap_x.min()])
+            xmax = np.max([xmax, datap_x.max()])     
+            
     #___________________________________________________________________________
-    for ii_ts, (data, data_name) in enumerate(zip(mhflx_list, input_names)):
-        
-        vname = list(data.keys())[0]
-        #_______________________________________________________________________
-        data_x, data_y = data['nlat'].values, data[vname].values
-        hp=ax.plot(data_x, data_y, 
-                linewidth=1, label=data_name, color=cmap.colors[ii_ts,:], 
-                marker='None', markerfacecolor='w', markersize=5, 
-                zorder=2)
-                 
-    #___________________________________________________________________________
-    ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.02,0.5), loc="center left", borderaxespad=0)
+    #ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.02,0.5), loc="center left", borderaxespad=0)
+    ax.legend(shadow=True, fancybox=True, frameon=True, loc="lower right")
     ax.set_xlabel('Latitude [deg]',fontsize=12)
     if   vname == 'gmhflx': y_label = 'Global Meridional Heat Transport'
     elif vname == 'mhflx' : y_label = 'Meridional Heat Transport'
     
-    if 'units' in mhflx_list[0][vname].attrs.keys():
-        y_label = y_label + ' [' + mhflx_list[0][vname].attrs['units'] +']'
-    if 'str_ltim' in mhflx_list[0][vname].attrs.keys():
-        y_label = y_label+'\n'+mhflx_list[0][vname].attrs['str_ltim']
+    if str_units is not None: y_label = y_label + ' [' + str_units +']'
+    if str_ltim  is not None: y_label = y_label + '\n'+str_ltim
     ax.set_ylabel(y_label, fontsize=12)  
         
     #___________________________________________________________________________
@@ -323,7 +522,7 @@ def plot_mhflx(mhflx_list, input_names, sect_name=None, str_descript='', str_tim
     ax.yaxis.set_minor_locator(mticker.AutoMinorLocator())
     ax.xaxis.set_minor_locator(mticker.AutoMinorLocator())
     plt.grid(which='major')
-    plt.xlim(data_x[0]-(data_x[-1]-data_x[0])*0.015,data_x[-1]+(data_x[-1]-data_x[0])*0.015)    
+    plt.xlim(xmin-(xmax-xmin)*0.015,xmax+(xmax-xmin)*0.015)    
         
     #___________________________________________________________________________
     plt.show()
