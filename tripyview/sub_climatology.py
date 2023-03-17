@@ -187,8 +187,6 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         # interp data on nodes --> method linear
         data = data.interp(dict({dim_zlev:zmid}), method='linear')
         
-    data = data.transpose()    
-    
     #___________________________________________________________________________
     # write additional attribute info
     for vname in list(data.keys()):
@@ -198,7 +196,19 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         do_additional_attrs(data, vname, attr_dict)
     
     data = data.assign_coords(nz1=('nz1' ,-mesh.zmid))
-    data = data.assign_coords(w_A=("nod2", mesh.n_area[0, :]))
+    
+    if depth is None:
+        w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1' , 'nod2'])
+        w_A = w_A.where(~np.isnan(data[vname].data))
+        data = data.assign_coords(w_A=w_A)
+    else:
+        w_A = xr.DataArray(mesh.n_area[0,:].astype('float32'), dims=['nod2'])
+        data = data.assign_coords(w_A=w_A)
+    del(w_A)
+    
+    #___________________________________________________________________________
+    data = data.transpose()    
+    data = data.astype('float32', copy=False)
     
     #___________________________________________________________________________
     if do_compute: data = data.compute()

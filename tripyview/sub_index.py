@@ -41,18 +41,41 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
         # points
-        if   'nod2' in data.dims:
-            #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2'))
-            index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2')
-        elif 'elem' in data_dims():    
-            #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
-            index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem')
+        dim_name=[]
+        if   'nod2' in data.dims: dim_name.append('nod2')
+        if   'elem' in data.dims: dim_name.append('elem')    
+        if   'nz'   in data.dims: dim_name.append('nz')
+        if   'nz1'  in data.dims: dim_name.append('nz1')      
+        if   'nz_1' in data.dims: dim_name.append('nz1')          
             
+        if do_harithm=='wmean' and do_zarithm=='wmean':
+            if   'nod2' in data.dims:
+                weights = data['w_A']*data['w_z']
+                data    = data.drop(['w_A', 'w_z'])
+                weights = weights/weights.sum(dim=dim_name, skipna=True)
+                data    = data*weights.astype('float32', copy=False )
+                index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
+            elif 'elem' in data_dims:    
+                STOP
             
-        if   'nz1' in data.dims and do_harithm is not None:
-            index = do_depth_arithmetic(index, do_zarithm, 'nz1')
-        elif 'nz'  in data.dims and do_harithm is not None:        
-            index = do_depth_arithmetic(index, do_zarithm, 'nz')
+        else:    
+            #_______________________________________________________________________
+            if   'nod2' in data.dims:
+                #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2'))
+                index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2')
+            elif 'elem' in data_dims:    
+                #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
+                index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem')
+        
+            #_______________________________________________________________________
+            if   'nz1' in data.dims and do_harithm is not None:
+                index = do_depth_arithmetic(index, do_zarithm, 'nz1')
+            elif 'nz'  in data.dims and do_harithm is not None:        
+                index = do_depth_arithmetic(index, do_zarithm, 'nz')
+        
+        
+        
+        
         index_list.append(index)
         idxin_list.append(idx_IN)
         del(index)
