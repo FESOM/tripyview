@@ -611,7 +611,18 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_medito
 #_______________________________________________________________________________
 def do_boxmask(mesh, box, do_elem=False):
     #___________________________________________________________________________
-    if do_elem: mesh_x, mesh_y = mesh.n_x[mesh.e_i].sum(axis=1)/3.0, mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+    if do_elem: 
+        #mesh_x, mesh_y = mesh.n_x[mesh.e_i].sum(axis=1)/3.0, mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+        mesh_y = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+        mesh_x = mesh.n_x[mesh.e_i]
+        
+        # account for czczlic boundary
+        xmin   = mesh_x.min(axis=1)
+        xmin   = np.transpose(mesh_x.T - xmin)
+        mesh_x[xmin>=180.0] = mesh_x[xmin>=180.0]-360.0
+        mesh_x[xmin<-180.0] = mesh_x[xmin<-180.0]+360.0
+        mesh_x = mesh_x.sum(axis=1)/3.0
+        del(xmin)
     else      : mesh_x, mesh_y = mesh.n_x, mesh.n_y
     
     #___________________________________________________________________________

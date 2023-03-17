@@ -18,7 +18,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
                      do_compute=True, descript='',  runid='fesom', chunks={'time':100, 'elem':1e4, 'nod2':1e4},
-                     do_showtime=False, 
+                     do_showtime=False, do_prec='float32', 
+                     do_zweight=False, do_hweight=True, 
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -206,11 +207,16 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         
         # rename old vertices dimension name to new 'node' --> 'nod2'
         if ('node' in data.dims): data = data.rename_dims({'node':'nod2'})
+        
+    #___________________________________________________________________________    
+    # convert to specific precision
+    data = data.astype(do_prec, copy=False)
     
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
     # also add weights
-    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
+    if do_zarithm == 'wmean': do_zweight=True
+    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=do_zweight, do_hweight=do_hweight)
     
     #___________________________________________________________________________
     # years are selected by the files that are open, need to select mon or day 
@@ -227,7 +233,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         if dim_vert is not None: data = data.transpose('time', dim_horz, dim_vert)
     else: 
         if dim_vert is not None: data = data.transpose(dim_horz, dim_vert)
-       
+    
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
@@ -240,6 +246,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
     # if ( ('nz1' in data[vname].dims) or ('nz'  in data[vname].dims) ) and (depth is not None):
     if ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is not None):
+        #print('~~ >-))))o> o0O ~~~ A')
         #_______________________________________________________________________
         # in old fesom2 output the vertical depth levels are not included --> 
         # add depth axes by hand
@@ -284,13 +291,15 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
     elif ( bool(set(['nz1','nz_1','nz']).intersection(data.dims)) ) and (depth is None) and (do_zarithm in ['sum','mean','wmean']): 
+        #print('~~ >-))))o> o0O ~~~ B')
         if   ('nz1'  in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz1" )
         elif ('nz_1' in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz_1")
         elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz"  )     
     # only 2D data found            
     else:
+        #print('~~ >-))))o> o0O ~~~ C')
         depth=None
-    
+   
     #___________________________________________________________________________
     # rotate the vectors if do_vecrot=True and do_vec=True
     data = do_vector_rotation(data, mesh, do_vec, do_vecrot)
@@ -446,7 +455,7 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
 #| ___RETURNS_______________________________________________________________   |
 #| data         :   returns xarray dataset object                              |
 #|_____________________________________________________________________________|
-def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=None):
+def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     dim_vert = None
     if   ('nz_1' in data.dims): 
         dim_vert = 'nz_1'
@@ -474,23 +483,36 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=None):
         elif dim_vert in ['nz']: 
             data = data.assign_coords(nodiz = xr.DataArray(mesh.n_iz        , dims=['nod2']).chunk(data.chunksizes['nod2']))
         
-        # do weighting for weighted mean computation on nodes
+        # do horiz weighting for weighted mean computation on nodes
         if do_hweight:
-            data = data.assign_coords(w_A=xr.DataArray(mesh.n_area[0, :].astype('float32'), dims=['nod2']).chunk(data.chunksizes['nod2']))
-        if do_zweight=='wmean':  
+            if   'nz1'  == dim_vert:
+                w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1' , 'nod2']).chunk(data.chunksizes['nod2'])
+            elif 'nz_1' == dim_vert:
+                w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz_1', 'nod2']).chunk(data.chunksizes['nod2'])
+            elif 'nz'   == dim_vert:
+                w_A = xr.DataArray(mesh.n_area.astype(       'float32'), dims=['nz'  , 'nod2']).chunk(data.chunksizes['nod2'])
+            else:   
+                w_A = xr.DataArray(mesh.n_area[0, :].astype( 'float32'), dims=[        'nod2']).chunk(data.chunksizes['nod2'])
+            data = data.assign_coords(w_A=w_A)
+            del(w_A)
+        
+        # do vertical weighting/volumen weight
+        if do_zweight:  
             if   'nz1' == dim_vert:
-                w_An = xr.DataArray(mesh.n_area[:-1,:], dims=['nz1', 'nod2']).chunk(data.chunksizes['nod2'])
+                #w_An = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1', 'nod2']).chunk(data.chunksizes['nod2'])
                 w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz1'])
                 #data = data.assign_coords(w_z=w_z*w_An)
             elif 'nz_1' == dim_vert:
-                w_An = xr.DataArray(mesh.n_area[:-1,:], dims=['nz_1', 'nod2']).chunk(data.chunksizes['nod2'])
+                #w_An = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz_1', 'nod2']).chunk(data.chunksizes['nod2'])
                 w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz_1'])
                 #data = data.assign_coords(w_z=w_z*w_An)
             elif 'nz' == dim_vert:
-                w_An = xr.DataArray(mesh.n_area, dims=['nz', 'nod2']).chunk(data.chunksizes['nod2'])
-                w_z  = xr.DataArray(np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh_zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0)), dims=['nz'])
-            data = data.assign_coords(w_z=w_z*w_An)
-            del(w_z, w_An)
+                #w_An = xr.DataArray(mesh.n_area.astype('float32'), dims=['nz', 'nod2']).chunk(data.chunksizes['nod2'])
+                w_z  = xr.DataArray(np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0)), dims=['nz'])
+            #data = data.drop('w_A')    
+            #data = data.assign_coords(w_z=w_An*w_z)
+            data = data.assign_coords(w_z=w_z)
+            del(w_z)
         
     elif ('elem' in data.dims):                          
         dim_horz = 'elem'
@@ -505,7 +527,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=None):
         # do weighting for weighted mean computation on elements
         if do_hweight:
             data = data.assign_coords(w_A  = xr.DataArray(mesh.e_area                   , dims=['elem']).chunk(data.chunksizes['elem']))
-        if do_zweight=='wmean':    
+        if do_zweight:    
             if   'nz1' == dim_vert:
                 w_A  = np.zeros((mesh.nlev-1, mesh.n2de))
                 for ei in range(0,mesh.n2de): w_A[mesh.e_iz[ei]+1-1:,ei]=np.nan
@@ -837,10 +859,12 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
             data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)      
         elif do_harithm=='wmean':
             weights = data['w_A']
+            data    = data.drop('w_A')
             weights = weights/weights.sum(dim=dim_name, skipna=True)
             data    = data*weights
             del weights
             data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)  
+            data    = data.where(data!=0)
         elif do_harithm=='None' or do_zarithm is None:
             ...
         else:
@@ -878,7 +902,11 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
             data    = data*data['w_z']
             data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)          
         elif do_zarithm=='wmean':
-            weights = data['w_z']
+            if   ('nod2' in data.dims):
+                weights = data['w_A']*data['w_z']
+            else:    
+                weights = data['w_z']
+                
             weights = weights/weights.sum(dim=dim_name, skipna=True)
             data    = data*weights
             data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True) 

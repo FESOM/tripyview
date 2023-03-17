@@ -1976,7 +1976,13 @@ def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh)
     return(cinfo)
     
     
-    
+#
+#
+#_______________________________________________________________________________
+# --> this based on work of Nils Bruegemann see 
+# https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
+# i needed this to unify the ploting between icon and fesom for model comparison
+# paper
 def arrange_axes(nx, ny,
                  sharex = True, sharey = False,
                  xlabel = '', ylabel = '',
@@ -2266,8 +2272,57 @@ def arrange_axes(nx, ny,
         hcb = list(np.array(hcb)[isort])
 
     # add letters for subplots
-    #if (do_axes_labels) and (axlab_kw is not None):
-        #hca = axlab(hca, fontdict=axlab_kw)
+    if (do_axes_labels) and (axlab_kw is not None):
+        hca = axlab(hca, fontdict=axlab_kw)
 
     return hca, hcb
-    
+
+
+#
+#
+#_______________________________________________________________________________
+# --> this based on work of Nils Bruegemann see 
+# https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
+# i needed this to unify the ploting between icon and fesom for model comparison
+# paper    
+def axlab(hca, figstr=[], posx=[-0.00], posy=[1.05], fontdict=None):
+  """
+input:
+----------
+  hca:      list with axes handles
+  figstr:   list with strings that label the subplots
+  posx:     list with length 1 or len(hca) that gives the x-coordinate in ax-space
+  posy:     list with length 1 or len(hca) that gives the y-coordinate in ax-space
+last change:
+----------
+2015-07-21
+  """
+
+  # make list that looks like [ '(a)', '(b)', '(c)', ... ]
+  if len(figstr)==0:
+    #lett = "abcdefghijklmnopqrstuvwxyz"
+    lett  = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
+    lett += ["a2","b2","c2","d2","e2","f2","g2","h2","i2","j2","k2","l2","m2","n2","o2","p2","q2","r2","s2","t2","u2","v2","w2","x2","y2","z2"]
+    lett = lett[0:len(hca)]
+    figstr = ["z"]*len(hca)
+    for nn, ax in enumerate(hca):
+      figstr[nn] = "(%s)" % (lett[nn])
+  
+  if len(posx)==1:
+    posx = posx*len(hca)
+  if len(posy)==1:
+    posy = posy*len(hca)
+  
+  # draw text
+  for nn, ax in enumerate(hca):
+    ht = hca[nn].text(posx[nn], posy[nn], figstr[nn], 
+                      transform = hca[nn].transAxes, 
+                      horizontalalignment = 'right',
+                      fontdict=fontdict)
+    # add text handle to axes to give possibility of changing text properties later
+    # e.g. by hca[nn].axlab.set_fontsize(8)
+    hca[nn].axlab = ht
+#  for nn, ax in enumerate(hca):
+#    #ax.set_title(figstr[nn]+'\n', loc='left', fontsize=10)
+#    ax.set_title(figstr[nn], loc='left', fontsize=10)
+  return hca
