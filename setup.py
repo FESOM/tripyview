@@ -33,7 +33,7 @@ requirements = [
     'pyresample',
     'pytest',
     'papermill', 
-    'black'
+    'black',
     'jinja2',
     'pyyaml',
     'pyvista',
