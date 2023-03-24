@@ -23,8 +23,8 @@ clim_path: '/albedo/work/projects/p_fesom/FROM-OLLIE/FESOM2/hydrography/phc3.0/p
 ncolumn: 2
 box: None
 
-#which_cycl: None
-which_cycl: 5
+which_cycl: None
+#which_cycl: 5
 
 year: [2000, 2019]
 depth: 100
@@ -36,9 +36,9 @@ hslice:
     temp:
         depths: [500, 1000, 2000, 3000, 4000]
         cstr: 'blue2red'
-    salt:
-        depths: [500, 1000, 2000, 3000, 4000]
-        cstr: 'green2orange'
+    #salt:
+        #depths: [500, 1000, 2000, 3000, 4000]
+        #cstr: 'green2orange'
     ##sigma2:
         ##depths: [500, 1000, 2000, 3000, 4000]
         ##cstr: 'grads'
@@ -51,13 +51,13 @@ hslice:
         ##depths: [500, 1000, 2000, 3000, 4000]
         ##cstr: 'blue2red'
         ##cfac: 0.5
-    ssh:
-        depths: [0]
-        cstr: 'grads'
-        cref: 0
-    MLD2:
-        depths: [0]
-        cstr: 'rygbw'
+    #ssh:
+        #depths: [0]
+        #cstr: 'grads'
+        #cref: 0
+    #MLD2:
+        #depths: [0]
+        #cstr: 'rygbw'
 
 ##_______________________________________________________________________________
 ## northern/southern stereographic plots
