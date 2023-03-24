@@ -618,7 +618,8 @@ def drive_dmoc(yaml_settings, analysis_name):
         elif analysis_name == 'dmoc_inner_z': 
             current_params2["which_transf"], str_mode = 'inner', '_inner_z'
             current_params2["do_zcoord"] = True
-        current_params2.update(driver_settings[vname])
+        if driver_settings[vname] is not None:
+            current_params2.update(driver_settings[vname])
         #_______________________________________________________________________
         save_fname    = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.png"
         save_fname_nb = f"{yaml_settings['workflow_name']}_{analysis_name}_{vname}.ipynb"
