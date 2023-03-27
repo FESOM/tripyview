@@ -20,7 +20,8 @@ git clone https://github.com/patrickscholz/tripyview
 2nd. install using pip: 
 ```bash
 # look like cartopy causes trouble when installed via pip so better preinstall via
-# conda
+# conda also netcdf4>=1.6.1 causes occasionally netcdf4-->hdf5 error messages, therefor 
+# stick for the moment to netcdf4=1.6.0
 conda install -c conda-forge cartopy netcdf4=1.6.0
 cd tripyview
 pip install -e .
