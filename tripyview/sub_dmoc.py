@@ -26,7 +26,8 @@ from .sub_plot     import *
 #+_____________________________________________________________________________+
 def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_area=None, e_area=None, 
                    do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
-                   do_sgm2z=False, do_ndensz=False, do_compute=False, do_bolus=True, **kwargs, ):
+                   do_sgm2z=False, do_ndensz=False, do_compute=False, do_bolus=True, do_usedensZ=False, 
+                   **kwargs):
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
     xr.set_options(keep_attrs=True)
@@ -129,25 +130,37 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     #___________________________________________________________________________
     # skip this when doing diapycnal vertical velocity
     if (not do_wdiap) and (not do_dflx):
-        #_______________________________________________________________________
-        # add vertical density class thickness
-        data_h = load_data_fesom2(mesh, datapath, vname='std_dens_H'   , 
-                                     year=year, descript=descript , do_info=do_info, 
-                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute)
-        data_h = data_h.rename({'std_dens_H':'ndens_h'})
-        data_h = data_h.assign_coords({'ndens' :("ndens",std_dens)})
-        data_DMOC = xr.merge([data_DMOC, data_h], combine_attrs="no_conflicts")
         
-        if do_ndensz:
-            # compute vertical density class z position from class thickness by 
-            # cumulative summation 
-            data_z = data_h.copy().rename({'ndens_h':'ndens_z'})
-            data_z = data_z.cumsum(dim='ndens', skipna=True)
-            data_z = data_z.assign_coords({'ndens' :("ndens",std_dens)})
-            data_z = data_z.where(data_h.ndens_h!=0.0,0.0)
-            data_DMOC = xr.merge([data_DMOC, data_z], combine_attrs="no_conflicts")
-            del(data_z)
-        del(data_h)
+        if not do_usedensZ:
+            #_______________________________________________________________________
+            # add vertical density class thickness
+            data_h = load_data_fesom2(mesh, datapath, vname='std_dens_H'   , 
+                                        year=year, descript=descript , do_info=do_info, 
+                                        do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute)
+            data_h = data_h.rename({'std_dens_H':'ndens_h'})
+            data_h = data_h.assign_coords({'ndens' :("ndens",std_dens)})
+            data_DMOC = xr.merge([data_DMOC, data_h], combine_attrs="no_conflicts")
+            
+            if do_ndensz:
+                # compute vertical density class z position from class thickness by 
+                # cumulative summation 
+                data_z = data_h.copy().rename({'ndens_h':'ndens_z'})
+                data_z = data_z.cumsum(dim='ndens', skipna=True)
+                data_z = data_z.assign_coords({'ndens' :("ndens",std_dens)})
+                data_z = data_z.where(data_h.ndens_h!=0.0,0.0)
+                data_DMOC = xr.merge([data_DMOC, data_z], combine_attrs="no_conflicts")
+                del(data_z)
+            del(data_h)
+        
+        else:
+            #_______________________________________________________________________
+            # add vertical density class thickness
+            data_h = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
+                                        year=year, descript=descript , do_info=do_info, 
+                                        do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute)
+            data_h = data_h.rename({'std_dens_Z':'ndens_z'})
+            data_h = data_h.assign_coords({'ndens' :("ndens",std_dens)})
+            data_DMOC = xr.merge([data_DMOC, data_h], combine_attrs="no_conflicts")
         
         #_______________________________________________________________________
         # load sigma2 density on nodes 
@@ -624,7 +637,8 @@ def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6]
             tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
             idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
-            idx_cref = np.asscalar(idx_cref)
+            #idx_cref = np.asscalar(idx_cref) --> asscalar replaced in numppy>1.16
+            idx_cref = idx_cref.item()
             nstep    = ncbar_l/(cbar_nl)
             nstep    = np.max([np.int(np.floor(nstep)),1])
             
@@ -700,7 +714,7 @@ def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6]
         
         #_______________________________________________________________________
         # set description string
-        if title is not None: 
+        if title != None: 
             if not do_zcoord: 
                 txtx = data_x[0]+(data_x[-1]-data_x[0])*0.025
                 txty = data_y[0]+(data_y[-1]-data_y[0])*0.025    
@@ -851,7 +865,7 @@ def plot_dmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
             #___________________________________________________________________
             # setup colormap
             if do_allcycl: 
-                if which_cycl is not None:
+                if which_cycl != None:
                     cmap = categorical_cmap(np.int32(len(moct_list)/which_cycl), which_cycl, cmap="tab10")
                 else: cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
             else: cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
@@ -899,7 +913,7 @@ def plot_dmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
                 
             #___________________________________________________________________
             # add Rapid moc data @26.5°
-            if do_rapid is not None and var == 'dmoc_nadw': 
+            if do_rapid != None and var == 'dmoc_nadw': 
                 path = do_rapid
                 rapid26 = xr.open_dataset(path)['moc_mar_hc10']
                 rapid26_ym = rapid26.groupby('time.year').mean('time', skipna=True)
@@ -954,7 +968,7 @@ def plot_dmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
             #___________________________________________________________________
             # save figure based on do_save contains either None or pathname
             aux_do_save = do_save
-            if do_save is not None:
+            if do_save != None:
                 aux_do_save = '{:s}_{:s}_{:s}{:s}'.format(do_save[:-4], str_cells, str_label.replace('°','').replace(' ','_'), do_save[-4:])
             do_savefigure(aux_do_save, fig, dpi=save_dpi)
     
