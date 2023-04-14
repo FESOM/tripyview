@@ -26,7 +26,8 @@ from .sub_plot     import *
 #+_____________________________________________________________________________+
 def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_area=None, e_area=None, 
                    do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
-                   do_sgm2z=False, do_ndensz=False, do_compute=False, do_bolus=True, do_usedensZ=False, 
+                   do_compute=False, do_bolus=True, 
+                   do_zcoord=True, do_useZinfo='std_dens_H', do_ndensz=False, 
                    **kwargs):
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
@@ -71,6 +72,11 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     # create xarray dataset to combine dat for dmoc computation
     data_DMOC = xr.Dataset()
     
+    if not do_wdiap:
+        data_DMOC = data_DMOC.assign_coords(lon  = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3.0, dims=['elem']))
+        data_DMOC = data_DMOC.assign_coords(lat  = xr.DataArray(mesh.n_y[mesh.e_i].sum(axis=1)/3.0, dims=['elem']))
+        data_DMOC = data_DMOC.assign_coords(w_A  = xr.DataArray(mesh.e_area                       , dims=['elem']))
+                                        
     #___________________________________________________________________________
     # add surface transformations 
     if (which_transf=='srf' or which_transf=='inner') or do_dflx: # add surface fluxes
@@ -129,10 +135,15 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     
     #___________________________________________________________________________
     # skip this when doing diapycnal vertical velocity
-    if (not do_wdiap) and (not do_dflx):
-        
-        if not do_usedensZ:
-            #_______________________________________________________________________
+    if (not do_wdiap) and (not do_dflx) and do_zcoord:
+        # the std_dens_Z variable from the DMOC diagnostic output of FESOM2, does
+        # not really allow for a proper projection onto zcoord. the DMOC in zcoord
+        # becomes way to shallow and unrealistic in that term. 
+        # Best option do compute the projection is via the densitz class layer
+        # thickness H, second best option is via is via the sigma2 density on vertices
+        # and the interpolation of the densitz bins to estimate the vertical coordinate
+        #_______________________________________________________________________
+        if do_useZinfo=='std_dens_H':
             # add vertical density class thickness
             data_h = load_data_fesom2(mesh, datapath, vname='std_dens_H'   , 
                                         year=year, descript=descript , do_info=do_info, 
@@ -151,20 +162,20 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                 data_DMOC = xr.merge([data_DMOC, data_z], combine_attrs="no_conflicts")
                 del(data_z)
             del(data_h)
-        
-        else:
-            #_______________________________________________________________________
-            # add vertical density class thickness
-            data_h = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
+        #_______________________________________________________________________
+        elif do_useZinfo=='std_dens_Z':
+            # add vertical density class position computed in FESOM2
+            data_z = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
                                         year=year, descript=descript , do_info=do_info, 
                                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute)
-            data_h = data_h.rename({'std_dens_Z':'ndens_z'})
-            data_h = data_h.assign_coords({'ndens' :("ndens",std_dens)})
-            data_DMOC = xr.merge([data_DMOC, data_h], combine_attrs="no_conflicts")
-        
+            data_z = data_z.rename({'std_dens_Z':'ndens_z'})
+            data_z = data_z.assign_coords({'ndens' :("ndens",std_dens)})
+            data_DMOC = xr.merge([data_DMOC, data_z], combine_attrs="no_conflicts")
+            del(data_z)
+            
         #_______________________________________________________________________
-        # load sigma2 density on nodes 
-        if do_sgm2z: 
+        elif do_useZinfo=='density_dMOC':
+            # load sigma2 density on nodes 
             data_sigma2 = load_data_fesom2(mesh, datapath, vname='density_dMOC', 
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_zarithm=None, do_nan=False, do_compute=do_compute)
@@ -192,7 +203,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             # add to Dataset
             data_DMOC = xr.merge([data_DMOC, data_sigma2], combine_attrs="no_conflicts")
             del(data_sigma2)
-    
+
     #___________________________________________________________________________
     if (not do_dflx):
         # add divergence of density classes --> diapycnal velocity
@@ -260,7 +271,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             
             data_DMOC = xr.merge([data_DMOC, data_div_bolus], combine_attrs="no_conflicts")  
             del(data_div_bolus)
-        
+    
     #___________________________________________________________________________
     # drop unnecessary coordinates
     if (not do_wdiap):
@@ -320,14 +331,15 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
         #data_dMOC['ndens_w_A'] = data_dMOC['ndens_w_A'].unify_chunks()
         
     # non-existing density classes (ndens_h==0) --> NaN
-    data_dMOC['ndens_w_A'] = data_dMOC['ndens_w_A'].where(data_dMOC['ndens_h']!=0.0)
+    if 'ndens_h' in list(data_dMOC.keys()):
+        data_dMOC['ndens_w_A'] = data_dMOC['ndens_w_A'].where(data_dMOC['ndens_h']!=0.0)
     
     if 'nz_rho' in list(data_dMOC.keys()):
         edims = dict()
         if 'time' in list(data_dMOC.dims): edims['time'] = data_dMOC['time'].data
         edims['nz1'] = data_dMOC['nz1'].data
         # expand by nz1 dimension
-        data_dMOC['nz_w_A'   ] = data_dMOC['w_A'].expand_dims(edims).transpose(dtime, delem, ddensm, missing_dims='ignore')
+        data_dMOC['nz_w_A'   ] = data_dMOC['w_A'].expand_dims(edims).transpose(dtime, delem, 'nz1', missing_dims='ignore')
         #if do_compute==False: 
             ##data_dMOC['nz_w_A'] = data_dMOC['nz_w_A'].chunk(data_dMOC.chunksizes['elem'])
             #data_dMOC['nz_w_A'] = data_dMOC['nz_w_A'].unify_chunks()
@@ -350,7 +362,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     if 'dmoc_bolus'in list(data_dMOC.keys()): data_dMOC['dmoc_bolus'] = data_dMOC['dmoc_bolus'] * 1.0e-6
 
     # multiply with weights to prepare for area weighted zonal means 
-    data_dMOC['ndens_h'].data = data_dMOC['ndens_h'].data*data_dMOC['ndens_w_A'].data
+    if 'ndens_h'   in list(data_dMOC.keys()): data_dMOC['ndens_h'  ].data = data_dMOC['ndens_h'].data*data_dMOC['ndens_w_A'].data
     if 'ndens_z'   in list(data_dMOC.keys()): data_dMOC['ndens_z'  ].data = data_dMOC['ndens_z'].data*data_dMOC['ndens_w_A'].data
     if 'nz_rho'    in list(data_dMOC.keys()): data_dMOC['nz_rho'   ].data = data_dMOC['nz_rho'].data*data_dMOC['nz_w_A'].data
     
@@ -369,26 +381,36 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     #___________________________________________________________________________
     # compute area weighted zonal mean 
     np.seterr(invalid='ignore')
-    data_dMOC['ndens_h'].data = data_dMOC['ndens_h'].data/data_dMOC['ndens_w_A'].data
+    if 'ndens_h'   in list(data_dMOC.keys()): data_dMOC['ndens_h'].data = data_dMOC['ndens_h'].data/data_dMOC['ndens_w_A'].data
     if 'ndens_z'   in list(data_dMOC.keys()): data_dMOC['ndens_z'].data = data_dMOC['ndens_z'].data/data_dMOC['ndens_w_A'].data
     if 'nz_rho'    in list(data_dMOC.keys()): data_dMOC['nz_rho' ].data = data_dMOC['nz_rho' ].data/data_dMOC['nz_w_A'   ].data
 
     # drop  now total area in bins over depth level and density class
-    if 'ndens_w_A'in list(data_dMOC.keys()): data_dMOC = data_dMOC.drop(['ndens_w_A'])
-    if 'nz_w_A'   in list(data_dMOC.keys()): data_dMOC = data_dMOC.drop(['nz_w_A'])
+    if 'ndens_w_A' in list(data_dMOC.keys()): data_dMOC = data_dMOC.drop(['ndens_w_A'])
+    if 'nz_w_A'    in list(data_dMOC.keys()): data_dMOC = data_dMOC.drop(['nz_w_A'])
     
+    #___________________________________________________________________________
     # transpose data from [lat x ndens] --> [ndens x lat]
     dtime='None'
-    if 'time' in list(data_dMOC.dims): dtime = 'time'
+    if 'time'      in list(data_dMOC.dims): dtime = 'time'
     dlat, ddens = 'lat', 'ndens'
-    data_dMOC = data_dMOC.transpose(dtime, ddens, dlat, missing_dims='ignore')
+    # we have mixture of variables that have dimension elem x ndens and elem x nz1
+    if 'nz1'       in  list(data_dMOC.dims):
+        for var in list(data_dMOC.keys()):
+            if 'nz1' in list( data_dMOC[var].dims ):
+                data_dMOC[var] = data_dMOC[var].transpose(dtime, 'nz1', dlat, missing_dims='ignore')
+            else:
+                data_dMOC[var] = data_dMOC[var].transpose(dtime, ddens, dlat, missing_dims='ignore')
+    # we only have variables that have dimension elem x ndens   
+    else:    
+        data_dMOC = data_dMOC.transpose(dtime, ddens, dlat, missing_dims='ignore')
     
     #___________________________________________________________________________
     # exclude variables that should not be cumulatively integrated 
     var_list = list(data_dMOC.keys())
-    if 'ndens_h' in var_list: var_list.remove('ndens_h')
-    if 'ndens_z' in var_list: var_list.remove('ndens_z')
-    if 'nz_rho'  in var_list: var_list.remove('nz_rho' )   
+    if 'ndens_h'   in var_list: var_list.remove('ndens_h')
+    if 'ndens_z'   in var_list: var_list.remove('ndens_z')
+    if 'nz_rho'    in var_list: var_list.remove('nz_rho' )   
     
     #___________________________________________________________________________
     # cumulative sum over latitudes
@@ -399,14 +421,15 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     #___________________________________________________________________________
     # cumulative sum over depth 
     if do_info==True: print(' --> do cumsum over depth (bottom-->top)')
-    data_dMOC[ 'dmoc' ] = data_dMOC[ 'dmoc' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
+    data_dMOC[ 'dmoc'       ] = data_dMOC[ 'dmoc' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
     data_dMOC[ 'dmoc_bolus' ] = data_dMOC[ 'dmoc_bolus' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
     
     #___________________________________________________________________________
     # compute z-position (z) from (f) density class thickness (h)
-    data_dMOC[ 'ndens_zfh' ] = data_dMOC[ 'ndens_h' ].cumsum(dim='ndens', skipna=True)
-    data_dMOC[ 'ndens_zfh' ] = data_dMOC[ 'ndens_zfh' ].roll({'ndens':1})
-    data_dMOC[ 'ndens_zfh' ].loc[dict(ndens=data_dMOC['ndens'][0])]=0.0
+    if 'ndens_h'   in list(data_dMOC.keys()):
+        data_dMOC[ 'ndens_zfh'  ] = data_dMOC[ 'ndens_h' ].cumsum(dim='ndens', skipna=True)
+        data_dMOC[ 'ndens_zfh'  ] = data_dMOC[ 'ndens_zfh' ].roll({'ndens':1})
+        data_dMOC[ 'ndens_zfh'  ].loc[dict(ndens=data_dMOC['ndens'][0])]=0.0
     
     #___________________________________________________________________________
     # write proper variable attributes for long_name and units 
@@ -434,7 +457,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     if 'ndens_h'   in list(data_dMOC.keys()): 
         attr_list = dict({'long_name':'Density class thickness', 'units':'m'})
         data_dMOC['ndens_h'  ] = data_dMOC['ndens_h'  ].assign_attrs(attr_list)
-    if 'ndens_zfh'   in list(data_dMOC.keys()): 
+    if 'ndens_zfh' in list(data_dMOC.keys()): 
         attr_list = dict({'long_name':'Density class z position', 'units':'m'})
         data_dMOC['ndens_zfh'  ] = data_dMOC['ndens_zfh'  ].assign_attrs(attr_list)    
     if 'ndens_z'   in list(data_dMOC.keys()): 
@@ -564,19 +587,42 @@ def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6]
         # plot dmoc in z-coordinates
         if do_zcoord:
             # use depth information of depth of density classes at latitude
-            data_y      = -data[ii]['ndens_zfh'].values
-            data_x      = np.ones(data_y.shape)*data[ii]['lat'].values
+            if   'ndens_zfh'    in list(data[ii].keys()): 
+                data_y      = -data[ii]['ndens_zfh'].values
+                data_x      = np.ones(data_y.shape)*data[ii]['lat'].values
+            
+            elif 'nz_rho'    in list(data[ii].keys()): 
+                #data_x, data_y, data_v, dum = do_ztransform_martin(mesh, data[ii])
+                data_x, data_y, data_v = do_ztransform_mom6(mesh, data[ii])
+                data_y = -data_y
+            
+            elif 'ndens_z'    in list(data[ii].keys()): 
+                data_x, data_y = do_ztransform(data[ii])
+                data_v = data[ii]['dmoc'].values.copy()
+                data_v = data_v[1:-1,:]
+            else:
+                raise ValueError(' --> could not find any vertical position of the density class, no zlevel prokection possible!')
             
         #_______________________________________________________________________
         # plot dmoc in density-coordinates  
         else:
             data_x, data_y = data[ii]['lat'].values.copy(), data[ii]['ndens'].values.copy()
-        
+            
         #_______________________________________________________________________
         # What  should be plotted: density MOC, Surface Transformation or Inner
         # Transformation
         if   which_transf == 'dmoc':
-            data_plot = data[ii]['dmoc'].values.copy()
+            if   'ndens_zfh'    in list(data[ii].keys()) and do_zcoord:
+                data_plot = data[ii]['dmoc'].values.copy()
+                do_check=True
+            elif 'nz_rho' in list(data[ii].keys())       and do_zcoord: 
+                data_plot = data_v
+                do_check=False
+            elif 'ndens_z'in list(data[ii].keys())       and do_zcoord: 
+                data_plot = data_v
+                do_check=False
+            else:    
+                data_plot = data[ii]['dmoc'].values.copy()
             
             #___________________________________________________________________
             # PLOT DMOC INFO: maximum/minimum dmoc sigma2 and depth
@@ -585,8 +631,13 @@ def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6]
                 idxmin = data[ii]['dmoc'].argmin(dim=["ndens", "lat"])
                 dmoc_max, dmoc_min = data[ii]['dmoc'].isel(idxmax).data, data[ii]['dmoc'].isel(idxmin).data
                 if not do_zcoord:
-                    s_max, l_max, d_max = data_y[idxmax['ndens'].data], data_x[idxmax['lat'].data], data[ii]['ndens_zfh'].isel(idxmax).data
-                    s_min, l_min, d_min = data_y[idxmin['ndens'].data], data_x[idxmin['lat'].data], data[ii]['ndens_zfh'].isel(idxmin).data
+                    s_max, l_max,  = data_y[idxmax['ndens'].data], data_x[idxmax['lat'].data], 
+                    s_min, l_min,  = data_y[idxmin['ndens'].data], data_x[idxmin['lat'].data]
+                    
+                    d_max, d_min = np.nan, np.nan
+                    if   'ndens_zfh'    in list(data[ii].keys()): 
+                        d_max = data[ii]['ndens_zfh'].isel(idxmax).data
+                        d_min = data[ii]['ndens_zfh'].isel(idxmin).data
                 else:     
                     s_max = data[ii]['ndens'].isel(ndens=idxmax['ndens']).data
                     l_max = data_x[idxmax['ndens'].data, idxmax['lat'].data]
@@ -626,7 +677,10 @@ def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6]
             if do_yrescale: data_y = dens2reg(data_y)
             data_plot, data_y = data_plot[1:-1,:], data_y[1:-1]
             data_plot, data_y = data_plot[::-1,:], data_y[::-1]
-           
+        
+        #if 'ndens_z'    in list(data[ii].keys()) and do_zcoord:
+            #data_plot = data_plot[1:-1,:]
+            
         #_______________________________________________________________________
         # plot DATA
         hp=ax[ii].contourf(data_x, data_y, data_plot, levels=cinfo_plot['clevel'], 
@@ -974,3 +1028,123 @@ def plot_dmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
     
     #___________________________________________________________________________
     return(fig,ax)
+
+
+
+#_______________________________________________________________________________     
+# do creepy brute force play around to enforce more or less monotenicitz in 
+# dens_z, std_dens_Z --> not realz recommendet to do only as a last option
+def do_ztransform(data):
+    from scipy.interpolate import interp1d
+    from numpy.matlib import repmat
+    from scipy import interpolate
+    import numpy.ma as ma
+    
+    # use depth information of depth of density classes at latitude
+    data_y = data['ndens_z'].values[1:-1,:].copy()
+#     data_y = data['dmoc_zpos'].values.copy()
+#     data_y[1,:] = 0.0
+#     data_y[-1,:] = -6250
+    data_y[data_y>=-1.0]=np.nan
+            
+    # do dirty trick here !!! make sure that below the deepest depth at 
+    # every latitude that there is no nan value or a value shallower than
+    # the deepest depth left
+    nlat  =  data['lat'].values.size
+    ndens =  data_y.shape[0]
+    for kk in range(nlat):
+        min_datay = np.nanmin(data_y[:,kk])
+        min_dep   = -6200.0
+        for jj in list(range(0,ndens)[::-1]): # to bottom to top
+            if data_y[jj,kk]==min_datay:break
+            if np.isnan(data_y[jj,kk]) or data_y[jj,kk]>min_datay: data_y[jj,kk]=min_datay
+#             if np.isnan(data_y[jj,kk]) or data_y[jj,kk]>min_datay: data_y[jj,kk]=min_dep
+    del(min_datay)  
+    # same but for the surface
+    for kk in range(nlat):
+        max_datay = np.nanmax(data_y[:,kk])
+        max_dep   = 0.0
+        for jj in list(range(0,ndens)): 
+            if data_y[jj,kk]==max_datay:break
+            if np.isnan(data_y[jj,kk]) or data_y[jj,kk]<max_datay: data_y[jj,kk]=max_datay        
+#             if np.isnan(data_y[jj,kk]) or data_y[jj,kk]<max_datay: data_y[jj,kk]=max_dep        
+    del(max_datay)        
+    # do [ndens x nlat] matrix for latitudes
+    data_x   = data['lat'].values.copy()
+    data_x   = repmat(data_x,data['ndens'].values[1:-1].size,1)
+#     data_x   = repmat(data_x,data['ndens'].values.size,1)
+            
+    ## do nearest neighbour interpolation of remaining nan values in depth_y
+    xx, yy = np.meshgrid(data_x[0,:], data['ndens'].values[1:-1])
+#     xx, yy = np.meshgrid(data_x[0,:], data['ndens'].values)
+    data_y = np.ma.masked_invalid(data_y)
+    data_y = interpolate.griddata((xx[~data_y.mask], yy[~data_y.mask]), data_y[~data_y.mask].ravel(),
+                                  (xx, yy), method='nearest')
+    
+    
+    for ni in range(1, data_y.shape[0]):
+        idx =  np.where(data_y[ni-1,:]<data_y[ni,:])[0]
+        if list(idx):
+            data_y[ni,idx] = data_y[ni-1,idx]
+            
+#     data_y[-1,:] = -6000
+    return(data_x, data_y)        
+
+#
+#
+#_______________________________________________________________________________
+def do_ztransform_martin(mesh, data):
+    from scipy.interpolate import interp1d
+    #___________________________________________________________________________
+    lat, dens,  = data['lat'].values, data['ndens'].values
+    dep         = np.abs(mesh.zmid)
+    nlat, ndens = lat.size, dens.size 
+    nz          = dep.size
+    
+    #___________________________________________________________________________
+    sigma2    = data['nz_rho'].values-1000
+    dmoc      = data['dmoc'].values
+    
+    #___________________________________________________________________________
+    data_dmocz=np.zeros(sigma2.shape)
+    #f = interp1d(np.array(std_dens), dmoc, axis=0, bounds_error = False, fill_value=0)   
+    f = interp1d(dens, dmoc, axis=0, bounds_error = False, fill_value=0)
+    for li in range(nlat):
+        data_dmocz[:,li] = f(sigma2[:,li])[:,li]
+    
+    return(lat, dep, data_dmocz, sigma2)
+
+#
+#
+#_______________________________________________________________________________________
+def do_ztransform_mom6(mesh, data):
+    from scipy.interpolate import interp1d
+
+    #___________________________________________________________________________________
+    lat, dens, dep  = data['lat'].values, data['ndens'].values, np.abs(mesh.zmid)
+    nlat, ndens, nz = lat.size, dens.size, dep.size
+    sigma2 = data['nz_rho'].values-1000
+    sigma2[np.isnan(sigma2)]=40.0
+
+    data_v = data['dmoc'].values[:,:]
+    data_x = np.ones([ndens,nlat])*lat
+    data_y = np.zeros([ndens,nlat])
+    for li in range(nlat):
+        f = interp1d(sigma2[:,li], dep, bounds_error=False)        
+        #data_y[:,li] = f(std_dens[:])
+        data_y[:,li] = f(dens[:])
+    data_y[np.isnan(data_y)] = 0.0
+    
+    #print(data_x.shape)
+    #print(data_y.shape)
+    #print(data_v.shape)
+    #densc=dict({'data_x':data_x, 'data_y':data_y, 'data_v':data_v})
+    
+    #___________________________________________________________________________
+    data_dmocz     = np.zeros([nz, nlat])
+    for li in range(nlat):
+        f = interp1d(data_y[:,li], data_v[:,li], bounds_error=False)
+        data_dmocz[:,li] = f(dep)
+    
+
+    return(lat, dep, data_dmocz)
