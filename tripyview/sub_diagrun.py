@@ -51,10 +51,27 @@ def diagrun():
                         nargs='+',
                         help='run only particular diagnostics from the yml file.',)
     
+    #parser.add_argument('--nworkers',
+                        #'-nw',
+                        #nargs=1,
+                        #type=int, 
+                        #help='start dask client with #workers',)
+    
+    #parser.add_argument('--memory',
+                            #'-mem',
+                            #nargs=1,
+                            #default=100,
+                            #type=int,
+                            #help='total memory avaible, become distributed over workers',)
+    
     # input arguments from command line
     inargs = parser.parse_args()
     if inargs.diagnostics:
         print(f"selective diagnostics will be run: {inargs.diagnostics}")
+    #if inargs.nworkers:
+        #print(f" --> Number of dask workers to ask for: {inargs.nworkers}")    
+        #if inargs.memory:
+            #print(f" --> Total memory avaiable: {inargs.memory}")        
 
     #___________________________________________________________________________
     # open selected yaml files
@@ -165,6 +182,21 @@ def diagrun():
     analyses_driver_list["ghflx"              ] = drive_ghflx
     analyses_driver_list["mhflx"              ] = drive_mhflx
     
+    ##___________________________________________________________________________
+    ## start dask client 
+    client=None
+    #if inargs.nworkers is not None:
+        #from dask.distributed import Client
+        #from dask.diagnostics import ProgressBar
+        #import dask
+
+        #n_workers= inargs.nworkers[0]
+        #tot_mem  = inargs.memory[0] # GB
+        #print(' --> memory_limit: {:3.3f} GB'.format(tot_mem/(n_workers+1)))
+        ##dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
+        #client = Client(n_workers=n_workers, threads_per_worker=1, memory_limit='{:3.3f} GB'.format(tot_mem/n_workers))
+        ##client
+    
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file
     # loop over all analyses
@@ -178,7 +210,7 @@ def diagrun():
             if inargs.diagnostics is None:
                 print(f" --> compute {analysis_name}:")
                 # drive specific analysis from analyses_driver_list
-                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, client)
                 webpages["analyses"][analysis_name] = webpage
             
             #___________________________________________________________________
@@ -187,7 +219,7 @@ def diagrun():
                 if analysis_name in inargs.diagnostics:
                     print(f" --> compute {analysis_name}:")
                     # drive specific analysis from analyses_driver_list
-                    webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                    webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, client)
                     webpages["analyses"][analysis_name] = webpage
                 
             # write linked analysis to .json file
