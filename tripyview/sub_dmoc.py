@@ -72,7 +72,10 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     # create xarray dataset to combine dat for dmoc computation
     data_DMOC = xr.Dataset()
     
-    if not do_wdiap:
+    # do need the area weights on elements --> usualy it come directly with the loading 
+    # of datason elements --> load_data_fesom2(...) except when we dont load datas that
+    # sits on elements than we need to include it explicitly
+    if not do_wdiap and not do_zcoord:
         data_DMOC = data_DMOC.assign_coords(lon  = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3.0, dims=['elem']))
         data_DMOC = data_DMOC.assign_coords(lat  = xr.DataArray(mesh.n_y[mesh.e_i].sum(axis=1)/3.0, dims=['elem']))
         data_DMOC = data_DMOC.assign_coords(w_A  = xr.DataArray(mesh.e_area                       , dims=['elem']))
