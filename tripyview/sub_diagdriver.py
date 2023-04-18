@@ -24,7 +24,7 @@ env               = Environment(loader=file_loader)
 #
 #
 #_______________________________________________________________________________
-def drive_hslice(yaml_settings, analysis_name):
+def drive_hslice(yaml_settings, analysis_name, client):
     print(' --> drive_hslice:',analysis_name)
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
@@ -84,11 +84,18 @@ def drive_hslice(yaml_settings, analysis_name):
                 current_params2["save_fname"] = os.path.join(yaml_settings['save_path_fig'], save_fname)
                 
                 #_______________________________________________________________
+                #if client is None:
                 pm.execute_notebook(
-                    f"{templates_nb_path}/template_hslice.ipynb",
-                    os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
-                    parameters=current_params2,
-                    nest_asyncio=True,)
+                        f"{templates_nb_path}/template_hslice.ipynb",
+                        os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                        parameters=current_params2,
+                        nest_asyncio=True,)
+                #else:
+                    #client.submit(pm.execute_notebook,
+                                    #f"{templates_nb_path}/template_hslice.ipynb",
+                                    #os.path.join(yaml_settings['save_path_nb'], save_fname_nb),
+                                    #parameters=current_params2,
+                                    #nest_asyncio=True)    
                 
                 #_______________________________________________________________
                 webpage[f"image_{image_count}"] = {}
@@ -141,7 +148,7 @@ def drive_hslice(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_hslice_clim(yaml_settings, analysis_name):
+def drive_hslice_clim(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -208,7 +215,7 @@ def drive_hslice_clim(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_hslice_isotherm_z(yaml_settings, analysis_name):
+def drive_hslice_isotherm_z(yaml_settings, analysis_name, client):
     print(' --> drive_hslice:',analysis_name)
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
@@ -319,7 +326,7 @@ def drive_hslice_isotherm_z(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_hovm(yaml_settings, analysis_name):
+def drive_hovm(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -388,7 +395,7 @@ def drive_hovm(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_hovm_clim(yaml_settings, analysis_name):
+def drive_hovm_clim(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -456,7 +463,7 @@ def drive_hovm_clim(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_zmoc(yaml_settings, analysis_name):
+def drive_zmoc(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -514,7 +521,7 @@ def drive_zmoc(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_zmoc_t(yaml_settings, analysis_name):
+def drive_zmoc_t(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -575,7 +582,7 @@ def drive_zmoc_t(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_dmoc(yaml_settings, analysis_name):
+def drive_dmoc(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -645,7 +652,7 @@ def drive_dmoc(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_dmoc_t(yaml_settings, analysis_name):
+def drive_dmoc_t(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -705,7 +712,7 @@ def drive_dmoc_t(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_dmoc_wdiap(yaml_settings, analysis_name):
+def drive_dmoc_wdiap(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -768,7 +775,7 @@ def drive_dmoc_wdiap(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_dmoc_srfcbflx(yaml_settings, analysis_name):
+def drive_dmoc_srfcbflx(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -831,7 +838,7 @@ def drive_dmoc_srfcbflx(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_hbarstreamf(yaml_settings, analysis_name):
+def drive_hbarstreamf(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #            
     if not yaml_settings[analysis_name]: driver_settings = dict()
@@ -884,7 +891,7 @@ def drive_hbarstreamf(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_vprofile(yaml_settings, analysis_name):
+def drive_vprofile(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -941,7 +948,7 @@ def drive_vprofile(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_vprofile_clim(yaml_settings, analysis_name):
+def drive_vprofile_clim(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -999,7 +1006,7 @@ def drive_vprofile_clim(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect(yaml_settings, analysis_name):
+def drive_transect(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1074,7 +1081,7 @@ def drive_transect(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect_clim(yaml_settings, analysis_name):
+def drive_transect_clim(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1149,7 +1156,7 @@ def drive_transect_clim(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect_transp(yaml_settings, analysis_name):
+def drive_transect_transp(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1224,7 +1231,7 @@ def drive_transect_transp(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect_transp_t(yaml_settings, analysis_name):
+def drive_transect_transp_t(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1295,7 +1302,7 @@ def drive_transect_transp_t(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect_transp_t_OSNAP(yaml_settings, analysis_name):
+def drive_transect_transp_t_OSNAP(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1367,7 +1374,7 @@ def drive_transect_transp_t_OSNAP(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect_zmean(yaml_settings, analysis_name):
+def drive_transect_zmean(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1443,7 +1450,7 @@ def drive_transect_zmean(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect_zmean_clim(yaml_settings, analysis_name):
+def drive_transect_zmean_clim(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1519,7 +1526,7 @@ def drive_transect_zmean_clim(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_ghflx(yaml_settings, analysis_name):
+def drive_ghflx(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1571,7 +1578,7 @@ def drive_ghflx(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_mhflx(yaml_settings, analysis_name):
+def drive_mhflx(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()
@@ -1622,7 +1629,7 @@ def drive_mhflx(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_var_t(yaml_settings, analysis_name):
+def drive_var_t(yaml_settings, analysis_name, client):
     # copy yaml settings for  analysis driver --> hslice: 
     #                                         
     driver_settings = yaml_settings[analysis_name].copy()

@@ -15,6 +15,7 @@ requirements = [
     'cartopy',
     'cmocean',
     'dask',
+    'distributed',
     'ipython',
     'joblib',
     'jupyter',

@@ -32,7 +32,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.75,0.75,0.75],  title=None, do_ie2n = True, 
                 pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
-                linecolor='k', linewidth=0.5, do_reffig=False, ref_cinfo=None, ref_rescale=None):
+                linecolor='k', linewidth=0.5, do_reffig=False, ref_cinfo=None, ref_rescale=None,
+                do_info=False):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -114,7 +115,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
     fontsize = 12
     rescale_str = None
     rescale_val = 1.0
-    
+    t1=clock.time()
     #___________________________________________________________________________
     # make matrix with row colum index to know where to put labels
     rowlist = np.zeros((n_rc[0],n_rc[1]))
@@ -190,6 +191,9 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         e_idxbox = (x>=-0.05) & (x<=1.05) & (y>=-0.05) & (y<=1.05)
     
     tri.triangles = tri.triangles[e_idxbox,:]    
+    if do_info:
+        print('--> do triangulation: ', clock.time()-t1) 
+        t1 = clock.time()
     
     #___________________________________________________________________________
     # data must be list filled with xarray data
@@ -203,13 +207,24 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         cinfo     = do_setupcinfo(cinfo,      data[1:], do_rescale, mesh=mesh, tri=tri)        
     else:
         cinfo = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
-        
+    if do_info:
+        print('--> do setup cinfo: ', clock.time()-t1)
+        t1 = clock.time()
+    
     #___________________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
     if do_reffig:     
         which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
+    if do_info:
+        print('--> do scaling norm: ', clock.time()-t1)
+        t1 = clock.time()
         
+    #___________________________________________________________________________
+    # do the mapping transformation outside of tricontourf is absolutely 
+    # faster than let doing cartopy doing it within 
+    mappoints = which_proj.transform_points(which_transf, tri.x, tri.y)
+    
     #___________________________________________________________________________
     # loop over axes
     hpall=list()
@@ -244,6 +259,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
                 data_plot = grid_interp_e2n(mesh,data_plot)
                 data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
         
+        if do_info: print('--> do augment data: ', clock.time()-t1) ; t1 = clock.time()
+        
         #_______________________________________________________________________
         if do_reffig: 
             if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
@@ -262,78 +279,49 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # add color for ocean bottom
         if do_bottom and np.any(e_idxok==False):
-            #ts = clock.time()
-            hbot = ax[ii].triplot(tri.x, tri.y, tri.triangles[e_idxok==False,:], 
-                                  color=color_bot, transform=which_transf)
-            #print(' -bottom-> elapsed time: {} min'.format((clock.time()-ts)/60))   
+            hbot = ax[ii].triplot(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok==False,:], 
+                                      color=color_bot)#, transform=which_transf)
+            if do_info: print('--> do plot bottom patch: ', clock.time()-t1) ; t1 = clock.time()
             
         #_______________________________________________________________________
         # plot tri contourf/tripcolor
-        #ts = clock.time()
         if   do_plot=='tpc' or (do_plot=='tcf' and not is_onvert):
-            # plot over elements
-            if not is_onvert:
-                hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot[e_idxok],
-                                    transform=which_transf,
+            if not is_onvert: data_plot = data_plot[e_idxok]
+            hp=ax[ii].tripcolor(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok,:], data_plot,
                                     shading='flat',
                                     cmap=cinfo_plot['cmap'],
                                     vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
-                                    norm = which_norm_plot)
-                
-            # plot over vertices    
-            else:
-                hp=ax[ii].tripcolor(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
-                                    transform=which_transf,
-                                    shading='flat',
-                                    cmap=cinfo_plot['cmap'],
-                                    vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
-                                    norm = which_norm_plot)
+                                    norm = which_norm_plot) #transform=which_transf,
+            if do_info: print('--> do tripcolor: ', clock.time()-t1) ; t1 = clock.time()                        
             
         elif do_plot=='tcf': 
             # supress warning message when compared with nan
             with np.errstate(invalid='ignore'):
                 data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
                 data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
-            #dum, cstr = cinfo_plot['cstr'].rsplit('.')   
-            if proj=='pc':    
-                hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
-                                      norm=which_norm_plot,
-                                      levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both')
-                                      #levels=cinfo_plot['clevel'], cmap=eval("cmocean.cm.{}".format(cstr)), extend='both')
                 
-            else: 
-                hp=ax[ii].tricontourf(tri.x, tri.y, tri.triangles[e_idxok,:], data_plot,
-                                        transform=which_transf,
-                                        norm=which_norm_plot,
-                                        levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both')
-                                        #levels=cinfo_plot['clevel'], cmap=eval("cmocean.cm.{}".format(cstr)), extend='both')
-                
-                
-        hpall.append(hp)        
-        #print(' -DATA-> elapsed time: {} min'.format((clock.time()-ts)/60)) 
-        
+            hp=ax[ii].tricontourf(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok,:], data_plot,
+                                  levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
+                                  norm=which_norm_plot)#, transform=which_transf) 
+            if do_info: print('--> do tricontourf: ', clock.time()-t1) ; t1 = clock.time()        
+        hpall.append(hp)
+            
         #_______________________________________________________________________
         # add grid mesh on top
         if do_grid: 
             #ts = clock.time()
-            ax[ii].triplot(tri.x, tri.y, tri.triangles[:,:], #tri.triangles[e_idxok,:], 
-                                   color='k', linewidth=0.2, alpha=0.75, 
-                                   transform=which_transf)
-            #print(' -GRID-> elapsed time: {} min'.format((clock.time()-ts)/60))
+            ax[ii].triplot(mappoints[:,0], mappoints[:,1], tri.triangles[:,:], color='k', linewidth=0.2, alpha=0.75,) #transform=which_transf)
+            if do_info: print('--> do triplot: ', clock.time()-t1) ; t1 = clock.time()       
             
         #_______________________________________________________________________
         # add mesh land-sea mask
-        #ts = clock.time()
-        ax[ii] = do_plotlsmask(ax[ii],mesh, do_lsmask, box, which_proj,
-                               color_lsmask=color_lsmask, edgecolor=linecolor, linewidth=linewidth)
-        #print(' -MASK-> elapsed time: {} min'.format((clock.time()-ts)/60))
+        ax[ii] = do_plotlsmask(ax[ii],mesh, do_lsmask, box, which_proj, color_lsmask=color_lsmask, edgecolor=linecolor, linewidth=linewidth)
+        if do_info: print('--> do lsmask: ', clock.time()-t1) ; t1 = clock.time()     
         
         #_______________________________________________________________________
         # add gridlines
-        #ts = clock.time()
-        ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
-                                  xticks, yticks, proj, which_proj)
-        #print(' -LINE-> elapsed time: {} min'.format((clock.time()-ts)/60)) 
+        ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], xticks, yticks, proj, which_proj)
+        if do_info: print('--> do gridlines: ', clock.time()-t1) ; t1 = clock.time()    
         
         #_______________________________________________________________________
         # set title and axes labels
@@ -354,7 +342,6 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         
     nax_fin = ii+1
     
-    #ts = clock.time()
     #___________________________________________________________________________
     # delete axes that are not needed
     #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
@@ -1560,6 +1547,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
 #| function at certain cutoff treshold
 #|_____________________________________________________________________________|  
 def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
+    
     if cweights is None:
         hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, density=False,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
     else:
