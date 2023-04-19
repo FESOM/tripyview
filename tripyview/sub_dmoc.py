@@ -75,7 +75,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     # do need the area weights on elements --> usualy it come directly with the loading 
     # of datason elements --> load_data_fesom2(...) except when we dont load datas that
     # sits on elements than we need to include it explicitly
-    if not do_wdiap and not do_zcoord:
+    if not do_wdiap or not do_zcoord:
         data_DMOC = data_DMOC.assign_coords(lon  = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3.0, dims=['elem']))
         data_DMOC = data_DMOC.assign_coords(lat  = xr.DataArray(mesh.n_y[mesh.e_i].sum(axis=1)/3.0, dims=['elem']))
         data_DMOC = data_DMOC.assign_coords(w_A  = xr.DataArray(mesh.e_area                       , dims=['elem']))
@@ -167,7 +167,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             del(data_h)
         #_______________________________________________________________________
         elif do_useZinfo=='std_dens_Z':
-            # add vertical density class position computed in FESOM2
+            # add vertical density class position computed in FESOM2 -->
+            # gives worst results for zcoordinate projection
             data_z = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
                                         year=year, descript=descript , do_info=do_info, 
                                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute)
@@ -177,16 +178,32 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             del(data_z)
             
         #_______________________________________________________________________
-        elif do_useZinfo=='density_dMOC':
+        elif do_useZinfo=='density_dMOC' or do_useZinfo=='hydrography':
             # load sigma2 density on nodes 
-            data_sigma2 = load_data_fesom2(mesh, datapath, vname='density_dMOC', 
-                        year=year, descript=descript , do_info=do_info, 
-                        do_ie2n=False, do_tarithm=do_tarithm, do_zarithm=None, do_nan=False, do_compute=do_compute)
+            if do_useZinfo=='density_dMOC':
+                data_sigma2 = load_data_fesom2(mesh, datapath, vname='density_dMOC', 
+                            year=year, descript=descript , do_info=do_info, 
+                            do_ie2n=False, do_tarithm=do_tarithm, do_zarithm=None, do_nan=False, do_compute=do_compute)
+                data_sigma2 = data_sigma2.rename({'density_dMOC':'nz_rho'})
+                
+                # make land sea mask nan
+                data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
             
-            data_sigma2 = data_sigma2.rename({'density_dMOC':'nz_rho'})
+                # first put back here the land sea mask nan's than subtract ref 
+                # denity --<> like that land remains Nan respective zero later
+                data_sigma2 = data_sigma2 - 1000.00
             
-            # make land sea mask nan
-            data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
+            elif do_useZinfo=='hydrography':
+                # load sigma2 density on nodes based on temperatur and salinity
+                # hydrography
+                data_sigma2 = load_data_fesom2(mesh, datapath, vname='sigma2', 
+                            year=year, descript=descript , do_info=do_info, 
+                            do_ie2n=False, do_tarithm=do_tarithm, do_zarithm=None, do_nan=False, do_compute=do_compute)
+                data_sigma2 = data_sigma2.rename({'sigma2':'nz_rho'})
+                
+                # make land sea mask nan --> here ref density is already substracted
+                data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
+            
             
             # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
             # array an save the attributes in the same time
@@ -206,7 +223,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             # add to Dataset
             data_DMOC = xr.merge([data_DMOC, data_sigma2], combine_attrs="no_conflicts")
             del(data_sigma2)
-
+            
+            
     #___________________________________________________________________________
     if (not do_dflx):
         # add divergence of density classes --> diapycnal velocity
@@ -352,7 +370,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     
     if do_compute==False: 
         data_dMOC = data_dMOC.unify_chunks()
-    
+
     #___________________________________________________________________________
     # scale surface density fluxes are already area weighted for zonal 
     # integration
@@ -596,7 +614,8 @@ def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6]
             
             elif 'nz_rho'    in list(data[ii].keys()): 
                 #data_x, data_y, data_v, dum = do_ztransform_martin(mesh, data[ii])
-                data_x, data_y, data_v = do_ztransform_mom6(mesh, data[ii])
+                #data_x, data_y, data_v = do_ztransform_mom6(mesh, data[ii])
+                data_x, data_y, data_v = do_ztransform_hydrography(mesh, data[ii])
                 data_y = -data_y
             
             elif 'ndens_z'    in list(data[ii].keys()): 
@@ -1035,8 +1054,8 @@ def plot_dmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
 
 
 #_______________________________________________________________________________     
-# do creepy brute force play around to enforce more or less monotenicitz in 
-# dens_z, std_dens_Z --> not realz recommendet to do only as a last option
+# do creepy brute force play around to enforce more or less monotonicity in 
+# dens_z, std_dens_Z --> not realy recommendet to do only as a last option
 def do_ztransform(data):
     from scipy.interpolate import interp1d
     from numpy.matlib import repmat
@@ -1105,7 +1124,7 @@ def do_ztransform_martin(mesh, data):
     nz          = dep.size
     
     #___________________________________________________________________________
-    sigma2    = data['nz_rho'].values-1000
+    sigma2    = data['nz_rho'].values
     dmoc      = data['dmoc'].values
     
     #___________________________________________________________________________
@@ -1126,7 +1145,7 @@ def do_ztransform_mom6(mesh, data):
     #___________________________________________________________________________________
     lat, dens, dep  = data['lat'].values, data['ndens'].values, np.abs(mesh.zmid)
     nlat, ndens, nz = lat.size, dens.size, dep.size
-    sigma2 = data['nz_rho'].values-1000
+    sigma2 = data['nz_rho'].values
     sigma2[np.isnan(sigma2)]=40.0
 
     data_v = data['dmoc'].values[:,:]
@@ -1150,4 +1169,30 @@ def do_ztransform_mom6(mesh, data):
         data_dmocz[:,li] = f(dep)
     
 
+    return(lat, dep, data_dmocz)
+
+#
+#
+#_______________________________________________________________________________
+def do_ztransform_hydrography(mesh, data):
+    from scipy.interpolate import interp1d
+    #___________________________________________________________________________
+    lat, dens,  = data['lat'].values, data['ndens'].values
+    dep         = np.abs(mesh.zmid)
+    nlat, ndens = lat.size, dens.size 
+    nz          = dep.size
+    
+    #___________________________________________________________________________
+    sigma2    = data['nz_rho'].values
+    dmoc      = data['dmoc'].values
+    
+    #___________________________________________________________________________
+    data_dmocz=np.zeros(sigma2.shape)
+    f = interp1d(dens, dmoc, axis=0, bounds_error = False, fill_value=0)
+    for li in range(nlat):
+        #data_dmocz[:,li] = np.interp(sigma2[:,li], dens, dmoc[:,li])
+        
+        
+        data_dmocz[:,li] = f(sigma2[:,li])[:,li]
+    
     return(lat, dep, data_dmocz)

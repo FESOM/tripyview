@@ -1050,8 +1050,11 @@ def do_potential_desnsity(data, do_pdens, vname, vname2, vname_tmp):
             data_depth = data['nz1'].expand_dims(dict({'nod2':data.dims['nod2']}))
             
         # data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.025)})
-        data = data.assign({vname_tmp: (list(data[vname].dims), sw.dens(data[vname2].data, data[vname].data, pref)-1000.025)})
+        data = data.assign({vname_tmp: (list(data[vname].dims), sw.dens(data[vname2].data, data[vname].data, pref)-1000.00)})
         del(data_depth)
+        
+        data[vname_tmp] = data[vname_tmp].where(data[vname2]!=0,drop=0.0)
+        
         data = data.drop(labels=[vname, vname2])
         data[vname_tmp].attrs['units'] = 'kg/m^3'
         vname = vname_tmp
