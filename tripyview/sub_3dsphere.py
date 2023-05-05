@@ -329,12 +329,15 @@ class widget_lon_lat_zoom():
 #
 #___CREATE PYVISTA OCEAN MESH___________________________________________________
 # make potatoefication of Earth radius 
-def create_3dflat_ocean_bottom(xs, ys , zs, e_i, data, vname='elevation'):
+def create_3dflat_ocean_bottom(xs, ys , zs, e_i, data, vname='elevation', box=None):
     print(' --> compute 3d flat ocean bottom mesh')
     
     #___________________________________________________________________________
     # create vertice array  
-    points    = np.column_stack([xs,ys,zs])
+    if box is not None:
+        points    = np.column_stack([xs+(box[1]-box[0])/2.0, ys+(box[3]-box[2])/2.0, zs])
+    else:     
+        points    = np.column_stack([xs,ys,zs])
     
     #___________________________________________________________________________
     # Each cell in the cell array needs to include the size of the cell
@@ -376,7 +379,7 @@ def create_3dflat_ocean_bottom(xs, ys , zs, e_i, data, vname='elevation'):
 #
 #___CREATE PYVISTA OCEAN MESH___________________________________________________
 # make potatoefication of Earth radius 
-def create_3dflat_ocean_surface(xs, ys, zs, e_i, bndn_xs, bndn_ys, killdist=600):
+def create_3dflat_ocean_surface(xs, ys, zs, e_i, bndn_xs, bndn_ys, killdist=600, box=None):
     print(' --> compute 3d flat ocean surface')
         
     #___________________________________________________________________________
@@ -397,7 +400,11 @@ def create_3dflat_ocean_surface(xs, ys, zs, e_i, bndn_xs, bndn_ys, killdist=600)
         
     #___________________________________________________________________________
     # create vertice array  
-    points = np.column_stack([xs,ys,zs*0])
+    if box is not None:
+        points    = np.column_stack([xs+(box[1]-box[0])/2.0, ys+(box[3]-box[2])/2.0, zs*0])
+    else:     
+        points    = np.column_stack([xs,ys,zs*0])        
+    #points = np.column_stack([xs,ys,zs*0])
     
     #___________________________________________________________________________
     # Each cell in the cell array needs to include the size of the cell
@@ -435,7 +442,7 @@ def create_3dflat_ocean_surface(xs, ys, zs, e_i, bndn_xs, bndn_ys, killdist=600)
 #
 #___CREATE PYVISTA OCEAN MESH___________________________________________________
 # make potatoefication of Earth radius 
-def create_3dflat_ocean_wall(xs, ys, zs, e_i, which_wall='N', nsigma=20):
+def create_3dflat_ocean_wall(xs, ys, zs, e_i, which_wall='N', nsigma=20, box=None):
     print(' --> compute 3d flat ocean {} wall'.format(which_wall))
     #___________________________________________________________________________
     # compute boundary edge of box limitet domain
@@ -485,7 +492,11 @@ def create_3dflat_ocean_wall(xs, ys, zs, e_i, which_wall='N', nsigma=20):
         else    : wall_sigma_e_i = np.vstack((wall_sigma_e_i,aux_e_i))  
         
     #___________________________________________________________________________
-    points = np.column_stack([wall_sigma_xs, wall_sigma_ys, wall_sigma_zs])
+    #points = np.column_stack([wall_sigma_xs, wall_sigma_ys, wall_sigma_zs])
+    if box is not None:
+        points    = np.column_stack([wall_sigma_xs+(box[1]-box[0])/2.0, wall_sigma_ys+(box[3]-box[2])/2.0, wall_sigma_zs])
+    else:     
+        points    = np.column_stack([wall_sigma_xs, wall_sigma_ys, wall_sigma_zs])
 
     #___________________________________________________________________________
     cell_size = np.ones(wall_sigma_e_i.shape[0], dtype=np.uint8)*4
@@ -512,7 +523,7 @@ def create_3dflat_ocean_wall(xs, ys, zs, e_i, which_wall='N', nsigma=20):
 #
 #___CREATE PYVISTA OCEAN MESH___________________________________________________
 # make potatoefication of Earth radius 
-def create_3dflat_ocean_botwall(xs, ys , zs, e_i, box, scalfac, botdepth=7000 ):
+def create_3dflat_ocean_botwall(xs, ys, zs, e_i, box, scalfac, botdepth=7000):
     print(' --> compute 3d flat ocean mesh')
     
     #___________________________________________________________________________
@@ -548,8 +559,8 @@ def create_3dflat_ocean_botwall(xs, ys , zs, e_i, box, scalfac, botdepth=7000 ):
     box_e_i = np.column_stack([box_bnde[:,0], box_bnde[:,1], box_bnde[:,1]+box_npts, box_bnde[:,0]+box_npts])
     
     ocean_botwall=dict()
-    ocean_botwall['xs' ]=box_xs
-    ocean_botwall['ys' ]=box_ys
+    ocean_botwall['xs' ]=box_xs#+(box[1]-box[0])/2.0
+    ocean_botwall['ys' ]=box_ys#+(box[3]-box[2])/2.0
     ocean_botwall['zs' ]=box_zs
     ocean_botwall['e_i']=box_e_i
     
@@ -730,8 +741,8 @@ def create_3dflat_land_mesh(mesh, resol=1, box=None, do_topo=False, topo_path=[]
         box_e_i = np.column_stack([box_bnde[:,0], box_bnde[:,1], box_bnde[:,1]+box_npts, box_bnde[:,0]+box_npts])
         
         land_botwall=dict()
-        land_botwall['xs' ]=box_xs
-        land_botwall['ys' ]=box_ys
+        land_botwall['xs' ]=box_xs#+(box[1]-box[0])/2.0
+        land_botwall['ys' ]=box_ys#+(box[3]-box[2])/2.0
         land_botwall['zs' ]=box_zs
         land_botwall['e_i']=box_e_i
         
@@ -756,7 +767,7 @@ def create_3dflat_land_mesh(mesh, resol=1, box=None, do_topo=False, topo_path=[]
 
     #___________________________________________________________________________
     # create vertice array  
-    points   = np.column_stack([xs,ys,zs])
+    points   = np.column_stack([xs+(box[1]-box[0])/2.0, ys+(box[3]-box[2])/2.0, zs])
     
     #___________________________________________________________________________
     # Each cell in the cell array needs to include the size of the cell
@@ -826,7 +837,6 @@ def reindex_regional_elem(faces):
 
 
 
-
 def combine_ocean_land_botwall(ocean_botwall, land_botwall, box ):
     #___________________________________________________________________________
     ocean_npts = ocean_botwall['xs'].size
@@ -856,7 +866,13 @@ def combine_ocean_land_botwall(ocean_botwall, land_botwall, box ):
     points = points[idx_n,:]    
     
     # select northern bottom wall 
-    ys =  points[:,1]
+    ys =  points[:,1].copy()
+    xs =  points[:,0].copy()
+    
+    points[:,0] = points[:,0]+(box[1]-box[0])/2.0
+    points[:,1] = points[:,1]+(box[3]-box[2])/2.0
+    
+    
     idx_W        = np.all( ys[e_i]==np.float32(box[3]), axis=1)
     e_i_W        = e_i[idx_W,:]
     e_i_W, idx_n = reindex_regional_elem(e_i_W)
@@ -879,7 +895,6 @@ def combine_ocean_land_botwall(ocean_botwall, land_botwall, box ):
     meshpv_botwall_S = pv.UnstructuredGrid(cells, celltypes, points_W)
     
     # select western bottom wall 
-    xs =  points[:,0]
     idx_W        = np.all( xs[e_i]==np.float32(box[0]), axis=1)
     e_i_W        = e_i[idx_W,:]
     e_i_W, idx_n = reindex_regional_elem(e_i_W)

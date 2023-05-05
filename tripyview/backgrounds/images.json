@@ -10,5 +10,11 @@
     "__source__": "https://www.ngdc.noaa.gov/mgg/global/global.html",
     "__projection__": "PlateCarree",
     "low": "etopo1.png",
-    "high": "etopo1.jpg"}    
+    "high": "etopo1.jpg"},    
+"highres": {
+    "__comment__": "...",
+    "__source__": "https://visibleearth.nasa.gov/collection/1484/blue-marble?page=3",
+    "__projection__": "PlateCarree",
+    "low": "world.topo.bathy.200407.3x5400x2700.png",      
+    "high": "world.topo.bathy.200407.3x21600x10800.jpg"}      
 } 
