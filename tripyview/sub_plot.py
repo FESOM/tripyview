@@ -1485,14 +1485,17 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 cinfo['cref'] = np.power(10.0,-6)
             else:
                 dez = 0
-                while True:
-                    new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
-                    #print(cref, new_cref, cinfo['cmin'], cinfo['cmax'])
-                    if new_cref>cinfo['cmin'] and new_cref<cinfo['cmax']:
-                        break
-                    else: 
-                        dez=dez+1
-                cinfo['cref'] = new_cref
+                if cref==0.0: 
+                    cinfo['cref'] = cref
+                else:
+                    while True:
+                        new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
+                        #print(cref, new_cref, cinfo['cmin'], cinfo['cmax'])
+                        if new_cref>cinfo['cmin'] and new_cref<cinfo['cmax']:
+                            break
+                        else: 
+                            dez=dez+1
+                    cinfo['cref'] = new_cref
         
     #___________________________________________________________________________    
     if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 20
@@ -1552,6 +1555,7 @@ def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
         hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, density=False,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
     else:
         hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, weights=cweights[~np.isnan(data_in)], density=True,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
+    
     hist        = hist/hist.sum()
     bin_m       = bin_e[:-1]+(bin_e[:-1]-bin_e[1:])/2
     cmin        = bin_m[np.where(np.cumsum(hist[::-1])[::-1]>=ctresh)[0][-1]]
