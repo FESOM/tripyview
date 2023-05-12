@@ -443,7 +443,8 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     # cumulative sum over depth 
     if do_info==True: print(' --> do cumsum over depth (bottom-->top)')
     data_dMOC[ 'dmoc'       ] = data_dMOC[ 'dmoc' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
-    data_dMOC[ 'dmoc_bolus' ] = data_dMOC[ 'dmoc_bolus' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
+    if 'dmoc_bolus'in list(data_dMOC.keys()):
+        data_dMOC[ 'dmoc_bolus' ] = data_dMOC[ 'dmoc_bolus' ].reindex(ndens=data_dMOC['ndens'][::-1]).cumsum(dim='ndens', skipna=True).reindex(ndens=data_dMOC['ndens'])
     
     #___________________________________________________________________________
     # compute z-position (z) from (f) density class thickness (h)
