@@ -627,7 +627,7 @@ def do_boxmask(mesh, box, do_elem=False):
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
-    if  box is None or box is 'global': # if None do global
+    if  box == None or box == 'global': # if None do global
         idx_IN = np.ones((mesh_x.shape),dtype=bool)
         
     elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
@@ -892,7 +892,7 @@ class select_scatterpts_depth(object):
     def __init__(self, mesh, data, box_list, do_elem=True, do_tri=True, clim=None, 
                  cname='terrain', cnum=20, seldeprange=[-2000, -100], seldepdefault=-680, 
                  figax=None, figsize=[10, 8], scatsize=100, zoom_fac=0.25, do_centersel=True,
-                 showtxt=False, do_datacopy=True, do_reldep=False, do_grid= True, do_axeq=True):
+                 showtxt_o=False, showtxt_c=False, do_datacopy=True, do_reldep=False, do_grid= True, do_axeq=True):
         
         #_____________________________________________________________________________________________
         # init varaibles for selection
@@ -915,7 +915,8 @@ class select_scatterpts_depth(object):
         self.htxt_x, self.htxt_y, self.htxt_v = [], [], []
         self.slider, self.seldep  = [], seldepdefault
         self.ssize, self.zoom_fac = scatsize, zoom_fac
-        self.showtxt              = showtxt
+        self.showtxt_o            = showtxt_o
+        self.showtxt_c            = showtxt_c
         self.centersel            = do_centersel
         
         # handle of mouse key press event 
@@ -969,8 +970,9 @@ class select_scatterpts_depth(object):
         #_____________________________________________________________________________________________
         # set cmin, cmax, clevel, cmap
         self.cmin, self.cmax = self.vs.min(), self.vs.max()
-        self.cmin = round(self.cmin,-np.int(np.fix(np.log10(np.abs(self.cmin))-1)))
-        self.cmax = round(self.cmax,-np.int(np.fix(np.log10(np.abs(self.cmax))-1)))
+        self.cmin = round(self.cmin,-np.int32(np.fix(np.log10(np.abs(self.cmin))-1)))
+        self.cmax = round(self.cmax,-np.int32(np.fix(np.log10(np.abs(self.cmax))-1)))
+        
         self._sel_colorrange_([self.cmin,self.cmax])
         
         #_____________________________________________________________________________________________
@@ -1007,13 +1009,15 @@ class select_scatterpts_depth(object):
         if self.do_reldep:
             # relative depth change: (+) shallower, (-) deeper
             self.slider_seldep = widgets.IntSlider(min=-100, max=+100, step=5, 
-                                                    value=0, description='rel dep [%]:', continuous_update=False,
+                                                    value=0, description='$\\bf\\color{red}{\\textrm{rel dep [%]:}}$', continuous_update=False,
                                                     layout=layout_slider)
         else:
             # absolute  depth change
             self.slider_seldep = widgets.IntSlider(min=seldeprange[0], max=seldeprange[1], step=5, 
-                                                    value=seldepdefault, description='abs dep [m]:', continuous_update=False,
+                                                    value=seldepdefault, description='$\\bf\\color{red}{\\textrm{abs dep [m]:}}$', continuous_update=False,
                                                     layout=layout_slider)
+        
+            
         # checkbox for relative and absolute depth                                            
         self.checkbox_reldep = widgets.Checkbox(value=self.do_reldep, description='relative:',
                                                 disabled=False, indent=False, layout=layout_checkbox)
@@ -1026,16 +1030,23 @@ class select_scatterpts_depth(object):
         display(ui)
         
         interact(self._sel_scattersize_, ssize = widgets.IntSlider(value=self.ssize, min=0, max=2000, step=10, 
-                                                 description='scatpts size:', continuous_update=False,
+                                                 description='$\\bf\\color{red}{\\textrm{scatpts size:}}$', continuous_update=False,
                                                  layout=widgets.Layout(width='50%')))
         
         interact(self._sel_colorrange_ , crange= widgets.IntRangeSlider(value=[self.cmin, self.cmax], min=-6000, max=0, step=50,
-                                                 description='select color:', disabled=False,
+                                                 description='$\\bf\\color{red}{\\textrm{select color:}}$', disabled=False,
                                                  continuous_update=False,  orientation='horizontal',
                                                  readout=True, readout_format='d', layout=widgets.Layout(width='50%')))
         
-        interact(self._sel_showtxt_    , showtx= widgets.Checkbox(value=self.showtxt, description='show txt:',
-                                                 disabled=False, indent=False))
+        self.chechbox_showtxt_o = widgets.Checkbox(value=self.showtxt_o , description='show txt orig:', disabled=False, indent=False)
+        interact(self._sel_showtxt_o_, showtx= self.chechbox_showtxt_o)
+        
+        self.chechbox_showtxt_c = widgets.Checkbox(value=self.showtxt_c , description='show txt corrected:', disabled=False, indent=False)
+        interact(self._sel_showtxt_c_, showtx= self.chechbox_showtxt_c)
+        #interact(self._sel_showtxt_o_  , showtx_o= widgets.Checkbox(value=self.showtxt_o , description='show txt orig:',
+                                                 #disabled=False, indent=False))
+        #interact(self._sel_showtxt_c_  , showtx_c= widgets.Checkbox(value=self.showtxt_c, description='show txt corrected:',
+                                                 #disabled=False, indent=False))
         
         interact(self._sel_centersel_  , csel= widgets.Checkbox(value=self.centersel, description='center selction:',
                                                  disabled=False, indent=False))
@@ -1051,7 +1062,9 @@ class select_scatterpts_depth(object):
     # define mouse press events 
     def _mousepress_(self, event):
         self.xm, self.ym, self.bm = event.xdata, event.ydata, event.button
-        # self.hitxt.set_text('xm={:f}, ym={:f}, bm={:d},'.format(self.xm, self.ym, self.bm))
+        self.hitxt.set_text('xm={:f}, ym={:f}, bm={:d}, |S{:d}|R{:d}|P{:d}|'.format(self.xm, self.ym, self.bm, self.sel_single, self.sel_rect, self.sel_poly))
+        #self.hitxt.set_text('xm={:f}, ym={:f}, bm={:d}'.format(self.xm, self.ym, self.bm))
+        
         
         # if mouse is not over axes nothing happens 
         if event.inaxes!=self.ax: return
@@ -1072,7 +1085,7 @@ class select_scatterpts_depth(object):
             
             # center window around selection circle
             if self.centersel: self._movecenter_()
-            self.hitxt.set_text('---{{,_,"> [left]')
+            #self.hitxt.set_text('---{{,_,"> [left]')
             
         # left mouse button --> do multiple point selection with mouse drag
         elif self.bm==1 and self.sel_rect==True:
@@ -1087,6 +1100,7 @@ class select_scatterpts_depth(object):
             #___________________________________________________________________
             # collect polygon points
             if   len(self.poly_x)==0: 
+                self.hchos.set_offsets(np.vstack((-999, -999)).transpose())
                 self.poly_x, self.poly_y = list([self.xm]), list([self.ym])
                 self.poly_h = self.ax.plot(self.poly_x, self.poly_y,'-o', color='k')
             else: 
@@ -1104,7 +1118,8 @@ class select_scatterpts_depth(object):
                     p      = Polygon(list(zip(self.poly_x, self.poly_y)))
                     self.idx_c = np.where(contains(p, self.xs, self.ys))[0]
                     
-                    # make multiple selection circle
+                    # make multiple selection circle in green
+                    self.hchos.set_edgecolor([0.1,1,0.5]) 
                     self.hchos.set_offsets(np.vstack((self.xs[self.idx_c], self.ys[self.idx_c])).transpose())
                     
                     #___________________________________________________________________
@@ -1115,7 +1130,7 @@ class select_scatterpts_depth(object):
         #_______________________________________________________________________
         # right mouse button --> zoom to original
         if self.bm==3 : 
-            self.hitxt.set_text('---{{,_,"> [right]')
+            #self.hitxt.set_text('---{{,_,"> [right]')
             self._zoomorig_()
         
     #_________________________________________________________________________________________________
@@ -1133,7 +1148,8 @@ class select_scatterpts_depth(object):
             p      = Polygon(list(zip(px,py)))
             self.idx_c = np.where(contains(p, self.xs, self.ys))[0]
             
-            # make multiple selection circle
+            # make multiple selection circle in green
+            self.hchos.set_edgecolor([0.1,1,0.5]) 
             self.hchos.set_offsets(np.vstack((self.xs[self.idx_c], self.ys[self.idx_c])).transpose())
             #___________________________________________________________________
             # delete rectangle 
@@ -1160,6 +1176,9 @@ class select_scatterpts_depth(object):
         
         # press c key --> choose new depth value
         if   self.bk=='c'    : self._keychoose_()
+        
+        # press c key --> choose new depth value
+        if   self.bk=='d'    : self._keydelete_()
         
         # press e key --> exit and disconnect interactive selection
         elif self.bk=='e'    : self._disconnect_()
@@ -1189,10 +1208,17 @@ class select_scatterpts_depth(object):
         elif self.bk=='right': self._moveright_()    
         
         # press right key --> move right
-        elif self.bk=='1': self.sel_single, self.sel_rect, self.sel_poly = True , False, False
-        elif self.bk=='2': self.sel_single, self.sel_rect, self.sel_poly = False, True , False
-        elif self.bk=='3': self.sel_single, self.sel_rect, self.sel_poly = False, False, True
-    
+        elif self.bk=='1': 
+            self.sel_single, self.sel_rect, self.sel_poly = True , False, False
+            self.hitxt.set_text('[ 1 ]')
+        elif self.bk=='2': 
+            self.sel_single, self.sel_rect, self.sel_poly = False, True , False
+            self.hitxt.set_text('[ 2 ]')
+        elif self.bk=='3': 
+            self.sel_single, self.sel_rect, self.sel_poly = False, False, True
+            self.hitxt.set_text('[ 3 ]')
+        #print(self.sel_single, self.sel_rect, self.sel_poly)
+        
     #__________________________________________________________________________________________________
     # disconect interative mpl connection 
     def _keychoose_(self):
@@ -1208,23 +1234,35 @@ class select_scatterpts_depth(object):
             self.vs_new[self.idx_c] = self.seldep
         
         # change local depth label and adapt color towards new depth value
-        if self.showtxt:
+        if self.showtxt_c:
             #if len(self.idx_c)==1:
             if isinstance(self.idx_c, np.int64):
                 idx = np.argmin(np.sqrt( (self.htxt_x-self.xs[self.idx_c])**2 + (self.htxt_y-self.ys[self.idx_c])**2 ))
                 self.htxt[idx].set_text('{:.0f}'.format(self.vs_new[self.idx_c]))
             else:
-                print(self.idx_c)
-                print(len(self.idx_c))
                 for ii in range(0,len(self.idx_c)): 
                     idx = np.argmin(np.sqrt( (self.htxt_x-self.xs[self.idx_c[ii]])**2 + 
                                              (self.htxt_y-self.ys[self.idx_c[ii]])**2 ))
                     self.htxt[idx].set_text( '{:.0f}'.format(self.vs_new[self.idx_c[ii]]) )
                 
-            
+        if self.sel_poly==True: self.poly_x, self.poly_y = [], []
+        
         self.hscat.set_array(self.vs_new)
         self.hitxt.set_text('[c]')
     
+    #__________________________________________________________________________________________________
+    # disconect interative mpl connection 
+    def _keydelete_(self):
+        # delete selected points
+        self.hchos.set_offsets(np.vstack((-999, -999)).transpose())
+        #self.sel_single, self.sel_rect, self.sel_poly = True , False, False
+        if self.sel_poly==True: 
+            self.poly_x, self.poly_y = [], []
+            if len(self.poly_h):
+                self.poly_h[0].remove()
+                self.poly_h = []
+        self.hitxt.set_text('[ d ]')
+        
     #__________________________________________________________________________________________________
     # disconect interactive mpl connection 
     def _disconnect_(self):
@@ -1318,16 +1356,22 @@ class select_scatterpts_depth(object):
     def _sel_depth_(self, depth):
         self.seldep = depth
         
-    # update selected values from checkbox if depth labels are shown or not
-    def _sel_showtxt_(self, showtx):
-        self.showtxt = showtx    
-        if self.showtxt==False:
+    # update selected values from checkbox if original depth labels are shown or not
+    def _sel_showtxt_o_(self, showtx):
+        self.showtxt_o = showtx    
+        if self.showtxt_o==False:
             if self.htxt is not None:
                 # remove old text labels
                 for htxt in self.htxt: htxt.remove()
                 self.htxt = None
         
-        elif self.showtxt==True:
+        elif self.showtxt_o==True:
+            
+            # checkbox for corrected labels is true --> change that to false
+            if self.showtxt_c==True:
+                self.chechbox_showtxt_c.value=False
+                self.showtxt_c = False
+                
             # remove old text labels
             if self.htxt is not None:
                 for htxt in self.htxt: htxt.remove()
@@ -1337,7 +1381,6 @@ class select_scatterpts_depth(object):
             aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
             
             # define points for actual axes window
-            
             xmin = np.max([self.box_list[self.idx_box][0][0], aux_xlim[0]])
             xmax = np.min([self.box_list[self.idx_box][0][1], aux_xlim[1]])
             ymin = np.max([self.box_list[self.idx_box][0][2], aux_ylim[0]])
@@ -1365,7 +1408,61 @@ class select_scatterpts_depth(object):
                 htxt = self.ax.annotate('{:.0f}'.format(self.htxt_v[ii]), [self.htxt_x[ii], self.htxt_y[ii]], 
                                         xycoords='data' , va="center", ha="center", fontsize=7)
                 self.htxt.append(htxt)
+    
+    # update selected values from checkbox if corrected depth labels are shown or not
+    def _sel_showtxt_c_(self, showtx):
+        self.showtxt_c = showtx    
+        if self.showtxt_c==False:
+            if self.htxt is not None:
+                # remove old text labels
+                for htxt in self.htxt: htxt.remove()
+                self.htxt = None
         
+        elif self.showtxt_c==True:
+            
+            # checkbox for corrected labels is true --> change that to false
+            if self.showtxt_o==True:
+                self.chechbox_showtxt_o.value=False
+                self.showtxt_o = False
+                
+            # remove old text labels
+            if self.htxt is not None:
+                for htxt in self.htxt: htxt.remove()
+                self.htxt=None
+            
+            # write new text labels
+            aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
+            
+            # define points for actual axes window
+            xmin = np.max([self.box_list[self.idx_box][0][0], aux_xlim[0]])
+            xmax = np.min([self.box_list[self.idx_box][0][1], aux_xlim[1]])
+            ymin = np.max([self.box_list[self.idx_box][0][2], aux_ylim[0]])
+            ymax = np.min([self.box_list[self.idx_box][0][3], aux_ylim[1]])
+            if self.do_elem: 
+                #idx = do_boxmask(self.mesh, [aux_xlim[0],aux_xlim[1],aux_ylim[0], aux_ylim[1]], do_elem=True)
+                idx = do_boxmask(self.mesh, [xmin, xmax, ymin, ymax], do_elem=True)
+                idx[self.mesh.e_pbnd_1]=False
+                self.htxt_x   = self.mesh.n_x[self.mesh.e_i[idx,:]].sum(axis=1)/3.0
+                self.htxt_y   = self.mesh.n_y[self.mesh.e_i[idx,:]].sum(axis=1)/3.0
+            else: 
+                #idx = do_boxmask(self.mesh, [aux_xlim[0],aux_xlim[1],aux_ylim[0], aux_ylim[1]], do_elem=False)
+                idx = do_boxmask(self.mesh, [xmin, xmax, ymin, ymax], do_elem=False)
+                self.htxt_x   = self.mesh.n_x[idx]
+                self.htxt_y   = self.mesh.n_y[idx]
+            aux_data      = self.data.copy()
+            aux_data[self.idxd]=self.vs_new
+            self.htxt_v   = aux_data[idx]
+            del aux_data
+        
+            # 2nd. redo depth text labels
+            self.htxt=list()
+            for ii in range(0,len(self.htxt_x)):
+                # do here annotation instead of text because anotation can become
+                # transparent --> i can hide them with text checkbox
+                # htxt = self.ax.annotate('{:.0f}m'.format(self.htxt_v[ii]), [self.htxt_x[ii], self.htxt_y[ii]],
+                htxt = self.ax.annotate('{:.0f}'.format(self.htxt_v[ii]), [self.htxt_x[ii], self.htxt_y[ii]], 
+                                        xycoords='data' , va="center", ha="center", fontsize=7)
+                self.htxt.append(htxt)
             
     # update selected values from checkbox if selection circle should be 
     # always centered
@@ -1378,14 +1475,14 @@ class select_scatterpts_depth(object):
             self.slider_seldep.min  = -6000
             self.slider_seldep.step = 10
             self.slider_seldep.value= -680
-            self.slider_seldep.description='abs dep [m]:'
+            self.slider_seldep.description='$\\bf\\color{red}{\\textrm{abs dep [m]:}}$'
             
         elif self.do_reldep==False and reldep==True:   
             self.slider_seldep.max  = +100
             self.slider_seldep.min  = -100
             self.slider_seldep.step = 5
             self.slider_seldep.value= 0
-            self.slider_seldep.description='rel dep[%]:'
+            self.slider_seldep.description='$\\bf\\color{red}{\\textrm{rel dep[%]:}}$'
         self.do_reldep = reldep
     
     # update colorange from slider
@@ -1405,7 +1502,7 @@ class select_scatterpts_depth(object):
         if self.hscat is not None:
             self.hscat.set_cmap(self.cmap)
             self.hscat.set_clim(vmin=self.clevel[0], vmax=self.clevel[-1])
-            self.cbar.set_ticks(self.clevel, update_ticks=False)
+            self.cbar.set_ticks(self.clevel)#, update_ticks=False)
             self.cbar.update_ticks()
         
     #___________________________________________________________________________________________________
