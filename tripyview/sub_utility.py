@@ -1184,10 +1184,10 @@ class select_scatterpts_depth(object):
         elif self.bk=='e'    : self._disconnect_()
         
         # press . key --> choose previous box from box_list
-        elif self.bk==','    : self._boxbefore_()
+        elif self.bk=='p'    : self._boxbefore_()
         
         # press - key --> choose next box from box_list
-        elif self.bk=='.'    : self._boxnext_()
+        elif self.bk=='n'    : self._boxnext_()
         
         # press + key --> zoom in 
         elif self.bk=='+'    : self._zoomin_()
@@ -1508,7 +1508,7 @@ class select_scatterpts_depth(object):
     #___________________________________________________________________________________________________
     # go to next box in box_list and update entire scatter plot
     def _boxnext_(self):
-        self.hitxt.set_text('[.]')
+        self.hitxt.set_text('[n]')
         
         # before going to next plot save changes from the actual one 
         self._savechanges_()
@@ -1533,7 +1533,7 @@ class select_scatterpts_depth(object):
             
     # go to previous box in box_list and update entire scatter plot
     def _boxbefore_(self):
-        self.hitxt.set_text('[,]')
+        self.hitxt.set_text('[p]')
         
         # before going to previous plot save changes from the actual one 
         self._savechanges_()
