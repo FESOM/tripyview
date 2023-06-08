@@ -582,19 +582,19 @@ def _do_insert_landpts(transect, edge_tri):
             if edge_cut_ei[ni]==-1 and edge_cut_ei[ni+1]==-1:
                 ni_e = ni+1
                 if not found_bnd:
-                    transect_bnd['edge_cut_i'   ] = np.hstack((transect['edge_cut_i'   ][ni_s:ni_e  ], np.ones((2,), dtype=np.int)*-1 ))
+                    transect_bnd['edge_cut_i'   ] = np.hstack((transect['edge_cut_i'   ][ni_s:ni_e  ], np.ones((2,), dtype=np.int32)*-1 ))
                     transect_bnd['edge_cut_evec'] = np.vstack((transect['edge_cut_evec'][ni_s:ni_e,:], np.ones((2,2))*np.nan))
                     transect_bnd['edge_cut_P'   ] = np.vstack((transect['edge_cut_P'   ][ni_s:ni_e,:], transect['edge_cut_P'   ][[ni,ni+1],:]))
                     transect_bnd['edge_cut_midP'] = np.vstack((transect['edge_cut_midP'][ni_s:ni_e,:], transect['edge_cut_midP'][[ni,ni+1],:]))
                     transect_bnd['edge_cut_lint'] = np.hstack((transect['edge_cut_lint'][ni_s:ni_e  ], np.ones((2,))*np.nan ))
-                    transect_bnd['edge_cut_ni'  ] = np.vstack((transect['edge_cut_ni'  ][ni_s:ni_e,:], np.ones((2,2), dtype=np.int)*-1))
+                    transect_bnd['edge_cut_ni'  ] = np.vstack((transect['edge_cut_ni'  ][ni_s:ni_e,:], np.ones((2,2), dtype=np.int32)*-1))
                 else:
-                    transect_bnd['edge_cut_i'   ] = np.hstack((transect_bnd['edge_cut_i'   ], transect['edge_cut_i'   ][ni_s:ni_e  ],np.ones((2,), dtype=np.int)*-1 ))
+                    transect_bnd['edge_cut_i'   ] = np.hstack((transect_bnd['edge_cut_i'   ], transect['edge_cut_i'   ][ni_s:ni_e  ],np.ones((2,), dtype=np.int32)*-1 ))
                     transect_bnd['edge_cut_evec'] = np.vstack((transect_bnd['edge_cut_evec'], transect['edge_cut_evec'][ni_s:ni_e,:],np.ones((2,2))*np.nan))
                     transect_bnd['edge_cut_P'   ] = np.vstack((transect_bnd['edge_cut_P'   ], transect['edge_cut_P'   ][ni_s:ni_e,:],transect['edge_cut_P'   ][[ni,ni+1],:]))
                     transect_bnd['edge_cut_midP'] = np.vstack((transect_bnd['edge_cut_midP'], transect['edge_cut_midP'][ni_s:ni_e,:],transect['edge_cut_midP'][[ni,ni+1],:]))
                     transect_bnd['edge_cut_lint'] = np.hstack((transect_bnd['edge_cut_lint'], transect['edge_cut_lint'][ni_s:ni_e  ],np.ones((2,))*np.nan ))
-                    transect_bnd['edge_cut_ni'  ] = np.vstack((transect_bnd['edge_cut_ni'  ], transect['edge_cut_ni'  ][ni_s:ni_e,:],np.ones((2,2), dtype=np.int)*-1))
+                    transect_bnd['edge_cut_ni'  ] = np.vstack((transect_bnd['edge_cut_ni'  ], transect['edge_cut_ni'  ][ni_s:ni_e,:],np.ones((2,2), dtype=np.int32)*-1))
                 ni_s = ni+1
                 found_bnd=True
         transect_bnd['edge_cut_i'   ] = np.hstack((transect_bnd['edge_cut_i'   ], transect['edge_cut_i'   ][ni_s:  ]))
@@ -1199,9 +1199,10 @@ def plot_transect(data, transects, figsize=[12, 6],
             tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
             idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
-            idx_cref = np.asscalar(idx_cref)
+            #idx_cref = np.asscalar(idx_cref)
+            idx_cref = idx_cref.item()
             nstep    = ncbar_l/cbar_nl
-            nstep    = np.max([np.int(np.floor(nstep)),1])
+            nstep    = np.max([np.int32(np.floor(nstep)),1])
             
             idx = np.arange(0, ncbar_l, 1)
             idxb = np.ones((ncbar_l,), dtype=bool)                
@@ -1861,9 +1862,10 @@ def plot_zmeantransects(data, figsize=[12, 6],
             tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
             idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
-            idx_cref = np.asscalar(idx_cref)
+            #idx_cref = np.asscalar(idx_cref)
+            idx_cref = idx_cref.item()
             nstep    = ncbar_l/cbar_nl
-            nstep    = np.max([np.int(np.floor(nstep)),1])
+            nstep    = np.max([np.int32(np.floor(nstep)),1])
             
             idx = np.arange(0, ncbar_l, 1)
             idxb = np.ones((ncbar_l,), dtype=bool)                

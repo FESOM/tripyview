@@ -342,7 +342,7 @@ def calc_basindomain(mesh,box_moc,do_output=False):
         #_______________________________________________________________________
         # search for next edge that contains the last node index from 
         # run_cont
-        kk_rc = np.column_stack(np.where( run_bnde==np.int(run_cont[0,count_init]) ))
+        kk_rc = np.column_stack(np.where( run_bnde==np.int32(run_cont[0,count_init]) ))
         kk_r  = kk_rc[:,0]
         kk_c  = kk_rc[:,1]
         count_init  = count_init+1
@@ -1527,8 +1527,8 @@ class select_scatterpts_depth(object):
             
             # adapt also colorbar when changing box area
             self.cmin, self.cmax = self.vs.min(), self.vs.max()
-            self.cmin = round(self.cmin,-np.int(np.fix(np.log10(np.abs(self.cmin))-1)))
-            self.cmax = round(self.cmax,-np.int(np.fix(np.log10(np.abs(self.cmax))-1)))
+            self.cmin = round(self.cmin,-np.int32(np.fix(np.log10(np.abs(self.cmin))-1)))
+            self.cmax = round(self.cmax,-np.int32(np.fix(np.log10(np.abs(self.cmax))-1)))
             self._sel_colorrange_([self.cmin,self.cmax])
             
     # go to previous box in box_list and update entire scatter plot
@@ -1552,8 +1552,8 @@ class select_scatterpts_depth(object):
             
             # adapt also colorbar when changing box area
             self.cmin, self.cmax = self.vs.min(), self.vs.max()
-            self.cmin = round(self.cmin,-np.int(np.fix(np.log10(np.abs(self.cmin))-1)))
-            self.cmax = round(self.cmax,-np.int(np.fix(np.log10(np.abs(self.cmax))-1)))
+            self.cmin = round(self.cmin,-np.int32(np.fix(np.log10(np.abs(self.cmin))-1)))
+            self.cmax = round(self.cmax,-np.int32(np.fix(np.log10(np.abs(self.cmax))-1)))
             self._sel_colorrange_([self.cmin,self.cmax])
             
     #___________________________________________________________________________________________________

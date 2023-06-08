@@ -960,8 +960,8 @@ ___________________________________________""".format(
             #___________________________________________________________________
             # search for next edge that contains that contains the last node index from 
             # run_cont
-            kk_rc = np.column_stack(np.where( run_bnde==np.int(run_cont[0,count_init]) ))
-            #kk_rc = np.argwhere( run_bnde==np.int(run_cont[0,count_init]) ) --> slower than np.column_stack(np.where....
+            kk_rc = np.column_stack(np.where( run_bnde==np.int32(run_cont[0,count_init]) ))
+            #kk_rc = np.argwhere( run_bnde==np.int32(run_cont[0,count_init]) ) --> slower than np.column_stack(np.where....
             kk_r  = kk_rc[:,0]
             kk_c  = kk_rc[:,1]
             count_init  = count_init+1

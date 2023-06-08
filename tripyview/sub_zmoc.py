@@ -123,7 +123,7 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         # enforce bottom topography --> !!! important otherwise results will look 
         # weired
         mat_elemiz = data['elemiz'].expand_dims({'nz': data['nzi']}).transpose()
-        mat_nzielem= data['nzi'].expand_dims({'elemi': data['elemi']})
+        mat_nzielem= data['nzi'].expand_dims({'elem': data['elemi']})
         data = data.where(mat_nzielem.data<mat_elemiz.data)
         del(mat_elemiz, mat_nzielem)
         
@@ -342,9 +342,10 @@ def plot_zmoc(data, which_moc='gmoc', figsize=[12, 6],
             tickl    = cinfo_plot['clevel']
             ncbar_l  = len(tickl)
             idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
-            idx_cref = np.asscalar(idx_cref)
+            #idx_cref = np.asscalar(idx_cref)
+            idx_cref = idx_cref.item()
             nstep    = ncbar_l/cbar_nl
-            nstep    = np.max([np.int(np.floor(nstep)),1])
+            nstep    = np.max([np.int32(np.floor(nstep)),1])
             
             idx = np.arange(0, ncbar_l, 1)
             idxb = np.ones((ncbar_l,), dtype=bool)                
