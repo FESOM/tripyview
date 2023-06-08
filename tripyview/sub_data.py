@@ -7,7 +7,7 @@ import xarray as xr
 import netCDF4 as nc
 import seawater as sw
 from .sub_mesh import *
-xr.set_options(enable_cftimeindex=True)
+xr.set_options(enable_cftimeindex=False)
 # ___LOAD FESOM2 DATA INTO XARRAY DATASET CLASS________________________________
 #|                                                                             |
 #|           *** LOAD FESOM2 DATA INTO --> XARRAY DATASET CLASS ***            |
@@ -175,7 +175,10 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # load normal FESOM2 run file
     if do_file=='run':
         data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, autoclose=False, **kwargs)
-        if do_showtime: print(data.time.data)
+        if do_showtime: 
+            print(data.time.data)
+            print(data['time.year'])
+        
         # in case of vector load also meridional data and merge into 
         # dataset structure
         if do_vec or do_norm or do_pdens:
@@ -222,18 +225,19 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # years are selected by the files that are open, need to select mon or day 
     # or record 
     data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
+
     
     # do time arithmetic on data
     if 'time' in data.dims:
         data, str_atim = do_time_arithmetic(data, do_tarithm)
-    
+
     #___________________________________________________________________________
     # make sure datas are alligned in [time, elem, nz] and not [time, nz, elem]
     if 'time' in data.dims:
         if dim_vert is not None: data = data.transpose('time', dim_horz, dim_vert)
     else: 
         if dim_vert is not None: data = data.transpose(dim_horz, dim_vert)
-    
+
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
@@ -352,7 +356,6 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         #print(data.coords)
         #print(data.data_vars)
 
-    
     #___________________________________________________________________________
     return(data)
 

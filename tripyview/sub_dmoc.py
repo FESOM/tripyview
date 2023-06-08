@@ -717,7 +717,7 @@ def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6]
             #idx_cref = np.asscalar(idx_cref) --> asscalar replaced in numppy>1.16
             idx_cref = idx_cref.item()
             nstep    = ncbar_l/(cbar_nl)
-            nstep    = np.max([np.int(np.floor(nstep)),1])
+            nstep    = np.max([np.int32(np.floor(nstep)),1])
             
             idx = np.arange(0, ncbar_l, 1)
             idxb = np.ones((ncbar_l,), dtype=bool)                

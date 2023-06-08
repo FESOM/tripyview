@@ -1722,10 +1722,11 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
     else:                            tickl = cbar.ax.get_xticklabels()
     ncbar_l=len(tickl)
     idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
-    idx_cref = np.asscalar(idx_cref)
+    #idx_cref = np.asscalar(idx_cref)
+    idx_cref = idx_cref.item()
     
     nstep = ncbar_l/cbar_nl
-    nstep = np.max([np.int(np.floor(nstep)),1])
+    nstep = np.max([np.int32(np.floor(nstep)),1])
     #if nstep==0:nstep=1
     
     idx = np.arange(0,len(tickl),1)
