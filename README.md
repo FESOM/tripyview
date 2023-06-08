@@ -22,9 +22,14 @@ git clone https://github.com/patrickscholz/tripyview
 # look like cartopy causes trouble when installed via pip so better preinstall via
 # conda also netcdf4>=1.6.1 causes occasionally netcdf4-->hdf5 error messages, therefor 
 # stick for the moment to netcdf4=1.6.0
+# If you want to use the interactive features in tools/do_topo@elem_or_node.ipynb
+# due to python issues you will need jupyter_server=1.23.6, jupyter_client=7.3.2, 
+# tornad=6.1 --> its the only combination where this features works in moment!!!
 conda install -c conda-forge cartopy netcdf4=1.6.0
 cd tripyview
 pip install -e .
+
+(pip install jupyter_server==1.23.6 jupyter_client==7.3.2 tornado==6.1)
 ```
 
 ## Different diagnostics
