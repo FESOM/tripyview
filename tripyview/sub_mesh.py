@@ -20,7 +20,7 @@ def load_mesh_fesom2(
                     meshpath, abg=[50,15,-90], focus=0, do_rot='None', 
                     do_augmpbnd=True, do_cavity=False, do_info=True, 
                     do_lsmask=True, do_lsmshp=True, do_pickle=True, 
-                    do_earea=True, do_narea=True,
+                    do_earea=True, do_narea=True, do_loadraw=False, 
                     do_eresol=[False,'mean'], do_nresol=[False,'e_resol'] 
                     ):
     """
@@ -220,7 +220,8 @@ def load_mesh_fesom2(
                     do_narea   = do_narea     ,
                     do_nresol  = do_nresol    ,
                     do_lsmask  = do_lsmask    ,
-                    do_lsmshp  = do_lsmshp)
+                    do_lsmshp  = do_lsmshp    ,
+                    do_loadraw = do_loadraw)
         
         #_______________________________________________________________________
         # save mypy mesh .pckl file
@@ -320,7 +321,7 @@ class mesh_fesom2(object):
     def __init__(self, meshpath, abg=[50,15,-90], focus=0, focus_old=0, do_rot='None', 
                  do_augmpbnd=True, do_cavity=False, do_info=True, do_earea=False,do_earea2=False, 
                  do_eresol=[False,'mean'], do_narea=False, do_nresol=[False,'n_area'], 
-                 do_lsmask=True, do_lsmshp=True, do_pickle=True ):
+                 do_lsmask=True, do_lsmshp=True, do_pickle=True, do_loadraw=True ):
         
         #_______________________________________________________________________
         # define meshpath and mesh id 
@@ -344,6 +345,7 @@ class mesh_fesom2(object):
         self.do_nresol          = do_nresol
         self.do_lsmask          = do_lsmask
         self.do_lsmshp          = do_lsmshp
+        self.do_loadraw         = do_loadraw
         
         #_______________________________________________________________________
         # define basic mesh file path
@@ -352,6 +354,7 @@ class mesh_fesom2(object):
         self.fname_aux3d        = os.path.join(self.path,'aux3d.out')
         self.fname_nlvls        = os.path.join(self.path,'nlvls.out')
         self.fname_elvls        = os.path.join(self.path,'elvls.out')
+        self.fname_elvls_raw    = os.path.join(self.path,'elvls_raw.out')
         self.fname_cnlvls       = []  
         self.fname_celvls       = []  
         
@@ -491,13 +494,13 @@ class mesh_fesom2(object):
                                       names=['node_number','x','y','flag'] )
         self.n_x     = file_content.x.values.astype('float32')
         self.n_y     = file_content.y.values.astype('float32')
-        self.n_i     = file_content.flag.values.astype('uint16')   
+        self.n_i     = file_content.flag.values.astype('int16')   
         self.n2dn    = len(self.n_x)
         
         #____load 2d element matrix_____________________________________________
         file_content = pa.read_csv(self.fname_elem2d, delim_whitespace=True, skiprows=1, \
                                        names=['1st_node_in_elem','2nd_node_in_elem','3rd_node_in_elem'])
-        self.e_i     = file_content.values.astype('uint32') - 1
+        self.e_i     = file_content.values.astype('int32') - 1
         self.n2de    = np.shape(self.e_i)[0]
         # print('    : #2de={:d}'.format(self.n2de))
         
@@ -509,26 +512,36 @@ class mesh_fesom2(object):
         self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
         
         #____load number of levels at each node_________________________________
-        print(self.fname_nlvls)
         if ( os.path.isfile(self.fname_nlvls) ):
             file_content = pa.read_csv(self.fname_nlvls, delim_whitespace=True, skiprows=0, \
                                            names=['numb_of_lev'])
-            self.n_iz    = file_content.values.astype('uint16') - 1
+            self.n_iz    = file_content.values.astype('int16') - 1
             self.n_iz    = self.n_iz.squeeze()
             self.n_z     = np.float32(self.zlev[self.n_iz])
         else:
-            self.n_iz    = np.zeros((self.n2dn,)) 
-            self.n_z     = np.zeros((self.n2dn,)) 
+            raise ValueError(f' --> could not find file {self.fname_nlvls} !')
+            #self.n_iz    = np.zeros((self.n2dn,)) 
+            #self.n_z     = np.zeros((self.n2dn,)) 
         
         #____load number of levels at each elem_________________________________
         if ( os.path.isfile(self.fname_elvls) ):
             file_content = pa.read_csv(self.fname_elvls, delim_whitespace=True, skiprows=0, \
                                            names=['numb_of_lev'])
-            self.e_iz    = file_content.values.astype('uint16') - 1
+            self.e_iz    = file_content.values.astype('int16') - 1
             self.e_iz    = self.e_iz.squeeze()
         else:
-            self.e_iz    = np.zeros((self.n2de,)) 
-            
+            raise ValueError(f' --> could not find file {self.fname_elvls} !')
+            #self.e_iz    = np.zeros((self.n2de,)) 
+        
+        #____load number of raw levels at each elem_____________________________
+        if ( os.path.isfile(self.fname_elvls_raw) ) and self.do_loadraw:
+            file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
+                                           names=['numb_of_lev'])
+            self.e_iz_raw    = file_content.values.astype('int16') - 1
+            self.e_iz_raw    = self.e_iz_raw.squeeze()
+        else:
+            raise ValueError(f' --> could not find file {self.fname_elvls_raw} !')
+        
         #_______________________________________________________________________
         return(self)    
     
@@ -539,24 +552,36 @@ class mesh_fesom2(object):
     #|_________________________________________________________________________|
     def read_cavity(self):
         
-        # print(' --> read cavity files')
-        self.fname_cnlvls  = os.path.join(self.path,'cavity_nlvls.out')
-        self.fname_celvls  = os.path.join(self.path,'cavity_elvls.out')
+        #____load number of cavity levels at each node__________________________
+        self.fname_cnlvls = os.path.join(self.path,'cavity_nlvls.out')
+        if ( os.path.isfile(self.fname_cnlvls) ):
+            file_content      = pa.read_csv(self.fname_cnlvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
+            self.n_ic= file_content.values.astype('int16') - 1
+            self.n_ic= self.n_ic.squeeze()
+        else:
+            raise ValueError(f' --> could not find file {self.fname_cnlvls} !')
         
-        #____load number of levels at each node_________________________________
-        # print('     > {}'.format(self.fname_cnlvls)) 
-        file_content    = pa.read_csv(self.fname_cnlvls, delim_whitespace=True, skiprows=0, \
-                                       names=['numb_of_lev'])
-        self.n_ic= file_content.values.astype('uint16') - 1
-        self.n_ic= self.n_ic.squeeze()
-        self.n_c = np.float32(self.zlev[self.n_ic])
+        #____load number of cavity levels at each elem__________________________
+        self.fname_celvls = os.path.join(self.path,'cavity_elvls.out')
+        if ( os.path.isfile(self.fname_cnlvls) ):
+            file_content      = pa.read_csv(self.fname_celvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
+            self.e_ic= file_content.values.astype('int16') - 1
+            self.e_ic= self.e_ic.squeeze()
+        else:
+            raise ValueError(f' --> could not find file {self.fname_celvls} !')
         
-        #____load number of levels at each elem_________________________________
-        # print('     > {}'.format(self.fname_celvls)) 
-        file_content    = pa.read_csv(self.fname_celvls, delim_whitespace=True, skiprows=0, \
-                                       names=['numb_of_lev'])
-        self.e_ic= file_content.values.astype('uint16') - 1
-        self.e_ic= self.e_ic.squeeze()
+        #____load number of raw cavity levels at each elem______________________
+        # number of cavity levels before it becomes iteratively optimse to avoid 
+        # isolated cells 
+        if self.do_loadraw:
+            self.fname_celvls_raw = os.path.join(self.path,'cavity_elvls_raw.out')
+            if ( os.path.isfile(self.fname_celvls_raw) ): 
+                file_content    = pa.read_csv(self.fname_celvls_raw, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
+                self.e_ic_raw   = file_content.values.astype('int16') - 1
+                self.e_ic_raw   = self.e_ic_raw.squeeze()
+            else:
+                raise ValueError(f' --> could not find file {self.fname_celvls_raw} !')
+        
         #_______________________________________________________________________
         return(self)
     
