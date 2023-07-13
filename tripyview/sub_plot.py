@@ -26,7 +26,7 @@ from .sub_colormap import *
 #|      *** PLOT HORIZONTAL FESOM2 DATA SLICES --> BASED ON CARTOPY ***        |
 #|                                                                             |
 #|_____________________________________________________________________________|
-def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5], 
+def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5], 
                 n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
