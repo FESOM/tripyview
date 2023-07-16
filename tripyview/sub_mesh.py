@@ -17,7 +17,7 @@ from .sub_mesh import *
 #| and not to load it again !!!                                                |
 #|_____________________________________________________________________________|
 def load_mesh_fesom2(
-                    meshpath, abg=[50,15,-90], focus=0, do_rot='None', 
+                    meshpath, abg=[50,15,-90], focus=0, cyclic=360, do_rot='None', 
                     do_augmpbnd=True, do_cavity=False, do_info=True, 
                     do_lsmask=True, do_lsmshp=True, do_pickle=True, 
                     do_earea=True, do_narea=True, do_loadraw=False, 
@@ -211,6 +211,7 @@ def load_mesh_fesom2(
                     meshpath   = meshpath     , 
                     abg        = abg          , 
                     focus      = focus        ,
+                    cyclic     = cyclic       ,
                     do_rot     = do_rot       ,
                     do_augmpbnd= do_augmpbnd  ,
                     do_cavity  = do_cavity    ,
@@ -318,7 +319,7 @@ class mesh_fesom2(object):
     #___INIT FESOM2.0 MESH OBJECT_______________________________________________
     #                                                                           
     #___________________________________________________________________________
-    def __init__(self, meshpath, abg=[50,15,-90], focus=0, focus_old=0, do_rot='None', 
+    def __init__(self, meshpath, abg=[50,15,-90], focus=0, cyclic=360, focus_old=0, do_rot='None', 
                  do_augmpbnd=True, do_cavity=False, do_info=True, do_earea=False,do_earea2=False, 
                  do_eresol=[False,'mean'], do_narea=False, do_nresol=[False,'n_area'], 
                  do_lsmask=True, do_lsmshp=True, do_pickle=True, do_loadraw=True ):
@@ -335,7 +336,7 @@ class mesh_fesom2(object):
         self.abg                = abg
         self.focus              = focus
         self.focus_old          = focus_old 
-        self.cyclic             = 360
+        self.cyclic             = cyclic
         self.do_rot             = do_rot
         self.do_augmpbnd        = do_augmpbnd
         self.do_cavity          = do_cavity
@@ -441,7 +442,7 @@ class mesh_fesom2(object):
         self.pbnd_find()
         
         # augment periodic boundary
-        if do_augmpbnd and any(self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1) > 180):
+        if do_augmpbnd and any(self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1) > self.cyclic/2):
             self.pbnd_augment()
         
         # compute/load element area
@@ -534,13 +535,14 @@ class mesh_fesom2(object):
             #self.e_iz    = np.zeros((self.n2de,)) 
         
         #____load number of raw levels at each elem_____________________________
-        if ( os.path.isfile(self.fname_elvls_raw) ) and self.do_loadraw:
-            file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
-                                           names=['numb_of_lev'])
-            self.e_iz_raw    = file_content.values.astype('int16') - 1
-            self.e_iz_raw    = self.e_iz_raw.squeeze()
-        else:
-            raise ValueError(f' --> could not find file {self.fname_elvls_raw} !')
+        if (self.do_loadraw):
+            if ( os.path.isfile(self.fname_elvls_raw) ):
+                file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
+                                            names=['numb_of_lev'])
+                self.e_iz_raw    = file_content.values.astype('int16') - 1
+                self.e_iz_raw    = self.e_iz_raw.squeeze()
+            else:
+                raise ValueError(f' --> could not find file {self.fname_elvls_raw} !')
         
         #_______________________________________________________________________
         return(self)    
@@ -672,7 +674,12 @@ ___________________________________________""".format(
         
         #_______________________________________________________________________
         # Augment the vertices on the right and left side 
-        xmin, xmax= np.floor(xmin),np.ceil(xmax)
+        if self.cyclic == 360:
+            #xmin, xmax= np.floor(xmin),np.ceil(xmax)
+            xmin, xmax= -self.cyclic/2+self.focus, self.cyclic/2+self.focus
+        else:    
+            xmin, xmax = 0, self.cyclic
+            
         self.n_xa = np.concatenate((np.zeros(nn_ir)+xmin, np.zeros(nn_il)+xmax))
         self.n_ya = self.n_y[self.n_pbnd_a]
         self.n_za = self.n_z[self.n_pbnd_a]
@@ -740,7 +747,7 @@ ___________________________________________""".format(
                 #_______________________________________________________________
                 # pi     = 3.14159265358979
                 rad    = np.pi/180.0  
-                cycl   = 360.0*rad
+                cycl   = self.cyclic*rad
                 Rearth = 6367500.0
                 
                 e_y    = self.n_y[self.e_i].sum(axis=1)/3.0
