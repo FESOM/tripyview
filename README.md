@@ -42,6 +42,11 @@ pip install -e .
 * `hslice_clim`  - plot horizontal slices of temperature, salinity and density climatology (compute depth and time averages)
 * `hslice_clim_np` - plot horizontal slices of temperature, salinity and density climatology in north polar stereographic projection
 * `hslice_clim_sp` - plot horizontal slices of temperature, salinity and density climatology in south polar stereographic projection
+* `hslice_channel` - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
+
+<p align="center" width="100%">
+  <img width=75% src="tripyview/tripyview_mov_channel.gif">
+</p>
 
 * `hovm`         - plot hovmöller diagramms for 3d ocean varaible over depth and time averaged over
 specific region that defined by shapefile (see. tripyview/shapefiles/...)
