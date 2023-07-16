@@ -45,7 +45,7 @@ pip install -e .
 * `hslice_channel` - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
 
 <p align="center" width="100%">
-  <img width=35% src="tripyview/tripyview_mov_channel.gif">
+  <img width=40% src="tripyview/tripyview_mov_channel.gif">
 </p>
 
 * `hovm`         - plot hovmöller diagramms for 3d ocean varaible over depth and time averaged over
