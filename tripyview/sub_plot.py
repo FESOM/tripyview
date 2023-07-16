@@ -33,7 +33,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                 color_bot=[0.75,0.75,0.75],  title=None, do_ie2n = True, 
                 pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
                 linecolor='k', linewidth=0.5, do_reffig=False, ref_cinfo=None, ref_rescale=None,
-                do_info=False):
+                do_info=False, nargout=['fig', 'ax', 'cbar']):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -127,8 +127,11 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
     
     #___________________________________________________________________________
     # create box if not exist
-    if box is None or box=="None": box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
-    print(box)
+    if proj=='channel':
+        if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
+    else:    
+        if box is None or box=="None": box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
+    
     #___________________________________________________________________________
     # Create projection
     if   proj=='pc'     : which_proj, which_transf = ccrs.PlateCarree()     , ccrs.PlateCarree()
@@ -142,12 +145,15 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
     elif proj=='sps'    : 
         which_proj, which_transf = ccrs.SouthPolarStereo(), ccrs.PlateCarree()
         if box[3]>0: box[2]=0
+    elif proj=='channel':
+        #which_proj, which_transf = None, None
+        which_proj, which_transf = ccrs.PlateCarree()     , ccrs.PlateCarree()
     else: raise ValueError('The projection {} is not supporrted!'.format(proj))    
     
     #___________________________________________________________________________    
     # create lon, lat ticks 
     xticks,yticks = do_ticksteps(mesh, box)
-    
+
     #___________________________________________________________________________    
     # create figure and axes
     fig, ax = plt.subplots( n_rc[0],n_rc[1],
@@ -169,7 +175,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                         np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
     
     # Limit points to projection box
-    if proj in ['nps', 'sps', 'pc']:
+    if proj in ['nps', 'sps', 'pc', 'channel']:
         e_idxbox = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
     elif proj in ['rob', 'eqearth'] :   
         #box = [-179.750, 179.750, -90.0, 90.0]
@@ -223,6 +229,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
     #___________________________________________________________________________
     # do the mapping transformation outside of tricontourf is absolutely 
     # faster than let doing cartopy doing it within 
+    #if proj=='channel': mappoints = np.column_stack((tri.x, tri.y))
+    #else              : mappoints = which_proj.transform_points(which_transf, tri.x, tri.y)
     mappoints = which_proj.transform_points(which_transf, tri.x, tri.y)
     
     #___________________________________________________________________________
@@ -236,7 +244,11 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         
         #_______________________________________________________________________
         # set axes extent
-        ax[ii].set_extent(box, crs=ccrs.PlateCarree())
+        if not proj=='channel': 
+            ax[ii].set_extent(box, crs=ccrs.PlateCarree())
+        else:
+            ax[ii].set_extent(box, crs=ccrs.PlateCarree())
+            ax[ii].set_aspect('auto')
         
         #_______________________________________________________________________
         # periodic augment data
@@ -287,6 +299,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         # plot tri contourf/tripcolor
         if   do_plot=='tpc' or (do_plot=='tcf' and not is_onvert):
             if not is_onvert: data_plot = data_plot[e_idxok]
+            print(data_plot.shape)
             hp=ax[ii].tripcolor(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok,:], data_plot,
                                     shading='flat',
                                     cmap=cinfo_plot['cmap'],
@@ -418,7 +431,22 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
     #print(' -AXES-> elapsed time: {} min'.format((clock.time()-ts)/60))
     
     #___________________________________________________________________________
-    return(fig, ax, cbar)
+    list_argout=[]
+    if len(nargout)>0:
+        for stri in nargout:
+            if   stri == 'fig'    : list_argout.append(fig)
+            elif stri == 'ax'     : list_argout.append(ax)
+            elif stri == 'cbar'   : list_argout.append(cbar)
+            elif stri == 'hpall'  : list_argout.append(hpall)
+            elif stri == 'tri'    : list_argout.append(tri)
+            elif stri == 'mappoints': list_argout.append(mappoints)
+            elif stri == 'e_idxok': list_argout.append(e_idxok)
+            elif stri == 'cinfo': list_argout.append(cinfo)
+            
+            mappoints
+        return(list_argout)
+    else:
+        return
     
 
 def plot_hslice_reg(mesh, data, input_names, cinfo=None, box=None, proj='pc', figsize=[9,4.5], 
@@ -1675,7 +1703,19 @@ def do_add_gridlines(ax, rowlist, collist, xticks, yticks, proj, which_proj):
                             alpha=0.25, )
         if rowlist!=maxr-1: ax.set_xticklabels([])
         if collist >0     : ax.set_yticklabels([])
+    elif proj=='channel':
             
+        ax.set_xticks(xticks[1:-1], crs=ccrs.PlateCarree())
+        ax.set_yticks(yticks[1:-1], crs=ccrs.PlateCarree())
+        ax.xaxis.set_major_formatter(LongitudeFormatter())
+        ax.yaxis.set_major_formatter(LatitudeFormatter()) 
+        gl=ax.gridlines(crs=which_proj, color='black', linestyle='-', 
+                            draw_labels=False, 
+                            xlocs=xticks, ylocs=yticks, 
+                            alpha=0.25, )
+        if rowlist!=maxr-1: ax.set_xticklabels([])
+        if collist >0     : ax.set_yticklabels([])
+        
     elif proj=='nps' or proj=='sps':
         ax.gridlines(color='black', linestyle='-', alpha=0.25, xlocs=xticks, ylocs=yticks,  )
         theta = np.linspace(0, 2*np.pi, 100)
@@ -1892,7 +1932,7 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
 def do_ticksteps(mesh, box, ticknr=7):
     #___________________________________________________________________________
     tickstep = np.array([0.5,1.0,2.0,2.5,5.0,10.0,15.0,20.0,30.0,45.0, 360])
-    
+    print(box)
     #___________________________________________________________________________
     idx     = int(np.argmin(np.abs( tickstep-(box[1]-box[0])/ticknr )))
     if np.abs(box[1]-box[0])==360:
@@ -1929,7 +1969,7 @@ def do_ticksteps(mesh, box, ticknr=7):
 #| ___RETURNS_______________________________________________________________   |
 #| None                  
 #|_____________________________________________________________________________|  
-def do_savefigure(do_save, fig, dpi=300, transparent=False, pad_inches=0.1, **kw):
+def do_savefigure(do_save, fig, dpi=300, transparent=False, pad_inches=0.1, do_info=True, **kw):
     if do_save is not None:
         #_______________________________________________________________________
         # extract filename from do_save
@@ -1941,7 +1981,7 @@ def do_savefigure(do_save, fig, dpi=300, transparent=False, pad_inches=0.1, **kw
         # extract dirname from do_save --> create directory if not exist
         sdname = os.path.dirname(do_save)
         sdname = os.path.expanduser(sdname)
-        print(' > save figure: {}'.format(os.path.join(sdname,sfname)))
+        if do_info: print(' > save figure: {}'.format(os.path.join(sdname,sfname)))
         
         #_______________________________________________________________________
         if not os.path.isdir(sdname): os.makedirs(sdname)
