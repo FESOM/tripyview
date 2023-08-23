@@ -5,7 +5,8 @@
 <br />
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
-Data reading got updated to xarray, plotting got updated to cartopy, actually works well for $${\color{red}python3.8}$$
+Data reading got updated to xarray, plotting got updated to cartopy, actually works well for 
+$\textcolor{red}{python3.8}$
 <br />
 
 ## Installation
