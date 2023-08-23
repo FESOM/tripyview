@@ -15,12 +15,12 @@ Data reading got updated to xarray, plotting got updated to cartopy, actually wo
 
 In moment only possible by source files using pip:
 
-1st. clone respository: 
+### 1st. clone respository: 
 ```bash
 git clone https://github.com/patrickscholz/tripyview
 ```
 
-2nd. install using conda & pip : 
+### 2nd. install using conda & pip : 
 make sure your conda environment uses python=3.8
 
 ```bash
