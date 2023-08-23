@@ -6,7 +6,7 @@
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
 Data reading got updated to xarray, plotting got updated to cartopy, actually works well for 
-$\color{red}{python3.8}$
+###$\color{red}{python3.8}$
 
 <br />
 
@@ -20,6 +20,8 @@ git clone https://github.com/patrickscholz/tripyview
 ```
 
 2nd. install using conda & pip : 
+make sure your conda environment uses python=3.8
+
 ```bash
 # look like cartopy causes trouble when installed via pip so better preinstall via
 # conda also netcdf4>=1.6.1 causes occasionally netcdf4-->hdf5 error messages, therefor 
