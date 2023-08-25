@@ -21,7 +21,7 @@ git clone https://github.com/patrickscholz/tripyview
 ```
 
 ### 2nd. install using conda & pip : 
-make sure your conda environment uses python=3.8
+make sure your conda environment uses python=3.8 (conda create --name myenvpy38 python=3.8; conda activate myenvpy38)
 
 ```bash
 # look like cartopy causes trouble when installed via pip so better preinstall via
@@ -30,7 +30,7 @@ make sure your conda environment uses python=3.8
 # If you want to use the interactive features in tools/do_topo@elem_or_node.ipynb
 # due to python issues you will need jupyter_server=1.23.6, jupyter_client=7.3.2, 
 # tornad=6.1 --> its the only combination where this features works in moment!!!
-conda install -c conda-forge cartopy netcdf4=1.6.0 python=3.8
+conda install -c conda-forge cartopy netcdf4=1.6.0 (python=3.8)
 cd tripyview
 pip install -e .
 
