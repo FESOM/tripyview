@@ -20,7 +20,8 @@ requirements = [
     'joblib',
     'jupyter',
     'matplotlib',
-    'pickle5',
+    #'pickle5',
+    "pickle5; python_version<'3.9'",
     'netCDF4',
     'numba',
     'numpy',
@@ -39,7 +40,8 @@ requirements = [
     'pyyaml',
     'pyvista',
     'vtk',
-    'ipyvtklink'
+    'ipyvtklink',
+    'ipympl'
 ]
 
 setup_requirements = ['pytest-runner']
@@ -48,7 +50,7 @@ test_requirements = ['pytest']
 
 setup(
     author='FESOM team',
-    author_email='Patrick.Scholzz@awi.de',
+    author_email='Patrick.Scholz@awi.de',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
@@ -76,7 +78,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/patrickscholz/tripyview',
-    #download_url='https://github.com/FESOM/pyfesom2/archive/0.2.0.tar.gz',
     version='0.1.0',
     zip_safe=False,
 )

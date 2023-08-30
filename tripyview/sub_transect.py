@@ -15,7 +15,7 @@ from   .sub_plot                import *
 from   .sub_utility             import *
 from   .sub_colormap            import *
 import pandas as pd
-xr.set_options(enable_cftimeindex=True)
+#xr.set_options(enable_cftimeindex=True)
 
 #+___PRE-ANALYSE ARBITRARY CROSS-SECTION LINE__________________________________+
 #|                                                                             |
@@ -1442,7 +1442,7 @@ def plot_transect_transp_t(tseries_list, input_names, transect, which_cycl=None,
                 plt.plot(time[0]-(tdel)*0.015, data.mean()-data.std(), marker='v', markersize=6, **dict_plt)
         #_______________________________________________________________________
         ii_cycle=ii_cycle+1
-        if ii_cycle>which_cycl: ii_cycle=1
+        if ii_cycle>aux_which_cycl: ii_cycle=1
         
     #___________________________________________________________________________
     ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
@@ -1754,7 +1754,7 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         index_list.append( xr.Dataset(data_vars=data_vars, coords=coords, attrs=global_attr) )
         
         #_______________________________________________________________________
-        if box is None or box is 'global': 
+        if box is None or box == 'global': 
             index_list[cnt][vname].attrs['transect_name'] = 'global zonal mean'
         elif isinstance(box, shp.Reader):
             str_name = box.shapeName.split('/')[-1].replace('_',' ')

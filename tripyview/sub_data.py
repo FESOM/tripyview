@@ -7,7 +7,7 @@ import xarray as xr
 import netCDF4 as nc
 import seawater as sw
 from .sub_mesh import *
-xr.set_options(enable_cftimeindex=False)
+#xr.set_options(enable_cftimeindex=False)
 # ___LOAD FESOM2 DATA INTO XARRAY DATASET CLASS________________________________
 #|                                                                             |
 #|           *** LOAD FESOM2 DATA INTO --> XARRAY DATASET CLASS ***            |
