@@ -6,7 +6,12 @@ import time
 import numpy  as np
 import pandas as pa
 import joblib
-import pickle5 as pickle
+try:
+    import pickle5 as pickle
+    foundmodpickle=True
+except ModuleNotFoundError:
+    foundmodpickle=False
+    pass
 from   netCDF4 import Dataset
 from .sub_mesh import *
 
@@ -19,10 +24,12 @@ from .sub_mesh import *
 def load_mesh_fesom2(
                     meshpath, abg=[50,15,-90], focus=0, cyclic=360, do_rot='None', 
                     do_augmpbnd=True, do_cavity=False, do_info=True, 
-                    do_lsmask=True, do_lsmshp=True, do_pickle=True, 
+                    do_lsmask=True, do_lsmshp=True, do_pickle=True, do_joblib=False, 
                     do_earea=True, do_narea=True, do_loadraw=False, 
                     do_eresol=[False,'mean'], do_nresol=[False,'e_resol'] 
                     ):
+    
+    
     """
     ---> load FESOM2 mesh:
     ___INPUT:___________________________________________________________________
@@ -57,8 +64,14 @@ def load_mesh_fesom2(
     ___RETURNS:_________________________________________________________________
     mesh        :   object, returns fesom_mesh object
     """
-    #___________________________________________________________________________
+    
     pickleprotocol=4
+    #___________________________________________________________________________
+    if foundmodpickle==False and do_pickle==True:
+        print(' > warning: pickle5 module could not be found, no do_pickle \n is possible! Therefor switch to joblib saving/loading')
+        do_pickle, do_joblib = False, True
+    if do_joblib==True and do_pickle==True:   
+        raise ValueError(' error: both do_joblib and do_pickle are set to True, select only one!')
     
     #___________________________________________________________________________
     # path of mesh location
@@ -77,8 +90,6 @@ def load_mesh_fesom2(
     #___________________________________________________________________________
     # check if pickle file can be found somewhere either in mesh folder or in 
     # cache folder 
-    #picklefname = 'mypymesh_fesom2.pckl'
-    #picklefname = 'tripyview_fesom2_'+meshid+'.pckl'
     picklefname = 'tripyview_fesom2_{}_focus{}.pckl'.format(meshid,focus)
     if do_pickle:
         # check if mypy pickle meshfile is found in meshfolder
@@ -93,19 +104,42 @@ def load_mesh_fesom2(
             
         else:
             loadpicklepath = 'None'
-            print(' > found no .pckl file in cach or mesh path')    
+            print(' > found no .pckl file in cach or mesh path')
+    
+    joblibfname = 'tripyview_fesom2_{}_focus{}.jlib'.format(meshid,focus)
+    if do_joblib:
+        # check if mypy pickle meshfile is found in meshfolder
+        if    ( os.path.isfile(os.path.join(meshpath, joblibfname)) ):
+            loadjoblibpath = os.path.join(meshpath, joblibfname)
+            if do_info: print(' > found *.jlib file: {}'.format(os.path.dirname(loadjoblibpath)))    
+            
+        # check if mypy pickle meshfile is found in cache folder
+        elif ( os.path.isfile(os.path.join(cachepath, joblibfname)) ):
+            loadjoblibpath = os.path.join(cachepath, joblibfname)
+            if do_info: print(' > found *.jlib file: {}'.format(os.path.dirname(loadjoblibpath)))
+            
+        else:
+            loadjoblibpath = 'None'
+            print(' > found no .jlib file in cach or mesh path')            
             
     #___________________________________________________________________________
     # load pickle file if it exists and load it from .pckl file, if it does not 
     # exist create mesh object with fesom_mesh
     # do_pickle==True and .pckl file exists
-    if   do_pickle and ( os.path.isfile(loadpicklepath) ): 
-        if do_info: print(' > load  *.pckl file: {}'.format(os.path.basename(loadpicklepath)))
-        #_______________________________________________________________________
-        fid  = open(loadpicklepath, "rb")
-        mesh = pickle.load(fid)
-        fid.close()
+    if  ( do_pickle and ( os.path.isfile(loadpicklepath) )) or \
+        ( do_joblib and ( os.path.isfile(loadjoblibpath) )): 
+            
         
+        #_______________________________________________________________________
+        if   ( do_pickle and ( os.path.isfile(loadpicklepath) )):
+            if do_info: print(' > load  *.pckl file: {}'.format(os.path.basename(loadpicklepath)))
+            fid  = open(loadpicklepath, "rb")
+            mesh = pickle.load(fid)
+            fid.close()
+        elif ( do_joblib and ( os.path.isfile(loadjoblibpath) )):
+            if do_info: print(' > load  *.jlib file: {}'.format(os.path.basename(loadjoblibpath)))
+            mesh = joblib.load(loadjoblibpath)
+            
         do_pbndfind=False
         #_______________________________________________________________________
         # rotate mesh if its not done in .pckle file 
@@ -204,7 +238,9 @@ def load_mesh_fesom2(
         return(mesh)
     
     # (do_pickle==True and .pckl file does not exists) or (do_pickle=False)
-    elif (do_pickle and not ( os.path.isfile(loadpicklepath)) ) or not do_pickle:
+    elif ((do_pickle and not ( os.path.isfile(loadpicklepath)) ) or not do_pickle) or \
+         ((do_joblib and not ( os.path.isfile(loadjoblibpath)) ) or not do_joblib):
+             
         if do_info: print(' > load mesh from *.out files: {}'.format(meshpath))
         #_______________________________________________________________________
         mesh = mesh_fesom2(
@@ -248,6 +284,29 @@ def load_mesh_fesom2(
                 except PermissionError:
                     print(" > could not write *.pckl file in {} or {}".format(meshpath,cachepath))
         
+        #_______________________________________________________________________
+        # save mypy mesh .jlib file
+        # --> try 1.st to store it in the mesh in the meshfolder, will depend of 
+        #     there is permission to write
+        if do_joblib:
+            try: 
+                savejoblibpath = os.path.join(meshpath, joblibfname)
+                if do_info: print(' > save mesh to *.jlib in {}'.format(savejoblibpath))
+                fid = open(savejoblibpath, "wb")
+                joblib.dump(mesh, fid, protocol=pickleprotocol)
+                fid.close()
+            # if no permission rights for writing in meshpath folder try 
+            # cachefolder   
+            except PermissionError:
+                try: 
+                    savejoblibpath = os.path.join(cachepath,joblibfname)
+                    mesh.cachepath = cachepath
+                    if do_info: print(' > save mesh to *.pckl in {}'.format(savejoblibpath))
+                    fid = open(savejoblibpath, "wb")
+                    joblib.dump(mesh, fid, protocol=pickleprotocol)
+                    fid.close()
+                except PermissionError:
+                    print(" > could not write *.pckl file in {} or {}".format(meshpath,cachepath))
         #_______________________________________________________________________
         return(mesh)
 
@@ -1284,7 +1343,7 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
     
     #___________________________________________________________________________
     # Create an empty geopandas GeoDataFrame
-    newdata = gpd.GeoDataFrame()
+    newdata = gpd.GeoDataFrame(geometry=gpd.GeoSeries())
 
     #___________________________________________________________________________
     # Add every polygon to GeoDataFrame
