@@ -66,7 +66,6 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
                 index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2')
             elif 'elem' in data.dims:    
                 #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
-                print(idx_IN.shape)
                 index = do_horiz_arithmetic(data.sel(elem=idx_IN), do_harithm, 'elem')
         
             #_______________________________________________________________________
