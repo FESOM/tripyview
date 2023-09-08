@@ -36,17 +36,18 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         
         #_______________________________________________________________________
         # compute  mask index
-        idx_IN=do_boxmask(mesh,box)
+        if   'nod2' in data.dims: idx_IN=do_boxmask(mesh, box, do_elem=True)
+        elif 'elem' in data.dims: idx_IN=do_boxmask(mesh, box, do_elem=True)
         
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
         # points
         dim_name=[]
         if   'nod2' in data.dims: dim_name.append('nod2')
-        if   'elem' in data.dims: dim_name.append('elem')    
+        elif 'elem' in data.dims: dim_name.append('elem')    
         if   'nz'   in data.dims: dim_name.append('nz')
-        if   'nz1'  in data.dims: dim_name.append('nz1')      
-        if   'nz_1' in data.dims: dim_name.append('nz1')          
+        elif 'nz1'  in data.dims: dim_name.append('nz1')      
+        elif 'nz_1' in data.dims: dim_name.append('nz1')          
             
         if do_harithm=='wmean' and do_zarithm=='wmean':
             if   'nod2' in data.dims:
@@ -55,7 +56,7 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
                 weights = weights/weights.sum(dim=dim_name, skipna=True)
                 data    = data*weights.astype('float32', copy=False )
                 index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
-            elif 'elem' in data_dims:    
+            elif 'elem' in data.dims:    
                 STOP
             
         else:    
@@ -63,9 +64,10 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
             if   'nod2' in data.dims:
                 #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2'))
                 index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2')
-            elif 'elem' in data_dims:    
+            elif 'elem' in data.dims:    
                 #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
-                index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem')
+                print(idx_IN.shape)
+                index = do_horiz_arithmetic(data.sel(elem=idx_IN), do_harithm, 'elem')
         
             #_______________________________________________________________________
             if   'nz1' in data.dims and do_harithm is not None:

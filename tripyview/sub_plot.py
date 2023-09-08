@@ -1809,8 +1809,10 @@ def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, clocs, pw_lim=[-3,4]
     # formating for log and symlog colorbar axis    
     else:
         cbar.set_ticks(clocs[np.mod(np.log10(np.abs(clocs)),1)==0.0])
-        cbar.ax.minorticks_off()
+        #cbar.ax.minorticks_off()
         cbar.update_ticks()
+        cbar.ax.yaxis.set_major_formatter(mticker.LogFormatterSciNotation())
+        cbar.ax.yaxis.get_offset_text().set(horizontalalignment='right')
     cbar.ax.tick_params(labelsize=fontsize)
 
     #___________________________________________________________________________
@@ -2053,6 +2055,7 @@ def arrange_axes(nx, ny,
                  # font size increasing factor
                  f_fs = 1,
                  reverse_order = False,
+                 nargout=['fig', 'hca', 'hcb'],
                 ):
 
     # factor to convert cm into inch
@@ -2308,7 +2311,19 @@ def arrange_axes(nx, ny,
     if (do_axes_labels) and (axlab_kw is not None):
         hca = axlab(hca, fontdict=axlab_kw)
 
-    return hca, hcb
+    #___________________________________________________________________________
+    list_argout=[]
+    if len(nargout)>0:
+        for stri in nargout:
+            try:
+                list_argout.append(eval(stri))
+            except:
+                print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
+            
+        return(list_argout)
+    else:
+        return
+    #return fig, hca, hcb
 
 
 #
