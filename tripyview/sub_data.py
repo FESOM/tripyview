@@ -105,7 +105,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # store vertice cluster area in data    
     elif any(x in vname for x in ['narea','n_area','clusterarea','scalararea']):
         if len(mesh.n_area)==0: mesh=mesh.compute_n_area()
-        data['narea'] = ("nod2", mesh.n_area)
+        data['narea'] = ("nod2", mesh.n_area[0,:])
         data['narea'].attrs["description"]='Vertice area'
         data['narea'].attrs["long_name"  ]='Vertice area'
         data['narea'].attrs["units"      ]='m^2'
@@ -116,7 +116,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # store vertice resolution in data               
     elif any(x in vname for x in ['nresol','n_resol','resolution','resol']):
         if len(mesh.n_resol)==0: mesh=mesh.compute_n_resol()
-        data['nresol'] = ("nod2", mesh.n_resol/1000)
+        data['nresol'] = ("nod2", mesh.n_resol[0,:]/1000)
         data['nresol'].attrs["description"]='Resolution'
         data['nresol'].attrs["long_name"  ]='Resolution'
         data['nresol'].attrs["units"      ]='km'
