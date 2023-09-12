@@ -94,11 +94,12 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     #___________________________________________________________________________
     # store topography in data
     if   any(x in vname for x in ['depth','topo','topography','zcoord']):
-        data['topo'] = ("nod2", -np.abs(mesh.n_z))
+        data['topo'] = ("nod2", np.abs(mesh.n_z))
         data['topo'].attrs["description"]='Depth'
         data['topo'].attrs["long_name"  ]='Depth'
         data['topo'].attrs["units"      ]='m'
         data['topo'].attrs["is_data"    ]=is_data
+        data = data.chunk(chunks['nod2'])
         data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store vertice cluster area in data    
@@ -109,6 +110,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['narea'].attrs["long_name"  ]='Vertice area'
         data['narea'].attrs["units"      ]='m^2'
         data['narea'].attrs["is_data"    ]=is_data
+        data = data.chunk(chunks['nod2'])
         data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store vertice resolution in data               
@@ -119,6 +121,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['nresol'].attrs["long_name"  ]='Resolution'
         data['nresol'].attrs["units"      ]='km'
         data['nresol'].attrs["is_data"    ]=is_data
+        data = data.chunk(chunks['nod2'])
         data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store element area in data    
@@ -129,6 +132,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['earea'].attrs["long_name"  ]='Element area'
         data['earea'].attrs["units"      ]='m^2'
         data['earea'].attrs["is_data"    ]=is_data
+        data = data.chunk(chunks['elem'])
         data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
     # store element resolution in data               
@@ -139,6 +143,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data['eresol'].attrs["long_name"  ]='Element resolution'
         data['eresol'].attrs["units"      ]='km'
         data['eresol'].attrs["is_data"    ]=is_data
+        data = data.chunk(chunks['elem'])
         data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         return(data)
         
@@ -500,7 +505,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
             del(w_A)
         
         # do vertical weighting/volumen weight
-        if do_zweight:  
+        if do_zweight and dim_vert is not None:  
             if   'nz1' == dim_vert:
                 #w_An = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1', 'nod2']).chunk(data.chunksizes['nod2'])
                 w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=['nz1'])
@@ -530,7 +535,8 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         # do weighting for weighted mean computation on elements
         if do_hweight:
             data = data.assign_coords(w_A  = xr.DataArray(mesh.e_area                   , dims=['elem']).chunk(data.chunksizes['elem']))
-        if do_zweight:    
+        
+        if do_zweight and dim_vert is not None:    
             if   'nz1' == dim_vert:
                 w_A  = np.zeros((mesh.nlev-1, mesh.n2de))
                 for ei in range(0,mesh.n2de): w_A[mesh.e_iz[ei]+1-1:,ei]=np.nan
