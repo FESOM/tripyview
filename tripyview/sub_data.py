@@ -19,7 +19,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
                      do_compute=True, descript='',  runid='fesom', chunks={'time':100, 'elem':1e4, 'nod2':1e4},
                      do_showtime=False, do_prec='float32', 
-                     do_zweight=False, do_hweight=True, 
+                     do_zweight=False, do_hweight=True, do_f14cmip6=False, 
                      **kwargs):
     """
     ---> load FESOM2 data:

@@ -64,8 +64,9 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         plt.show()
     
     #___________________________________________________________________________
-    # rescue global attributes
+    # rescue global and variable attributes
     gattr = data.attrs
+    vattr = data['w'].attrs
     
     #___________________________________________________________________________
     # do moc calculation either on nodes or on elements        
@@ -102,7 +103,11 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
             if 'nl1'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'   :'nz1' }) 
             nz_w_A = nz_w_A.isel(elem=idxin)
         else: 
-            raise ValueError('could not find ...mesh.diag.nc file')
+            if len(mesh.e_area)>0:
+                nz_w_A = xr.DataArray(mesh.e_area, dims=['elem'])
+                nz_w_A = nz_w_A.isel(elem=idxin)
+            else:    
+                raise ValueError('could not find ...mesh.diag.nc file or the variable mesh.e_area')
         
         #_______________________________________________________________________    
         # average from vertices towards elements
@@ -111,7 +116,11 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
             data = data.assign(w=data['w'][:, e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
         else:  
             data = data.assign(w=data['w'][   e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
-        data = data.drop(['lon', 'lat', 'nodi', 'nodiz', 'w_A'])    
+        
+        # drop un-necessary variables 
+        for vdrop in ['lon', 'lat', 'nodi', 'nodiz', 'w_A']:
+            if vdrop in list(data.coords): data = data.drop(vdrop)
+        #data = data.drop(['lon', 'lat', 'nodi', 'nodiz', 'w_A'])    
         data = data.assign_coords(elemiz= xr.DataArray(mesh.e_iz, dims=['elem']))
         data = data.assign_coords(elemi = xr.DataArray(np.arange(0,mesh.n2de), dims=['elem']))
         
@@ -155,7 +164,11 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
             nz_w_A = nz_w_A.isel(nod2=idxin).drop(['nz'])
             
         else: 
-            raise ValueError('could not find ...mesh.diag.nc file')
+            if len(mesh.n_area)>0:
+                nz_w_A = xr.DataArray(mesh.n_area, dims=['nod2'])
+                nz_w_A = nz_w_A.isel(nod2=idxin)
+            else: 
+                raise ValueError('could not find ...mesh.diag.nc file')
         
         #_______________________________________________________________________    
         # select MOC basin 
@@ -170,7 +183,7 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
         lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat')    
-        
+  
     #___________________________________________________________________________
     # group data by bins --> this trick is from Nils Brückemann (ICON)
     if do_info==True: print(' --> do binning of latitudes')
@@ -193,8 +206,13 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     
     #___________________________________________________________________________
     # write proper global and local variable attributes for long_name and units 
-    data    = data.assign_attrs(gattr) # put back global attributes
-    attr_list = dict({'long_name':'MOC', 'units':'Sv'})
+    data         = data.assign_attrs(gattr) # put back global attributes
+    data['zmoc'] = data['zmoc'].assign_attrs(vattr) # put back global attributes
+    attr_list    = dict({'short_name':'MOC',
+                         'long_name':'MOC',
+                         'standard_name':'Meridional Overturning Circulation', 
+                         'description':'Meridional Overturning Circulation Streamfunction, positive: clockwise, negative: counter-clockwise circulation', 
+                         'units':'Sv'})
     data['zmoc'] = data['zmoc'].assign_attrs(attr_list)
     
     #___________________________________________________________________________
@@ -203,8 +221,12 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     else        : data = calc_bottom_patch(data, lat_bin, xr.DataArray(mesh.n_iz, dims=['nod2']), idxin)
     
     #___________________________________________________________________________
+    if do_compute: data = data.compute()
+    
+    #___________________________________________________________________________
     # write some infos 
     t2=clock.time()
+
     if do_info==True: 
         print(' --> total time:{:.3f} s'.format(t2-t1))
         if 'time' not in list(data.dims):
@@ -217,8 +239,6 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
                 minv = data['zmoc'].isel(nz=data['depth']>= 2000, lat=data['lat']>-50.0)['moc'].min().values
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(data['zmoc'].attrs['descript'],minv))
     
-    #___________________________________________________________________________
-    if do_compute: data = data.compute()
     
     #___________________________________________________________________________
     return(data)
@@ -365,7 +385,7 @@ def plot_zmoc(data, which_moc='gmoc', figsize=[12, 6],
             #bottom    = data[ii]['botmax'].values
             bottom    = data[ii]['botnice'].values
             ax[ii].plot(lat, bottom, color='k')
-            ax[ii].fill_between(lat, bottom, depth[-1], color=color_bot, zorder=2)#,alpha=0.95)
+            ax[ii].fill_between(lat, bottom, depth[-1], color=color_bot, zorder=4)#,alpha=0.95)
         
         #_______________________________________________________________________
         # fix color range
@@ -389,7 +409,7 @@ def plot_zmoc(data, which_moc='gmoc', figsize=[12, 6],
             # is title list of string        
             elif isinstance(title,list):   
                 txts = title[ii]
-            ax[ii].text(txtx, txty, txts, fontsize=12, fontweight='bold', horizontalalignment='left')
+            ax[ii].text(txtx, txty, txts, fontsize=12, fontweight='bold', horizontalalignment='left', zorder=4)
         
         if collist[ii]==0        : ax[ii].set_ylabel('Depth [m]',fontsize=12)
         if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel('Latitudes [deg]',fontsize=12)
@@ -543,12 +563,12 @@ def plot_zmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
                 #_______________________________________________________________
                 # select moc values from single latitude or latidude range
                 if lat=='max':
-                    if var=='zmoc_aabw': data = data.isel(lat=(data.lat>40) & (data.lat<60)).min(dim='lat') 
-                    if var=='zmoc_nadw': data = data.isel(lat=(data.lat>40) & (data.lat<60)).max(dim='lat') 
+                    if var in ['zmoc_aabw','zmoc_lcell']: data = data.isel(lat=(data.lat>40) & (data.lat<60)).min(dim='lat') 
+                    if var in ['zmoc_nadw','zmoc_ucell']: data = data.isel(lat=(data.lat>40) & (data.lat<60)).max(dim='lat') 
                     str_label= f'{40}°N<lat<{60}°N'
                 elif isinstance(lat, list):    
-                    if var=='zmoc_aabw': data = data.isel(lat=(data.lat>lat[0]) & (data.lat<lat[1])).min(dim='lat') 
-                    if var=='zmoc_nadw': data = data.isel(lat=(data.lat>lat[0]) & (data.lat<lat[1])).max(dim='lat') 
+                    if var in ['zmoc_aabw','zmoc_lcell']: data = data.isel(lat=(data.lat>lat[0]) & (data.lat<lat[1])).min(dim='lat') 
+                    if var in ['zmoc_nadw','zmoc_ucell']: data = data.isel(lat=(data.lat>lat[0]) & (data.lat<lat[1])).max(dim='lat') 
                     str_label= f'{lat[0]}°N<lat<{lat[1]}°N'
                 else:     
                     #data = data.sel(lat=lat)
@@ -574,7 +594,7 @@ def plot_zmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
                 
             #___________________________________________________________________
             # add Rapid moc data @26.5°
-            if do_rapid is not None and var == 'dmoc_nadw': 
+            if do_rapid is not None and var in ['zmoc_nadw','zmoc_ucell']: 
                 path = do_rapid
                 rapid26 = xr.open_dataset(path)['moc_mar_hc10']
                 rapid26_ym = rapid26.groupby('time.year').mean('time', skipna=True)
@@ -601,8 +621,8 @@ def plot_zmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
             ax.set_xlabel('Time [years]',fontsize=12)
             ax.set_ylabel('{:s} in [Sv]'.format(which_moc.upper()),fontsize=12)
             
-            if   var=='zmoc_nadw': str_cell, str_cells = 'upper cell strength', 'nadw'
-            elif var=='zmoc_aabw': str_cell, str_cells = 'lower cell strength', 'aabw'
+            if   var in ['zmoc_nadw','zmoc_ucell']: str_cell, str_cells = 'upper cell strength', 'nadw'
+            elif var in ['zmoc_aabw','zmoc_lcell']: str_cell, str_cells = 'lower cell strength', 'aabw'
             ax.set_title(f'{str_cell} @ {str_label}', fontsize=12, fontweight='bold')
             
             #___________________________________________________________________

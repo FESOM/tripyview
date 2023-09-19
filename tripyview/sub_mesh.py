@@ -2,7 +2,7 @@
 
 import sys
 import os
-import time
+import time as clock
 import numpy  as np
 import pandas as pa
 import joblib
@@ -26,7 +26,8 @@ def load_mesh_fesom2(
                     do_augmpbnd=True, do_cavity=False, do_info=True, 
                     do_lsmask=True, do_lsmshp=True, do_pickle=True, do_joblib=False, 
                     do_earea=True, do_narea=True, do_loadraw=False, 
-                    do_eresol=[False,'mean'], do_nresol=[False,'e_resol'] 
+                    do_eresol=[False,'mean'], do_nresol=[False,'e_resol'],
+                    do_f14cmip6=False
                     ):
     
     
@@ -244,21 +245,23 @@ def load_mesh_fesom2(
         if do_info: print(' > load mesh from *.out files: {}'.format(meshpath))
         #_______________________________________________________________________
         mesh = mesh_fesom2(
-                    meshpath   = meshpath     , 
-                    abg        = abg          , 
-                    focus      = focus        ,
-                    cyclic     = cyclic       ,
-                    do_rot     = do_rot       ,
-                    do_augmpbnd= do_augmpbnd  ,
-                    do_cavity  = do_cavity    ,
-                    do_info    = do_info      ,
-                    do_earea   = do_earea     ,
-                    do_eresol  = do_eresol    ,
-                    do_narea   = do_narea     ,
-                    do_nresol  = do_nresol    ,
-                    do_lsmask  = do_lsmask    ,
-                    do_lsmshp  = do_lsmshp    ,
-                    do_loadraw = do_loadraw)
+                        meshpath   = meshpath     , 
+                        abg        = abg          , 
+                        focus      = focus        ,
+                        cyclic     = cyclic       ,
+                        do_rot     = do_rot       ,
+                        do_augmpbnd= do_augmpbnd  ,
+                        do_cavity  = do_cavity    ,
+                        do_info    = do_info      ,
+                        do_earea   = do_earea     ,
+                        do_eresol  = do_eresol    ,
+                        do_narea   = do_narea     ,
+                        do_nresol  = do_nresol    ,
+                        do_lsmask  = do_lsmask    ,
+                        do_lsmshp  = do_lsmshp    ,
+                        do_loadraw = do_loadraw   ,
+                        do_f14cmip6 = do_f14cmip6   ,
+                        )
         
         #_______________________________________________________________________
         # save mypy mesh .pckl file
@@ -381,7 +384,8 @@ class mesh_fesom2(object):
     def __init__(self, meshpath, abg=[50,15,-90], focus=0, cyclic=360, focus_old=0, do_rot='None', 
                  do_augmpbnd=True, do_cavity=False, do_info=True, do_earea=False,do_earea2=False, 
                  do_eresol=[False,'mean'], do_narea=False, do_nresol=[False,'n_area'], 
-                 do_lsmask=True, do_lsmshp=True, do_pickle=True, do_loadraw=True ):
+                 do_lsmask=True, do_lsmshp=True, do_pickle=True, do_loadraw=True,
+                 do_f14cmip6=False):
         
         #_______________________________________________________________________
         # define meshpath and mesh id 
@@ -406,10 +410,12 @@ class mesh_fesom2(object):
         self.do_lsmask          = do_lsmask
         self.do_lsmshp          = do_lsmshp
         self.do_loadraw         = do_loadraw
+        self.do_f14cmip6         = do_f14cmip6
         
         #_______________________________________________________________________
         # define basic mesh file path
         self.fname_nod2d        = os.path.join(self.path,'nod2d.out')
+        if self.do_f14cmip6: self.fname_nod3d = os.path.join(self.path,'nod3d.out')
         self.fname_elem2d       = os.path.join(self.path,'elem2d.out')
         self.fname_aux3d        = os.path.join(self.path,'aux3d.out')
         self.fname_nlvls        = os.path.join(self.path,'nlvls.out')
@@ -565,11 +571,44 @@ class mesh_fesom2(object):
         # print('    : #2de={:d}'.format(self.n2de))
         
         #____load 3d nodes alligned under 2d nodes______________________________
-        with open(self.fname_aux3d) as f:
-            self.nlev= int(next(f))
-            self.zlev= np.array([next(f).rstrip() for x in range(self.nlev)]).astype(float)
-            self.zlev= -np.abs(self.zlev)
-        self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
+        if not self.do_f14cmip6:
+            with open(self.fname_aux3d) as f:
+                self.nlev= int(next(f))
+                self.zlev= np.array([next(f).rstrip() for x in range(self.nlev)]).astype(float)
+                self.zlev= -np.abs(self.zlev)
+            self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
+            
+        else:
+            t1=clock.time()
+            # number of vertical levels
+            with open(self.fname_aux3d) as f: self.nlev= int(next(f))
+            
+            # 3d vertice index below surface vertices index
+            file_content = pa.read_csv(self.fname_aux3d, skiprows=0, nrows=self.nlev*self.n2dn)
+            self.n32     = file_content.values.astype('int32') - 1
+            self.n32     = self.n32.reshape((self.n2dn,self.nlev)).transpose()
+            
+            # Lick out bufferlayer in fesom1.4 mesh
+            self.n32     = self.n32[:-1,:]
+            self.nlev    = self.nlev-1
+            
+            # identify the vertical levels
+            with open(self.fname_nod3d) as f: n3dn= int(next(f))
+            file_content = pa.read_csv(self.fname_nod3d, delim_whitespace=True, usecols=[3])
+            aux_n3z      = file_content.values.astype('int16') 
+            self.zlev    = np.unique(aux_n3z)[::-1]
+            #self.zlev    = np.hstack((self.zlev, self.zlev[-1]+(self.zlev[-1]-self.zlev[-2])))
+            self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
+            
+            # compute bottom topography at vertice
+            self.n_z     = aux_n3z[self.n32.max(axis=0),0]
+            del(aux_n3z)
+            
+            # compute bottom index at vertice
+            aux_n32      = np.zeros(self.n32.shape)
+            aux_n32[self.n32>=0] = 1
+            self.n_iz    = aux_n32.sum(axis=0).astype('int16')-1
+
         
         #____load number of levels at each node_________________________________
         if ( os.path.isfile(self.fname_nlvls) ):
@@ -578,8 +617,9 @@ class mesh_fesom2(object):
             self.n_iz    = file_content.values.astype('int16') - 1
             self.n_iz    = self.n_iz.squeeze()
             self.n_z     = np.float32(self.zlev[self.n_iz])
-        else:
-            raise ValueError(f' --> could not find file {self.fname_nlvls} !')
+            
+        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no nlvls information!')    
+        else                : raise ValueError(f' --> could not find file {self.fname_nlvls} !')
             #self.n_iz    = np.zeros((self.n2dn,)) 
             #self.n_z     = np.zeros((self.n2dn,)) 
         
@@ -589,12 +629,13 @@ class mesh_fesom2(object):
                                            names=['numb_of_lev'])
             self.e_iz    = file_content.values.astype('int16') - 1
             self.e_iz    = self.e_iz.squeeze()
-        else:
-            raise ValueError(f' --> could not find file {self.fname_elvls} !')
+            
+        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no elvls information!')        
+        else                : raise ValueError(f' --> could not find file {self.fname_elvls} !')
             #self.e_iz    = np.zeros((self.n2de,)) 
         
         #____load number of raw levels at each elem_____________________________
-        if (self.do_loadraw):
+        if (self.do_loadraw and  not self.do_f14cmip6):
             if ( os.path.isfile(self.fname_elvls_raw) ):
                 file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
                                             names=['numb_of_lev'])
@@ -604,6 +645,14 @@ class mesh_fesom2(object):
                 raise ValueError(f' --> could not find file {self.fname_elvls_raw} !')
         
         #_______________________________________________________________________
+        # vertical level information of fesom1.4 mesh
+        #if self.do_f14cmip6:
+            
+        
+        
+        #_______________________________________________________________________
+        
+        
         return(self)    
     
     
@@ -910,33 +959,63 @@ ___________________________________________""".format(
         # just compute e_area if mesh.area is empty 
         if len(self.n_area)==0:
             self.do_narea=True
-            if os.path.isfile(os.path.join(self.path,'fesom.mesh.diag.nc')):
-                print(' > load n_area from fesom.mesh.diag.nc')
-                #_______________________________________________________________
-                fid = Dataset(os.path.join(self.path,'fesom.mesh.diag.nc'),'r')
-                self.n_area = fid.variables['nod_area'][:,:]
-            else: 
-                print(' > comp n_area')
-                #_______________________________________________________________
-                # be sure that elemente area already exists
-                self.compute_e_area()
-                
-                #_______________________________________________________________
-                e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
-                e_iz_n    = np.vstack((self.e_iz  , self.e_iz  , self.e_iz  )).transpose().flatten()
-                
-                #_______________________________________________________________
-                # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                # over for i in range(3): ,for j in range(self.n2de):
-                self.n_area = np.zeros((self.nlev, self.n2dn))
-                count_e = 0
-                for idx in self.e_i.flat:
-                    e_iz = e_iz_n[count_e]
-                    self.n_area[:e_iz, idx] = self.n_area[:e_iz, idx] + e_area_x3[count_e]
-                    count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                self.n_area = self.n_area/3.0
-                del e_area_x3, e_iz_n, count_e
-                
+            
+            #___________________________________________________________________
+            # load FESOM2 mesh
+            if not self.do_f14cmip6:
+                if os.path.isfile(os.path.join(self.path,'fesom.mesh.diag.nc')):
+                    print(' > load n_area from fesom.mesh.diag.nc')
+                    #_______________________________________________________________
+                    fid = Dataset(os.path.join(self.path,'fesom.mesh.diag.nc'),'r')
+                    self.n_area = fid.variables['nod_area'][:,:]
+                else: 
+                    print(' > comp n_area')
+                    #_______________________________________________________________
+                    # be sure that elemente area already exists
+                    self.compute_e_area()
+                    
+                    #_______________________________________________________________
+                    e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
+                    e_iz_n    = np.vstack((self.e_iz  , self.e_iz  , self.e_iz  )).transpose().flatten()
+                    
+                    #_______________________________________________________________
+                    # single loop over self.e_i.flat is ~4 times faster than douple loop 
+                    # over for i in range(3): ,for j in range(self.n2de):
+                    self.n_area = np.zeros((self.nlev, self.n2dn))
+                    count_e = 0
+                    for idx in self.e_i.flat:
+                        e_iz = e_iz_n[count_e]
+                        self.n_area[:e_iz, idx] = self.n_area[:e_iz, idx] + e_area_x3[count_e]
+                        count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
+                    self.n_area = self.n_area/3.0
+                    del e_area_x3, e_iz_n, count_e
+            
+            #___________________________________________________________________
+            # load FESOM1.4 mesh
+            else:
+                if os.path.isfile(os.path.join(self.path,'griddes.nc')):
+                    print(' > load n_area from griddes.nc')
+                    #_______________________________________________________________
+                    fid = Dataset(os.path.join(self.path,'griddes.nc'),'r')
+                    self.n_area = fid.variables['cell_area'][:]
+                else: 
+                    print(' > comp n_area')
+                    # be sure that elemente area already exists
+                    self.compute_e_area()
+                    
+                    #_______________________________________________________________
+                    e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
+                    
+                    #_______________________________________________________________
+                    # single loop over self.e_i.flat is ~4 times faster than douple loop 
+                    # over for i in range(3): ,for j in range(self.n2de):
+                    self.n_area = np.zeros((self.n2dn))
+                    count_e = 0
+                    for idx in self.e_i.flat:
+                        self.n_area[idx] = self.n_area[idx] + e_area_x3[count_e]
+                        count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
+                        self.n_area = self.n_area/3.0
+                    del e_area_x3, count_e
         #_______________________________________________________________________
         return(self)
 
@@ -1011,7 +1090,7 @@ ___________________________________________""".format(
         self.do_lsmask = True
         #_______________________________________________________________________
         # build land boundary edge matrix
-        t1 = time.time()
+        t1 = clock.time()
         edge    = np.concatenate((self.e_i[:,[0,1]], \
                                   self.e_i[:,[0,2]], \
                                   self.e_i[:,[1,2]]),axis=0)
@@ -1094,7 +1173,7 @@ ___________________________________________""".format(
             
         #_______________________________________________________________________
         self.lsmask = polygon_xy
-        #t2 = time.time()
+        #t2 = clock.time()
         #print(t2-t1)
         return(self)
     
