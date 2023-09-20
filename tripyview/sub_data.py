@@ -179,7 +179,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # load multiple files
     # load normal FESOM2 run file
     if do_file=='run':
-        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, autoclose=False, **kwargs)
+        data = xr.open_mfdataset(pathlist, parallel=True, chunks=chunks, use_cftime=True, autoclose=False, **kwargs)
         if do_showtime: 
             print(data.time.data)
             print(data['time.year'])
