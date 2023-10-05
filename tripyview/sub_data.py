@@ -17,7 +17,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=True, descript='',  runid='fesom', chunks={'time':100, 'elem':1e4, 'nod2':1e4},
+                     do_compute=False, do_load=True, do_persist=False, 
+                     descript='',  runid='fesom', chunks={'time':100, 'elem':1e4, 'nod2':1e4},
                      do_showtime=False, do_prec='float32', 
                      do_zweight=False, do_hweight=True, do_f14cmip6=False, 
                      **kwargs):
@@ -84,69 +85,82 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # Create xarray dataset object with all grid information 
     if vname in ['depth', 'topo', 'topography','zcoord', 'narea', 'n_area', 'clusterarea', 'scalararea'
                  'nresol', 'n_resol', 'resolution', 'resol', 'earea', 'e_area', 'triarea',
-                 'eresol','e_resol','triresolution','triresol']:
-        #data = xr.Dataset(coords={"lon"  :( "nod2"         ,mesh.n_x), 
-                                  #"lat"  :( "nod2"         ,mesh.n_y), 
-                                  #"faces":(["elem","three"],mesh.e_i),
-                                  #"zlev" :( "nz"           ,mesh.zlev),
-                                  #"zmid" :( "nz1"          ,mesh.zmid)} )
+                 'eresol','e_resol','triresolution','triresol','edepth','etopo','e_depth','e_topo']:
         data = xr.Dataset()                        
-    #___________________________________________________________________________
-    # store topography in data
-    if   any(x in vname for x in ['depth','topo','topography','zcoord']):
-        data['topo'] = ("nod2", np.abs(mesh.n_z))
-        data['topo'].attrs["description"]='Depth'
-        data['topo'].attrs["long_name"  ]='Depth'
-        data['topo'].attrs["units"      ]='m'
-        data['topo'].attrs["is_data"    ]=is_data
-        data = data.chunk(chunks['nod2'])
-        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
-        return(data)
-    # store vertice cluster area in data    
-    elif any(x in vname for x in ['narea','n_area','clusterarea','scalararea']):
-        if len(mesh.n_area)==0: mesh=mesh.compute_n_area()
-        data['narea'] = ("nod2", mesh.n_area[0,:])
-        data['narea'].attrs["description"]='Vertice area'
-        data['narea'].attrs["long_name"  ]='Vertice area'
-        data['narea'].attrs["units"      ]='m^2'
-        data['narea'].attrs["is_data"    ]=is_data
-        data = data.chunk(chunks['nod2'])
-        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
-        return(data)
-    # store vertice resolution in data               
-    elif any(x in vname for x in ['nresol','n_resol','resolution','resol']):
-        if len(mesh.n_resol)==0: mesh=mesh.compute_n_resol()
-        data['nresol'] = ("nod2", mesh.n_resol[0,:]/1000)
-        data['nresol'].attrs["description"]='Resolution'
-        data['nresol'].attrs["long_name"  ]='Resolution'
-        data['nresol'].attrs["units"      ]='km'
-        data['nresol'].attrs["is_data"    ]=is_data
-        data = data.chunk(chunks['nod2'])
-        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
-        return(data)
-    # store element area in data    
-    elif any(x in vname for x in ['earea','e_area','triarea']):
-        if len(mesh.e_area)==0: mesh=mesh.compute_e_area()
-        data['earea'] = ("elem", mesh.e_area)
-        data['earea'].attrs["description"]='Element area'
-        data['earea'].attrs["long_name"  ]='Element area'
-        data['earea'].attrs["units"      ]='m^2'
-        data['earea'].attrs["is_data"    ]=is_data
-        data = data.chunk(chunks['elem'])
-        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
-        return(data)
-    # store element resolution in data               
-    elif any(x in vname for x in ['eresol','e_resol','triresolution','triresol']):
-        if len(mesh.e_resol)==0: mesh=mesh.compute_e_resol()
-        data['eresol'] = ("elem", mesh.e_resol/1000)
-        data['eresol'].attrs["description"]='Element resolution'
-        data['eresol'].attrs["long_name"  ]='Element resolution'
-        data['eresol'].attrs["units"      ]='km'
-        data['eresol'].attrs["is_data"    ]=is_data
-        data = data.chunk(chunks['elem'])
-        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
-        return(data)
+        #___________________________________________________________________________
+        # store topography in data
+        if   any(x in vname for x in ['ndepth', 'ntopo', 'n_depth', 'n_topo', 'topography', 'zcoord']):
+            data['ntopo'] = ("nod2", np.abs(mesh.n_z))
+            data['ntopo'].attrs["description"]='Depth'
+            data['ntopo'].attrs["descript"   ]='Depth'
+            data['ntopo'].attrs["long_name"  ]='Depth'
+            data['ntopo'].attrs["units"      ]='m'
+            data['ntopo'].attrs["is_data"    ]=is_data
+            data = data.chunk(chunks['nod2'])
         
+        elif any(x in vname for x in ['edepth', 'etopo', 'e_depth', 'e_topo' ]):
+            data['etopo'] = ("elem", np.abs(mesh.zlev[mesh.e_iz]))
+            data['etopo'].attrs["description"]='Depth'
+            data['etopo'].attrs["descript"   ]='Depth'
+            data['etopo'].attrs["long_name"  ]='Depth'
+            data['etopo'].attrs["units"      ]='m'
+            data['etopo'].attrs["is_data"    ]=is_data
+            data = data.chunk(chunks['elem'])
+            data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
+        
+        # store vertice cluster area in data    
+        elif any(x in vname for x in ['narea', 'n_area', 'clusterarea', 'scalararea']):
+            if len(mesh.n_area)==0: mesh=mesh.compute_n_area()
+            data['narea'] = ("nod2", mesh.n_area[0,:])
+            data['narea'].attrs["description"]='Vertice area'
+            data['narea'].attrs["descript"   ]='Vertice area'
+            data['narea'].attrs["long_name"  ]='Vertice area'
+            data['narea'].attrs["units"      ]='m^2'
+            data['narea'].attrs["is_data"    ]=is_data
+            data = data.chunk(chunks['nod2'])
+            data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
+        
+        # store vertice resolution in data               
+        elif any(x in vname for x in ['nresol', 'n_resol', 'resolution', 'resol']):
+            if len(mesh.n_resol)==0: mesh=mesh.compute_n_resol()
+            data['nresol'] = ("nod2", mesh.n_resol[0,:]/1000)
+            data['nresol'].attrs["description"]='Resolution'
+            data['nresol'].attrs["descript"   ]='Resolution'
+            data['nresol'].attrs["long_name"  ]='Resolution'
+            data['nresol'].attrs["units"      ]='km'
+            data['nresol'].attrs["is_data"    ]=is_data
+            data = data.chunk(chunks['nod2'])
+            data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
+        
+        # store element area in data    
+        elif any(x in vname for x in ['earea', 'e_area', 'triarea']):
+            if len(mesh.e_area)==0: mesh=mesh.compute_e_area()
+            data['earea'] = ("elem", mesh.e_area)
+            data['earea'].attrs["description"]='Element area'
+            data['earea'].attrs["descript"   ]='Element area'
+            data['earea'].attrs["long_name"  ]='Element area'
+            data['earea'].attrs["units"      ]='m^2'
+            data['earea'].attrs["is_data"    ]=is_data
+            data = data.chunk(chunks['elem'])
+           
+        # store element resolution in data               
+        elif any(x in vname for x in ['eresol', 'e_resol', 'triresolution', 'triresol']):
+            if len(mesh.e_resol)==0: mesh=mesh.compute_e_resol()
+            data['eresol'] = ("elem", mesh.e_resol/1000)
+            data['eresol'].attrs["description"]='Element resolution'
+            data['eresol'].attrs["descript"   ]='Element resolution'
+            data['eresol'].attrs["long_name"  ]='Element resolution'
+            data['eresol'].attrs["units"      ]='km'
+            data['eresol'].attrs["is_data"    ]=is_data
+            data = data.chunk(chunks['elem'])
+           
+        #_______________________________________________________________________
+        data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
+        if do_compute: data = data.compute()
+        if do_load   : data = data.load()
+        if do_persist: data = data.persist()
+        return(data)
+    
     #___________________________________________________________________________
     #  ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||  
     # _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ 
@@ -347,6 +361,8 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     
     #___________________________________________________________________________
     if do_compute: data = data.compute()
+    if do_load   : data = data.load()
+    if do_persist: data = data.persist()
     
     #___________________________________________________________________________
     if do_info: 
@@ -626,7 +642,6 @@ def do_select_time(data, mon, day, record, str_mtim):
     # select time based on record index --> overwrites mon and day selection        
     elif (record is not None):
         data = data.isel(time=record)
-        
         # do time information string 
         str_mtim = '{}, rec: {}'.format(str_mtim, record)
     
