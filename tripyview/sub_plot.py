@@ -152,7 +152,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
     
     #___________________________________________________________________________    
     # create lon, lat ticks 
-    xticks,yticks = do_ticksteps(mesh, box)
+    xticks, yticks = do_ticksteps(mesh, box)
 
     #___________________________________________________________________________    
     # create figure and axes
@@ -323,7 +323,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         # add grid mesh on top
         if do_grid: 
             #ts = clock.time()
-            ax[ii].triplot(mappoints[:,0], mappoints[:,1], tri.triangles[:,:], color='k', linewidth=0.2, alpha=0.75,) #transform=which_transf)
+            ax[ii].triplot(mappoints[:,0], mappoints[:,1], tri.triangles[:,:], color='k', linewidth=0.1, alpha=0.75,zorder=5) #transform=which_transf)
             if do_info: print('--> do triplot: ', clock.time()-t1) ; t1 = clock.time()       
             
         #_______________________________________________________________________
@@ -1931,21 +1931,21 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
 #| ___RETURNS_______________________________________________________________   |
 #| xticks,yticks:   array, with optimal lon and lat ticks                   
 #|_____________________________________________________________________________|  
-def do_ticksteps(mesh, box, ticknr=7):
+def do_ticksteps(mesh, box, ticknr=6):
     #___________________________________________________________________________
-    tickstep = np.array([0.5,1.0,2.0,2.5,5.0,10.0,15.0,20.0,30.0,45.0, 360])
-    print(box)
+    tickstep = np.array([0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 360])
+
     #___________________________________________________________________________
     idx     = int(np.argmin(np.abs( tickstep-(box[1]-box[0])/ticknr )))
     if np.abs(box[1]-box[0])==360:
         xticks   = np.arange(-180+mesh.focus, 180+1, tickstep[idx])
     else:    
-        xticks   = np.arange(box[0], box[1]+1, tickstep[idx]) 
+        xticks   = np.arange(box[0], box[1]+tickstep[idx], tickstep[idx]) 
     idx     = int(np.argmin(np.abs( tickstep-(box[3]-box[2])/ticknr )))
     if np.abs(box[3]-box[2])==180:
         yticks   = np.arange(-90, 90+1, tickstep[idx])  
     else:   
-        yticks   = np.arange(box[2], box[3]+1, tickstep[idx])  
+        yticks   = np.arange(box[2], box[3]+tickstep[idx], tickstep[idx])  
         
     #___________________________________________________________________________
     xticks = np.unique(np.hstack((box[0], xticks, box[1])))
