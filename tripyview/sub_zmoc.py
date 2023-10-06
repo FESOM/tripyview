@@ -39,8 +39,9 @@ from .sub_plot     import *
 #| clear rule which one is better, just be sure you are consistent             |
 #+_____________________________________________________________________________+
 def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False, 
-              do_info=True, diagpath=None,  do_compute=False, do_checkbasin=False, 
-              **kwargs,
+              do_info=True, diagpath=None, do_checkbasin=False, 
+              do_compute=False, do_load=True, do_persist=False, 
+              chunks={'time':100, 'elem':1e4, 'nod2':1e4}, **kwargs, 
              ):
     #_________________________________________________________________________________________________
     t1=clock.time()
@@ -101,13 +102,14 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
             if 'elem_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'elem_n':'elem'})
             if 'nl'     in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'    :'nz'  })
             if 'nl1'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'   :'nz1' }) 
-            nz_w_A = nz_w_A.isel(elem=idxin)
+            
         else: 
             if len(mesh.e_area)>0:
                 nz_w_A = xr.DataArray(mesh.e_area, dims=['elem'])
-                nz_w_A = nz_w_A.isel(elem=idxin)
             else:    
                 raise ValueError('could not find ...mesh.diag.nc file or the variable mesh.e_area')
+            
+        nz_w_A = nz_w_A.isel( elem=xr.DataArray(idxin, dims=['elem']) )
         
         #_______________________________________________________________________    
         # average from vertices towards elements
@@ -161,18 +163,17 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
             # you need to drop here the coordinates for nz since they go from 
             # 0...-6000 the coordinates of nz in the data go from 0...6000 that 
             # causes otherwise troubles
-            nz_w_A = nz_w_A.isel(nod2=idxin).drop(['nz'])
-            
+            nz_w_A = nz_w_A.drop(['nz'])
         else: 
             if len(mesh.n_area)>0:
-                nz_w_A = xr.DataArray(mesh.n_area, dims=['nod2'])
-                nz_w_A = nz_w_A.isel(nod2=idxin)
+                nz_w_A = xr.DataArray(mesh.n_area, dims=['nz','nod2']).chunk(data.chunksizes['nod2']) 
             else: 
                 raise ValueError('could not find ...mesh.diag.nc file')
+        nz_w_A = nz_w_A.isel( nod2=xr.DataArray(idxin, dims=['nod2']).chunk(data.chunksizes['nod2']) )
         
         #_______________________________________________________________________    
         # select MOC basin 
-        data = data.isel(nod2=idxin)
+        data = data.isel( nod2=xr.DataArray(idxin, dims=['nod2']).chunk(data.chunksizes['nod2']) )
         
         #_______________________________________________________________________
         # calculate area weighted mean
@@ -182,14 +183,15 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
-        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat')    
+        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat').chunk(data.chunksizes['nod2'])   
   
     #___________________________________________________________________________
     # group data by bins --> this trick is from Nils Brückemann (ICON)
     if do_info==True: print(' --> do binning of latitudes')
     data    = data.rename_vars({'w':'zmoc', 'nz':'depth'})
+    data    = data.persist()
     data    = data.groupby(lat_bin)
-    
+
     # zonal sumation/integration over bins
     if do_info==True: print(' --> do sumation/integration over bins')
     data    = data.sum(skipna=True)
@@ -222,7 +224,9 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     
     #___________________________________________________________________________
     if do_compute: data = data.compute()
-    
+    if do_load   : data = data.load()
+    if do_persist: data = data.persist()
+
     #___________________________________________________________________________
     # write some infos 
     t2=clock.time()

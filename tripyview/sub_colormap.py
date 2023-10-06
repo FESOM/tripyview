@@ -63,7 +63,8 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
         dum, cstr = cname.rsplit('.')
         if '_i' in cname: cstr, dum = cstr.rsplit('_i')
         cmap_def = get_cmap(cstr)(np.linspace(0,1,11))
-        #cmap_def = get_cmap(cstr)(np.linspace(0,1,cnumb))
+        #cmap_def = get_cmap(cstr)(np.linspace(0,1,cnumb+1))
+        #cmap_def = get_cmap(cstr)(np.linspace(0,1,len(clevel)+1))
         cmap_def = cmap_def[:,:-1]
         if '_i' in cname: cmap_def = np.flipud(cmap_def)
         
