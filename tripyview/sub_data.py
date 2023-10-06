@@ -839,7 +839,13 @@ def do_time_arithmetic(data, do_tarithm):
         elif do_tarithm=='min':
             data = data.min(   dim="time", keep_attrs=True)  
         elif do_tarithm=='sum':
-            data = data.sum(   dim="time", keep_attrs=True)      
+            data = data.sum(   dim="time", keep_attrs=True)    
+        elif do_tarithm=='ymean':
+            import datetime
+            data = data.groupby('time.year').mean('time')
+            # recreate time axes based on year
+            data = data.rename_dims({'year':'time'})
+            data = data.assign_coords(time=('time', [datetime.datetime(yr, 1, 1) for yr in data.year] )).drop('year')
         elif do_tarithm=='None':
             ...
         else:
