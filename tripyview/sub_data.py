@@ -195,6 +195,12 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     from functools import partial
     def _preprocess(x, do_prec):
         return x.astype(do_prec, copy=False)
+    
+    #def _preprocess(x, do_prec):
+        #for var in list(x.coords):
+            #if var == 'time_bnds': x = x.drop_vars(var)
+        #return x.astype(do_prec, copy=False)
+
     partial_func = partial(_preprocess, do_prec=do_prec)
     
     #___________________________________________________________________________
@@ -317,7 +323,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     else:
         #print('~~ >-))))o> o0O ~~~ C')
         depth=None
-   
+    
     #___________________________________________________________________________
     # rotate the vectors if do_vecrot=True and do_vec=True
     data = do_vector_rotation(data, mesh, do_vec, do_vecrot)
@@ -355,10 +361,11 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         data = do_additional_attrs(data, vname, attr_dict)
     
     #___________________________________________________________________________
+    warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
     if do_compute: data = data.compute()
     if do_load   : data = data.load()
     if do_persist: data = data.persist()
-    
+    warnings.resetwarnings()
     #___________________________________________________________________________
     if do_info: 
         info_txt ="""___FESOM2 DATA INFO________________________
