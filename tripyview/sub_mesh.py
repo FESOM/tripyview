@@ -6,6 +6,7 @@ import time as clock
 import numpy  as np
 import pandas as pa
 import joblib
+import warnings
 try:
     import pickle5 as pickle
     foundmodpickle=True
@@ -1070,8 +1071,9 @@ ___________________________________________""".format(
                     self.n_resol[idx]=self.n_resol[idx] + aux[count]
                     count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
                 del aux, count
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
                 self.n_resol=self.n_resol/self.n_area/3.0
-            
+                warnings.resetwarnings()
             #___________________________________________________________________    
             else:
                 raise ValueError("The option which={} in compute_n_resol is not supported. either 'n_area' or 'e_resol'".format(str(which)))
