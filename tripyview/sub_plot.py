@@ -1395,7 +1395,7 @@ def do_compute_scalingnorm(cinfo, do_rescale):
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
 def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
-                  do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False):
+                  do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False, boxidx=0):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
@@ -1412,12 +1412,12 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         # loop over all the input data --> find out total cmin/cmax value
         cmin, cmax = np.Inf, -np.Inf
         for data_ii in data:
-            if do_index: vname = list(data_ii[0].keys())
+            if do_index: vname = list(data_ii[boxidx].keys())
             else       : vname = list(data_ii.keys())
             
             #___________________________________________________________________
             if do_vec==False:
-                if   do_index: data_plot = data_ii[0][ vname[0] ].data.copy()
+                if   do_index: data_plot = data_ii[boxidx][ vname[0] ].data.copy()
                 elif do_moc  : data_plot = data_ii['zmoc'].isel(nz=np.abs(data_ii['depth'])>=700).values.copy()
                 elif do_dmoc is not None  : 
                     if   do_dmoc=='dmoc'  : data_plot = data_ii['dmoc'].data.copy()

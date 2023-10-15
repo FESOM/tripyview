@@ -18,10 +18,11 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=False, do_load=True, do_persist=False, 
                      descript='', runid='fesom', do_showtime=False, do_prec='float32', 
                      do_zweight=False, do_hweight=True, do_f14cmip6=False, 
-                     chunks={'time':'auto', 'elem':'auto', 'nod2':'auto', 'nz':'auto', 'nz1':'auto'},
+                     do_compute=False, do_load=True, do_persist=False, 
+                     chunks={'time':'auto', 'elem':'auto', 'nod2':'auto', \
+                            'edg_n':'auto', 'nz':'auto', 'nz1':'auto'},
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -362,6 +363,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
     if do_compute: data = data.compute()
     if do_load   : data = data.load()
     if do_persist: data = data.persist()
