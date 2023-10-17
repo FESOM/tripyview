@@ -1022,25 +1022,25 @@ def do_vector_norm(data, do_norm):
         # rename variable vname
         new_vname = 'norm+{}+{}'.format(vname[0],vname[1])
         
-        # estimate chunksize
-        if   'nod2' in data.dims: dim_horz   = 'nod2'            
-        elif 'elem' in data.dims: dim_horz   = 'elem'
-        chunkssize = data.chunksizes[dim_horz]
+        ## estimate chunksize
+        #if   'nod2' in data.dims: dim_horz   = 'nod2'            
+        #elif 'elem' in data.dims: dim_horz   = 'elem'
+        #chunkssize = data.chunksizes[dim_horz]
         
         # compute norm in variable  vname
         #data[vname[0] ].data = np.sqrt(data[vname[0]].data**2 + data[vname[1]].data**2)
         #data[vname[0] ] = np.sqrt(np.square(data[vname[0]]) + np.square(data[vname[1]]))
         #data[new_vname] = np.sqrt(data[vname[0]].data**2 + data[vname[1]].data**2)
-        data[new_vname] = xr.DataArray(np.sqrt(np.square(data[vname[0]].data) + np.square(data[vname[1]].data)), dims=[dim_horz]).chunk(chunkssize)
-        data[new_vname].attrs['units'] = 'm/s'
-        del chunkssize
+        #data[new_vname] = xr.DataArray(np.sqrt(np.square(data[vname[0]].data) + np.square(data[vname[1]].data)), dims=[dim_horz]).chunk(chunkssize)
         
-        # delte variable vname2 from Dataset
-        #data      = data.drop(labels=vname)
-        data      = data.drop_vars(vname)
+        data[vname[0]] = np.sqrt( np.square(data[vname[0]]) + np.square(data[vname[1]]) )
         
-        #new_vname = 'sqrt({}²+{}²)'.format(vname,vname2)
-        #data      = data.rename({vname[0]:new_vname})
+        # rename variable vname[0]
+        data = data.rename({vname[0]:new_vname})
+        
+        # delet variable vname2 from Dataset
+        data = data.drop_vars(vname[1])
+        
         
     #___________________________________________________________________________    
     return(data)  
