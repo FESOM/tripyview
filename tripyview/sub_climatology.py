@@ -14,7 +14,8 @@ from .sub_data import *
 #|_____________________________________________________________________________|
 def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                      do_zarithm='mean', do_hinterp='linear', do_zinterp=True, 
-                     do_compute=True, descript='clim', do_ptemp=True, pref =0.0, 
+                     descript='clim', do_ptemp=True, pref =0.0, 
+                     do_compute=False, do_load=True, do_persist=False, 
                      **kwargs):
     
     str_mdep = ''
@@ -82,7 +83,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     else:
         if len(list(data.keys()))>1:
             vname_drop.remove(vname)
-            data = data.drop(labels=vname_drop)
+            data = data.drop_vars(vname_drop)
     
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with 
@@ -166,6 +167,10 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
             
         elif do_hinterp=='regular': 
             ...
+        
+        # re-chunk data along nod2
+        data = data.chunk({'nod2':'auto'})    
+        
     #___________________________________________________________________________
     # do vertical interplation to fesom grid
     if do_zinterp and (depth is None):
@@ -187,6 +192,9 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         # interp data on nodes --> method linear
         data = data.interp(dict({dim_zlev:zmid}), method='linear')
         
+        # re-chunk data along nz1
+        data = data.chunk({'nz1':'auto'})  
+        
     #___________________________________________________________________________
     # write additional attribute info
     for vname in list(data.keys()):
@@ -197,20 +205,29 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     
     data = data.assign_coords(nz1=('nz1' ,-mesh.zmid))
     
-    if depth is None:
-        w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1' , 'nod2'])
-        w_A = w_A.where(~np.isnan(data[vname].data))
-        data = data.assign_coords(w_A=w_A)
-    else:
-        w_A = xr.DataArray(mesh.n_area[0,:].astype('float32'), dims=['nod2'])
-        data = data.assign_coords(w_A=w_A)
-    del(w_A)
+    #if depth is None:
+        #w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1' , 'nod2']).chunk({'nod2':data.chunksizes['nod2'], 'nz1':data.chunksizes['nz1']})
+        #w_A = w_A.where(~np.isnan(data[vname].data))
+        #data = data.assign_coords(w_A=w_A)
+    #else:
+        #w_A = xr.DataArray(mesh.n_area[0,:].astype('float32'), dims=['nod2']).chunk({'nod2':data.chunksizes['nod2']})
+        #data = data.assign_coords(w_A=w_A)
+    #del(w_A)
+    
+    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=False, do_hweight=True)
+    
     
     #___________________________________________________________________________
     data = data.transpose()    
     data = data.astype('float32', copy=False)
     
     #___________________________________________________________________________
+    warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
     if do_compute: data = data.compute()
+    if do_load   : data = data.load()
+    if do_persist: data = data.persist()
+    warnings.resetwarnings()
     
+    #___________________________________________________________________________
     return(data)

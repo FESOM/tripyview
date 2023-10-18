@@ -18,10 +18,11 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      record=None, depth=None, depidx=False, do_nan=True, 
                      do_tarithm='mean', do_zarithm='mean', do_ie2n=True,
                      do_vecrot=True, do_filename=None, do_file='run', do_info=True, 
-                     do_compute=False, do_load=True, do_persist=False, 
                      descript='', runid='fesom', do_showtime=False, do_prec='float32', 
                      do_zweight=False, do_hweight=True, do_f14cmip6=False, 
-                     chunks={'time':'auto', 'elem':'auto', 'nod2':'auto', 'nz':'auto', 'nz1':'auto'},
+                     do_compute=False, do_load=True, do_persist=False, 
+                     chunks={'time':'auto', 'elem':'auto', 'nod2':'auto', \
+                            'edg_n':'auto', 'nz':'auto', 'nz1':'auto'},
                      **kwargs):
     """
     ---> load FESOM2 data:
@@ -362,6 +363,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
     if do_compute: data = data.compute()
     if do_load   : data = data.load()
     if do_persist: data = data.persist()
@@ -621,9 +623,10 @@ def do_setbottomnan(mesh, data, do_nan):
         elif('elem' in data.dims):
             if   ('nz1'  in data.dims): mat_elemiz= data['elemiz'].expand_dims({'nz1': data['nz1']}).transpose()
             elif ('nz'   in data.dims): mat_elemiz= data['elemiz'].expand_dims({'nz': data['nz']}).transpose()
-            mat_nzielem= data['nzi'].expand_dims({'elem': data['elemi']})
+            mat_nzielem= data['nzi'].expand_dims({'elem': data['elemi']}).drop_vars('elem')
             
             # kickout all cooordinates from mat_nzielem
+            mat_elemiz = mat_elemiz.drop_vars(list(mat_elemiz.coords))
             mat_nzielem= mat_nzielem.drop_vars(list(mat_nzielem.coords))
             
             data = data.where(mat_nzielem<=mat_elemiz)
@@ -1020,25 +1023,25 @@ def do_vector_norm(data, do_norm):
         # rename variable vname
         new_vname = 'norm+{}+{}'.format(vname[0],vname[1])
         
-        # estimate chunksize
-        if   'nod2' in data.dims: dim_horz   = 'nod2'            
-        elif 'elem' in data.dims: dim_horz   = 'elem'
-        chunkssize = data.chunksizes[dim_horz]
+        ## estimate chunksize
+        #if   'nod2' in data.dims: dim_horz   = 'nod2'            
+        #elif 'elem' in data.dims: dim_horz   = 'elem'
+        #chunkssize = data.chunksizes[dim_horz]
         
         # compute norm in variable  vname
         #data[vname[0] ].data = np.sqrt(data[vname[0]].data**2 + data[vname[1]].data**2)
         #data[vname[0] ] = np.sqrt(np.square(data[vname[0]]) + np.square(data[vname[1]]))
         #data[new_vname] = np.sqrt(data[vname[0]].data**2 + data[vname[1]].data**2)
-        data[new_vname] = xr.DataArray(np.sqrt(np.square(data[vname[0]].data) + np.square(data[vname[1]].data)), dims=[dim_horz]).chunk(chunkssize)
-        data[new_vname].attrs['units'] = 'm/s'
-        del chunkssize
+        #data[new_vname] = xr.DataArray(np.sqrt(np.square(data[vname[0]].data) + np.square(data[vname[1]].data)), dims=[dim_horz]).chunk(chunkssize)
         
-        # delte variable vname2 from Dataset
-        #data      = data.drop(labels=vname)
-        data      = data.drop_vars(vname)
+        data[vname[0]] = np.sqrt( np.square(data[vname[0]]) + np.square(data[vname[1]]) )
         
-        #new_vname = 'sqrt({}²+{}²)'.format(vname,vname2)
-        #data      = data.rename({vname[0]:new_vname})
+        # rename variable vname[0]
+        data = data.rename({vname[0]:new_vname})
+        
+        # delet variable vname2 from Dataset
+        data = data.drop_vars(vname[1])
+        
         
     #___________________________________________________________________________    
     return(data)  

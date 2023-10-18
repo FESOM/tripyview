@@ -1395,7 +1395,7 @@ def do_compute_scalingnorm(cinfo, do_rescale):
 #| cinfo        :   color info dictionary                                      |
 #|_____________________________________________________________________________|     
 def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
-                  do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False):
+                  do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False, boxidx=0):
     #___________________________________________________________________________
     # set up color info 
     if cinfo is None: cinfo=dict()
@@ -1412,12 +1412,12 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         # loop over all the input data --> find out total cmin/cmax value
         cmin, cmax = np.Inf, -np.Inf
         for data_ii in data:
-            if do_index: vname = list(data_ii[0].keys())
+            if do_index: vname = list(data_ii[boxidx].keys())
             else       : vname = list(data_ii.keys())
             
             #___________________________________________________________________
             if do_vec==False:
-                if   do_index: data_plot = data_ii[0][ vname[0] ].data.copy()
+                if   do_index: data_plot = data_ii[boxidx][ vname[0] ].data.copy()
                 elif do_moc  : data_plot = data_ii['zmoc'].isel(nz=np.abs(data_ii['depth'])>=700).values.copy()
                 elif do_dmoc is not None  : 
                     if   do_dmoc=='dmoc'  : data_plot = data_ii['dmoc'].data.copy()
@@ -1931,7 +1931,7 @@ def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=No
 #| ___RETURNS_______________________________________________________________   |
 #| xticks,yticks:   array, with optimal lon and lat ticks                   
 #|_____________________________________________________________________________|  
-def do_ticksteps(mesh, box, ticknr=6):
+def do_ticksteps(mesh, box, ticknr=4):
     #___________________________________________________________________________
     tickstep = np.array([0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 360])
 

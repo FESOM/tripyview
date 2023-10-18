@@ -18,7 +18,8 @@ from   .sub_colormap       import *
 
 
 def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean', 
-                      do_zarithm=None, do_compute=True, do_outputidx=False):
+                      do_zarithm=None, do_outputidx=False, 
+                      do_compute=False, do_load=True, do_persist=False, ):
     xr.set_options(keep_attrs=True)
     #___________________________________________________________________________
     # str_anod    = ''
@@ -33,11 +34,16 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         if not isinstance(box, shp.Reader):
             if len(box)==2: boxname, box = box[1], box[0]
             if box is None or box=='global': boxname='global'
-        
+        else:     
+            boxname = os.path.basename(box.shapeName).replace('_',' ')  
+            
         #_______________________________________________________________________
         # compute  mask index
-        if   'nod2' in data.dims: idx_IN=do_boxmask(mesh, box, do_elem=True)
-        elif 'elem' in data.dims: idx_IN=do_boxmask(mesh, box, do_elem=True)
+        if   'nod2' in data.dims: 
+            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2').chunk({'nod2':data.chunksizes['nod2']})
+            
+        elif 'elem' in data.dims: 
+            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem').chunk({'elem':data.chunksizes['elem']})
         
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
@@ -47,7 +53,6 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         elif 'elem' in data.dims: dim_name.append('elem')    
         if   'nz'   in data.dims: dim_name.append('nz')
         elif 'nz1'  in data.dims: dim_name.append('nz1')      
-        elif 'nz_1' in data.dims: dim_name.append('nz1')          
             
         if do_harithm=='wmean' and do_zarithm=='wmean':
             if   'nod2' in data.dims:
@@ -60,41 +65,44 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
                 STOP
             
         else:    
-            #_______________________________________________________________________
+            #___________________________________________________________________
             if   'nod2' in data.dims:
-                #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2'))
                 index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2')
             elif 'elem' in data.dims:    
-                #index_list.append( do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'elem'))
                 index = do_horiz_arithmetic(data.sel(elem=idx_IN), do_harithm, 'elem')
-        
-            #_______________________________________________________________________
+                
+            #___________________________________________________________________
             if   'nz1' in data.dims and do_harithm is not None:
                 index = do_depth_arithmetic(index, do_zarithm, 'nz1')
             elif 'nz'  in data.dims and do_harithm is not None:        
                 index = do_depth_arithmetic(index, do_zarithm, 'nz')
-        
-        
-        
-        
+                
         index_list.append(index)
         idxin_list.append(idx_IN)
         del(index)
         
         #_______________________________________________________________________
+        warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
         if do_compute: index_list[cnt] = index_list[cnt].compute()
+        if do_load   : index_list[cnt] = index_list[cnt].load()
+        if do_persist: index_list[cnt] = index_list[cnt].persist()
+        warnings.resetwarnings()
         
         #_______________________________________________________________________
-        vname = list(index_list[cnt].keys())            
-        if boxname is not None: 
-            index_list[cnt][vname[0]].attrs['boxname'] = boxname
-        elif isinstance(box, shp.Reader):
-            index_list[cnt][vname[0]].attrs['boxname'] = os.path.basename(box.shapeName).replace('_',' ')  
-        elif boxname is None or boxname=='global': 
-            index_list[cnt][vname[0]].attrs['boxname'] = 'global'
+        vname = list(index_list[cnt].keys())    
+        index_list[cnt][vname[0]].attrs['boxname'] = boxname
+        #print(boxname)
+        #if boxname is not None: 
+            
+        #elif isinstance(box, shp.Reader):
+            #index_list[cnt][vname[0]].attrs['boxname'] = os.path.basename(box.shapeName).replace('_',' ')  
+        #elif boxname is None or boxname=='global': 
+            #index_list[cnt][vname[0]].attrs['boxname'] = 'global'
         
         #_______________________________________________________________________
         cnt = cnt + 1
+        
     #___________________________________________________________________________
     if do_outputidx:
         return(index_list, idxin_list)
@@ -308,7 +316,7 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
 #+___PLOT MERIDIONAL OVERTRUNING CIRCULATION  _________________________________+
 #|                                                                             |
 #+_____________________________________________________________________________+
-def plot_index_hovm(data, box_list, figsize=[12, 6], 
+def plot_index_hovm(data, boxidx=0, figsize=[12, 6], 
               n_rc=[1, 1], do_grid=True, cinfo=None,
               do_reffig=False, ref_cinfo=None, ref_rescale=None, 
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
@@ -350,12 +358,12 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
     #___________________________________________________________________________
     # set up color info 
     if do_reffig:
-        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True)
-        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True)
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True, boxidx=boxidx)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True, boxidx=boxidx)
     else:    
-        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_index=True, boxidx=boxidx)
     
-    #_______________________________________________________________________
+    #___________________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
     if do_reffig:
@@ -368,16 +376,17 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         
         #_______________________________________________________________________
         # limit data to color range
-        vname= list(data[ii][0].keys())[0]
-        data_plot = data[ii][0][vname].values.copy()
+        vname= list(data[ii][boxidx].keys())[0]
+        data_plot = data[ii][boxidx][vname].values.copy()
         data_plot = data_plot.transpose()
         
         #_______________________________________________________________________
         # setup x-coorod and y-coord
-        time      = data[ii][0]['time'].values
-        if   'nz1' in data[ii][0].dims: depth = data[ii][0]['nz1' ].values
-        elif 'nz'  in data[ii][0].dims: depth = data[ii][0]['nz'  ].values
-        elif 'nz_1'in data[ii][0].dims: depth = data[ii][0]['nz_1'].values
+        time = data[ii][boxidx]['time']
+        totdayperyear = np.where(time.dt.is_leap_year, 366, 365)
+        time = time.dt.year + (time.dt.dayofyear-time.dt.day[0])/totdayperyear
+        if   'nz1' in data[ii][boxidx].dims: depth = data[ii][boxidx]['nz1' ].values
+        elif 'nz'  in data[ii][boxidx].dims: depth = data[ii][boxidx]['nz'  ].values
         
         #_______________________________________________________________________
         if do_reffig: 
@@ -441,7 +450,7 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
             if   isinstance(title,str) : 
                 # if title string is 'descript' than use descript attribute from 
                 # data to set plot title 
-                if title=='descript' and ('descript' in data[ii][0][vname].attrs.keys() ):
+                if title=='descript' and ('descript' in data[ii][boxidx][vname].attrs.keys() ):
                     txts = data[ii][0][vname].attrs['descript']
                 else:
                     txts = title
@@ -450,8 +459,8 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
                 txts = title[ii]
             ax[ii].text(txtx, txty, txts, fontsize=12, fontweight='bold', horizontalalignment='left')
         
-        if 'boxname' in data[ii][0][vname].attrs.keys():
-            txtx, txty, txts = time[0]+(time[-1]-time[0])*0.015, ylim[0]+(ylim[1]-ylim[0])*0.0001, data[ii][0][vname].attrs['boxname']
+        if 'boxname' in data[ii][boxidx][vname].attrs.keys():
+            txtx, txty, txts = time[0]+(time[-1]-time[0])*0.015, ylim[0]+(ylim[1]-ylim[0])*0.0001, data[ii][boxidx][vname].attrs['boxname']
             ax[ii].text(txtx, txty, txts, fontsize=10, fontweight='bold', horizontalalignment='left', verticalalignment='top')
         
         if collist[ii]==0        : ax[ii].set_ylabel('Depth [m]',fontsize=12)
@@ -496,11 +505,11 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
         cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
         
         # do labeling of colorbar
-        if cbar_label is None : cbar_label = data[0][0][ vname ].attrs['long_name']
-        if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
+        if cbar_label is None : cbar_label = data[0][boxidx][ vname ].attrs['long_name']
+        if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][boxidx][ vname ].attrs['units']+']'
         else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
-        if 'str_ltim' in data[0][0][vname].attrs.keys():
-            cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
+        if 'str_ltim' in data[0][boxidx][vname].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0][boxidx][vname].attrs['str_ltim']
         cbar.set_label(cbar_label, size=fontsize+2)
     else:
         cbar=list()
@@ -517,14 +526,14 @@ def plot_index_hovm(data, box_list, figsize=[12, 6],
                 #cbar_label ='anom. '
             # do labeling of colorbar
             #if cbar_label is None : 
-            if   'short_name' in data[ii][0][vname].attrs:
-                cbar_label = cbar_label+data[ii][0][ vname ].attrs['short_name']
-            elif 'long_name' in data[ii][0][vname].attrs:
-                cbar_label = cbar_label+data[ii][0][ vname ].attrs['long_name']
-            if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][0][ vname ].attrs['units']+']'
+            if   'short_name' in data[ii][boxidx][vname].attrs:
+                cbar_label = cbar_label+data[ii][boxidx][ vname ].attrs['short_name']
+            elif 'long_name' in data[ii][boxidx][vname].attrs:
+                cbar_label = cbar_label+data[ii][boxidx][ vname ].attrs['long_name']
+            if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][boxidx][ vname ].attrs['units']+']'
             else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
-            if 'str_ltim' in data[ii][0][vname].attrs.keys():
-                cbar_label = cbar_label+'\n'+data[ii][0][vname].attrs['str_ltim']
+            if 'str_ltim' in data[ii][boxidx][vname].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][boxidx][vname].attrs['str_ltim']
             aux_cbar.set_label(cbar_label, size=fontsize+2)
             cbar.append(aux_cbar)
             
