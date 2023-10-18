@@ -21,6 +21,7 @@ import numpy.ma as ma
 from .sub_colormap import *
 from .sub_utility  import *
 from .sub_plot     import *
+import warnings
 
 #+___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________+
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
@@ -41,7 +42,8 @@ from .sub_plot     import *
 def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False, 
               do_info=True, diagpath=None, do_checkbasin=False, 
               do_compute=False, do_load=True, do_persist=False, 
-              chunks={'time':100, 'elem':1e4, 'nod2':1e4}, **kwargs, 
+              do_parallel=False, n_workers=10, 
+              **kwargs, 
              ):
     #_________________________________________________________________________________________________
     t1=clock.time()
@@ -49,7 +51,10 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
-    idxin = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem)
+    if do_onelem:
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='elem')
+    else:
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='nod2')
     
     #___________________________________________________________________________
     if do_checkbasin:
@@ -66,8 +71,9 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     
     #___________________________________________________________________________
     # rescue global and variable attributes
+    vname = list(data.keys())[0]
     gattr = data.attrs
-    vattr = data['w'].attrs
+    vattr = data[vname].attrs
     
     #___________________________________________________________________________
     # do moc calculation either on nodes or on elements        
@@ -155,97 +161,152 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     else:    
         #_______________________________________________________________________
         # load vertice cluster area from diag file
-        if ( os.path.isfile(diagpath)):
-            nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']#.chunk({'nod2':1e4})
-            if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nod_n':'nod2'})
-            if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'   :'nz'  })
-            if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'  :'nz1' })
-            # you need to drop here the coordinates for nz since they go from 
-            # 0...-6000 the coordinates of nz in the data go from 0...6000 that 
-            # causes otherwise troubles
-            nz_w_A = nz_w_A.drop(['nz'])
-        else: 
-            if len(mesh.n_area)>0:
-                nz_w_A = xr.DataArray(mesh.n_area, dims=['nz','nod2']).chunk(data.chunksizes['nod2']) 
+        #t1 = clock.time()
+        if 'w_A' not in list(data.coords):
+            if ( os.path.isfile(diagpath)):
+                nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']#.chunk({'nod2':1e4})
+                if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nod_n':'nod2'})
+                if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'   :'nz'  })
+                if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'  :'nz1' })
+                # you need to drop here the coordinates for nz since they go from 
+                # 0...-6000 the coordinates of nz in the data go from 0...6000 that 
+                # causes otherwise troubles
+                nz_w_A = nz_w_A.drop_vars(['nz'])
             else: 
-                raise ValueError('could not find ...mesh.diag.nc file')
-        nz_w_A = nz_w_A.isel( nod2=xr.DataArray(idxin, dims=['nod2']).chunk(data.chunksizes['nod2']) )
+                if len(mesh.n_area)>0:
+                    nz_w_A = xr.DataArray(mesh.n_area, dims=['nz','nod2'])
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+            
+            data = data.assign_coords(w_A=nz_w_A.chunk(data.chunksizes))
+            del(nz_w_A)
         
         #_______________________________________________________________________    
-        # select MOC basin 
-        data = data.isel( nod2=xr.DataArray(idxin, dims=['nod2']).chunk(data.chunksizes['nod2']) )
+        # select MOC basin
+        data = data.isel(nod2=idxin)
+        #t2 = clock.time()
+        #print('  --> select data', t2-t1)
         
-        #_______________________________________________________________________
+        #___________________________________________________________________
         # calculate area weighted mean
-        data = data * nz_w_A * 1e-6
+        warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
+        data = data[vname]*data['w_A']*1e-6
         data = data.fillna(0.0)
-        del(nz_w_A)
-        
+        data = data.load()
+        #t3 = clock.time()
+        #print('  --> comp. area weighted mean', t3-t2)
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
-        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat').chunk(data.chunksizes['nod2'])   
-  
+        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat')
+        lat = np.arange(lat_bin.min(), lat_bin.max()+dlat, dlat)
+        warnings.resetwarnings()
+        #t4 = clock.time()
+        #print('  --> comp. lat_bin', t4-t3)
+        
     #___________________________________________________________________________
-    # group data by bins --> this trick is from Nils Brückemann (ICON)
-    if do_info==True: print(' --> do binning of latitudes')
-    data    = data.rename_vars({'w':'zmoc', 'nz':'depth'})
-    data    = data.persist()
-    data    = data.groupby(lat_bin)
-
-    # zonal sumation/integration over bins
-    if do_info==True: print(' --> do sumation/integration over bins')
-    data    = data.sum(skipna=True)
+    # create ZMOC xarray Dataset
+    tm1= clock.time()
+    # define variable attributes    
+    vattr['long_name'    ]= 'MOC'
+    vattr['short_name'   ]= 'MOC'
+    vattr['standard_name']= 'Meridional Overturning Circulation'
+    vattr['description'  ]= 'Meridional Overturning Circulation Streamfunction, positive: clockwise, negative: counter-clockwise circulation', 
+    vattr['units'        ]= 'Sv'
+    # define data_vars dict, coordinate dict, as well as list of dimension name 
+    # and size 
+    data_vars, coords, dim_n, dim_s,  = dict(), dict(), list(), list()
+    if 'time' in list(data.dims): dim_n.append('time')
+    if 'nz1'  in list(data.dims): dim_n.append('nz1')
+    if 'nz'   in list(data.dims): dim_n.append('nz')
+    dim_n.append('lat')
+    for dim_ni in dim_n:
+        if   dim_ni=='time': dim_s.append(data.sizes['time']); coords['time' ]=(['time'], data['time'].data ) 
+        elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
+        elif dim_ni=='nz1' : dim_s.append(data.sizes['nz1'] ); coords['depth']=(['nz1' ], data['nz1' ].data )
+        elif dim_ni=='nz'  : dim_s.append(data.sizes['nz' ] ); coords['depth']=(['nz'  ], data['nz'  ].data ) 
+    data_vars['zmoc'] = (dim_n, np.zeros(dim_s, dtype='float32'), vattr) 
+    # create dataset
+    zmoc = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
     
-    # transpose data from [lat x nz] --> [nz x lat]
-    dtime, dlat, dnz = 'None', 'lat', 'nz'
-    if 'time' in list(data.dims): dtime = 'time'
-    data = data.transpose(dtime, dnz, dlat, missing_dims='ignore')
+    #___________________________________________________________________________
+    # define subroutine for binning over latitudes, allows for parallelisation
+    def moc_over_lat(lat_i, lat_bin, data):
+        #_______________________________________________________________________
+        # compute which vertice is within the latitudinal bin
+        # --> groupby is here a factor 5-6 slower than using isel+np.where
+        data_latbin = data.isel(nod2=np.where(lat_bin==lat_i)[0])
+        data_latbin = data_latbin.sum(dim='nod2', skipna=True)
+        return(data_latbin)
+    
+    #___________________________________________________________________________
+    # do serial loop over latitudinal bins
+    if not do_parallel:
+        if do_info: print('\n ___loop over latitudinal bins___'+'_'*90, end='\n')
+        for iy, lat_i in enumerate(lat):
+            if 'time' in data.dims: zmoc['zmoc'][:,:,iy] = moc_over_lat(lat_i, lat_bin, data)
+            else                  : zmoc['zmoc'][  :,iy] = moc_over_lat(lat_i, lat_bin, data)
+    
+    # do parallel loop over latitudinal bins
+    else:
+        if do_info: print('\n ___parallel loop over longitudinal bins___'+'_'*1, end='\n')
+        from joblib import Parallel, delayed
+        results = Parallel(n_jobs=n_workers)(delayed(moc_over_lat)(lat_i, lat_bin, data) for lat_i in zmoc.lat)
+        if 'time' in data.dims: zmoc['zmoc'][:,:,:] = xr.concat(results, dim='lat').transpose('time','nz','lat')
+        else                  : zmoc['zmoc'][  :,:] = xr.concat(results, dim='lat').transpose('nz','lat')
+    
+    del(data)
+    
+    ##___________________________________________________________________________
+    ## group data by bins --> this trick is from Nils Brückemann (ICON)
+    #if do_info==True: print(' --> do binning of latitudes')
+    #data    = data.rename_vars({'w':'zmoc', 'nz':'depth'})
+    #data    = data.groupby(lat_bin)
+    #t5 = clock.time()
+    #print('  --> comp. bins', t5-t4)
+
+    ## zonal sumation/integration over bins
+    #if do_info==True: print(' --> do sumation/integration over bins')
+    #data    = data.sum().load()
+    #t6 = clock.time()
+    #print('  --> comp. zonal int', t6-t5)
+    
+    ## transpose data from [lat x nz] --> [nz x lat]
+    #dtime, dhz, dnz = 'None', 'lat', 'nz'
+    #if 'time' in list(data.dims): dtime = 'time'
+    #data = data.transpose(dtime, dnz, dhz, missing_dims='ignore')
     
     #___________________________________________________________________________
     # cumulative sum over latitudes
     if do_info==True: print(' --> do cumsum over latitudes')
-    data['zmoc'] = -data['zmoc'].reindex(lat=data['lat'][::-1]).cumsum(dim='lat', skipna=True).reindex(lat=data['lat'])
-    
-    #___________________________________________________________________________
-    # write proper global and local variable attributes for long_name and units 
-    data         = data.assign_attrs(gattr) # put back global attributes
-    data['zmoc'] = data['zmoc'].assign_attrs(vattr) # put back global attributes
-    attr_list    = dict({'short_name':'MOC',
-                         'long_name':'MOC',
-                         'standard_name':'Meridional Overturning Circulation', 
-                         'description':'Meridional Overturning Circulation Streamfunction, positive: clockwise, negative: counter-clockwise circulation', 
-                         'units':'Sv'})
-    data['zmoc'] = data['zmoc'].assign_attrs(attr_list)
+    zmoc['zmoc'] = -zmoc['zmoc'].reindex(lat=zmoc['lat'][::-1]).cumsum(dim='lat', skipna=True).reindex(lat=zmoc['lat'])
     
     #___________________________________________________________________________
     # compute depth of max and nice bottom topography
-    if do_onelem: data = calc_bottom_patch(data, lat_bin, xr.DataArray(mesh.e_iz, dims=['elem']), idxin)        
-    else        : data = calc_bottom_patch(data, lat_bin, xr.DataArray(mesh.n_iz, dims=['nod2']), idxin)
+    if do_onelem: zmoc = calc_bottom_patch(zmoc, lat_bin, xr.DataArray(mesh.e_iz, dims=['elem']), idxin)        
+    else        : zmoc = calc_bottom_patch(zmoc, lat_bin, xr.DataArray(mesh.n_iz, dims=['nod2']), idxin)
     
     #___________________________________________________________________________
-    if do_compute: data = data.compute()
-    if do_load   : data = data.load()
-    if do_persist: data = data.persist()
-
+    if do_compute: zmoc = zmoc.compute()
+    if do_load   : zmoc = zmoc.load()
+    if do_persist: zmoc = zmoc.persist()
+        
     #___________________________________________________________________________
     # write some infos 
-    t2=clock.time()
-
     if do_info==True: 
         print(' --> total time:{:.3f} s'.format(t2-t1))
-        if 'time' not in list(data.dims):
+        if 'time' not in list(zmoc.dims):
             if which_moc in ['amoc', 'aamoc', 'gmoc']:
-                maxv = data.isel(nz=data['depth']>= 700 , lat=data['lat']>0.0)['zmoc'].max().values
-                minv = data.isel(nz=data['depth']>= 2500, lat=data['lat']>-50.0)['zmoc'].min().values
-                print(' max. NADW_{:s} = {:.2f} Sv'.format(data['zmoc'].attrs['descript'],maxv))
-                print(' max. AABW_{:s} = {:.2f} Sv'.format(data['zmoc'].attrs['descript'],minv))
+                maxv = zmoc.isel(nz=zmoc['depth']>= 700 , lat=zmoc['lat']>0.0)['zmoc'].max().values
+                minv = zmoc.isel(nz=zmoc['depth']>= 2500, lat=zmoc['lat']>-50.0)['zmoc'].min().values
+                print(' max. NADW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],maxv))
+                print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
             elif which_moc in ['pmoc', 'ipmoc']:
-                minv = data['zmoc'].isel(nz=data['depth']>= 2000, lat=data['lat']>-50.0)['moc'].min().values
-                print(' max. AABW_{:s} = {:.2f} Sv'.format(data['zmoc'].attrs['descript'],minv))
-    
+                minv = zmoc['zmoc'].isel(nz=zmoc['depth']>= 2000, lat=zmoc['lat']>-50.0)['moc'].min().values
+                print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
     
     #___________________________________________________________________________
-    return(data)
+    return(zmoc)
 
 
 #+___CALC BOTTOM TOPO PATCH____________________________________________________+
@@ -262,7 +323,7 @@ def calc_bottom_patch(data, lat_bin, idx_iz, idxin):
     
     #___________________________________________________________________________
     # optiocal nicer bottom topography for MOC
-    botnic= idx_z.quantile(1-0.20, skipna=True).drop(['quantile'])
+    botnic= idx_z.quantile(1-0.20, skipna=True).drop_vars(['quantile'])
     
     # smooth bottom topography patch
     #filt=np.array([1,2,3,2,1])
@@ -579,10 +640,16 @@ def plot_zmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
                     data = data.isel(lat=np.argmin(np.abs(data['lat'].data-lat)))
                     if lat>=0: str_label= f'{lat}°N'
                     else     : str_label= f'{lat}°S'   
-                data = data.groupby("time.year").mean()
-                time = auxtime = data.year
+                
+                #_______________________________________________________________
+                # set time axes in units of years
+                time = data['time']
+                year = np.unique(data['time.year'])
+                totdayperyear = np.where(time.dt.is_leap_year, 366, 365)
+                time = auxtime = time.dt.year + (time.dt.dayofyear-time.dt.day[0])/totdayperyear            
                 tlim, tdel = [time[0], time[-1]], time[-1]-time[0]
                 if do_concat: auxtime = auxtime + (tdel+1)*(ii_cycle-1)
+                
                 #_______________________________________________________________
                 hp=ax.plot(auxtime, data, linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], marker='o', markerfacecolor='w', markersize=5, zorder=2)
                 if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
@@ -630,6 +697,7 @@ def plot_zmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max']
             ax.set_title(f'{str_cell} @ {str_label}', fontsize=12, fontweight='bold')
             
             #___________________________________________________________________
+            if xmaxstep>=len(year): xmaxstep=1
             xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
             ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
             ax.xaxis.set_major_locator(xmajor_locator)

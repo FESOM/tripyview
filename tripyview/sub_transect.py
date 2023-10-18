@@ -1633,7 +1633,7 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
                     if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nod_n':'nod2'})
                     if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl'   :'nz'  })
                     if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl1'  :'nz1' })    
-                    nz_w_A = nz_w_A.drop(['nz'])
+                    nz_w_A = nz_w_A.drop_vars(['nz'])
                     #nz_w_A = nz_w_A.isel(nod2=n_idxin).load()     
                 else: 
                     raise ValueError('could not find ...mesh.diag.nc file')
@@ -1682,7 +1682,7 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         #___________________________________________________________________________
         # group data by bins
         if do_info==True: print(' --> do binning of latitudes')
-        data_zm    = data_zm.persist()
+        #data_zm    = data_zm.persist()
         data_zm    = data_zm.groupby(lat_bin)
         
         # zonal sumation of var*weight and weight over bins

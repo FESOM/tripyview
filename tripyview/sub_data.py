@@ -363,7 +363,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-    warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
     if do_compute: data = data.compute()
     if do_load   : data = data.load()
     if do_persist: data = data.persist()
@@ -864,7 +864,11 @@ def do_time_arithmetic(data, do_tarithm):
             data = data.groupby('time.year').mean('time')
             # recreate time axes based on year
             data = data.rename_dims({'year':'time'})
-            data = data.assign_coords(time=('time', [datetime.datetime(yr, 1, 1) for yr in data.year] )).drop_vars('year')
+            
+            warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+            warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+            data = data.assign_coords(time=('time', [datetime.datetime(np.int16(yr), 1, 1) for yr in data.year] )).drop_vars('year')
+            warnings.resetwarnings()
         elif do_tarithm=='None':
             ...
         else:
