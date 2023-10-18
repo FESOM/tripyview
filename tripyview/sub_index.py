@@ -83,7 +83,7 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         
         #_______________________________________________________________________
         warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
+        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
         if do_compute: index_list[cnt] = index_list[cnt].compute()
         if do_load   : index_list[cnt] = index_list[cnt].load()
         if do_persist: index_list[cnt] = index_list[cnt].persist()
