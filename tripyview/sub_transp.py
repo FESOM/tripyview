@@ -537,7 +537,7 @@ def calc_hbarstreamf_fast(mesh, data, lon, lat, do_info=True, do_parallel=True, 
             if np.mod(ix+1,15)==0 and do_info:
                 print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
                 ts1 = clock.time()
-            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i) #, lat, data)
+            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data)
     
     # do parallel loop over longitudinal bins        
     else:
