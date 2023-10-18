@@ -158,7 +158,7 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         if ( os.path.isfile(diagpath)):
             nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']#.chunk({'nod2':1e4})
             if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nod_n':'nod2'})
-            if 'nl'    in list(nz_w_A.dims): mat_area = nz_w_A.rename({'nl'   :'nz'  })
+            if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'   :'nz'  })
             if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'  :'nz1' })
             # you need to drop here the coordinates for nz since they go from 
             # 0...-6000 the coordinates of nz in the data go from 0...6000 that 

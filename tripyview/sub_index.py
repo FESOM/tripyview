@@ -358,12 +358,12 @@ def plot_index_hovm(data, boxidx=0, figsize=[12, 6],
     #___________________________________________________________________________
     # set up color info 
     if do_reffig:
-        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True)
-        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True)
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True, boxidx=boxidx)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True, boxidx=boxidx)
     else:    
         cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_index=True, boxidx=boxidx)
     
-    #_______________________________________________________________________
+    #___________________________________________________________________________
     # setup normalization log10, symetric log10, None
     which_norm = do_compute_scalingnorm(cinfo, do_rescale)
     if do_reffig:

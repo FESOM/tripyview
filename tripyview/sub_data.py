@@ -623,9 +623,10 @@ def do_setbottomnan(mesh, data, do_nan):
         elif('elem' in data.dims):
             if   ('nz1'  in data.dims): mat_elemiz= data['elemiz'].expand_dims({'nz1': data['nz1']}).transpose()
             elif ('nz'   in data.dims): mat_elemiz= data['elemiz'].expand_dims({'nz': data['nz']}).transpose()
-            mat_nzielem= data['nzi'].expand_dims({'elem': data['elemi']})
+            mat_nzielem= data['nzi'].expand_dims({'elem': data['elemi']}).drop_vars('elem')
             
             # kickout all cooordinates from mat_nzielem
+            mat_elemiz = mat_elemiz.drop_vars(list(mat_elemiz.coords))
             mat_nzielem= mat_nzielem.drop_vars(list(mat_nzielem.coords))
             
             data = data.where(mat_nzielem<=mat_elemiz)
