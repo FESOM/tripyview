@@ -41,7 +41,7 @@ from .sub_plot     import *
 def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False, 
               do_info=True, diagpath=None, do_checkbasin=False, 
               do_compute=False, do_load=True, do_persist=False, 
-              chunks={'time':100, 'elem':1e4, 'nod2':1e4}, **kwargs, 
+              **kwargs, 
              ):
     #_________________________________________________________________________________________________
     t1=clock.time()
@@ -49,7 +49,10 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
-    idxin = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem)
+    if do_onelem:
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='elem')
+    else:
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='nod2')
     
     #___________________________________________________________________________
     if do_checkbasin:
@@ -66,8 +69,9 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     
     #___________________________________________________________________________
     # rescue global and variable attributes
+    vname = list(data.keys())[0]
     gattr = data.attrs
-    vattr = data['w'].attrs
+    vattr = data[vname].attrs
     
     #___________________________________________________________________________
     # do moc calculation either on nodes or on elements        
@@ -155,51 +159,53 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     else:    
         #_______________________________________________________________________
         # load vertice cluster area from diag file
-        if ( os.path.isfile(diagpath)):
-            nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']#.chunk({'nod2':1e4})
-            if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nod_n':'nod2'})
-            if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'   :'nz'  })
-            if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'  :'nz1' })
-            # you need to drop here the coordinates for nz since they go from 
-            # 0...-6000 the coordinates of nz in the data go from 0...6000 that 
-            # causes otherwise troubles
-            nz_w_A = nz_w_A.drop(['nz'])
-        else: 
-            if len(mesh.n_area)>0:
-                nz_w_A = xr.DataArray(mesh.n_area, dims=['nz','nod2']).chunk(data.chunksizes['nod2']) 
+        if 'w_A' not in list(data.coords):
+            if ( os.path.isfile(diagpath)):
+                nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']#.chunk({'nod2':1e4})
+                if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nod_n':'nod2'})
+                if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'   :'nz'  })
+                if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'  :'nz1' })
+                # you need to drop here the coordinates for nz since they go from 
+                # 0...-6000 the coordinates of nz in the data go from 0...6000 that 
+                # causes otherwise troubles
+                nz_w_A = nz_w_A.drop_vars(['nz'])
             else: 
-                raise ValueError('could not find ...mesh.diag.nc file')
-        nz_w_A = nz_w_A.isel( nod2=xr.DataArray(idxin, dims=['nod2']).chunk(data.chunksizes['nod2']) )
+                if len(mesh.n_area)>0:
+                    nz_w_A = xr.DataArray(mesh.n_area, dims=['nz','nod2'])
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+            
+            data = data.assign_coords(w_A=nz_w_A.chunk(data.chunksizes))
+            del(nz_w_A)
         
         #_______________________________________________________________________    
-        # select MOC basin 
-        data = data.isel( nod2=xr.DataArray(idxin, dims=['nod2']).chunk(data.chunksizes['nod2']) )
+        # select MOC basin
+        data = data.isel(nod2=idxin)
         
-        #_______________________________________________________________________
+        #___________________________________________________________________
         # calculate area weighted mean
-        data = data * nz_w_A * 1e-6
-        data = data.fillna(0.0)
-        del(nz_w_A)
+        data[vname] = data[vname]*data['w_A']*1e-6
+        data[vname] = data[vname].fillna(0.0)
         
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
-        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat').chunk(data.chunksizes['nod2'])   
-  
+        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat')
+        
     #___________________________________________________________________________
     # group data by bins --> this trick is from Nils Brückemann (ICON)
     if do_info==True: print(' --> do binning of latitudes')
     data    = data.rename_vars({'w':'zmoc', 'nz':'depth'})
-    data    = data.persist()
+    #data    = data.persist()
     data    = data.groupby(lat_bin)
 
     # zonal sumation/integration over bins
     if do_info==True: print(' --> do sumation/integration over bins')
-    data    = data.sum(skipna=True)
+    data    = data.sum(skipna=True).load()
     
     # transpose data from [lat x nz] --> [nz x lat]
-    dtime, dlat, dnz = 'None', 'lat', 'nz'
+    dtime, dhz, dnz = 'None', 'lat', 'nz'
     if 'time' in list(data.dims): dtime = 'time'
-    data = data.transpose(dtime, dnz, dlat, missing_dims='ignore')
+    data = data.transpose(dtime, dnz, dhz, missing_dims='ignore')
     
     #___________________________________________________________________________
     # cumulative sum over latitudes
@@ -226,11 +232,9 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     if do_compute: data = data.compute()
     if do_load   : data = data.load()
     if do_persist: data = data.persist()
-
+        
     #___________________________________________________________________________
     # write some infos 
-    t2=clock.time()
-
     if do_info==True: 
         print(' --> total time:{:.3f} s'.format(t2-t1))
         if 'time' not in list(data.dims):
@@ -242,7 +246,6 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
             elif which_moc in ['pmoc', 'ipmoc']:
                 minv = data['zmoc'].isel(nz=data['depth']>= 2000, lat=data['lat']>-50.0)['moc'].min().values
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(data['zmoc'].attrs['descript'],minv))
-    
     
     #___________________________________________________________________________
     return(data)
@@ -262,7 +265,7 @@ def calc_bottom_patch(data, lat_bin, idx_iz, idxin):
     
     #___________________________________________________________________________
     # optiocal nicer bottom topography for MOC
-    botnic= idx_z.quantile(1-0.20, skipna=True).drop(['quantile'])
+    botnic= idx_z.quantile(1-0.20, skipna=True).drop_vars(['quantile'])
     
     # smooth bottom topography patch
     #filt=np.array([1,2,3,2,1])
