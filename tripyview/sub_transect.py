@@ -1518,8 +1518,9 @@ def plot_transect_transp_t(tseries_list, input_names, transect, which_cycl=None,
 #|                                                                             |
 #+_____________________________________________________________________________+
 def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_harithm='mean', 
-                                do_compute=True, do_outputidx=False, diagpath=None, do_onelem=False, 
-                                do_info=False, do_smooth=True, 
+                              do_outputidx=False, diagpath=None, 
+                              do_info=False, do_smooth=True, do_checkbasin=True, 
+                              do_compute=False, do_load=True, do_persist=False, 
                                 **kwargs,):
     
     #___________________________________________________________________________
@@ -1541,10 +1542,24 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
             if len(box)==2: boxname, box = box[1], box[0]
         
         #_______________________________________________________________________
-        # compute box mask index for nodes 
-        n_idxin=do_boxmask(mesh,box)
-        if do_onelem: 
-            e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+        # compute box mask index for nodes
+        if   'nod2' in data.dims:
+            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2')
+        elif 'elem' in data.dims:     
+            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem')
+            
+        #___________________________________________________________________________
+        if do_checkbasin:
+            from matplotlib.tri import Triangulation
+            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            plt.figure()
+            plt.triplot(tri, color='k')
+            if 'elem' in data.dims:
+                plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
+            else:
+                plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], 'or', linestyle='None', markersize=1)
+            plt.title('Basin selection')
+            plt.show()
         
         #___________________________________________________________________________
         # do zonal mean calculation either on nodes or on elements        
@@ -1567,227 +1582,160 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
                 diagpath = os.path.join(diagpath,fname)
             elif os.path.isfile(os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)) :
                 diagpath = os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)
+                
         #___________________________________________________________________________
         # compute area weighted vertical velocities on elements
-        if do_onelem:
+        if 'elem' in data.dims:        
             #_______________________________________________________________________
             # load elem area from diag file
-            if ( os.path.isfile(diagpath)):
-                mat_area = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['elem_area']
-                mat_area = mat_area.isel(elem=e_idxin).compute()   
-                mat_area = mat_area.expand_dims({which_ddim:depth}).transpose()
-                mat_iz   = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nlevels']-1
-                mat_iz   = mat_iz.isel(elem=e_idxin).compute()   
-                if which_ddim=='nz1': mat_iz=mat_iz-1    
-            else: 
-                raise ValueError('could not find ...mesh.diag.nc file')
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['elem_area']#.chunk({'elem':1e4})
+                    if 'elem_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'elem_n':'elem'})
+                    if 'nl'     in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'    :'nz'  })
+                    if 'nl1'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'   :'nz1' })
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+                data = data.assign_coords(w_A=nz_w_A)
+                
+            data = data.assign_coords(new_w_A = data['w_A'].expand_dims({which_ddim: data[which_ddim]}).transpose())
+            data = data.drop_vars('w_A').rename({'new_w_A':'w_A'})
             
-            #_______________________________________________________________________
-            # create meridional bins
-            e_y   = mesh.n_y[mesh.e_i[e_idxin,:]].sum(axis=1)/3.0
-            lat   = np.arange(np.floor(e_y.min())+dlat/2, 
-                            np.ceil( e_y.max())-dlat/2, 
-                            dlat)
-            lat_i = (( e_y-lat[0])/dlat ).astype('int')
+            #___________________________________________________________________
+            # select MOC basin
+            data_zm = data.isel(elem=idxin).load()
             
-            #_______________________________________________________________________    
-            # mean over elements + select MOC basin 
-            if 'time' in list(data.dims): 
-                wdim = ['time','elem',which_ddim]
-                wdum = data[vname].data[:, mesh.e_i[e_idxin,:], :].sum(axis=2)/3.0 * 1e-6
-            else                        : 
-                wdim = ['elem',which_ddim]
-                wdum = data[vname].data[mesh.e_i[e_idxin,:], :].sum(axis=1)/3.0 * 1e-6
-            mat_mean = xr.DataArray(data=wdum, dims=wdim)
-            mat_mean = mat_mean.fillna(0.0)
-            del wdim, wdum
+            #___________________________________________________________________
+            # replace bottom topo with zeros
+            # The notnull() function, often used in the context of pandas and xarray, 
+            # is used to check for non-null (non-NaN) values within a Series or DataFrame. 
+            # It returns a Boolean mask with the same shape as the input data, where 
+            # each element is True if the original element is not null, and False if 
+            # the original element is null (NaN).
+            #mat_area = mat_area.where(mat_mean.notnull(), other=0)
+            data_zm['w_A'] = data_zm['w_A'].where(data_zm[vname].notnull(), other=0)
             
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # calculate area weighted mean
-            if 'time' in list(data.dims):
-                nt = data['time'].values.size
-                for nti in range(nt):
-                    mat_mean.data[nti,:,:] = np.multiply(mat_mean.data[nti,:,:], mat_area.data)    
-                    
-                # be sure ocean floor is setted to zero 
-                for di in range(0,ndi): 
-                    mat_mean.data[:, np.where(di>mat_iz)[0], di]=0.0
-                
-            else:
-                mat_mean.data = np.multiply(mat_mean.data, mat_area.data)
-                
-                # be sure ocean floor is setted to zero 
-                for di in range(0,ndi): 
-                    mat_mean.data[np.where(di>mat_iz)[0], di]=0.0
-            del mat_area
+            data_zm[vname] = data_zm[vname]*data_zm['w_A']
+            
+            #___________________________________________________________________
+            # create meridional bins --> this trick is from Nils Brückemann (ICON)
+            lat_bin = xr.DataArray(data=np.round(data_zm.lat/dlat)*dlat, dims='elem', name='lat')
         
         # compute area weighted vertical velocities on vertices
         else:     
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # load vertice cluster area from diag file
-            if ( os.path.isfile(diagpath)):
-                mat_area = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area'].transpose() 
-                if   'nod_n' in list(mat_area.dims): mat_area = mat_area.isel(nod_n=n_idxin).compute()  
-                elif 'nod2'  in list(mat_area.dims): mat_area = mat_area.isel(nod2=n_idxin).compute()     
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']
+                    if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nod_n':'nod2'})
+                    if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl'   :'nz'  })
+                    if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl1'  :'nz1' })    
+                    nz_w_A = nz_w_A.drop(['nz'])
+                    #nz_w_A = nz_w_A.isel(nod2=n_idxin).load()     
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
                 
-                mat_iz   = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nlevels_nod2D']-1
-                if   'nod_n' in list(mat_area.dims): mat_iz   = mat_iz.isel(nod_n=n_idxin).compute()
-                elif 'nod2'  in list(mat_area.dims): mat_iz   = mat_iz.isel(nod2=n_idxin).compute()   
-            else: 
-                raise ValueError('could not find ...mesh.diag.nc file')
-            
-            # data are on mid depth levels
-            if which_ddim=='nz1': 
-                mat_iz   = mat_iz - 1
-                mat_area = mat_area[:,:-1]
-            
-            #_______________________________________________________________________
-            # create meridional bins
-            lat   = np.arange(np.floor(mesh.n_y[n_idxin].min())+dlat/2, 
-                            np.ceil( mesh.n_y[n_idxin].max())-dlat/2, 
-                            dlat)
-            lat_i = ( (mesh.n_y[n_idxin]-lat[0])/dlat ).astype('int')
+                # data are on mid depth levels
+                if which_ddim=='nz1': 
+                    nz_w_A = nz_w_A.isel(nz=slice(None, -1)).rename({'nz':'nz1'})
                 
-            #_______________________________________________________________________    
-            # select MOC basin 
-            mat_mean = data[vname].isel(nod2=n_idxin)
-            isnan = np.isnan(mat_mean.values)
-            mat_mean.values[isnan] = 0.0
-            mat_area.values[isnan] = 0.0
-            del(isnan)
-            #mat_mean = mat_mean.fillna(0.0)
+                data = data.assign_coords(w_A=nz_w_A)
+                
+            #___________________________________________________________________
+            # select MOC basin
+            data_zm = data.isel(nod2=idxin).load()
             
-            #_______________________________________________________________________
+            #___________________________________________________________________
+            # replace bottom topo with zeros
+            # The notnull() function, often used in the context of pandas and xarray, 
+            # is used to check for non-null (non-NaN) values within a Series or DataFrame. 
+            # It returns a Boolean mask with the same shape as the input data, where 
+            # each element is True if the original element is not null, and False if 
+            # the original element is null (NaN).
+            #mat_area = mat_area.where(mat_mean.notnull(), other=0)
+            data_zm['w_A'] = data_zm['w_A'].where(data_zm[vname].notnull(), other=0)
+            
+            #___________________________________________________________________
             # calculate area weighted mean
-            if 'time' in list(data.dims):
-                nt = data['time'].values.size
-                for nti in range(nt):
-                    mat_mean.data[nti,:,:] = np.multiply(mat_mean.data[nti,:,:], mat_area.data)    
-                    
-                # be sure ocean floor is setted to zero 
-                for di in range(0,ndi): 
-                    #mat_mean.data[:, np.where(di>=mat_iz)[0], di]=0.0
-                    mat_mean.data[:, np.where(di>mat_iz)[0], di]=0.0
-            else:
-                mat_mean.data = np.multiply(mat_mean.data, mat_area.data)
-                
-                # be sure ocean floor is setted to zero 
-                for di in range(0,ndi): 
-                    #mat_mean.data[np.where(di>=mat_iz)[0], di]=0.0
-                    mat_mean.data[np.where(di>mat_iz)[0], di]=0.0
-                
-        #___________________________________________________________________________
-        # This approach is five time faster than the original from dima at least for
-        # COREv2 mesh but needs probaply a bit more RAM
-        if 'time' in list(data.dims): 
-            aux_zonmean  = np.zeros([nt, ndi, lat.size])
-            aux_zonarea  = np.zeros([nt, ndi, lat.size])
-        else                        : 
-            aux_zonmean  = np.zeros([ndi, lat.size])
-            aux_zonarea  = np.zeros([ndi, lat.size])
-        bottom  = np.zeros([lat.size,])
-        numbtri = np.zeros([lat.size,])
-    
-        #  switch topo beteen computation on nodes and elements
-        if do_onelem: topo    = np.float16(mesh.zlev[mesh.e_iz[e_idxin]])
-        else        : topo    = np.float16(mesh.n_z[n_idxin])
-        
-        # this is more or less required so bottom patch looks aceptable
-        topo[np.where(topo>-30.0)[0]]=np.nan  
-        
-        # loop over meridional bins
-        if 'time' in list(data.dims):
-            for bini in range(lat_i.min(), lat_i.max()):
-                numbtri[bini]= np.sum(lat_i==bini)
-                aux_zonmean[:,:, bini]=mat_mean[:,lat_i==bini,:].sum(axis=1)
-                aux_zonarea[:,:, bini]=mat_area[:,lat_i==bini,:].sum(axis=1)
-                bottom[bini] = np.nanpercentile(topo[lat_i==bini],15)
-                
+            data_zm[vname] = data_zm[vname]*data_zm['w_A']
             
-            # kickout outer bins where eventually no triangles are found
-            idx    = numbtri>0
-            aux_zonmean = aux_zonmean[:,:,idx]
-            aux_zonarea = aux_zonarea[:,:,idx]
-            del(mat_mean, mat_area, topo)
-            
-        else:        
-            for bini in range(lat_i.min(), lat_i.max()):
-                numbtri[bini]= np.sum(lat_i==bini)
-                aux_zonmean[:, bini]=mat_mean[lat_i==bini,:].sum(axis=0)
-                aux_zonarea[:, bini]=mat_area[lat_i==bini,:].sum(axis=0)
-                #bottom[bini] = np.nanpercentile(topo[lat_i==bini],15)
-                bottom[bini] = np.nanpercentile(topo[lat_i==bini],10)
-                
-            # kickout outer bins where eventually no triangles are found
-            idx    = numbtri>0
-            aux_zonmean = aux_zonmean[:,idx]
-            aux_zonarea = aux_zonarea[:,idx]
-            del(mat_mean, mat_area, topo)
-            
-        bottom = bottom[idx]
-        lat    = lat[idx]
-        aux_zonmean[aux_zonarea!=0]= aux_zonmean[aux_zonarea!=0]/aux_zonarea[aux_zonarea!=0]
-        
+            #___________________________________________________________________
+            # create meridional bins
+            lat_bin = xr.DataArray(data=np.round(data_zm.lat/dlat)*dlat, dims='nod2', name='lat')
+
         #___________________________________________________________________________
-        if do_smooth: 
-            filt=np.array([1,2,1])
-            filt=filt/np.sum(filt)
-            filt=filt[np.newaxis,:]
-            aux_zonmean[aux_zonarea==0] = 0.0
-            aux_zonmean = convolve2d(aux_zonmean, filt, mode='same', boundary='symm') 
+        # change area weight from coordinates to variable, create new variable for topography
+        data_zm['var_w_A'] = data_zm['w_A']
+        data_zm = data_zm.drop_vars('w_A').rename({'var_w_A':'w_A'})
         
-        #___________________________________________________________________________
-        aux_zonmean[aux_zonarea==0]= np.nan
-        del(aux_zonarea)
-        
-        #___________________________________________________________________________
-        # smooth bottom line a bit 
-        filt=np.array([1,2,3,2,1])
-        filt=filt/np.sum(filt)
-        aux = np.concatenate( (np.ones((filt.size,))*bottom[0],bottom,np.ones((filt.size,))*bottom[-1] ) )
-        aux = np.convolve(aux,filt,mode='same')
-        bottom = aux[filt.size:-filt.size]
-        del aux, filt
-        
-        
-        
-        #___________________________________________________________________________
-        # Create Xarray Datasert for moc_basins
-        # copy global attributes from dataset
-        global_attr = data.attrs
-        
-        # copy local attributes from dataset
-        local_attr  = data[vname].attrs
-        if 'long_name' in local_attr:
-            local_attr['long_name'] = " zonal mean {}".format(local_attr['long_name']) 
-        else:
-            local_attr['long_name'] = " zonal mean {}".format(vname) 
-        
-        # create coordinates
-        if 'time' in list(data.dims):
-            coords    = {'depth' : ([which_ddim], depth), 
-                        'lat'   : (['ny'], lat      ), 
-                        'bottom': (['ny'], bottom   ),
-                        'time'  : (['time'], data['time'].values)}
-            dims = ['time', which_ddim, 'ny']
+        if 'elem' in data.dims:
+            data_zm['bottom'] = xr.DataArray(-mesh.zmid[data_zm['elemiz']]*data_zm['w_A'].isel({which_ddim:0}), dims='elem')
         else:    
-            coords    = {'depth' : ([which_ddim], depth), 
-                        'lat'   : (['ny'], lat      ), 
-                        'bottom': (['ny'], bottom   )}
-            dims = [which_ddim,'ny']
-            # create coordinates
-        data_vars = {vname   : (dims, aux_zonmean, local_attr)} 
-        index_list.append( xr.Dataset(data_vars=data_vars, coords=coords, attrs=global_attr) )
+            data_zm['bottom'] = xr.DataArray(-mesh.zmid[data_zm['nodiz']]*data_zm['w_A'].isel({which_ddim:0}), dims='nod2')
+        
+        if 'depth' not in list(data.coords):
+            data_zm    = data_zm.rename_vars({which_ddim:'depth'})
+        
+        #___________________________________________________________________________
+        # group data by bins
+        if do_info==True: print(' --> do binning of latitudes')
+        data_zm    = data_zm.persist()
+        data_zm    = data_zm.groupby(lat_bin)
+        
+        # zonal sumation of var*weight and weight over bins
+        if do_info==True: print(' --> do sumation/integration over bins')
+        data_zm    = data_zm.sum(skipna=True)
+        
+        # compute weighted mean 
+        data_zm[vname] = data_zm[vname]/data_zm['w_A']
+        if 'elem' in data.dims:
+            data_zm['bottom'] = data_zm['bottom']/data_zm['w_A'].isel({which_ddim:0})
+        else:
+            data_zm['bottom'] = data_zm['bottom']/data_zm['w_A'].isel({which_ddim:0})
+        data_zm = data_zm.drop_vars('w_A')
+        data_zm = data_zm.set_coords('bottom')
+        
+        # transpose data from [lat x nz] --> [nz x lat]
+        dtime, dhz, dnz = 'None', 'lat', which_ddim
+        if 'time' in list(data_zm.dims): dtime = 'time'
+        data_zm = data_zm.transpose(dtime, dnz, dhz, missing_dims='ignore')
+        
+        
+        #_______________________________________________________________________
+        # change attributes
+        local_attr  = data[vname].attrs
+        if 'long_name' in data[vname].attrs:
+            data_zm[vname].attrs['long_name'] = " zonal mean {}".format(data[vname].attrs['long_name']) 
+        else:
+            data_zm[vname].attrs['long_name'] = " zonal mean {}".format(vname) 
+        
+        if 'short_name' in data[vname].attrs:
+            data_zm[vname].attrs['short_name'] = " zonal mean {}".format(data[vname].attrs['short_name']) 
+        else:
+            data_zm[vname].attrs['short_name'] = " zonal mean {}".format(vname) 
         
         #_______________________________________________________________________
         if box is None or box == 'global': 
-            index_list[cnt][vname].attrs['transect_name'] = 'global zonal mean'
+            data_zm[vname].attrs['transect_name'] = 'global zonal mean'
         elif isinstance(box, shp.Reader):
             str_name = box.shapeName.split('/')[-1].replace('_',' ')
-            index_list[cnt][vname].attrs['transect_name'] = '{} zonal mean'.format(str_name.lower())
+            data_zm[vname].attrs['transect_name'] = '{} zonal mean'.format(str_name.lower())
+        
+        #_______________________________________________________________________
+        if do_compute : data_zm = data_zm.compute() 
+        if do_load    : data_zm = data_zm.load()
+        if do_persist : data_zm = data_zm.persist()    
+        
+        #_______________________________________________________________________
+        # append index to list
+        index_list.append(data_zm)
         
         #_______________________________________________________________________
         cnt = cnt + 1
+        
     #___________________________________________________________________________
     if do_outputidx:
         return(index_list, idxin_list)
@@ -1799,7 +1747,7 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
 #+___COMPUTE ZONAL MEAN SECTION________________________________________________+
 #|                                                                             |
 #+_____________________________________________________________________________+
-def plot_zmeantransects(data, figsize=[12, 6], 
+def plot_zmeantransects(data, bidx=0, figsize=[12, 6], 
               n_rc=[1, 1], do_grid=True, cinfo=None, do_rescale=False,
               do_reffig=False, ref_cinfo=None, ref_rescale=False,
               cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
@@ -1840,10 +1788,10 @@ def plot_zmeantransects(data, figsize=[12, 6],
     #___________________________________________________________________________
     # set up color info 
     if do_reffig:
-        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True)
-        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True)
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_index=True, boxidx=bidx)
+        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_index=True, boxidx=bidx)
     else:    
-        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_index=True)
+        cinfo     = do_setupcinfo(cinfo, data, do_rescale, do_index=True, boxidx=bidx)
 
     #_______________________________________________________________________
     # setup normalization log10, symetric log10, None
@@ -1858,13 +1806,13 @@ def plot_zmeantransects(data, figsize=[12, 6],
         
         #_______________________________________________________________________
         # limit data to color range
-        vname= list(data[ii][0].keys())[0]
-        data_plot = data[ii][0][vname].values.copy()
+        vname= list(data[ii][bidx].keys())[0]
+        data_plot = data[ii][bidx][vname].values.copy()
         
         #_______________________________________________________________________
         # setup x-coorod and y-coord
-        lat  , str_xlabel = data[ii][0]['lat'].values   , 'Latitude [deg]'
-        depth, str_ylabel = data[ii][0]['depth'].values , 'Depth [m]'
+        lat  , str_xlabel = data[ii][bidx]['lat'].values   , 'Latitude [deg]'
+        depth, str_ylabel = data[ii][bidx]['depth'].values , 'Depth [m]'
         depth = np.abs(depth)
         
         #_______________________________________________________________________
@@ -1920,7 +1868,7 @@ def plot_zmeantransects(data, figsize=[12, 6],
             aux = np.concatenate( (np.ones((filt.size,))*bottom[0],bottom,np.ones((filt.size,))*bottom[-1] ) )
             aux = np.convolve(aux,filt,mode='same')
             bottom = aux[filt.size:-filt.size]
-            bottom = np.maximum(bottom, data[ii][0]['bottom'].values)
+            bottom = np.maximum(bottom, data[ii][bidx]['bottom'].values)
             
             ax[ii].fill_between(lat, bottom, depth[-1],color=[0.5,0.5,0.5], zorder=2)#,alpha=0.95)
             ax[ii].plot(lat, bottom, color='k')
@@ -1940,8 +1888,8 @@ def plot_zmeantransects(data, figsize=[12, 6],
             if   isinstance(title,str) : 
                 # if title string is 'descript' than use descript attribute from 
                 # data to set plot title 
-                if title=='descript' and ('descript' in data[ii][0][vname].attrs.keys() ):
-                    txts = data[ii][0][vname].attrs['descript']
+                if title=='descript' and ('descript' in data[ii][bidx][vname].attrs.keys() ):
+                    txts = data[ii][bidx][vname].attrs['descript']
                 else:
                     txts = title
             # is title list of string        
@@ -1977,10 +1925,12 @@ def plot_zmeantransects(data, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set superior title
-    if 'transect_name' in data[ii][0][vname].attrs.keys():
-        fig.suptitle( data[ii][0][vname].attrs['transect_name'], x=0.5, y=1.04, fontsize=16, 
-                     horizontalalignment='center', verticalalignment='bottom')
-    
+    if 'transect_name' in data[ii][bidx][vname].attrs.keys():
+        htitle = fig.suptitle( data[ii][bidx][vname].attrs['transect_name'], fontsize=16, #, x=0.0, y=1.04
+                               horizontalalignment='right', verticalalignment='bottom')
+        #htitle=fig.suptitle( 'sdfasfpafagjagnlgnjklasgnjklaf', fontsize=16, ha='right')
+        htitle.set_position([0.5, 1.00])
+
     #___________________________________________________________________________
     # delete axes that are not needed
     #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
@@ -1999,14 +1949,14 @@ def plot_zmeantransects(data, figsize=[12, 6],
         
         # do labeling of colorbar
         if cbar_label is None : 
-            if   'short_name' in data[0][0][vname].attrs:
-                cbar_label = data[0][0][ vname ].attrs['short_name']
-            elif 'long_name' in data[0][0][vname].attrs:
-                cbar_label = data[0][0][ vname ].attrs['long_name']
+            if   'short_name' in data[0][bidx][vname].attrs:
+                cbar_label = data[0][bidx][ vname ].attrs['short_name']
+            elif 'long_name' in data[0][bidx][vname].attrs:
+                cbar_label = data[0][bidx][ vname ].attrs['long_name']
         if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
         else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
-        if 'str_ltim' in data[0][0][vname].attrs.keys():
-            cbar_label = cbar_label+'\n'+data[0][0][vname].attrs['str_ltim']
+        if 'str_ltim' in data[0][bidx][vname].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0][bidx][vname].attrs['str_ltim']
         cbar.set_label(cbar_label, size=fontsize+2)
     else:
         cbar=list()
@@ -2021,13 +1971,13 @@ def plot_zmeantransects(data, figsize=[12, 6],
                             extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
                 aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
                 #cbar_label ='anom. '
-            if   'short_name' in data[ii][0][vname].attrs:
-                cbar_label = cbar_label+data[ii][0][ vname ].attrs['short_name']
-            elif 'long_name' in data[ii][0][vname].attrs:
-                cbar_label = cbar_label+data[ii][0][ vname ].attrs['long_name']
+            if   'short_name' in data[ii][bidx][vname].attrs:
+                cbar_label = cbar_label+data[ii][bidx][ vname ].attrs['short_name']
+            elif 'long_name' in data[ii][bidx][vname].attrs:
+                cbar_label = cbar_label+data[ii][bidx][ vname ].attrs['long_name']
             if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][0][ vname ].attrs['units']+']'
             else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
-            if 'str_ltim' in data[ii][0][vname].attrs.keys():
+            if 'str_ltim' in data[ii][bidx][vname].attrs.keys():
                 cbar_label = cbar_label+'\n'+data[ii][0][vname].attrs['str_ltim']
             aux_cbar.set_label(cbar_label, size=fontsize+2)
             cbar.append(aux_cbar)
