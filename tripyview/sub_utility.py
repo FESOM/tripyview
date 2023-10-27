@@ -609,21 +609,23 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_medito
 #
 #
 #_______________________________________________________________________________
-def do_boxmask(mesh, box, do_elem=False):
+def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
     #___________________________________________________________________________
-    if do_elem: 
-        #mesh_x, mesh_y = mesh.n_x[mesh.e_i].sum(axis=1)/3.0, mesh.n_y[mesh.e_i].sum(axis=1)/3.0
-        mesh_y = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
-        mesh_x = mesh.n_x[mesh.e_i]
-        
-        # account for czczlic boundary
-        xmin   = mesh_x.min(axis=1)
-        xmin   = np.transpose(mesh_x.T - xmin)
-        mesh_x[xmin>=180.0] = mesh_x[xmin>=180.0]-360.0
-        mesh_x[xmin<-180.0] = mesh_x[xmin<-180.0]+360.0
-        mesh_x = mesh_x.sum(axis=1)/3.0
-        del(xmin)
-    else      : mesh_x, mesh_y = mesh.n_x, mesh.n_y
+    if (mesh_x is None) and (mesh_y is None) :
+        if do_elem: 
+            #mesh_x, mesh_y = mesh.n_x[mesh.e_i].sum(axis=1)/3.0, mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+            mesh_y = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+            mesh_x = mesh.n_x[mesh.e_i]
+            
+            # account for czczlic boundary
+            xmin   = mesh_x.min(axis=1)
+            xmin   = np.transpose(mesh_x.T - xmin)
+            mesh_x[xmin>=180.0] = mesh_x[xmin>=180.0]-360.0
+            mesh_x[xmin<-180.0] = mesh_x[xmin<-180.0]+360.0
+            mesh_x = mesh_x.sum(axis=1)/3.0
+            del(xmin)
+        else      : 
+            mesh_x, mesh_y = mesh.n_x, mesh.n_y
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
@@ -663,8 +665,12 @@ def do_boxmask(mesh, box, do_elem=False):
                 idx_IN = np.logical_or(idx_IN, auxidx)
         
     elif (isinstance(box, shp.Reader)):
-        if do_elem: idx_IN = np.zeros((mesh.n2de,), dtype=bool)
-        else      : idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+        #if (mesh_x is None) and (mesh_y is None) :
+            #if do_elem: idx_IN = np.zeros((mesh.n2de,), dtype=bool)
+            #else      : idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
+        #else:
+        idx_IN = np.zeros((mesh_x.size,), dtype=bool)
+            
         for shape in box.shapes(): 
             p      = Polygon(shape.points)
             auxidx = contains(p, mesh_x, mesh_y)
