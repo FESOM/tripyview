@@ -160,7 +160,7 @@ def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_
  
         #__________________________________________________________________________
         # Create xarray dataset
-        list_dimname, list_dimsize = ['nlat'], [lat.size]
+        list_dimname, list_dimsize = ['lat'], [lat.size]
         data_vars = dict()
         aux_attr  = data[vname].attrs
         #aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
@@ -171,9 +171,8 @@ def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_
         aux_attr['units']      = 'PW'
         data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
         # define coordinates
-        coords    = {'nlat' : (['nlat' ], lat )}
-        # create dataset
-        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+        coords    = {'lat' : (['lat' ], lat )}
+        # create dataset        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
         del(data_vars, coords, aux_attr)
     
         #___________________________________________________________________________
@@ -251,6 +250,204 @@ def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_
         #_______________________________________________________________________
         if len(box_list)==1: list_mhflx = mhflx
         else               : list_mhflx.append(mhflx)
+        
+    #___________________________________________________________________________
+    return(list_mhflx)
+
+
+
+#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def calc_mhflx_box_fast(mesh, data, box_list, dlat=1.0, do_info=True, do_checkbasin=False, 
+                        do_compute=False, do_load=True, do_persist=False, do_buflay=True, 
+                        do_parallel=False, n_workers=10, 
+                        ):
+    #___________________________________________________________________________
+    vname_list = list(data.keys())
+    vnamet = None
+    if 'temp' in vname_list:
+        vnamet = 'temp'
+        vname_list.remove('temp')
+    for vi in vname_list:
+        if 'u' in vi: vnameu=vi
+        if 'v' in vi: vnamev=vi
+    #vnameu, vnamev = vname_list[0], vname_list[1]
+    
+    # save global and local variable attributes
+    gattr = data.attrs
+    vattr = data[vnameu].attrs
+
+    #___________________________________________________________________________
+    # factors for heatflux computation
+    rho0 = 1030 # kg/m^3
+    cp   = 3850 # J/kg/K
+    inPW = 1.0e-15
+    
+    #_______________________________________________________________________
+    # define function for longitudinal binning --> should be possible to 
+    # parallelize this loop since each lon bin is independent
+    def sum_over_latbin(lat_i, data_box, vnameu, vnamev, vnamet):
+        #___________________________________________________________________
+        # compute which edge is cutted by the binning line along latitude
+        # to select the  lat bin cutted edges with where is by far the fastest option
+        # compared to using ...
+        # idx_latbin  = (  (data.edge_y[0,:]-lat_i)*(data.edge_y[1,:]-lat_i) <= 0.) & \
+        #                 )
+        # data_lonbin = data.groupby(idx_lonbin)[True]
+        # --> groupby is here a factor 5-6 slower than using isel+np.where
+        data_latbin = data_box.isel(edg_n=np.where(  
+                    (data_box.edge_y[0,:]-lat_i)*(data_box.edge_y[1,:]-lat_i) <= 0.0)[0])
+        
+        # change direction of edge to make it consistent
+        idx_direct = data_latbin.edge_y[0,:]<=lat_i
+        data_latbin.edge_dx_lr[:,idx_direct] = -data_latbin.edge_dx_lr[:,idx_direct]
+        data_latbin.edge_dy_lr[:,idx_direct] = -data_latbin.edge_dy_lr[:,idx_direct]
+        del(idx_direct)
+        
+        # make sure that value of right boundary triangle is zero when boundary edge 
+        data_latbin[vnameu][1, data_latbin.edge_tri[1,:]<0 ,:] = 0.0
+        data_latbin[vnamev][1, data_latbin.edge_tri[1,:]<0 ,:] = 0.0
+        
+        # compute transport u,v --> u*dx,v*dy
+        data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['edge_dx_lr'] 
+        data_latbin[vnamev] = data_latbin[vnamev] * data_latbin['edge_dy_lr'] 
+        
+        # compute u*t, v*t if data wasnt already ut,vt
+        if vnamet is not None:
+            data_latbin[vnameu] = data_latbin[vnameu]*(data_latbin[vnamet][0,:]+data_latbin[vnamet][1,:])*0.5
+            data_latbin[vnamev] = data_latbin[vnamev]*(data_latbin[vnamet][0,:]+data_latbin[vnamet][1,:])*0.5
+        
+        # multiply with layer thickness
+        data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['dz'] 
+        data_latbin[vnamev] = data_latbin[vnamev] * data_latbin['dz']
+         
+        # sum already over vflux contribution from left and right triangle 
+        # and over cutted edges 
+        data_latbin[vnameu] = data_latbin[vnameu].sum(dim=['n2','edg_n'], skipna=True)
+        data_latbin[vnamev] = data_latbin[vnamev].sum(dim=['n2','edg_n'], skipna=True)
+        
+        # integrate vertically
+        data_latbin = data_latbin.sum(dim='nz1', skipna=True) * rho0*cp*inPW*(-1)
+            
+        return(data_latbin[vnameu] + data_latbin[vnamev])
+        
+    #___________________________________________________________________________
+    # Loop over boxes/regions/shapefiles ...
+    list_mhflx=list()
+    for box in box_list:
+        #_______________________________________________________________________
+        if not isinstance(box, shp.Reader):
+            if len(box)==2: boxname, box = box[1], box[0]
+            if box is None or box=='global': boxname='global'
+        else:     
+            boxname = os.path.basename(box.shapeName)
+            boxname = boxname.split('_')[0].replace('_',' ')  
+        
+        #_______________________________________________________________________
+        # select box area
+        if box=='global':
+            data_box = data
+            n_idxin = np.ones(mesh.n2dn,dtype='bool')
+        else:     
+            #___________________________________________________________________
+            # compute box mask index for nodes
+            #  --> sometimes it can be be that the shapefile is to small in this case 
+            #  boundary triangles might not get selected therefore we if any node
+            #  points of an edge triangle is within the shapefile
+            e_idxin = do_boxmask(mesh,box,do_elem=True)
+            e_i     = mesh.e_i[e_idxin,:]
+            e_i     = np.unique(e_i.flatten())
+            n_idxin = np.zeros(mesh.n2dn,dtype='bool')
+            n_idxin[e_i]=True
+            n_idxin_b = n_idxin.copy()
+            del(e_i, e_idxin)
+            if do_buflay:
+                # add a buffer layer of selected triangles --> sometimes it can be be that 
+                # the shapefile is to small in this case boundary triangles might not get 
+                # selected. Therefor extend the selection of edges 
+                e_idxin = n_idxin[mesh.e_i].max(axis=1)
+                e_i = mesh.e_i[e_idxin,:]
+                e_i = np.unique(e_i.flatten())
+                n_idxin_b[e_i]=True
+                del(e_i, e_idxin)
+            idx_IN   = n_idxin_b[data.edges].any(axis=0)
+            data_box = data.isel({'edg_n':idx_IN})
+            #___________________________________________________________________
+            if do_checkbasin:
+                from matplotlib.tri import Triangulation
+                tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+                plt.figure()
+                ax = plt.gca()
+                plt.triplot(tri, color='k')
+                plt.plot(data_box.edge_x[0,:], data_box.edge_y[0,:], '*r', linestyle='None', markersize=1)
+                plt.plot(data_box.edge_x[1,:], data_box.edge_y[1,:], '*r', linestyle='None', markersize=1)
+                plt.title('Basin selection')
+                plt.show()
+            
+        #_______________________________________________________________________
+        # do zonal sum over latitudinal bins 
+        lat_min  = np.ceil( mesh.n_y[n_idxin].min())  
+        lat_max  = np.floor(mesh.n_y[n_idxin].max())
+        lat      = np.arange(lat_min+dlat/2, lat_max-dlat/2, dlat )
+        
+        #_______________________________________________________________________
+        # Create xarray dataset
+        list_dimname, list_dimsize = ['nlat'], [lat.size]
+        data_vars = dict()
+        # define variable attributes 
+        vattr['long_name' ] = f'Meridional Heat Transport'
+        vattr['short_name'] = f'Merid. Heat Transp.'
+        vattr['boxname'   ] = boxname
+        vattr['units'     ] = 'PW'
+        # define data_vars dict, coordinate dict, as well as list of dimension name 
+        # and size 
+        data_vars, coords, dim_n, dim_s,  = dict(), dict(), list(), list()
+        if 'time' in list(data_box.dims): dim_n.append('time')
+        dim_n.append('lat'); 
+        for dim_ni in dim_n:
+            if   dim_ni=='time': dim_s.append(data_box.sizes['time']); coords['time' ]=(['time'], data_box['time'].data ) 
+            elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
+        data_vars['mhflx'] = (dim_n, np.zeros(dim_s, dtype='float32')*np.nan, vattr) 
+        # create dataset
+        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+        del(data_vars, coords, dim_n, dim_s, lat)
+        
+        #_______________________________________________________________________
+        # do serial loop over bins
+        if not do_parallel:
+            ts = ts1 = clock.time()
+            if do_info: print('\n ___loop over latitudinal bins___'+'_'*90, end='\n')
+            for iy, lat_i in enumerate(mhflx.lat):
+                #_______________________________________________________________
+                if do_info: print('{:+06.1f}|'.format(lat_i), end='')
+                if np.mod(iy+1,15)==0 and do_info:
+                    print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
+                    ts1 = clock.time()
+                if 'time' in data_box.dims: mhflx['mhflx'][:,iy] = sum_over_latbin(lat_i, data_box, vnameu, vnamev, vnamet)
+                else                      : mhflx['mhflx'][  iy] = sum_over_latbin(lat_i, data_box, vnameu, vnamev, vnamet)       
+        
+        # do parallel loop over bins        
+        else:
+            ts = ts1 = clock.time()
+            if do_info: print('\n ___parallel loop over latitudinal bins___'+'_'*1, end='\n')
+            from joblib import Parallel, delayed
+            results = Parallel(n_jobs=n_workers)(delayed(sum_over_latbin)(lat_i, data_box, vnameu, vnamev, vnamet) for lat_i in mhflx.lat)
+            if 'time' in data_box.dims: mhflx['mhflx'][:,:] = xr.concat(results, dim='lat').transpose('time','lat')
+            else                      : mhflx['mhflx'][  :] = xr.concat(results, dim='lat')
+     
+        #_______________________________________________________________________
+        if do_compute: mhflx = mhflx.compute()
+        if do_load   : mhflx = mhflx.load()
+        if do_persist: mhflx = mhflx.persist()
+        
+        #_______________________________________________________________________
+        if len(box_list)==1: list_mhflx = mhflx
+        else               : list_mhflx.append(mhflx)
+        
+        #_______________________________________________________________________
+        del(mhflx)
+        
     #___________________________________________________________________________
     return(list_mhflx)
 
@@ -302,72 +499,121 @@ def calc_gmhflx(mesh, data, lat):
 #+___COMPUTE MERIDIONAL HEATFLUX FROM TRACER ADVECTION TROUGH BINNING_________+
 #|                                                                             |
 #+_____________________________________________________________________________+
-def calc_gmhflx_box(mesh, data, box_list, dlat=1.0):
-    list_ghflx=list()
+def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True, 
+                    do_compute=False, do_load=True, do_persist=False, 
+                    do_parallel=False, n_workers=10, 
+                   ):
     #___________________________________________________________________________
-    vname       = list(data.keys())[0]
-    data[vname] = data[vname]*data['w_A']
+    vname = list(data.keys())[0]
+    
+    # save global and local variable attributes
+    gattr = data.attrs
+    vattr = data[vname].attrs
+    
     # factors for heatflux computation
     inPW = 1.0e-15
     
+    if 'nod2' in list(data.dims) : dimh, do_elem = 'nod2', False
+    if 'elem' in list(data.dims) : dimh, do_elem = 'elem', True
+    
+    #___________________________________________________________________________
+    # define subroutine for binning over latitudes, allows for parallelisation
+    def sum_over_lat(lat_i, lat_bin, data, dimh):
+        #_______________________________________________________________________
+        # compute which vertice is within the latitudinal bin
+        # --> groupby is here a factor 5-6 slower than using isel+np.where
+        data_latbin = data.isel({dimh:np.where(lat_bin==lat_i)[0]})
+        data_latbin = data_latbin.sum(dim=dimh, skipna=True)
+        return(data_latbin)
+        
     #___________________________________________________________________________
     # Loop over boxes
+    list_gmhflx=list()
     for box in box_list:
-        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
-            if len(box)==2: boxname, box = box[1], box[0]
-        elif isinstance(box, shp.Reader):
-            #boxname = box.shapeName.split('/')[-1].replace('_',' ')
-            boxname = box.shapeName.split('/')[-1]
-            boxname = boxname.split('_')[0].replace('_',' ')
-            print(boxname)
-        elif box =='global':    
-            boxname = 'global'
-            
         #_______________________________________________________________________
-        # compute box mask index for nodes 
-        n_idxin=do_boxmask(mesh,box)
+        if not isinstance(box, shp.Reader):
+            if len(box)==2: boxname, box = box[1], box[0]
+            if box is None or box=='global': boxname='global'
+        else:     
+            boxname = os.path.basename(box.shapeName).replace('_',' ')  
+           
+        #_______________________________________________________________________
+        # compute  mask index
+        idx_IN   = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimh).chunk({dimh:data.chunksizes[dimh]})
+        
+        #_______________________________________________________________________
+        # select box area
+        data_box = data.isel({dimh:idx_IN})
+        
+        #_______________________________________________________________________
+        # multiply 2D data with area weight
+        data_box = data_box[vname]*data_box['w_A']
+        data_box = data_box.load()
         
         #_______________________________________________________________________
         # do zonal sum over latitudinal bins 
-        lat   = np.arange(np.floor(mesh.n_y[n_idxin].min())+dlat/2, 
-                          np.ceil( mesh.n_y[n_idxin].max())-dlat/2, 
-                          dlat)
-        lat_i = (( mesh.n_y[n_idxin]-lat[0])/dlat ).astype('int')    
+        lat_bin  = xr.DataArray(data=np.round(data_box.lat/dlat)*dlat, dims='nod2', name='lat')
+        lat      = np.arange(lat_bin.min(), lat_bin.max()+dlat, dlat)
         
         #_______________________________________________________________________
         # Create xarray dataset
-        list_dimname, list_dimsize = ['nlat'], [lat.size]
-        data_vars = dict()
-        aux_attr  = data[vname].attrs
-        #aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
-        #aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
-        aux_attr['long_name']  = f'Meridional Heat Transport'
-        aux_attr['short_name'] = f'Merid. Heat Transp.'
-        aux_attr['boxname']    = boxname
-        aux_attr['units']      = 'PW'
-        data_vars['gmhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
-        # define coordinates
-        coords    = {'nlat' : (['nlat' ], lat )}
+        tm1= clock.time()
+        # define variable attributes  
+        vattr['long_name' ] = f'Meridional Heat Transport'
+        vattr['short_name'] = f'Merid. Heat Transp.'
+        vattr['boxname'   ] = boxname
+        vattr['units'     ] = 'PW'
+        # define data_vars dict, coordinate dict, as well as list of dimension name 
+        # and size 
+        data_vars, coords, dim_n, dim_s,  = dict(), dict(), list(), list()
+        if 'time' in list(data.dims): dim_n.append('time')
+        dim_n.append('lat'); 
+        for dim_ni in dim_n:
+            if   dim_ni=='time': dim_s.append(data.sizes['time']); coords['time' ]=(['time'], data['time'].data ) 
+            elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
+        data_vars['gmhflx'] = (dim_n, np.zeros(dim_s, dtype='float32'), vattr) 
         # create dataset
-        ghflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
-        del(data_vars, coords, aux_attr)
+        gmhflx = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+        del(data_vars, coords, dim_n, dim_s, lat)
+        
+        #___________________________________________________________________________
+        # do serial loop over latitudinal bins
+        if not do_parallel:
+            if do_info: print('\n ___loop over latitudinal bins___'+'_'*90, end='\n')
+            for iy, lat_i in enumerate(lat):
+                if 'time' in data.dims: gmhflx['gmhflx'][:,iy] = sum_over_lat(lat_i, lat_bin, data_box, dimh)
+                else                  : gmhflx['gmhflx'][  iy] = sum_over_lat(lat_i, lat_bin, data_box, dimh)
+        
+        # do parallel loop over latitudinal bins
+        else:
+            if do_info: print('\n ___parallel loop over longitudinal bins___'+'_'*1, end='\n')
+            from joblib import Parallel, delayed
+            results = Parallel(n_jobs=n_workers)(delayed(sum_over_lat)(lat_i, lat_bin, data_box, dimh) for lat_i in gmhflx.lat)
+            if 'time' in data.dims: gmhflx['gmhflx'][:,:] = xr.concat(results, dim='lat').transpose('time','lat')
+            else                  : gmhflx['gmhflx'][  :] = xr.concat(results, dim='lat')
+        del(data_box, lat_bin)
         
         #_______________________________________________________________________
-        data_box = data[vname].isel(nod2=n_idxin)
-        for bini in range(lat_i.min(), lat_i.max()):
-            # sum over latitudinal bins
-            ghflx['gmhflx'].data[bini] = data_box.isel(nod2=lat_i==bini).sum(dim='nod2')*inPW
+        gmhflx['gmhflx'] = gmhflx['gmhflx'] * inPW
         
         #_______________________________________________________________________
         # do cumulative sum over latitudes    
-        ghflx['gmhflx'] = -ghflx['gmhflx'].cumsum(dim='nlat', skipna=True) 
-    
+        gmhflx['gmhflx'] = -gmhflx['gmhflx'].cumsum(dim='lat', skipna=True) 
+        
+        #___________________________________________________________________________
+        if do_compute: gmhflx = gmhflx.compute()
+        if do_load   : gmhflx = gmhflx.load()
+        if do_persist: gmhflx = gmhflx.persist()
+        
         #_______________________________________________________________________
-        if len(box_list)==1: list_ghflx = ghflx
-        else               : list_ghflx.append(ghflx)
+        if len(box_list)==1: list_gmhflx = gmhflx
+        else               : list_gmhflx.append(gmhflx)
+        
+        #_______________________________________________________________________
+        del(gmhflx)
         
     #___________________________________________________________________________
-    return(list_ghflx)
+    return(list_gmhflx)
 
 
 
@@ -594,7 +840,7 @@ def plot_mhflx(mhflx_list, input_names, sect_name=None, str_descript='', str_tim
                 if 'units'    in datap1[vname].attrs.keys(): str_units = datap1[vname].attrs['units']
                 if 'str_ltim' in datap1[vname].attrs.keys(): str_ltim  = datap1[vname].attrs['str_ltim']
                 #_______________________________________________________________
-                datap_x, datap_y = datap1['nlat'].values, datap1[vname].values
+                datap_x, datap_y = datap1['lat'].values, datap1[vname].values
                 hp=ax.plot(datap_x, datap_y, 
                         linewidth=1, linestyle=lstyle[jj_ts], label=f"{datap_name} {boxname}", color=cmap.colors[ii_ts,:], 
                         marker='None', markerfacecolor='w', markersize=5, 
@@ -608,7 +854,7 @@ def plot_mhflx(mhflx_list, input_names, sect_name=None, str_descript='', str_tim
             if 'units'    in datap[vname].attrs.keys(): str_units = datap[vname].attrs['units']
             if 'str_ltim' in datap[vname].attrs.keys(): str_ltim  = datap[vname].attrs['str_ltim']
             #___________________________________________________________________
-            datap_x, datap_y = datap['nlat'].values, datap[vname].values
+            datap_x, datap_y = datap['lat'].values, datap[vname].values
             hp=ax.plot(datap_x, datap_y, 
                     linewidth=1, label=datap_name, color=cmap.colors[ii_ts,:], 
                     marker='None', markerfacecolor='w', markersize=5, 
