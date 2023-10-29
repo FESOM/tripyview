@@ -57,7 +57,7 @@ def create_3dsphere_ocean_mesh(mesh, data, potatoefac=0.5,variable='elevation', 
     #___________________________________________________________________________
     # add variables to ocean mesh
     vname = list(data.keys())[0]
-    if not any(x in vname for x in ['depth','topo','topography','zcoord','bathymetry']):    
+    if not any(x in vname for x in ['ndepth','ntopo','n_depth','n_topo','zcoord','bathymetry']):    
         meshpv_ocean['topo'] = -mesh.n_z
     
     meshpv_ocean[vname] = data[vname].values
@@ -192,7 +192,7 @@ def create_3dsphere_land_mesh(mesh, resol=1, potatoefac=1, do_topo=False, topo_p
     if do_topo: 
         meshpv_land['topo'] = bottom_depth_2d
         print(bottom_depth_2d.shape)
-    del bottom_depth_2d
+        del bottom_depth_2d
     
     #___________________________________________________________________________
     return meshpv_land
