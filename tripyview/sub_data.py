@@ -85,9 +85,13 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     xr.set_options(keep_attrs=True)
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
-    if vname in ['depth', 'topo', 'topography','zcoord', 'narea', 'n_area', 'clusterarea', 'scalararea'
-                 'nresol', 'n_resol', 'resolution', 'resol', 'earea', 'e_area', 'triarea',
-                 'eresol','e_resol','triresolution','triresol','edepth','etopo','e_depth','e_topo']:
+    if vname in ['topography','zcoord', 
+                 'narea', 'n_area', 'clusterarea', 'scalararea', 
+                 'earea', 'e_area', 'triarea',
+                 'nresol', 'n_resol', 'resolution', 'resol', 
+                 'eresol','e_resol','triresolution','triresol',
+                 'edepth','etopo','e_depth','e_topo',
+                 'ndepth', 'ntopo', 'n_depth', 'n_topo', ]:
         data = xr.Dataset()                        
         #___________________________________________________________________________
         # store topography in data
