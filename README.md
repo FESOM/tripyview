@@ -30,7 +30,8 @@ make sure your conda environment uses python=3.8 (conda create --name myenvpy38 
 # If you want to use the interactive features in tools/do_topo@elem_or_node.ipynb
 # due to python issues you will need jupyter_server=1.23.6, jupyter_client=7.3.2, 
 # tornad=6.1 --> its the only combination where this features works in moment!!!
-conda install -c conda-forge cartopy netcdf4=1.6.0 (python=3.8)
+conda install -c conda-forge cartopy netcdf4=1.6.0 libstdcxx-ng 
+(libstdcxx-ng is needed so that pyvista is able to plot interactively, python=3.8)
 cd tripyview
 pip install -e .
 
@@ -115,7 +116,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `mhflx`        - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
 
 #### 3D plotting: 
-* `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface
+* `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface. Full functionality can be only achieved with jupyter-lab (<4.0)
 <p align="center" width="100%">
   <img width=75% src="tripyview/tripyview_icon_NH.png">
 </p>

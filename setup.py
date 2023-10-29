@@ -19,6 +19,7 @@ requirements = [
     'ipython',
     'joblib',
     'jupyter',
+    'jupyterlab<4.0',
     'matplotlib',
     #'pickle5',
     "pickle5; python_version<'3.9'",
@@ -38,7 +39,7 @@ requirements = [
     'black',
     'jinja2',
     'pyyaml',
-    'pyvista',
+    'pyvista[all,jupyter,trame]',
     'vtk',
     'ipyvtklink',
     'ipympl'
