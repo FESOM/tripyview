@@ -42,6 +42,7 @@ requirements = [
     'pyvista[all,jupyter,trame]',
     'vtk',
     'ipyvtklink',
+    'imageio[ffmpeg]', 
     'ipympl'
 ]
 
