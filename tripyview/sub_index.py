@@ -36,7 +36,7 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
             if box is None or box=='global': boxname='global'
         else:     
             boxname = os.path.basename(box.shapeName).replace('_',' ')  
-            
+           
         #_______________________________________________________________________
         # compute  mask index
         if   'nod2' in data.dims: 
@@ -44,7 +44,7 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
             
         elif 'elem' in data.dims: 
             idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem').chunk({'elem':data.chunksizes['elem']})
-        
+           
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
         # points
@@ -53,11 +53,11 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         elif 'elem' in data.dims: dim_name.append('elem')    
         if   'nz'   in data.dims: dim_name.append('nz')
         elif 'nz1'  in data.dims: dim_name.append('nz1')      
-            
+                
         if do_harithm=='wmean' and do_zarithm=='wmean':
             if   'nod2' in data.dims:
                 weights = data['w_A']*data['w_z']
-                data    = data.drop(['w_A', 'w_z'])
+                data    = data.drop_vars(['w_A', 'w_z'])
                 weights = weights/weights.sum(dim=dim_name, skipna=True)
                 data    = data*weights.astype('float32', copy=False )
                 index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
@@ -76,29 +76,22 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
                 index = do_depth_arithmetic(index, do_zarithm, 'nz1')
             elif 'nz'  in data.dims and do_harithm is not None:        
                 index = do_depth_arithmetic(index, do_zarithm, 'nz')
-                
+                    
         index_list.append(index)
         idxin_list.append(idx_IN)
         del(index)
         
         #_______________________________________________________________________
         warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
         if do_compute: index_list[cnt] = index_list[cnt].compute()
         if do_load   : index_list[cnt] = index_list[cnt].load()
         if do_persist: index_list[cnt] = index_list[cnt].persist()
         warnings.resetwarnings()
-        
+            
         #_______________________________________________________________________
         vname = list(index_list[cnt].keys())    
         index_list[cnt][vname[0]].attrs['boxname'] = boxname
-        #print(boxname)
-        #if boxname is not None: 
-            
-        #elif isinstance(box, shp.Reader):
-            #index_list[cnt][vname[0]].attrs['boxname'] = os.path.basename(box.shapeName).replace('_',' ')  
-        #elif boxname is None or boxname=='global': 
-            #index_list[cnt][vname[0]].attrs['boxname'] = 'global'
         
         #_______________________________________________________________________
         cnt = cnt + 1
@@ -216,14 +209,15 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
         
         # loop over data
         for di in range(0,ndi):
-                
-            vname = list(index_list[di][bi].keys())
-            val   = index_list[di][bi][vname[0]].values.copy()
+            
+            #___________________________________________________________________
+            vname = list(index_list[di][bi].keys())[0]
+            val   = index_list[di][bi][vname].values.copy()
             val, str_rescale= do_rescale_data(val, do_rescale)
+            cname = list(index_list[di][bi].coords)[0]
+            dep = np.abs(index_list[di][bi].coords[cname].values)
             
-            cname = list(index_list[di][bi].coords)
-            dep = np.abs(index_list[di][bi].coords[cname[0]].values)
-            
+            #___________________________________________________________________
             linestyle = 'solid'
             if linestyle_list is not None: 
                 if (not linestyle_list[di])==False: linestyle =  linestyle_list[di]
@@ -232,10 +226,8 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
                 lwidth = linewidth[di]
             else:
                 lwidth = linewidth
-        
-            #ax[bi].plot(val,dep, color='k', linewidth=lwidth*1.05)
+            #___________________________________________________________________
             if linecolor_list is None: 
-                
                 ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=lwidth, alpha=do_alpha)
             else:
                 if isinstance(linecolor_list[di], (list, np.ndarray)):
@@ -247,22 +239,18 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
                 elif isinstance(linecolor_list[di], str):
                     ax[bi].plot(val,dep, color=linecolor_list[di], 
                                 label=label_list[di], linestyle=linestyle, linewidth=lwidth, alpha=do_alpha)
-                #if not linecolor_list[di]:
-                    #ax[bi].plot(val,dep, label=label_list[di], linestyle=linestyle, linewidth=linewidth)
-                #else:
-                    
-                    
         #_______________________________________________________________________
-        # if bi==nbi-1 : 
+        # do legend and legend positioning 
+        # -->bbox_to_anchor=(1.0, 1.0), loc='upper left' this should make sure 
+        #    that the legend is always outside in the upper right corner 
         if bi==n_rc[1]-1 : 
-            ax[bi].legend(loc='upper right', 
-                          frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+            ax[bi].legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
                           labelspacing=1.0,
-                          bbox_to_anchor=(2.3, 1.0)) #bbox_to_anchor=(1.5, 1.5))
-        
+                          bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
+
         #_______________________________________________________________________
-        if 'boxname' in index_list[di][bi][vname[0]].attrs.keys(): 
-            str_title = index_list[di][bi][vname[0] ].attrs['boxname']
+        if 'boxname' in index_list[di][bi][vname].attrs.keys(): 
+            str_title = index_list[di][bi][vname].attrs['boxname']
         elif (isinstance(box_list[bi], shp.Reader)): 
             str_title = os.path.basename(box_list[bi].shapeName)
         else:                                      
@@ -275,10 +263,10 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
             ax[bi].set_ylabel('depth [m]')
         
         #_______________________________________________________________________
-        if cbar_label is None     : str_xlabel = index_list[di][bi][ vname[0] ].attrs['long_name']
+        if cbar_label is None     : str_xlabel = index_list[di][bi][ vname ].attrs['long_name']
         else                      : str_xlabel = cbar_label
         if str_rescale is not None: str_xlabel = str_xlabel+str_rescale  
-        if cbar_unit  is None     : str_xlabel = str_xlabel+'\n ['+index_list[di][bi][ vname[0] ].attrs['units']+']'
+        if cbar_unit  is None     : str_xlabel = str_xlabel+'\n ['+index_list[di][bi][ vname ].attrs['units']+']'
         else                      : str_xlabel = str_xlabel+'\n ['+cbar_unit+']'    
         ax[bi].set_xlabel(str_xlabel)
         
