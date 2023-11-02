@@ -21,8 +21,9 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
                      descript='', runid='fesom', do_showtime=False, do_prec='float32', 
                      do_zweight=False, do_hweight=True, do_f14cmip6=False, 
                      do_compute=False, do_load=True, do_persist=False, 
-                     chunks={'time':'auto', 'elem':'auto', 'nod2':'auto', \
-                            'edg_n':'auto', 'nz':'auto', 'nz1':'auto'},
+                     chunks={'time' :'auto', 'elem':'auto', 'nod2':'auto', \
+                             'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
+                             'ndens':'auto'},
                      **kwargs):
     """
     ---> load FESOM2 data:
