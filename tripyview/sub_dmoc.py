@@ -224,16 +224,17 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIV':'dmoc'})
-        data_div  = data_div.drop_vars(['ndens','lon','lat', 'nodi']) 
+        data_div  = data_div.drop_vars(['ndens', 'nodi']) 
         data_div  = data_div.assign_coords({'dens':dens.chunk({'ndens':data_div.chunksizes['ndens']})})
         
         # doing this step here so that the MOC amplitude is correct, setp 1 of 2
         # divide with verice area
         data_div  = data_div/data_div['w_A']    # --> vertice area
-        data_div  = data_div.drop_vars(['w_A']) # --> dont need from here on anymore
         
         # skip this when doing diapycnal vertical velocity
         if not do_wdiap:
+            data_div  = data_div.drop_vars(['w_A', 'lon', 'lat']) # --> dont need from here on anymor
+            
             # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
             # array an save the attributes in the same time, also i need to unchunk
             # here the array with .load() otherwise i was not able to reindex it 
@@ -267,16 +268,17 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                                     year=year, descript=descript , do_info=do_info, 
                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                                     do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIVbolus':'dmoc_bolus'})
-            data_div_bolus  = data_div_bolus.drop_vars(['ndens','lon','lat', 'nodi']) 
+            data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi']) 
             data_div_bolus  = data_div_bolus.assign_coords({'dens':dens.chunk({'ndens':data_div_bolus.chunksizes['ndens']})})
             
             # doing this step here so that the MOC amplitude is correct, setp 1 of 2
             # divide with verice area
             data_div_bolus  = data_div_bolus/data_div_bolus['w_A'] # --> vertice area
-            data_div_bolus  = data_div_bolus.drop_vars(['w_A']) # --> dont need from here on anymore
             
             # skip this when doing diapycnal vertical velocity
             if not do_wdiap:
+                data_div_bolus  = data_div_bolus.drop_vars(['w_A', 'lon', 'lat']) # --> dont need from here on anymore
+            
                 # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
                 # array an save the attributes in the same time
                 data_div_bolus['dmoc_bolus'] = data_div_bolus['dmoc_bolus'].load()
@@ -302,7 +304,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     
     #___________________________________________________________________________
     # drop unnecessary coordinates
-    if (not do_wdiap):
+    if (not do_wdiap) and (not do_dflx):
         if 'lon' in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['lon'])
     if 'elemi' in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['elemi'])
     if 'nodi'  in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['nodi'])
