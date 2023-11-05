@@ -553,8 +553,8 @@ def plot_hslice_reg(mesh, data, input_names, cinfo=None, box=None, proj='pc', fi
         # periodic augment data
         vname = list(data[ii].keys())[0]
         data_plot = data[ii][vname].data.copy()
-        data_x    = data[ii]['nlon']
-        data_y    = data[ii]['nlat']
+        data_x    = data[ii]['lon']
+        data_y    = data[ii]['lat']
         
         #_______________________________________________________________________
         if do_reffig: 
@@ -1335,11 +1335,11 @@ def do_rescale_data(data,do_rescale):
         if np.nanmax(np.abs(data))<1e-2 and np.nanmax(np.abs(data))>0.0:
             scal = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
             data = data/scal
-            str_rescale  = ' $ \cdot 10^{'+str(int(np.log10(scal)))+'} $'
+            str_rescale  = ' $ \\cdot 10^{'+str(int(np.log10(scal)))+'} $'
         elif np.nanmax(np.abs(data))>1.0e4:
             scal = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
             data = data/scal
-            str_rescale  = ' $ \cdot 10^{'+str(int(np.log10(scal)))+'} $'
+            str_rescale  = ' $ \\cdot 10^{'+str(int(np.log10(scal)))+'} $'
             
     #___________________________________________________________________________
     elif do_rescale=='log10':
