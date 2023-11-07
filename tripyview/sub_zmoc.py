@@ -161,7 +161,6 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     else:    
         #_______________________________________________________________________
         # load vertice cluster area from diag file
-        #t1 = clock.time()
         if 'w_A' not in list(data.coords):
             if ( os.path.isfile(diagpath)):
                 nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']#.chunk({'nod2':1e4})
@@ -174,7 +173,13 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
                 nz_w_A = nz_w_A.drop_vars(['nz'])
             else: 
                 if len(mesh.n_area)>0:
-                    nz_w_A = xr.DataArray(mesh.n_area, dims=['nz','nod2'])
+                    if mesh.n_area.ndim == 1:
+                        # this here is only for the special case when fesom14-CMIP6
+                        # data are load to compute the MOC
+                        nz_w_A = xr.DataArray(mesh.n_area, dims=['nod2'])
+                    else: 
+                        # normal case when fesom2 data are used!!!
+                        nz_w_A = xr.DataArray(mesh.n_area, dims=['nz','nod2'])
                 else: 
                     raise ValueError('could not find ...mesh.diag.nc file')
             
@@ -184,8 +189,6 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         #_______________________________________________________________________    
         # select MOC basin
         data = data.isel(nod2=idxin)
-        #t2 = clock.time()
-        #print('  --> select data', t2-t1)
         
         #___________________________________________________________________
         # calculate area weighted mean
@@ -293,7 +296,7 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     #___________________________________________________________________________
     # write some infos 
     if do_info==True: 
-        print(' --> total time:{:.3f} s'.format(t2-t1))
+        print(' --> total time:{:.3f} s'.format(clock.time()-t1))
         if 'time' not in list(zmoc.dims):
             if which_moc in ['amoc', 'aamoc', 'gmoc']:
                 maxv = zmoc.isel(nz=zmoc['depth']>= 700 , lat=zmoc['lat']>0.0)['zmoc'].max().values
