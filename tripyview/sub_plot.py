@@ -377,7 +377,10 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                 cbar_label = data[0][vname[0]].attrs['short_name']
             elif 'long_name' in data[0][vname[0]].attrs:
                 cbar_label = data[0][vname[0]].attrs['long_name']
+            else:
+                cbar_label = ''
         #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
+        print(cbar_unit)
         if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
         else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
         if 'str_ltim' in data[0][vname[0]].attrs.keys():

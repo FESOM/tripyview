@@ -957,7 +957,8 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         aux_attr['transect_lat']  = transect['lat']
         if do_transectattr: aux_attr['transect'] = transect
         
-        data_vars['transp'] = (list_dimname, scalarPcut, aux_attr) 
+        #data_vars['transp'] = (list_dimname, scalarPcut, aux_attr) 
+        data_vars[vname] = (list_dimname, scalarPcut, aux_attr) 
         
         # define coordinates
         coords = dict()
@@ -1197,17 +1198,18 @@ def plot_transect(data, transects, tsidx=0, figsize=[12, 6],
         #___________________________________________________________________________
         # apply horizontal smoothing filter
         if do_smooth: 
-            #filt=np.array([1,2,3,2,1])
-            filt=np.array([1,1,1,1,1])
+            data_plotorig = data_plot.copy()
+            filt=np.array([1,2,3,2,1])
+            #filt=np.array([1,2,1])
             filt=filt[np.newaxis,:]
-            #filt=np.ones((3,3))
-            #filt=np.array([[0.5,1,0.5],[1,2,1],[0.5,1,0.5]])
             filt=filt/np.sum(filt.flatten())
-            is_nan = np.isnan(data_plot)
-            data_plot[is_nan] = 0.0
+            is_nanbf = np.isnan(data_plot)
             data_plot = convolve2d(data_plot, filt, mode='same', boundary='symm') 
-            data_plot[is_nan] = np.nan
-            del(is_nan, filt)
+            is_nanaf = np.isnan(data_plot)
+            
+            idx= ((is_nanbf==False) & (is_nanaf==True))
+            data_plot[idx] = data_plotorig[idx]
+            del(is_nanbf, is_nanaf, filt)
             
         #_______________________________________________________________________
         # plot MOC
@@ -1246,7 +1248,7 @@ def plot_transect(data, transects, tsidx=0, figsize=[12, 6],
         if np.isscalar(max_dep)==False: max_dep=data_y[ylim]
         
         # plot bottom patch
-        aux_bot = np.ones(data_plot.shape,dtype='int16')
+        aux_bot = np.ones(data_plot.shape,dtype='int32')
         aux_bot[np.isnan(data_plot)]=0
         aux_bot = aux_bot.sum(axis=0)
         #aux[aux!=0]=aux[aux!=0]-1
@@ -1255,12 +1257,12 @@ def plot_transect(data, transects, tsidx=0, figsize=[12, 6],
         bottom[aux_bot<0]=0.1
         
         # smooth bottom patch
-        filt   = np.array([1,2,1]) #np.array([1,2,3,2,1])
-        filt   = filt/np.sum(filt)
-        aux    = np.concatenate( (np.ones((filt.size,))*bottom[0],bottom,np.ones((filt.size,))*bottom[-1] ) )
-        aux    = np.convolve(aux,filt,mode='same')
-        bottom = aux[filt.size:-filt.size]
-        bottom[aux_bot<0]=0.1
+        #filt   = np.array([1,2,1]) #np.array([1,2,3,2,1])
+        #filt   = filt/np.sum(filt)
+        #aux    = np.concatenate( (np.ones((filt.size,))*bottom[0],bottom,np.ones((filt.size,))*bottom[-1] ) )
+        #aux    = np.convolve(aux,filt,mode='same')
+        #bottom = aux[filt.size:-filt.size]
+        #bottom[aux_bot<0]=0.1
         
         # plot bottom patch 
         ax[ii].fill_between(data_x, bottom, max_dep,color=color_bot)#,alpha=0.95)
