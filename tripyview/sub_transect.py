@@ -1756,7 +1756,7 @@ def plot_zmeantransects(data, bidx=0, figsize=[12, 6],
               do_bottom=True, max_dep=[], color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
               do_contour=True, do_clabel=False, title='descript', do_ylog=True,
-              pos_extend=[0.05, 0.08, 0.95,0.95],
+              pos_extend=[0.05, 0.08, 0.95,0.95], do_smooth=False, 
             ):
     #____________________________________________________________________________
     fontsize = 12
@@ -1828,6 +1828,23 @@ def plot_zmeantransects(data, bidx=0, figsize=[12, 6],
         data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]+np.finfo(np.float32).eps
         data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]-np.finfo(np.float32).eps
         
+        #___________________________________________________________________________
+        # apply horizontal smoothing filter
+        if do_smooth: 
+            from scipy.signal import convolve2d
+            data_plotorig = data_plot.copy()
+            filt=np.array([1,2,3,2,1])
+            #filt=np.array([1,2,1])
+            filt=filt[np.newaxis,:]
+            filt=filt/np.sum(filt.flatten())
+            is_nanbf = np.isnan(data_plot)
+            data_plot = convolve2d(data_plot, filt, mode='same', boundary='symm') 
+            is_nanaf = np.isnan(data_plot)
+            
+            idx= ((is_nanbf==False) & (is_nanaf==True))
+            data_plot[idx] = data_plotorig[idx]
+            del(is_nanbf, is_nanaf, filt)
+            
         #_______________________________________________________________________
         # plot zonal mean data
         hp=ax[ii].contourf(lat, depth, data_plot, levels=cinfo_plot['clevel'], extend='both', cmap=cinfo_plot['cmap'],
