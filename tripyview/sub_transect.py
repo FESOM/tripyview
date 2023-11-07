@@ -957,7 +957,8 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         aux_attr['transect_lat']  = transect['lat']
         if do_transectattr: aux_attr['transect'] = transect
         
-        data_vars['transp'] = (list_dimname, scalarPcut, aux_attr) 
+        #data_vars['transp'] = (list_dimname, scalarPcut, aux_attr) 
+        data_vars[vname] = (list_dimname, scalarPcut, aux_attr) 
         
         # define coordinates
         coords = dict()
@@ -1197,17 +1198,18 @@ def plot_transect(data, transects, tsidx=0, figsize=[12, 6],
         #___________________________________________________________________________
         # apply horizontal smoothing filter
         if do_smooth: 
-            #filt=np.array([1,2,3,2,1])
-            filt=np.array([1,1,1,1,1])
+            data_plotorig = data_plot.copy()
+            filt=np.array([1,2,3,2,1])
+            #filt=np.array([1,2,1])
             filt=filt[np.newaxis,:]
-            #filt=np.ones((3,3))
-            #filt=np.array([[0.5,1,0.5],[1,2,1],[0.5,1,0.5]])
             filt=filt/np.sum(filt.flatten())
-            is_nan = np.isnan(data_plot)
-            data_plot[is_nan] = 0.0
+            is_nanbf = np.isnan(data_plot)
             data_plot = convolve2d(data_plot, filt, mode='same', boundary='symm') 
-            data_plot[is_nan] = np.nan
-            del(is_nan, filt)
+            is_nanaf = np.isnan(data_plot)
+            
+            idx= ((is_nanbf==False) & (is_nanaf==True))
+            data_plot[idx] = data_plotorig[idx]
+            del(is_nanbf, is_nanaf, filt)
             
         #_______________________________________________________________________
         # plot MOC
@@ -1246,7 +1248,7 @@ def plot_transect(data, transects, tsidx=0, figsize=[12, 6],
         if np.isscalar(max_dep)==False: max_dep=data_y[ylim]
         
         # plot bottom patch
-        aux_bot = np.ones(data_plot.shape,dtype='int16')
+        aux_bot = np.ones(data_plot.shape,dtype='int32')
         aux_bot[np.isnan(data_plot)]=0
         aux_bot = aux_bot.sum(axis=0)
         #aux[aux!=0]=aux[aux!=0]-1
@@ -1255,12 +1257,12 @@ def plot_transect(data, transects, tsidx=0, figsize=[12, 6],
         bottom[aux_bot<0]=0.1
         
         # smooth bottom patch
-        filt   = np.array([1,2,1]) #np.array([1,2,3,2,1])
-        filt   = filt/np.sum(filt)
-        aux    = np.concatenate( (np.ones((filt.size,))*bottom[0],bottom,np.ones((filt.size,))*bottom[-1] ) )
-        aux    = np.convolve(aux,filt,mode='same')
-        bottom = aux[filt.size:-filt.size]
-        bottom[aux_bot<0]=0.1
+        #filt   = np.array([1,2,1]) #np.array([1,2,3,2,1])
+        #filt   = filt/np.sum(filt)
+        #aux    = np.concatenate( (np.ones((filt.size,))*bottom[0],bottom,np.ones((filt.size,))*bottom[-1] ) )
+        #aux    = np.convolve(aux,filt,mode='same')
+        #bottom = aux[filt.size:-filt.size]
+        #bottom[aux_bot<0]=0.1
         
         # plot bottom patch 
         ax[ii].fill_between(data_x, bottom, max_dep,color=color_bot)#,alpha=0.95)
@@ -1754,7 +1756,7 @@ def plot_zmeantransects(data, bidx=0, figsize=[12, 6],
               do_bottom=True, max_dep=[], color_bot=[0.6, 0.6, 0.6], 
               pos_fac=1.0, pos_gap=[0.02, 0.02], do_save=None, save_dpi=600, 
               do_contour=True, do_clabel=False, title='descript', do_ylog=True,
-              pos_extend=[0.05, 0.08, 0.95,0.95],
+              pos_extend=[0.05, 0.08, 0.95,0.95], do_smooth=False, 
             ):
     #____________________________________________________________________________
     fontsize = 12
@@ -1826,6 +1828,23 @@ def plot_zmeantransects(data, bidx=0, figsize=[12, 6],
         data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]+np.finfo(np.float32).eps
         data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]-np.finfo(np.float32).eps
         
+        #___________________________________________________________________________
+        # apply horizontal smoothing filter
+        if do_smooth: 
+            from scipy.signal import convolve2d
+            data_plotorig = data_plot.copy()
+            filt=np.array([1,2,3,2,1])
+            #filt=np.array([1,2,1])
+            filt=filt[np.newaxis,:]
+            filt=filt/np.sum(filt.flatten())
+            is_nanbf = np.isnan(data_plot)
+            data_plot = convolve2d(data_plot, filt, mode='same', boundary='symm') 
+            is_nanaf = np.isnan(data_plot)
+            
+            idx= ((is_nanbf==False) & (is_nanaf==True))
+            data_plot[idx] = data_plotorig[idx]
+            del(is_nanbf, is_nanaf, filt)
+            
         #_______________________________________________________________________
         # plot zonal mean data
         hp=ax[ii].contourf(lat, depth, data_plot, levels=cinfo_plot['clevel'], extend='both', cmap=cinfo_plot['cmap'],

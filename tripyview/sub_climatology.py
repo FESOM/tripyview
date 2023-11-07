@@ -203,8 +203,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                         'do_compute':do_compute, 'descript':descript, 'runid':'fesom'})
         do_additional_attrs(data, vname, attr_dict)
     
-    data = data.assign_coords(nz1=('nz1' ,-mesh.zmid))
-    
+    #data = data.assign_coords(nz1=('nz1' ,-mesh.zmid))
     #if depth is None:
         #w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1' , 'nod2']).chunk({'nod2':data.chunksizes['nod2'], 'nz1':data.chunksizes['nz1']})
         #w_A = w_A.where(~np.isnan(data[vname].data))
@@ -213,9 +212,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         #w_A = xr.DataArray(mesh.n_area[0,:].astype('float32'), dims=['nod2']).chunk({'nod2':data.chunksizes['nod2']})
         #data = data.assign_coords(w_A=w_A)
     #del(w_A)
-    
     data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=False, do_hweight=True)
-    
+    #print(data)
     
     #___________________________________________________________________________
     data = data.transpose()    

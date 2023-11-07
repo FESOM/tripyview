@@ -580,7 +580,7 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True,
         # do serial loop over latitudinal bins
         if not do_parallel:
             if do_info: print('\n ___loop over latitudinal bins___'+'_'*90, end='\n')
-            for iy, lat_i in enumerate(lat):
+            for iy, lat_i in enumerate(gmhflx.lat):
                 if 'time' in data.dims: gmhflx['gmhflx'][:,iy] = sum_over_lat(lat_i, lat_bin, data_box, dimh)
                 else                  : gmhflx['gmhflx'][  iy] = sum_over_lat(lat_i, lat_bin, data_box, dimh)
         
