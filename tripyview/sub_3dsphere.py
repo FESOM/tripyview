@@ -109,6 +109,7 @@ def create_3dsphere_land_mesh(mesh, resol=1, potatoefac=1, do_topo=False, topo_p
         outeredge = np.vstack((poly_x, poly_y)).transpose()
         points    = np.hstack((x_m, y_m))
         points    = np.vstack((outeredge,points))
+        if np.unique(points[:,0]).size<=3 or np.unique(points[:,1]).size<=3 : continue
         tri       = Triangulation(points[:,0], points[:,1])
         del outeredge, poly_x, poly_y
         
