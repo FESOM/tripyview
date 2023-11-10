@@ -808,6 +808,122 @@ def calc_hbarstreamf_fast(mesh, data, lon, lat, do_info=True, do_parallel=True, 
 
 
 
+#+___COMPUTE HORIZONTAL BAROTROPIC STREAM FUNCTION TROUGH BINNING______________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+# try to take full advantage of xarray and dask
+def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_parallel=True, n_workers=10, client=None):
+    
+    #___________________________________________________________________________
+    # Create xarray dataset for hor. bar. streamf
+    vname, vname2 = 'u', 'v'
+    
+    # define variable attributes    
+    data_attr              = data[vname].attrs
+    data_attr['long_name' ]= 'Horizontal. Barotropic \n Streamfunction'
+    data_attr['short_name']= 'Horiz. Barotr. Streamf.'
+    data_attr['units'     ]= 'Sv'
+    
+    # define variable 
+    data_vars              = dict()
+    dims                   = ['nlat', 'nlon']
+    dims_size              = [lat.size-1, lon.size-1]
+    data_vars['hbstreamf'] = (dims, np.zeros(dims_size, dtype='float32'), data_attr) 
+    
+    # define coordinates
+    lon, lat = lon.astype('float32'), lat.astype('float32')
+    coords    = {'lon' : (['nlon' ], (lon[1:]+lon[:-1])/2 ), 
+                 'lat' : (['nlat' ], (lat[1:]+lat[:-1])/2 ), }
+    
+    # create dataset
+    hbstreamf = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+    del(data_vars, coords, data_attr)
+    
+    #___________________________________________________________________________
+    # factors for volume flux computation
+    inSv = 1.0e-6
+    
+    #___________________________________________________________________________
+    # define function for longitudinal binning --> should be possible to parallelize
+    # this loop since each lon bin is independent
+    def hbstrfbin_over_lon(lon_i, lat, data, mdiag):
+        #_______________________________________________________________________
+        # compute which edge is cutted by the binning line along longitude
+        # to select the  lon bin cutted edges with where is by far the fastest option
+        # compared to using ...
+        # idx_lonbin  = (  (data.edge_x[0,:]-lon_i)*(data.edge_x[1,:]-lon_i) <= 0.) & \
+        #                  (abs(data.edge_x[0,:]-lon_i)<50.) & (abs(data.edge_x[1,:]-lon_i)<50. )
+        # data_lonbin = data.groupby(idx_lonbin)[True]
+        # --> groupby is here a factor 5-6 slower than using isel+np.where
+        #warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+        #warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+        mdiag_lonbin = mdiag.isel(edg_n=np.where(  
+                        ((mdiag.edge_x[0,:]-lon_i)*(mdiag.edge_x[1,:]-lon_i) <= 0.) & \
+                        (abs(mdiag.edge_x[0,:]-lon_i)<50.) & (abs(mdiag.edge_x[1,:]-lon_i)<50. ))[0]).load()
+        
+        #data_lonbin = data.isel(elem=xr.DataArray(mdiag_lonbin.edge_tri, dims=['n2', 'edg_n'])) #, nz1=data.nzi.load())
+        data_lonbin = data.isel(elem=mdiag_lonbin.edge_tri) #, nz1=data.nzi.load())
+        data_lonbin = data_lonbin.assign_coords(edge_my=mdiag_lonbin.edge_my)
+        #warnings.resetwarnings()
+        
+        # change direction of edge to make it consistent
+        idx_direct = mdiag_lonbin.edge_x[0,:]<=lon_i
+        mdiag_lonbin.edge_dx_lr[:,idx_direct] = -mdiag_lonbin.edge_dx_lr[:,idx_direct]
+        mdiag_lonbin.edge_dy_lr[:,idx_direct] = -mdiag_lonbin.edge_dy_lr[:,idx_direct]
+        del(idx_direct)
+        
+        # compute transport u,v --> u*dx,v*dy
+        data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
+        data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
+        del(mdiag_lonbin)
+        
+        # sum already over vflux contribution from left and right triangle 
+        data_lonbin['u'] = data_lonbin['u'].sum(dim='n2', skipna=True) * data_lonbin['dz']
+        data_lonbin['v'] = data_lonbin['v'].sum(dim='n2', skipna=True) * data_lonbin['dz']
+        
+        #_______________________________________________________________________
+        # loop over latitudinal bins, here somehow using groupby_bins is faster 
+        # than using a for loop with np.where(...)...
+        # for iy, lat_i in enumerate(lat):
+        #     data_latbin = data_lonbin.isel(edg_n=np.where( 
+        data_latbin = data_lonbin.groupby_bins('edge_my',lat)
+        del(data_lonbin)
+        data_latbin = data_latbin.sum(skipna=True).sum(dim='nz1', skipna=True)
+        return(data_latbin['u'] + data_latbin['v'])
+    
+    #___________________________________________________________________________
+    # do serial loop over longitudinal bins
+    if not do_parallel:
+        ts = ts1 = clock.time()
+        if do_info: print('\n ___loop over longitudinal bins___'+'_'*90, end='\n')
+        for ix, lon_i in enumerate(hbstreamf.lon):
+            if do_info: print('{:+06.1f}|'.format(lon_i), end='')
+            if np.mod(ix+1,15)==0 and do_info:
+                print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
+                ts1 = clock.time()
+            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag)
+    
+    # do parallel loop over longitudinal bins        
+    else:
+        ts = ts1 = clock.time()
+        if do_info: print('\n ___parallel loop over longitudinal bins___'+'_'*1, end='\n')
+        from joblib import Parallel, delayed
+        results = Parallel(n_jobs=n_workers)(delayed(hbstrfbin_over_lon)(lon_i, lat, data, mdiag) for lon_i in hbstreamf.lon)
+        hbstreamf['hbstreamf'][:,:] = xr.concat(results, dim='nlon').transpose()
+        
+    #___________________________________________________________________________
+    hbstreamf['hbstreamf'] =-hbstreamf['hbstreamf'].cumsum(dim='nlat', skipna=True)#+150.0 
+    hbstreamf['hbstreamf'].data = hbstreamf['hbstreamf'].data-hbstreamf['hbstreamf'].data[-1,:]
+    
+    # impose periodic boundary condition
+    hbstreamf['hbstreamf'].data[:,-1] = hbstreamf['hbstreamf'].data[:,-2]
+    hbstreamf['hbstreamf'].data[:, 0] = hbstreamf['hbstreamf'].data[:, 1]
+    if do_info: print(' --> total elasped time: {:3.3f} min.'.format((clock.time()-ts)/60))      
+    
+    #___________________________________________________________________________
+    return(hbstreamf)
+
+
 
 #+___PLOT MERIDIONAL HEAT FLUX OVER LATITUDES__________________________________+
 #|                                                                             |
