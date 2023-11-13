@@ -452,6 +452,209 @@ def calc_mhflx_box_fast(mesh, data, box_list, dlat=1.0, do_info=True, do_checkba
     return(list_mhflx)
 
 
+#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do_info=True, do_checkbasin=False, 
+                        do_compute=False, do_load=True, do_persist=False, do_buflay=True, 
+                        do_parallel=False, n_workers=10, 
+                        ):
+    #___________________________________________________________________________
+    vname_list = list(data.keys())
+    vnamet = None
+    if 'temp' in vname_list:
+        vnamet = 'temp'
+        vname_list.remove('temp')
+    for vi in vname_list:
+        if 'u' in vi: vnameu=vi
+        if 'v' in vi: vnamev=vi
+    #vnameu, vnamev = vname_list[0], vname_list[1]
+    
+    # save global and local variable attributes
+    gattr = data.attrs
+    vattr = data[vnameu].attrs
+
+    #___________________________________________________________________________
+    # factors for heatflux computation
+    rho0 = 1030 # kg/m^3
+    cp   = 3850 # J/kg/K
+    inPW = 1.0e-15
+    
+    #_______________________________________________________________________
+    # define function for longitudinal binning --> should be possible to 
+    # parallelize this loop since each lon bin is independent
+    def sum_over_latbin(lat_i, mdiag, data, datat):
+        #___________________________________________________________________
+        # compute which edge is cutted by the binning line along latitude
+        # to select the  lat bin cutted edges with where is by far the fastest option
+        # compared to using ...
+        # idx_latbin  = (  (data.edge_y[0,:]-lat_i)*(data.edge_y[1,:]-lat_i) <= 0.) & \
+        #                 )
+        # data_lonbin = data.groupby(idx_lonbin)[True]
+        # --> groupby is here a factor 5-6 slower than using isel+np.where
+        mdiag_latbin = mdiag.isel(edg_n=np.where(  
+                    (mdiag.edge_y[0,:]-lat_i)*(mdiag.edge_y[1,:]-lat_i) <= 0.0)[0])
+        
+        # change direction of edge to make it consistent
+        idx_direct = mdiag_latbin.edge_y[0,:]<=lat_i
+        mdiag_latbin.edge_dx_lr[:,idx_direct] = -mdiag_latbin.edge_dx_lr[:,idx_direct]
+        mdiag_latbin.edge_dy_lr[:,idx_direct] = -mdiag_latbin.edge_dy_lr[:,idx_direct]
+        del(idx_direct)
+        
+        # make sure that value of right boundary triangle is zero when boundary edge 
+        data_latbin   = data.isel(elem=mdiag_latbin.edge_tri)
+        list_vname    = list(data_latbin.keys())
+        vnameu, vnamv = list_vname[0], list_vname[1]
+        data_latbin[vnameu][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
+        data_latbin[vnamev][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
+        
+        # compute transport u,v --> u*dx,v*dy
+        data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dx_lr'] 
+        data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dy_lr'] 
+        
+        # compute u*t, v*t if data wasnt already ut,vt
+        if datat is not None:
+            datat_latbin = datat.isel(nod2=mdiag_latbin.edges)
+            vnamet       = list(datat_latbin.keys())[0]
+            data_latbin[vnameu] = data_latbin[vnameu]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
+            data_latbin[vnamev] = data_latbin[vnamev]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
+            del(datat_latbin)
+        
+        # multiply with layer thickness
+        data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['dz'] 
+        data_latbin[vnamev] = data_latbin[vnamev] * data_latbin['dz']
+         
+        # sum already over vflux contribution from left and right triangle 
+        # and over cutted edges 
+        data_latbin[vnameu] = data_latbin[vnameu].sum(dim=['n2','edg_n'], skipna=True)
+        data_latbin[vnamev] = data_latbin[vnamev].sum(dim=['n2','edg_n'], skipna=True)
+        
+        # integrate vertically
+        data_latbin = data_latbin.sum(dim='nz1', skipna=True) * rho0*cp*inPW*(-1)
+            
+        return(data_latbin[vnameu] + data_latbin[vnamev])
+        
+    #___________________________________________________________________________
+    # Loop over boxes/regions/shapefiles ...
+    list_mhflx=list()
+    for box in box_list:
+        #_______________________________________________________________________
+        if not isinstance(box, shp.Reader):
+            if len(box)==2: boxname, box = box[1], box[0]
+            if box is None or box=='global': boxname='global'
+        else:     
+            boxname = os.path.basename(box.shapeName)
+            boxname = boxname.split('_')[0].replace('_',' ')  
+        
+        #_______________________________________________________________________
+        # select box area
+        datat_box = None
+        if box=='global':
+            mdiag_box = mdiag
+            n_idxin = np.ones(mesh.n2dn,dtype='bool')
+        else:     
+            #___________________________________________________________________
+            # compute box mask index for nodes
+            #  --> sometimes it can be be that the shapefile is to small in this case 
+            #  boundary triangles might not get selected therefore we if any node
+            #  points of an edge triangle is within the shapefile
+            e_idxin = do_boxmask(mesh,box,do_elem=True)
+            e_i     = mesh.e_i[e_idxin,:]
+            e_i     = np.unique(e_i.flatten())
+            n_idxin = np.zeros(mesh.n2dn,dtype='bool')
+            n_idxin[e_i]=True
+            n_idxin_b = n_idxin.copy()
+            del(e_i, e_idxin)
+            if do_buflay:
+                # add a buffer layer of selected triangles --> sometimes it can be be that 
+                # the shapefile is to small in this case boundary triangles might not get 
+                # selected. Therefor extend the selection of edges 
+                e_idxin = n_idxin[mesh.e_i].max(axis=1)
+                e_i = mesh.e_i[e_idxin,:]
+                e_i = np.unique(e_i.flatten())
+                n_idxin_b[e_i]=True
+                del(e_i, e_idxin)
+            idx_IN   = n_idxin_b[mdiag.edges].any(axis=0)
+            mdiag_box = mdiag.isel({'edg_n':idx_IN})
+            #___________________________________________________________________
+            if do_checkbasin:
+                from matplotlib.tri import Triangulation
+                tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+                plt.figure()
+                ax = plt.gca()
+                plt.triplot(tri, color='k')
+                plt.plot(data_box.edge_x[0,:], data_box.edge_y[0,:], '*r', linestyle='None', markersize=1)
+                plt.plot(data_box.edge_x[1,:], data_box.edge_y[1,:], '*r', linestyle='None', markersize=1)
+                plt.title('Basin selection')
+                plt.show()
+            
+        #_______________________________________________________________________
+        # do zonal sum over latitudinal bins 
+        lat_min  = np.ceil( mesh.n_y[n_idxin].min())  
+        lat_max  = np.floor(mesh.n_y[n_idxin].max())
+        lat      = np.arange(lat_min+dlat/2, lat_max-dlat/2, dlat )
+        
+        #_______________________________________________________________________
+        # Create xarray dataset
+        list_dimname, list_dimsize = ['nlat'], [lat.size]
+        data_vars = dict()
+        # define variable attributes 
+        vattr['long_name' ] = f'Meridional Heat Transport'
+        vattr['short_name'] = f'Merid. Heat Transp.'
+        vattr['boxname'   ] = boxname
+        vattr['units'     ] = 'PW'
+        # define data_vars dict, coordinate dict, as well as list of dimension name 
+        # and size 
+        data_vars, coords, dim_n, dim_s,  = dict(), dict(), list(), list()
+        if 'time' in list(data.dims): dim_n.append('time')
+        dim_n.append('lat'); 
+        for dim_ni in dim_n:
+            if   dim_ni=='time': dim_s.append(data.sizes['time']); coords['time' ]=(['time'], data['time'].data ) 
+            elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
+        data_vars['mhflx'] = (dim_n, np.zeros(dim_s, dtype='float32')*np.nan, vattr) 
+        # create dataset
+        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+        del(data_vars, coords, dim_n, dim_s, lat)
+        
+        #_______________________________________________________________________
+        # do serial loop over bins
+        if not do_parallel:
+            ts = ts1 = clock.time()
+            if do_info: print('\n ___loop over latitudinal bins___'+'_'*90, end='\n')
+            for iy, lat_i in enumerate(mhflx.lat):
+                #_______________________________________________________________
+                if do_info: print('{:+06.1f}|'.format(lat_i), end='')
+                if np.mod(iy+1,15)==0 and do_info:
+                    print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
+                    ts1 = clock.time()
+                if 'time' in data.dims: mhflx['mhflx'][:,iy] = sum_over_latbin(lat_i, mdiag_box, data, datat)
+                else                  : mhflx['mhflx'][  iy] = sum_over_latbin(lat_i, mdiag_box, data, datat)       
+        
+        # do parallel loop over bins        
+        else:
+            ts = ts1 = clock.time()
+            if do_info: print('\n ___parallel loop over latitudinal bins___'+'_'*1, end='\n')
+            from joblib import Parallel, delayed
+            results = Parallel(n_jobs=n_workers)(delayed(sum_over_latbin)(lat_i, mdiag_box, data, datat) for lat_i in mhflx.lat)
+            if 'time' in data.dims: mhflx['mhflx'][:,:] = xr.concat(results, dim='lat').transpose('time','lat')
+            else                  : mhflx['mhflx'][  :] = xr.concat(results, dim='lat')
+     
+        #_______________________________________________________________________
+        if do_compute: mhflx = mhflx.compute()
+        if do_load   : mhflx = mhflx.load()
+        if do_persist: mhflx = mhflx.persist()
+        
+        #_______________________________________________________________________
+        if len(box_list)==1: list_mhflx = mhflx
+        else               : list_mhflx.append(mhflx)
+        
+        #_______________________________________________________________________
+        del(mhflx)
+        
+    #___________________________________________________________________________
+    return(list_mhflx)
+
+
 
 #+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
 #|                                                                             |
