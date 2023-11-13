@@ -556,8 +556,8 @@ def plot_hslice_reg(mesh, data, input_names, cinfo=None, box=None, proj='pc', fi
         # periodic augment data
         vname = list(data[ii].keys())[0]
         data_plot = data[ii][vname].data.copy()
-        data_x    = data[ii]['lon']
-        data_y    = data[ii]['lat']
+        if   do_plot=='tpc': data_x, data_y = data[ii]['lon_bnd'], data[ii]['lat_bnd']
+        else               : data_x, data_y = data[ii]['lon'], data[ii]['lat']
         
         #_______________________________________________________________________
         if do_reffig: 
