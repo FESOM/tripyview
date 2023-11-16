@@ -43,7 +43,8 @@ requirements = [
     'vtk',
     'ipyvtklink',
     'imageio[ffmpeg]', 
-    'ipympl'
+    'ipympl',
+    'ffmpeg-python'
 ]
 
 setup_requirements = ['pytest-runner']
