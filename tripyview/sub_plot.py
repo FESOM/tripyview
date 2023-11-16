@@ -31,7 +31,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
                 color_bot=[0.75,0.75,0.75],  title=None, do_ie2n = True, 
-                pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=600,
+                pos_fac=1.0, pos_gap=[0.02, 0.02], pos_extend=None, do_save=None, save_dpi=300,
                 linecolor='k', linewidth=0.5, do_reffig=False, ref_cinfo=None, ref_rescale=None,
                 do_info=False, nargout=['fig', 'ax', 'cbar']):
     """
@@ -299,7 +299,6 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         # plot tri contourf/tripcolor
         if   do_plot=='tpc' or (do_plot=='tcf' and not is_onvert):
             if not is_onvert: data_plot = data_plot[e_idxok]
-            print(data_plot.shape)
             hp=ax[ii].tripcolor(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok,:], data_plot,
                                     shading='flat',
                                     cmap=cinfo_plot['cmap'],
@@ -313,10 +312,11 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                 data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
                 data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
                 
-            hp=ax[ii].tricontourf(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok,:], data_plot,
+            hp=ax[ii].tricontourf(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxnan,:], data_plot,
                                   levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                   norm=which_norm_plot)#, transform=which_transf) 
-            if do_info: print('--> do tricontourf: ', clock.time()-t1) ; t1 = clock.time()        
+            if do_info: print('--> do tricontourf: ', clock.time()-t1) ; t1 = clock.time()   
+        else: raise ValueError(' --> this do_plot={:s} value is not valid'.format(do_plot))
         hpall.append(hp)
             
         #_______________________________________________________________________
@@ -381,7 +381,10 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                 cbar_label = ''
         #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
         print(cbar_unit)
-        if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
+        if cbar_unit  is None: 
+            if 'units' in data[0][vname[0]].attrs.keys():
+                cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
+            
         else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
         if 'str_ltim' in data[0][vname[0]].attrs.keys():
             cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
@@ -443,6 +446,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
             elif stri == 'hpall'  : list_argout.append(hpall)
             elif stri == 'tri'    : list_argout.append(tri)
             elif stri == 'mappoints': list_argout.append(mappoints)
+            elif stri == 'e_idxbox': list_argout.append(e_idxbox)
             elif stri == 'e_idxok': list_argout.append(e_idxok)
             elif stri == 'cinfo': list_argout.append(cinfo)
             
@@ -1570,6 +1574,9 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             if cinfo['cref'] > cinfo['cmax']: cinfo['cmax'] = cinfo['cref']+np.finfo(np.float32).eps
             if cinfo['cref'] < cinfo['cmin']: cinfo['cmin'] = cinfo['cref']-np.finfo(np.float32).eps
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
+    
+    #___________________________________________________________________________
+    if 'cmap0' in list(cinfo.keys()): cinfo['cmap'] = cinfo['cmap0'].resampled(cinfo['clevel'].size-1)
         
     #___________________________________________________________________________
     print(cinfo)
