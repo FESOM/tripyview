@@ -54,6 +54,8 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         if   'nz'   in data.dims: dim_name.append('nz')
         elif 'nz1'  in data.dims: dim_name.append('nz1')      
                 
+        #_______________________________________________________________________
+        # do volume averaged mean
         if do_harithm=='wmean' and do_zarithm=='wmean':
             if   'nod2' in data.dims:
                 weights = data['w_A']*data['w_z']
@@ -63,7 +65,20 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
                 index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
             elif 'elem' in data.dims:    
                 STOP
-            
+        
+        #_______________________________________________________________________
+        # do volume integral
+        elif do_harithm=='wint' and do_zarithm=='wint':
+            if   'nod2' in data.dims:
+                weights = data['w_A']*data['w_z']
+                data    = data.drop_vars(['w_A', 'w_z'])
+                data    = data*weights.astype('float32', copy=False )
+                index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
+            elif 'elem' in data.dims:    
+                STOP  
+        
+        #_______________________________________________________________________
+        # do horizontal/ vertical metrix that can be idependent from each other
         else:    
             #___________________________________________________________________
             if   'nod2' in data.dims:
@@ -245,8 +260,7 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
         #    that the legend is always outside in the upper right corner 
         if bi==n_rc[1]-1 : 
             ax[bi].legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                          labelspacing=1.0,
-                          bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
+                          labelspacing=1.0, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
 
         #_______________________________________________________________________
         if 'boxname' in index_list[di][bi][vname].attrs.keys(): 

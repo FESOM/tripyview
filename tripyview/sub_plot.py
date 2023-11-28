@@ -312,7 +312,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                 data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
                 data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
                 
-            hp=ax[ii].tricontourf(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxnan,:], data_plot,
+            hp=ax[ii].tricontourf(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok,:], data_plot,
                                   levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                   norm=which_norm_plot)#, transform=which_transf) 
             if do_info: print('--> do tricontourf: ', clock.time()-t1) ; t1 = clock.time()   
@@ -1207,7 +1207,7 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
 def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None, 
                        do_allcycl=False, do_concat=False, str_descript='', str_time='', figsize=[], 
                        do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
-                       ymaxstep=None, xmaxstep=5):    
+                       ymaxstep=None, xmaxstep=5, do_ylim=None, do_xlim=None, do_yflip=False):    
     
     import matplotlib.patheffects as path_effects
     from matplotlib.ticker import AutoMinorLocator, MultipleLocator
@@ -1228,63 +1228,93 @@ def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None,
         cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
     
     #___________________________________________________________________________
-    ii=0
+    ii_datlen = 0
+    totdatlen = len(tseries_list)
     ii_cycle=1
-    if which_cycl is None: aux_which_cycl = 1
-    else                 : aux_which_cycl = which_cycl
+    if which_cycl is None: totnr_cycl = 1
+    else                 : totnr_cycl = which_cycl
+    
+    ymin, ymax, list_tmax=np.inf, -np.inf, list()
+    tottime = []
     for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
         
-        time = tseries[0]['time.year'].values + (tseries[0]['time.dayofyear'].values-1)/365
         #_______________________________________________________________________
+        time = tseries[0]['time.year'].values + (tseries[0]['time.dayofyear'].values-1)/365
         if isinstance(tseries,list): tseries = tseries[0]
+        if do_concat: time = np.arange(1, time.size+1,1)
         
+        #_______________________________________________________________________
         if 'keys' in dir(tseries):
-            vname = list(tseries.keys())[0]
+            vname   = list(tseries.keys())[0]
             tseries = tseries[vname]
+            
+        ymin, ymax = np.min([ymin, tseries.min()]), np.max([ymax, tseries.max()])
         
+        #_______________________________________________________________________
+        # line and marker options
+        optline = dict({'color':cmap.colors[ii_ts,:], 'label':tname, 'linewidth':1.5, 
+                   'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
+        optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
+                        'color':cmap.colors[ii_ts,:], 'clip_box':False, 'clip_on':False, 'zorder':3})
+            
         #_______________________________________________________________________
         if tseries.ndim>1: tseries = tseries.squeeze()
         auxtime = time.copy()
-        if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
+        if ii_cycle==1: auxtimeold=[0]
+        #if np.mod(ii_ts+1,totnr_cycl)==0 or do_allcycl==False:
+        if True:    
+            if do_concat: 
+                #auxtime = auxtime + (time[-1]-time[0])*(ii_cycle-1)
+                auxtime = auxtime + auxtimeold[-1]
+                auxtimeold = auxtime
+                list_tmax.append(auxtime[-1])
+            #___________________________________________________________________
+            hp=ax.plot(auxtime,tseries, **optline)
             
-            if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
-            hp=ax.plot(auxtime,tseries, 
-                   linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], 
-                   marker='None', markerfacecolor='w', markersize=5, #path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()],
-                   zorder=2)
-            
+            #___________________________________________________________________
             if do_pltmean: 
                 # plot mean value with triangle 
-                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(),
-                        marker='<', markersize=8, markeredgecolor='k', markeredgewidth=0.5,
-                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(), marker='<', **optmark)
+                        
             if do_pltstd:
                 # plot std. range
-                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(),
-                        marker='^', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
-                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
-                
-                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(),
-                        marker='v', markersize=6, markeredgecolor='k', markeredgewidth=0.5,
-                        color=hp[0].get_color(),clip_box=False,clip_on=False, zorder=3)
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(), marker='^', **optmark)
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(), marker='v', **optmark)
         
-        else:
-            if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
-            hp=ax.plot(auxtime, tseries, 
-                   linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:],
-                   zorder=1) #marker='o', markerfacecolor='w', 
-                   # path_effects=[path_effects.SimpleLineShadow(offset=(1.5,-1.5),alpha=0.3),path_effects.Normal()])
+        #else:
+            ##if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
+            #if do_concat: auxtime = auxtime + (time[-1]-time[0])*(ii_cycle-1)
+            #auxtilist_tmaxmeend.append(auxtime[-1])
+            #hp=ax.plot(auxtime, tseries, **optline)
+            
+        ii_cycle  = ii_cycle+1
+        ii_datlen = ii_datlen+1
+        if ii_cycle>totnr_cycl and ii_datlen!=totdatlen: 
+            ii_cycle=1
+            list_tmax=list()
         
-        ii_cycle=ii_cycle+1
-        if ii_cycle>aux_which_cycl: ii_cycle=1
+    #___________________________________________________________________________  
+    if do_ylim is not None : ymin, ymax = do_ylim[0], do_ylim[1]
+    if do_concat:
+        vlinex = np.vstack([list_tmax, list_tmax]) 
+        vliney = np.ones(vlinex.shape)
+        vliney[0,:], vliney[1,:] = ymin, ymax
+        ax.plot(vlinex, vliney,'-k')
         
+        for ti, tmax in enumerate(list_tmax):
+            if do_yflip: ax.text(tmax, ymax, '{:d} '.format(ti+1), ha='right', va='bottom', fontsize=20)
+            else       : ax.text(tmax, ymin, '{:d} '.format(ti+1), ha='right', va='bottom', fontsize=20)
+        del(vlinex, vliney, list_tmax)
+          
     #___________________________________________________________________________
-    ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
-              bbox_to_anchor=(1.01,0.5), loc="center left", borderaxespad=0)
-              #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
-    ax.set_xlabel('Time [years]',fontsize=12)
-    ax.set_ylabel('{:s} in [{:s}]'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
+    ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, labelspacing=1.0,)
+    #ax.set_xlabel('Time [years]',fontsize=12)
+    #ax.set_ylabel('{:s} in [{:s}]'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
+    ax.set_xlabel('Time /years',fontsize=12)
+    ax.set_ylabel('{:s} / {:s}'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
     ax.set_title(sect_name, fontsize=12, fontweight='bold')
+    ax.ticklabel_format(useOffset=False)
+
     
     #___________________________________________________________________________
     if do_concat: xmaxstep=20
@@ -1303,8 +1333,9 @@ def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None,
     if not do_concat:
         plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
     else:    
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(aux_which_cycl-1)+(time[-1]-time[0])*0.015)    
-    
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(totnr_cycl-1)+(time[-1]-time[0])*0.015)    
+    plt.ylim(ymin,ymax)
+    if do_yflip: ax.invert_yaxis()
     #___________________________________________________________________________
     plt.show()
     fig.canvas.draw()

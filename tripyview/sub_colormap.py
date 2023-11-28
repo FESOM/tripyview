@@ -387,7 +387,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
 # --> https://stackoverflow.com/questions/47222585/matplotlib-generic-colormap-from-tab10
 # also https://www.py4u.net/discuss/222050
 #_______________________________________________________________________________
-def categorical_cmap(nc, nsc, cmap="tab10", cmap2='nipy_spectral', continuous=False):
+def categorical_cmap(nc, nsc, cmap="tab10", cmap2='nipy_spectral', continuous=False, light2dark=True):
     from   matplotlib.colors import ListedColormap, rgb_to_hsv, hsv_to_rgb
     import matplotlib.pylab as plt
     import numpy as np
@@ -413,9 +413,13 @@ def categorical_cmap(nc, nsc, cmap="tab10", cmap2='nipy_spectral', continuous=Fa
         arhsv = np.tile(chsv,nsc).reshape(nsc,3)
         if not chsv[0]==0.0 and not chsv[1]==0.0:
             arhsv[:,1] = np.linspace(chsv[1],0.2,nsc)
-            arhsv[:,2] = np.linspace(chsv[2],1.0,nsc)
+            if light2dark: arhsv[:,2] = np.linspace(chsv[2], 0.9, nsc)
+            else         : arhsv[:,2] = np.linspace(0.2, chsv[2], nsc)[::-1]  
+            
         else:
-            arhsv[:,2] = np.linspace(chsv[2],0.8,nsc)
+            if light2dark: arhsv[:,2] = np.linspace(chsv[2],0.8,nsc)
+            else         : arhsv[:,2] = np.linspace(0.8, chsv[2], nsc)[::-1]
+            
         arhsv      = np.flipud(arhsv)
         rgb = hsv_to_rgb(arhsv)
         cols[i*nsc:(i+1)*nsc,:] = rgb       
