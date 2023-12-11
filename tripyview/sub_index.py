@@ -19,7 +19,7 @@ from   .sub_colormap       import *
 
 def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean', 
                       do_zarithm=None, do_outputidx=False, 
-                      do_compute=False, do_load=True, do_persist=False, ):
+                      do_compute=False, do_load=True, do_persist=False, do_checkbasin=False):
     xr.set_options(keep_attrs=True)
     #___________________________________________________________________________
     # str_anod    = ''
@@ -44,7 +44,21 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
             
         elif 'elem' in data.dims: 
             idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem').chunk({'elem':data.chunksizes['elem']})
-           
+        #_______________________________________________________________________
+        # check basin selection
+        if do_checkbasin:
+            from matplotlib.tri import Triangulation
+            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            plt.figure()
+            ax = plt.gca()
+            plt.triplot(tri, color='k')
+            if   'nod2' in data.dims: 
+                plt.plot(mesh.n_x[idx_IN], mesh.n_y[idx_IN], '*r', linestyle='None', markersize=1)
+            else: 
+                plt.plot(mesh.n_x[tri.triangles[idx_IN,:]].sum(axis=1)/3.0, mesh.n_y[tri.triangles[idx_IN,:]].sum(axis=1)/3.0, '*r', linestyle='None', markersize=1)
+            plt.title('Basin selection')
+            plt.show()
+                
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
         # points
