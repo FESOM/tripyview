@@ -143,8 +143,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_H':'ndens_h'})
-            data_h = data_h.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_h = data_h.assign_coords({'dens':dens.chunk({'ndens':data_h.chunksizes['ndens']})})
+            data_h = data_h.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_h], combine_attrs="no_conflicts")
             if do_ndensz:
                 # compute vertical density class z position from class thickness by 
@@ -165,8 +165,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_Z':'ndens_z'})
-            data_z = data_z.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_z = data_z.assign_coords({'dens':dens.chunk({'ndens':data_z.chunksizes['ndens']})})
+            data_z = data_z.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs="no_conflicts")
             del(data_z)
             
