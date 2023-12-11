@@ -1236,6 +1236,7 @@ def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None,
     
     ymin, ymax, list_tmax=np.inf, -np.inf, list()
     tottime = []
+    labl_reduce_handle, labl_reduce_txt = [], []
     for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
         
         #_______________________________________________________________________
@@ -1286,7 +1287,9 @@ def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None,
             #if do_concat: auxtime = auxtime + (time[-1]-time[0])*(ii_cycle-1)
             #auxtilist_tmaxmeend.append(auxtime[-1])
             #hp=ax.plot(auxtime, tseries, **optline)
-            
+        if ii_cycle==1:
+            labl_reduce_handle.append(hp[0])   
+            labl_reduce_txt.append(tname)
         ii_cycle  = ii_cycle+1
         ii_datlen = ii_datlen+1
         if ii_cycle>totnr_cycl and ii_datlen!=totdatlen: 
@@ -1307,7 +1310,11 @@ def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None,
         del(vlinex, vliney, list_tmax)
           
     #___________________________________________________________________________
-    ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, labelspacing=1.0,)
+    if totdatlen>10 and which_cycl is not None:
+        ax.legend(labl_reduce_handle, labl_reduce_txt,
+              shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, la
+    else:
+        ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, labelspacing=1.0,)
     #ax.set_xlabel('Time [years]',fontsize=12)
     #ax.set_ylabel('{:s} in [{:s}]'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
     ax.set_xlabel('Time /years',fontsize=12)
@@ -1328,6 +1335,16 @@ def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None,
         #yminor_locator = AutoMinorLocator(4)
         #ax.yaxis.set_minor_locator(yminor_locator)
         #ax.xaxis.set_minor_locator(xminor_locator)
+    
+    #___________________________________________________________________________
+    # rotate xtick label
+    xtlabel=ax.get_xticklabels()
+    if len(xtlabel)>20:
+        for label in xtlabel:
+            label.set_ha("right")   
+            label.set_rotation(60)
+    
+    
     
     plt.grid(which='major')
     if not do_concat:
