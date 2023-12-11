@@ -1534,6 +1534,7 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
     #___________________________________________________________________________
     # loop over box_list
     vname = list(data.keys())[0]
+    which_ddim = None
     if   'nz'  in list(data[vname].dims): which_ddim, ndi, depth = 'nz' , mesh.nlev  , mesh.zlev     
     elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
         which_ddim, ndi, depth = 'nz1', mesh.nlev-1, mesh.zmid
@@ -1673,13 +1674,14 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         data_zm['var_w_A'] = data_zm['w_A']
         data_zm = data_zm.drop_vars('w_A').rename({'var_w_A':'w_A'})
         
-        if 'elem' in data.dims:
-            data_zm['bottom'] = xr.DataArray(-mesh.zmid[data_zm['elemiz']]*data_zm['w_A'].isel({which_ddim:0}), dims='elem')
-        else:    
-            data_zm['bottom'] = xr.DataArray(-mesh.zmid[data_zm['nodiz']]*data_zm['w_A'].isel({which_ddim:0}), dims='nod2')
-        
-        if 'depth' not in list(data.coords):
-            data_zm    = data_zm.rename_vars({which_ddim:'depth'})
+        if which_ddim is not None:
+            if 'elem' in data.dims:
+                data_zm['bottom'] = xr.DataArray(-mesh.zmid[data_zm['elemiz']]*data_zm['w_A'].isel({which_ddim:0}), dims='elem')
+            else:    
+                data_zm['bottom'] = xr.DataArray(-mesh.zmid[data_zm['nodiz']]*data_zm['w_A'].isel({which_ddim:0}), dims='nod2')
+            
+            if 'depth' not in list(data.coords):
+                data_zm    = data_zm.rename_vars({which_ddim:'depth'})
         
         #___________________________________________________________________________
         # group data by bins
@@ -1693,12 +1695,13 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         
         # compute weighted mean 
         data_zm[vname] = data_zm[vname]/data_zm['w_A']
-        if 'elem' in data.dims:
-            data_zm['bottom'] = data_zm['bottom']/data_zm['w_A'].isel({which_ddim:0})
-        else:
-            data_zm['bottom'] = data_zm['bottom']/data_zm['w_A'].isel({which_ddim:0})
+        if which_ddim is not None:
+            if 'elem' in data.dims:
+                data_zm['bottom'] = data_zm['bottom']/data_zm['w_A'].isel({which_ddim:0})
+            else:
+                data_zm['bottom'] = data_zm['bottom']/data_zm['w_A'].isel({which_ddim:0})
+            data_zm = data_zm.set_coords('bottom')
         data_zm = data_zm.drop_vars('w_A')
-        data_zm = data_zm.set_coords('bottom')
         
         # transpose data from [lat x nz] --> [nz x lat]
         dtime, dhz, dnz = 'None', 'lat', which_ddim
