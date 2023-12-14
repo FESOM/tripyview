@@ -1,5 +1,5 @@
 # Patrick Scholz, 14.12.2017
-def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
+def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[], do_slog=False):
 
     import numpy                as np
     from   matplotlib.colors    import ListedColormap
@@ -52,6 +52,16 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
         cref     = np.around(cref  , -np.int32(np.floor(np.log10(np.abs( cstep ))-2) ) )
     clevel   = np.unique(clevel)
     
+    
+    # rescale the interpolation frojm linear to more exponential, but only for 
+    # the color interpolation
+    if do_slog==True:
+        exp=2.0
+        dum_clev = np.arange(cref,cmax+cstep,cstep)
+        dum_clev = np.interp(x=np.linspace(0,1,dum_clev.size)**exp, xp=np.linspace(0,1,dum_clev.size), fp=dum_clev)
+        dum_clev = np.concatenate((-dum_clev[1:], dum_clev))
+        clevel_slg10 = np.sort(np.unique(dum_clev))
+        
     #___________________________________________________________________________
     # number of colors below ref value
     cnmb_bref = sum(clevel<cref)
@@ -349,16 +359,21 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[]):
     
     #___________________________________________________________________________
     # define RGBA interpolator  
-    cmap_idx = np.linspace(0,1,cmap_def.shape[0])
+    cmap_idx  = np.linspace(0,1,cmap_def.shape[0])
+    
     cint_idx0 = clevel[:-1]+(clevel[1:]-clevel[:-1])/2
-    #cint_idx0 = clevel
+    if do_slog: cint_idx0 = clevel_slg10[:-1]+(clevel_slg10[1:]-clevel_slg10[:-1])/2
     
     if cnmb_aref<=sum(cmap_idx>0.5):
+        #print('case A')
         cint_idx = interpolate.interp1d([cint_idx0[0],  cref], [0.0, 0.5], fill_value='extrapolate')(cint_idx0)
     elif cnmb_bref<=sum(cmap_idx<0.5):
+        #print('case B')
         cint_idx = interpolate.interp1d([cref, cint_idx0[-1]], [0.5, 1.0], fill_value='extrapolate')(cint_idx0) 
     else:    
+        #print('case C')
         cint_idx = interpolate.interp1d([cint_idx0[0], cref, cint_idx0[-1]], [0.0, 0.5, 1.0], fill_value='extrapolate')(cint_idx0) 
+    #print(cint_idx)
     
     #___________________________________________________________________________
     # define RGBA color matrix
