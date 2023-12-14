@@ -252,8 +252,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         
         #_______________________________________________________________________
         # periodic augment data
-        vname     = list(data[ii].keys())
-        data_plot = data[ii][ vname[0] ].data.copy()
+        vname     = list(data[ii].keys())[0]
+        data_plot = data[ii][ vname ].data.copy()
         #data_plot = data[ii][ vname[0] ].values.copy()
             
         is_onvert = True
@@ -333,7 +333,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         
         #_______________________________________________________________________
         # add gridlines
-        ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], xticks, yticks, proj, which_proj)
+        ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], xticks, yticks, proj, which_proj, rowlist, collist)
         if do_info: print('--> do gridlines: ', clock.time()-t1) ; t1 = clock.time()    
         
         #_______________________________________________________________________
@@ -343,8 +343,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
             if   isinstance(title,str) : 
                 # if title string is 'descript' than use descript attribute from 
                 # data to set plot title 
-                if title=='descript' and ('descript' in data[ii][vname[0]].attrs.keys() ):
-                    ax[ii].set_title(data[ii][ vname[0] ].attrs['descript'], fontsize=fontsize+2)
+                if title=='descript' and ('descript' in data[ii][vname].attrs.keys() ):
+                    ax[ii].set_title(data[ii][ vname ].attrs['descript'], fontsize=fontsize+2)
                     
                 else:
                     ax[ii].set_title(title, fontsize=fontsize+2)
@@ -363,6 +363,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
    
     #___________________________________________________________________________
     # create colorbar 
+    vname = list(data[0].keys())[0]
     if do_reffig==False:
         cbar = plt.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo['clevel'], 
                         extendrect=False, extendfrac=None,
@@ -373,23 +374,28 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         
         # do labeling of colorbar
         if cbar_label is None: 
-            if   'short_name' in data[0][vname[0]].attrs:
-                cbar_label = data[0][vname[0]].attrs['short_name']
-            elif 'long_name' in data[0][vname[0]].attrs:
-                cbar_label = data[0][vname[0]].attrs['long_name']
+            if   'short_name' in data[0][vname].attrs:
+                cbar_label = data[0][vname].attrs['short_name']
+            elif 'long_name' in data[0][vname].attrs:
+                cbar_label = data[0][vname].attrs['long_name']
             else:
                 cbar_label = ''
-        #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
-        print(cbar_unit)
+        #if cbar_unit  is None: cbar_label = cbar_label+' ['+data[0][ vname ].attrs['units']+']'
         if cbar_unit  is None: 
-            if 'units' in data[0][vname[0]].attrs.keys():
-                cbar_label = cbar_label+' ['+data[0][ vname[0] ].attrs['units']+']'
+            if 'units' in data[0][vname].attrs.keys():
+                cbar_label = cbar_label+' ['+data[0][ vname ].attrs['units']+']'
             
         else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
-        if 'str_ltim' in data[0][vname[0]].attrs.keys():
-            cbar_label = cbar_label+'\n'+data[0][vname[0]].attrs['str_ltim']
-        if 'str_ldep' in data[0][vname[0]].attrs.keys():
-            cbar_label = cbar_label+data[0][vname[0]].attrs['str_ldep']
+        if 'str_ltim' in data[0][vname].attrs.keys():
+            cbar_label = cbar_label+'\n'+data[0][vname].attrs['str_ltim']
+        if 'str_ldep' in data[0][vname].attrs.keys():
+            cbar_label = cbar_label+data[0][vname].attrs['str_ldep']
+        
+        
+        # eliminate possible double slashes in the string and replace with single string 
+        # something like \\n --> \n
+        cbar_label = cbar_label.encode().decode('unicode_escape')
+       
         cbar.set_label(cbar_label, size=fontsize+2)
     else:
         cbar=list()
@@ -410,16 +416,16 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
             # do labeling of colorbar
             # cbar_label=None
             # if cbar_label is None: 
-            if   'short_name' in data[ii][vname[0]].attrs:
-                cbar_label = cbar_label+data[ii][vname[0]].attrs['short_name']
-            elif 'long_name' in data[ii][vname[0]].attrs:
-                cbar_label = cbar_label+data[ii][vname[0]].attrs['long_name']
-            if cbar_unit  is None: cbar_label = cbar_label+' ['+data[ii][ vname[0] ].attrs['units']+']'
+            if   'short_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][vname].attrs['short_name']
+            elif 'long_name' in data[ii][vname].attrs:
+                cbar_label = cbar_label+data[ii][vname].attrs['long_name']
+            if cbar_unit  is None: cbar_label = cbar_label+' ['+data[ii][ vname ].attrs['units']+']'
             else:                  cbar_label = cbar_label+' ['+cbar_unit+']'
-            if 'str_ltim' in data[ii][vname[0]].attrs.keys():
-                cbar_label = cbar_label+'\n'+data[ii][vname[0]].attrs['str_ltim']
-            if 'str_ldep' in data[ii][vname[0]].attrs.keys():
-                cbar_label = cbar_label+data[ii][vname[0]].attrs['str_ldep']
+            if 'str_ltim' in data[ii][vname].attrs.keys():
+                cbar_label = cbar_label+'\n'+data[ii][vname].attrs['str_ltim']
+            if 'str_ldep' in data[ii][vname].attrs.keys():
+                cbar_label = cbar_label+data[ii][vname].attrs['str_ldep']
             aux_cbar.set_label(cbar_label, size=fontsize+2)
             cbar.append(aux_cbar)        
     
@@ -598,7 +604,7 @@ def plot_hslice_reg(mesh, data, input_names, cinfo=None, box=None, proj='pc', fi
         #_______________________________________________________________________
         # add gridlines
         ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
-                                  xticks, yticks, proj, which_proj)
+                                  xticks, yticks, proj, which_proj, rowlist, collist )
         
         #_______________________________________________________________________
         # set title and axes labels
@@ -970,7 +976,7 @@ def plot_hvec(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # add gridlines
         ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
-                                  xticks, yticks, proj, which_proj)
+                                  xticks, yticks, proj, which_proj, rowlist, collist)
        
         #_______________________________________________________________________
         # set title and axes labels
@@ -1170,7 +1176,7 @@ def plot_hmesh(mesh, box=None, proj='pc', figsize=[9,4.5],
         #_______________________________________________________________________
         # add gridlines
         ax[ii] = do_add_gridlines(ax[ii], rowlist[ii], collist[ii], 
-                                  xticks, yticks, proj, which_proj)
+                                  xticks, yticks, proj, which_proj, rowlist, collist)
        
         #_______________________________________________________________________
         # set title and axes labels
@@ -1592,8 +1598,8 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
         cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
         
-        print(cinfo)
-        print(cdmin,cdmax,cdref)
+        #print(cinfo)
+        #print(cdmin,cdmax,cdref)
         #compute levels in decimal units
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
         
@@ -1606,8 +1612,9 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
         cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
         cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
+        
         ddcmin, ddcmax = -(cdmin-cdref), (cdmax-cdref)
-        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(ddcmin,ddcmax,0.0,cinfo['cnum'],cinfo['cstr'])
+        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(ddcmin,ddcmax,0.0,cinfo['cnum'],cinfo['cstr'], do_slog=True)
         
         # rescale clevels towards symetric logarithm
         isneg = cinfo['clevel']<0
@@ -1738,7 +1745,8 @@ def do_plotlsmask(ax, mesh, do_lsmask, box, which_proj,
 #| ___RETURNS_______________________________________________________________   |
 #| ax           :   actual axes handle                                         |
 #|_____________________________________________________________________________|  
-def do_add_gridlines(ax, rowlist, collist, xticks, yticks, proj, which_proj):
+def do_add_gridlines(ax, rowidx, colidx, xticks, yticks, proj, which_proj, rowlist, collist):
+    from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
     
     maxr = np.max(rowlist)+1
     #_______________________________________________________________________
@@ -1751,16 +1759,24 @@ def do_add_gridlines(ax, rowlist, collist, xticks, yticks, proj, which_proj):
         
     elif proj=='pc':
             
-        ax.set_xticks(xticks[1:-1], crs=ccrs.PlateCarree())
-        ax.set_yticks(yticks[1:-1], crs=ccrs.PlateCarree())
-        ax.xaxis.set_major_formatter(LongitudeFormatter())
-        ax.yaxis.set_major_formatter(LatitudeFormatter()) 
+        #ax.set_xticks(xticks[1:-1], crs=ccrs.PlateCarree())
+        #ax.set_yticks(yticks[1:-1], crs=ccrs.PlateCarree())
+        #ax.xaxis.set_major_formatter(LongitudeFormatter())
+        #ax.yaxis.set_major_formatter(LatitudeFormatter()) 
         gl=ax.gridlines(crs=which_proj, color='black', linestyle='-', 
                             draw_labels=False, 
                             xlocs=xticks, ylocs=yticks, 
                             alpha=0.25, )
-        if rowlist!=maxr-1: ax.set_xticklabels([])
-        if collist >0     : ax.set_yticklabels([])
+        gl.ylabels_left   = True
+        gl.xlabels_bottom = True
+        
+        if rowidx!=maxr-1: 
+            #ax.set_xticklabels([])
+            gl.xlabels_bottom=False
+        if colidx >0     : 
+            #ax.set_yticklabels([])
+            gl.ylabels_left = False
+            
     elif proj=='channel':
             
         ax.set_xticks(xticks[1:-1], crs=ccrs.PlateCarree())
@@ -1771,9 +1787,9 @@ def do_add_gridlines(ax, rowlist, collist, xticks, yticks, proj, which_proj):
                             draw_labels=False, 
                             xlocs=xticks, ylocs=yticks, 
                             alpha=0.25, )
-        if rowlist!=maxr-1: ax.set_xticklabels([])
-        if collist >0     : ax.set_yticklabels([])
-        
+        if rowidx!=maxr-1:  ax.set_xticklabels([])
+        if colidx >0     : ax.set_yticklabels([])
+
     elif proj=='nps' or proj=='sps':
         ax.gridlines(color='black', linestyle='-', alpha=0.25, xlocs=xticks, ylocs=yticks,  )
         theta = np.linspace(0, 2*np.pi, 100)
