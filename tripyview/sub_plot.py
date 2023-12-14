@@ -312,7 +312,7 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
                 data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
                 data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
                 
-            hp=ax[ii].tricontourf(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxnan,:], data_plot,
+            hp=ax[ii].tricontourf(mappoints[:,0], mappoints[:,1], tri.triangles[e_idxok,:], data_plot,
                                   levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                   norm=which_norm_plot)#, transform=which_transf) 
             if do_info: print('--> do tricontourf: ', clock.time()-t1) ; t1 = clock.time()   
