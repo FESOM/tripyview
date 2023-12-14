@@ -1521,7 +1521,7 @@ def plot_transect_transp_t(tseries_list, input_names, transect, which_cycl=None,
 #+_____________________________________________________________________________+
 def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_harithm='mean', 
                               do_outputidx=False, diagpath=None, 
-                              do_info=False, do_smooth=True, do_checkbasin=True, 
+                              do_info=False, do_smooth=True, do_checkbasin=False, 
                               do_compute=False, do_load=True, do_persist=False, 
                                 **kwargs,):
     
@@ -1707,7 +1707,6 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         dtime, dhz, dnz = 'None', 'lat', which_ddim
         if 'time' in list(data_zm.dims): dtime = 'time'
         data_zm = data_zm.transpose(dtime, dnz, dhz, missing_dims='ignore')
-        
         
         #_______________________________________________________________________
         # change attributes
@@ -1947,11 +1946,12 @@ def plot_zmeantransects(data, bidx=0, figsize=[12, 6],
     
     #___________________________________________________________________________
     # set superior title
+    vname = list(data[ii][bidx].keys())[0]
     if 'transect_name' in data[ii][bidx][vname].attrs.keys():
         htitle = fig.suptitle( data[ii][bidx][vname].attrs['transect_name'], fontsize=16, #, x=0.0, y=1.04
                                horizontalalignment='right', verticalalignment='bottom')
         #htitle=fig.suptitle( 'sdfasfpafagjagnlgnjklasgnjklaf', fontsize=16, ha='right')
-        htitle.set_position([0.5, 1.00])
+        htitle.set_position([0.5, 0.95])
 
     #___________________________________________________________________________
     # delete axes that are not needed
@@ -1970,15 +1970,22 @@ def plot_zmeantransects(data, bidx=0, figsize=[12, 6],
         cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
         
         # do labeling of colorbar
+        vname = list(data[0][bidx].keys())[0]
         if cbar_label is None : 
-            if   'short_name' in data[0][bidx][vname].attrs:
-                cbar_label = data[0][bidx][ vname ].attrs['short_name']
-            elif 'long_name' in data[0][bidx][vname].attrs:
+            if 'long_name' in data[0][bidx][vname].attrs:
                 cbar_label = data[0][bidx][ vname ].attrs['long_name']
+            elif   'short_name' in data[0][bidx][vname].attrs:
+                cbar_label = data[0][bidx][ vname ].attrs['short_name']
+                
         if cbar_unit  is None : cbar_label = cbar_label+' ['+data[0][0][ vname ].attrs['units']+']'
         else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
         if 'str_ltim' in data[0][bidx][vname].attrs.keys():
             cbar_label = cbar_label+'\n'+data[0][bidx][vname].attrs['str_ltim']
+            
+        # eliminate possible double slashes in the string and replace with single string 
+        # something like \\n --> \n
+        cbar_label = cbar_label.encode().decode('unicode_escape')
+        
         cbar.set_label(cbar_label, size=fontsize+2)
     else:
         cbar=list()
@@ -1993,14 +2000,18 @@ def plot_zmeantransects(data, bidx=0, figsize=[12, 6],
                             extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0,)  
                 aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
                 #cbar_label ='anom. '
-            if   'short_name' in data[ii][bidx][vname].attrs:
-                cbar_label = cbar_label+data[ii][bidx][ vname ].attrs['short_name']
-            elif 'long_name' in data[ii][bidx][vname].attrs:
+            if 'long_name' in data[ii][bidx][vname].attrs:
                 cbar_label = cbar_label+data[ii][bidx][ vname ].attrs['long_name']
+            elif   'short_name' in data[ii][bidx][vname].attrs:
+                cbar_label = cbar_label+data[ii][bidx][ vname ].attrs['short_name']
             if cbar_unit  is None : cbar_label = cbar_label+' ['+data[ii][0][ vname ].attrs['units']+']'
             else                  : cbar_label = cbar_label+' ['+cbar_unit+']'
             if 'str_ltim' in data[ii][bidx][vname].attrs.keys():
                 cbar_label = cbar_label+'\n'+data[ii][0][vname].attrs['str_ltim']
+            # eliminate possible double slashes in the string and replace with single string 
+            # something like \\n --> \n
+            cbar_label = cbar_label.encode().decode('unicode_escape')
+            
             aux_cbar.set_label(cbar_label, size=fontsize+2)
             cbar.append(aux_cbar)
             
