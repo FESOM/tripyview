@@ -1163,7 +1163,7 @@ def do_interp_e2n(data, mesh, do_ie2n):
             data[vname_new].attrs = data[vname].attrs
             
             # delete elem variable from dataset
-            data = data.drop(labels=vname)
+            data = data.drop_vars(labels=vname)
     
     #___________________________________________________________________________
     return(data)
