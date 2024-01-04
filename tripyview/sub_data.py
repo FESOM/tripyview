@@ -781,8 +781,10 @@ def do_select_levidx(data, mesh, depth, depidx):
         if   isinstance(depth,(int, float)):
             str_ldep = ', dep:{}m'.format(str(depth))
         elif isinstance(depth,(list, np.ndarray, range)):   
-            str_ldep = ', dep:{}-{}m'.format(str(depth[0]), str(depth[-1]))
-            
+            if len(depth)>0:
+                str_ldep = ', dep:{}-{}m'.format(str(depth[0]), str(depth[-1]))
+            else:    
+                str_ldep = ', dep:{}-{}m'.format(str(mesh.zlev[0]), str(mesh.zlev[-1]))
     #___________________________________________________________________________
     return(data, str_ldep)
 
