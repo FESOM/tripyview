@@ -21,6 +21,773 @@ from .sub_mesh     import *
 from .sub_data     import *
 from .sub_colormap import *
 
+
+#_______________________________________________________________________________
+def plot_hnew(mesh               , 
+              data               , 
+              box        = None  , 
+              cinfo      = None  , # colormap info and defintion
+              nrow       = 1     , # number of row in figures panel
+              ncol       = 1     , # number of column in figure panel
+              proj       = 'pc'  ,
+              do_plot    = 'tpc' , # tpc:tripcolor, tcf:tricontourf
+              do_reffig  = False , 
+              do_ie2n    = False , # interpolate element data to vertices
+              do_rescale = True  ,
+              ref_rescale= True  ,
+              do_mesh    = False ,
+              mesh_opt   = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75}), 
+              do_grid    = True  ,
+              do_bot     = True  ,
+              bot_opt    = dict({'color':[0.8, 0.8, 0.8]}),
+              do_lsm     = 'fesom'  ,
+              lsm_color  = [0.6, 0.6, 0.6], 
+              lsm_linec  = 'k', 
+              lsm_linew  = 0.5,
+              cb_label   = None,
+              cb_unit    = None,
+              ax_opt     = dict(), # dictionary that defines axes and colorbar arangement
+              title      = 'descript',
+              do_save    = None, 
+              save_dpi   = 300,
+              nargout=['hfig', 'hax', 'hcb'],
+             ):
+    #___________________________________________________________________________
+    # --> create box
+    if box is None or box=="None": box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
+    
+    #___________________________________________________________________________
+    # --> create projection
+    proj_to, proj_from = None, ccrs.PlateCarree()
+    # proj is string 
+    if   isinstance(proj, str): 
+        proj_to, box = do_projection(mesh, proj, box)
+    # proj is cartopy projection object
+    elif isinstance(proj, ccrs.CRS): 
+        proj_to = proj
+    # proj is list of cartopy projection objects or string
+    elif isinstance(proj, list): 
+        proj_to = list()
+        for proj_ii in proj:
+            if   isinstance(proj_ii, str): 
+                proj_dum, box = do_projection(mesh, proj_ii, box)
+                proj_to.append(proj_dum)                
+            elif isinstance(proj_ii, ccrs.CRS):    
+                proj_to.append(proj_ii)    
+    
+    #___________________________________________________________________________
+    # --> pre-arange axes
+    ax_opt.update({'projection': proj_to, 'box': box})
+    hfig, hax, hcb = do_arrange_axes(ncol, nrow, **ax_opt)
+    
+    #___________________________________________________________________________
+    # --> create mesh triangulation
+    tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)),
+                        np.hstack((mesh.n_y,mesh.n_ya)),
+                        np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+    
+    #___________________________________________________________________________
+    # --> limit mesh triangulation to projection box
+    if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide) ):
+        e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
+    else:
+        xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
+        fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
+        ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
+        e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
+        del(xpts, ypts, fig_pts, ax_pts)
+
+    # --> reindex vertices and elements --> ensure smallest triangulation object 
+    # hopefully saves some memory when going to very large meshes 
+    n_box_mask = None
+    if any(e_box_mask==False):
+        tri, n_box_mask = do_reindex_vert_and_elem(tri, e_box_mask)
+    
+    #___________________________________________________________________________
+    # --> do the mapping transformation outside of tricontourf is absolutely 
+    #     faster than let doing cartopy doing it within 
+    # when you transpose a 2D array with two columns, it effectively swaps the 
+    # rows and columns, allowing you to use tuple unpacking to assign each 
+    # column to a separate variable.
+    tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
+
+    #___________________________________________________________________________
+    # --> set up color info
+    if do_reffig:
+        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, mesh=mesh, tri=tri)
+        cinfo     = do_setupcinfo(cinfo,      data[1:], do_rescale , mesh=mesh, tri=tri)        
+    else:
+        cinfo     = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
+    
+     #___________________________________________________________________________
+    # setup normalization log10, symetric log10, None
+    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
+    if do_reffig:     
+        which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
+    
+    #___________________________________________________________________________
+    # --> loop over axes
+    hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
+    for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
+        # if there are no ddatra to fill axes, make it invisible 
+        if ii>=len(data): 
+            hax_ii.axis('off')
+        # axis is normally fillt with data    
+        else:    
+            ii_v = ii # valid_idx
+            #___________________________________________________________________
+            # prepare data for plotting, augment periodic boundaries, interpolate 
+            # from elements to nodes, kick out nan values from plotting that are 
+            # bottom topo  
+            vname     = list(data[ii].keys())[0]
+            data_plot = data[ii][ vname ].data.copy()
+            data_plot, e_ok_mask = do_prepare_plotdata(mesh, data_plot, tri, e_box_mask, n_box_mask)
+            
+            #___________________________________________________________________
+            if do_reffig: 
+                if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
+                else    : cinfo_plot, which_norm_plot = cinfo    , which_norm
+            else        : cinfo_plot, which_norm_plot = cinfo    , which_norm
+            
+            #___________________________________________________________________
+            # add color for ocean bottom
+            if do_bot and np.any(e_ok_mask==False):
+                h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], **bot_opt)
+                hbot.append(h0)
+            
+            #___________________________________________________________________
+            # add tripcolor or tricontourf plot 
+            h0 = do_plt_data(hax_ii, do_plot, tri, data_plot, e_ok_mask, cinfo_plot, which_norm_plot)
+            hp.append(h0)
+            
+            #___________________________________________________________________
+            # add grid mesh on top
+            if do_mesh: 
+                h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_opt)
+                hmsh.append(h0)
+                
+            #___________________________________________________________________
+            # add mesh land-sea mask
+            if do_lsm is not False:
+                h0 = do_plotlsmask(hax_ii, mesh, do_lsm, box, proj_to, 
+                                   color_lsmask=lsm_color, edgecolor=lsm_linec, 
+                                   linewidth=lsm_linew)
+                hlsm.append(h0)  
+            
+            #___________________________________________________________________
+            # add grids lines 
+            if do_grid:
+                h0=hax_ii.gridlines(color='black', linestyle='-', draw_labels=False, alpha=0.25, )
+                if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
+                    # give stereographic plot a circular boundary
+                    theta  = np.linspace(0, 2*np.pi, 100)
+                    center, radius = [0.5, 0.5], 0.5
+                    verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
+                    circle = mpath.Path(verts * radius + center)
+                    hax_ii.set_boundary(circle, transform=hax_ii.transAxes)
+                    del(theta, center, verts, circle)
+                else:
+                    if hax_ii.do_ylabel: h0.ylabels_left   = True
+                    if hax_ii.do_xlabel: h0.xlabels_bottom = True
+                hgrd.append(h0)
+    
+            #_______________________________________________________________________
+            # add title and axes labels
+            if title is not None: 
+                # is title  string:
+                if   isinstance(title,str) : 
+                    # if title string is 'descript' than use descript attribute from 
+                    # data to set plot title 
+                    if title=='descript' and ('descript' in data[ii][vname].attrs.keys() ):
+                        hax_ii.set_title(data[ii][ vname ].attrs['descript'], fontsize=hax_ii.fs_label, verticalalignment='top')
+                        
+                    else:
+                        hax_ii.set_title(title, fontsize=hax_ii.fs_label)
+                # is title list of string        
+                elif isinstance(title,list): hax_ii.set_title(title[ii], fontsize=hax_ii.fs_label)
+                
+        #_______________________________________________________________________
+        # add colorbar 
+        if hcb_ii != 0: hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit)
+        
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, hfig, dpi=save_dpi, transparent=True)
+    
+    #___________________________________________________________________________
+    list_argout=[]
+    if len(nargout)>0:
+        for stri in nargout:
+            try   : list_argout.append(eval(stri))
+            except: print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
+            
+        return(list_argout)
+    else:
+        return
+    
+#
+#
+#_______________________________________________________________________________
+# --> setup cartopy projections    
+def do_projection(mesh, proj, box):
+    if  proj=='pc'     : 
+        proj_to = ccrs.PlateCarree()     
+    elif proj=='merc'   : 
+        proj_to = ccrs.Mercator()        
+    elif proj=='rob'    : 
+        proj_to = ccrs.Robinson()  
+        box[0], box[1] = box[0]+0.25, box[1]-0.25
+    elif proj=='mol'    : 
+        proj_to = ccrs.Mollweide()       
+    elif proj=='eqearth': 
+        proj_to = ccrs.EqualEarth(central_longitude=mesh.focus)
+        box[0], box[1] = box[0]+0.25, box[1]-0.25
+    elif proj=='nps'    : 
+        proj_to = ccrs.NorthPolarStereo()
+        if box[2]<0: box[2]=0
+    elif proj=='sps'    : 
+        proj_to = ccrs.SouthPolarStereo()
+        if box[3]>0: box[2]=0
+    elif proj=='channel':
+        proj_to = ccrs.PlateCarree()
+        if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
+    else: 
+        raise ValueError('The projection {} is not supporrted!'.format(proj))
+        
+    #___________________________________________________________________________    
+    return(proj_to, box)
+
+#
+#
+#_______________________________________________________________________________
+# reindex element index in case of exluded triangles and unused vertices
+def do_reindex_vert_and_elem(tri, e_box_mask):
+    
+    # Identify used vertices
+    n_box_mask = np.unique(tri.triangles[e_box_mask,:].flatten())
+    
+    # Create mapping dictionary between old and new vertex indices
+    vert_map  = {old_index: new_index for new_index, old_index in enumerate(n_box_mask)}
+
+    # Update vertices and elements using NumPy indexing
+    tri       = Triangulation(tri.x[n_box_mask], 
+                              tri.y[n_box_mask], 
+                              np.vectorize(vert_map.get)(tri.triangles[e_box_mask,:]))
+    
+    #___________________________________________________________________________
+    return(tri, n_box_mask)
+
+#
+#
+#_______________________________________________________________________________
+# --> this based on work of Nils Bruegemann see 
+# https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
+# i needed this to unify the ploting between icon and fesom for model comparison
+# paper
+def do_arrange_axes(nx, ny,
+                    #-----------------------------------------------------------
+                    xlabel = '', ylabel = '', tlabel = '', 
+                     # font sizes of labels, titles, ticks
+                    fs_label = 10., fs_title = 10., fs_ticks = 10.,
+                    # font size increasing factor
+                    fs_fac = 1,
+                    
+                    #---AXES OPTIONS--------------------------------------------
+                    ax_sharex   = True ,    # all subplot share x-axes
+                    ax_sharey   = False,    # all subplot share y-axes
+                    ax_dolabels = True ,    # add enumeration labels to axes 
+                    ax_optdict  = dict(),   # additional axes option: fontssize, ...
+                    ax_asp      = 1.   ,    # aspect ratio of axes
+                    ax_w ='auto', ax_h =4., # width and height of axes
+                    # space aroung axes (left, right, top, bottom) 
+                    ax_dl =0.6, ax_dr =0.6, ax_dt =0.6, ax_db =0.6, 
+                    # factors to increase spaces (axes)
+                    ax_fdl=1.0, ax_fdr=1.0, ax_fdt=1.0, ax_fdb=1.0,
+                    ax_fw =1.0, ax_fh =1.0, 
+                    
+                    #---FIGURE OPTION-------------------------------------------
+                    fig_optdict = dict() ,  # additional figure option: fontssize, ...
+                    fig_sizefac = 1.,       # factor to resize figures
+                    # extra figure spaces (left, right, top, bottom)
+                    fig_dl =0.0, fig_dr =0.0, fig_dt =0.0, fig_db =0.0,
+                    # factors to increase spaces (figures)
+                    fig_fdl=1.0, fig_fdr=1.0, fig_fdt=1.0, fig_fdb=1.0,
+                
+                    #---COLORBAR OPTION-----------------------------------------
+                    cb_plt        = True,
+                    cb_plt_single = False, 
+                    cb_pos        = 'vertical', 
+                    # space around colorbars (left, right, top, bottom) 
+                    cb_dl = 0.5, cb_dr =1.5, cb_dt =0.75, cb_db =0.75,
+                    # factors to increase spaces (colorbars)
+                    cb_fdl= 1.0, cb_fdr=1.0, cb_fdt=1.0, cb_fdb=1.0,
+                    # width and height of colorbars
+                    cb_w  = 0.5, cb_h  = 'auto',
+                    # factors to increase widths and heights of axes and colorbars
+                    cb_fw = 1.0, cb_fh = 1.0,
+                 
+                    #-----------------------------------------------------------
+                    projection = None, # projection (e.g. for cartopy)
+                    box        = None, # define regional box needed for aspect ratio
+                    #-----------------------------------------------------------
+                    nargout=['hfig', 'hax', 'hcb'],
+                    **kwargs,
+                ):
+    
+    #___________________________________________________________________________
+    # factor to convert cm into inch
+    cm2inch = 0.3937
+
+    #___________________________________________________________________________
+    # make list of projections if it is not a list
+    if not isinstance(projection, list): projection = [projection]*nx*ny
+    
+    #___________________________________________________________________________
+    # determine ax_w in case it is auto
+    #if isinstance(ax_w, str) and ax_w=='auto': ax_w = ax_h/ax_asp
+    if isinstance(ax_w, str) and ax_w=='auto': 
+        if box is not None and ax_asp==1.0:
+            if isinstance(projection[0], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
+                ax_asp = 1.0
+            elif isinstance(projection[0], (ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide) ):
+                poly_x, poly_y = np.array([box[0], box[1], box[1], box[0] ]), np.array([box[3], box[3], box[2], box[2] ]),
+                ax_asp = (poly_x.max()-poly_x.min())/(poly_y.max()-poly_y.min())
+            else:
+                poly_x, poly_y = [box[0], box[1], box[1], box[0] ], [box[3], box[3], box[2], box[2] ],
+                #points = ccrs.PlateCarree().transform_points(projection[0], np.array(box[0:2]), np.array(box[2:4]))
+                points = ccrs.PlateCarree().transform_points(projection[0], np.array(poly_x), np.array(poly_y))
+                print(points)
+                ax_asp = (points[:,0].max()-points[:,0].min())/(points[:,1].max()-points[:,1].min())
+        print('ax_asp=', ax_asp)
+        ax_w = ax_h*ax_asp
+        print('ax_w=', ax_w, ', ax_h=', ax_h)
+
+    # rename horizontal->bottom and vertical->right
+    if   cb_pos in ['horizontal', 'horiz', 'bottom', 'bot']: 
+        if isinstance(cb_w, str) and cb_w=='auto': cb_w, cb_h = ax_w, 0.5
+        cb_pos = 'bottom'
+    elif cb_pos in ['vertical', 'vert', 'right']: 
+        if isinstance(cb_h, str) and cb_h=='auto': cb_h, cb_w = ax_h, 0.5
+        cb_pos = 'right'
+    
+    #___________________________________________________________________________
+    # apply fig_size_fac
+    ax_fh *= fig_sizefac
+    ax_fw *= fig_sizefac
+    if cb_pos=='right' : cb_fh *= fig_sizefac
+    if cb_pos=='bottom': cb_fw *= fig_sizefac
+    #fs_fac *= fig_sizefac
+    
+    ## factors to increase spaces (figure)
+    #fig_fdl *= fig_sizefac
+    #fig_fdr *= fig_sizefac
+    #fig_fdt *= fig_sizefac
+    #fig_fdb *= fig_sizefac
+    ## factors to increase spaces (axes)
+    #ax_fdl  *= fig_sizefac
+    #ax_fdr  *= fig_sizefac
+    #ax_fdt  *= fig_sizefac
+    #ax_fdb  *= fig_sizefac
+    ## factors to increase spaces (colorbars)
+    #cb_fdl  *= fig_sizefac
+    #cb_fdr  *= fig_sizefac
+    #cb_fdt  *= fig_sizefac
+    #cb_fdb  *= fig_sizefac
+  
+    # apply font size factor
+    if fig_sizefac!=1.0 and fs_fac==1.0:
+        fs_label *= fig_sizefac**(1/fig_sizefac)
+        fs_title *= fig_sizefac**(1/fig_sizefac)
+        fs_ticks *= fig_sizefac**(1/fig_sizefac)
+    else:    
+        fs_label *= fs_fac
+        fs_title *= fs_fac
+        fs_ticks *= fs_fac
+
+    #___________________________________________________________________________
+    # make vector of plot_cb if it has been true or false before
+    # --> 1: plot cb,  0: do not plot cb    # 
+    if isinstance(cb_plt, bool):
+        if   cb_plt==True: 
+            # only one colorbar for the entire panels
+            if cb_plt_single:
+                cb_plt = np.zeros((nx,ny))  
+                cb_plt[-1,-1] = 1
+            # each panel has a colorbar    
+            else:    
+                cb_plt = np.ones((nx,ny))  
+        
+        # no colorbars et all
+        else: cb_plt = np.zeros((nx,ny))  
+    
+    # only distinct panels have colorbar
+    elif isinstance(cb_plt, list):
+        cb_plt = np.array(cb_plt)
+        if cb_plt.size!=nx*ny    : raise ValueError('Vector cb_plt has wrong length!')
+        if   cb_plt.shape[0]==nx*ny: cb_plt = cb_plt.reshape(ny,nx).transpose()
+        elif cb_plt.shape[0]==ny   : cb_plt = cb_plt.transpose()
+        
+    else:
+        raise ValueError(' the format of cb_plt is not supported')
+    
+    #___________________________________________________________________________
+    # create multiple of horizontal axes, colorbar properties
+    ax_dl = np.array([ax_dl]*nx) *ax_fdl
+    ax_dr = np.array([ax_dr]*nx) *ax_fdr
+    cb_dl = np.array([cb_dl]*nx) *cb_fdl
+    cb_dr = np.array([cb_dr]*nx) *cb_fdr
+    ax_w  = np.array([ax_w ]*nx) *ax_fw
+    cb_w  = np.array([cb_w ]*nx) *cb_fw
+    
+    # create multiple of vertical axes, colorbar properties
+    ax_dt = np.array([ax_dt]*ny) *ax_fdt
+    ax_db = np.array([ax_db]*ny) *ax_fdb
+    cb_dt = np.array([cb_dt]*ny) *cb_fdt
+    cb_db = np.array([cb_db]*ny) *cb_fdb
+    ax_h  = np.array([ax_h ]*ny) *ax_fh
+    cb_h  = np.array([cb_h ]*ny) *cb_fh
+    
+    #print('ax_w=',ax_w,', ax_dl=',ax_dl, ', ax_dr=',ax_dr)
+    #print('ax_h=',ax_h,', ax_dt=',ax_dt, ', ax_db=',ax_db)
+    #print('cb_w=',cb_w,', cb_dl=',cb_dl, ', cb_dr=',cb_dr)
+    #print('cb_h=',cb_h,', cb_dt=',cb_dt, ', cb_db=',cb_db)
+    
+    #___________________________________________________________________________
+    # adjust for shared axes
+    if ax_sharex: ax_db[:-1] = 0 # only last row has x-axes label
+    if ax_sharey: ax_dl[ 1:] = 0 # only first column has y-axes label
+
+    #___________________________________________________________________________
+    # adjust for one colorbar at the right or bottom
+    if cb_pos=='right':
+        ax_dr_s = ax_dr[0]
+        cb_dl_s = cb_dl[0]
+        cb_dr_s = cb_dr[0]
+        cb_w_s  = cb_w[ 0]
+        cb_h_s  = cb_h[ 0]
+        fig_dr += cb_dl_s+cb_w_s+0.*cb_dr_s+ax_dl[0]
+        
+        # adjust for columns without colorbar
+        delete_cb_space = cb_plt.sum(axis=1)==0
+        cb_dl[delete_cb_space] = 0.0
+        cb_dr[delete_cb_space] = 0.0
+        cb_w[ delete_cb_space] = 0.0
+        ax_dr[delete_cb_space==False] = 0.0
+        
+    if cb_pos=='bottom':
+        ax_db_s = ax_db[-1]
+        cb_h_s  = cb_h[0]
+        cb_w_s  = ax_w[0]
+        cb_db_s = cb_db[0]+ax_db[-1]
+        cb_dt_s = cb_dt[0]
+        #hcb_s  = hcb[0]
+        fig_db += cb_db_s+cb_h_s+cb_dt_s
+  
+        # adjust for columns without colorbar
+        delete_cb_space = cb_plt.sum(axis=0)==0
+        cb_dt[delete_cb_space] = 0.0
+        cb_db[delete_cb_space] = 0.0
+        cb_h[ delete_cb_space] = 0.0
+    
+    #___________________________________________________________________________
+    # determine ax position and fig dimensions in centimeters!!!
+    x0 , y0  = fig_dl, -(fig_dt)
+    x00, y00 = x0, y0
+    pos_axcm = np.zeros((nx*ny,4))
+    pos_cbcm = np.zeros((nx*ny,4))
+    nn  = -1
+    for jj in range(ny):
+        #_______________________________________________________________________
+        if cb_pos == 'right':
+            y0 = y0 - (ax_dt[jj]+ax_h[jj])
+            x0 = x00
+            for ii in  range(nx):
+                nn = nn+1
+                x0 = x0 + ax_dl[ii]
+                pos_axcm[nn,:] = [x0, y0, ax_w[ii], ax_h[jj]]
+                x0 = x0 + ax_w[ii] + ax_dr[ii] + cb_dl[ii]
+                pos_cbcm[nn,:] = [x0, y0, cb_w[ii], cb_h[jj]]
+                x0 = x0 + cb_w[ii] +cb_dr[ii]
+            y0 = y0 - (ax_db[jj])
+        #_______________________________________________________________________
+        elif cb_pos == 'bottom':
+            y0 = y0 - (ax_dt[jj]+ax_h[jj])
+            x0 = x00
+            for ii in  range(nx):
+                nn = nn+1
+                x0 = x0 + ax_dl[ii]
+                pos_axcm[nn,:] = [x0, y0, ax_w[ii], ax_h[jj]]
+                pos_cbcm[nn,:] = [x0, y0-cb_dt[jj]-cb_h[jj], cb_w[ii], cb_h[jj]]
+                x0 = x0 + ax_w[ii] + ax_dr[ii]
+            y0 = y0 - cb_dt[jj]-cb_h[jj]-cb_db[jj]
+    #___________________________________________________________________________        
+    fig_w = x0 + fig_dr
+    fig_h = y0 - fig_db
+    #print('fig_w=',fig_w,' ,fig_h=', fig_h)
+    
+    #___________________________________________________________________________
+    # transform from negative y axis to positive y axis
+    fig_h = -fig_h
+    pos_axcm[:,1] += fig_h
+    pos_cbcm[:,1] += fig_h
+    
+    #___________________________________________________________________________
+    # now convert axis and colorbar position from centimeter to figcoords
+    cm2fig_x, cm2fig_y = 1./fig_w, 1./fig_h
+    
+    pos_ax = 1. * pos_axcm
+    pos_cb = 1. * pos_cbcm
+    
+    pos_ax[:,0] = pos_axcm[:,0]*cm2fig_x
+    pos_ax[:,1] = pos_axcm[:,1]*cm2fig_y
+    pos_ax[:,2] = pos_axcm[:,2]*cm2fig_x
+    pos_ax[:,3] = pos_axcm[:,3]*cm2fig_y
+    
+    pos_cb[:,0] = pos_cbcm[:,0]*cm2fig_x
+    pos_cb[:,1] = pos_cbcm[:,1]*cm2fig_y
+    pos_cb[:,2] = pos_cbcm[:,2]*cm2fig_x
+    pos_cb[:,3] = pos_cbcm[:,3]*cm2fig_y
+    
+    #___________________________________________________________________________
+    # make figure
+    #print(fig_w, fig_h)
+    hfig = plt.figure(figsize=(fig_w*cm2inch, fig_h*cm2inch), facecolor='white')
+  
+    #___________________________________________________________________________
+    # make axes and there positioning 
+    hax = [0]*(nx*ny)
+    hcb = [0]*(nx*ny)
+    nn = -1
+    for jj in range(ny):
+        for ii in range(nx):
+            nn+=1
+            #___________________________________________________________________
+            # axes
+            hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])
+            
+            hax[nn].set_position(pos_ax[nn,:])
+            
+            #if box is not None: hax[nn].set_extent(box, crs=projection[nn])
+            if box is not None: 
+                if not isinstance(projection[nn], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
+                    hax[nn].set_extent(box, crs=ccrs.PlateCarree())
+                if not isinstance(projection[nn], (ccrs.PlateCarree) ):
+                    hax[nn].set_extent(box, crs=ccrs.PlateCarree())
+                #hax[nn].set_extent(box, crs=projection[nn])
+                
+            #hax[nn].set_aspect('auto')
+              
+            #___________________________________________________________________
+            # colorbar
+            if cb_plt[ii,jj] == 1:
+                hcb[nn] = hfig.add_subplot(position=pos_cb[nn,:])
+                hcb[nn].set_position(pos_cb[nn,:])
+            ax  = hax[nn]
+            cax = hcb[nn] 
+            
+            #___________________________________________________________________
+            # label
+            ax.set_xlabel(xlabel, fontsize=fs_label)
+            ax.set_ylabel(ylabel, fontsize=fs_label)
+            #ax.set_title('', fontsize=fs_title)
+            matplotlib.rcParams['axes.titlesize'] = fs_title
+            ax.tick_params(labelsize=fs_ticks)
+            if cb_plt[ii,jj] == 1:
+                hcb[nn].tick_params(labelsize=fs_ticks)
+            hax[nn].fs_label=fs_label
+            hax[nn].fs_ticks=fs_ticks
+            
+            #___________________________________________________________________
+            # ticks for axes
+            # delete labels for shared axes
+            hax[nn].do_xlabel=True
+            if ax_sharex and jj!=ny-1:
+                hax[nn].ticklabel_format(axis='x',style='plain',useOffset=False)
+                hax[nn].tick_params(labelbottom=False)
+                hax[nn].set_xlabel('')
+                hax[nn].do_xlabel=False
+            
+            hax[nn].do_ylabel=True
+            if ax_sharey and ii!=0:
+                hax[nn].ticklabel_format(axis='y',style='plain',useOffset=False)
+                hax[nn].tick_params(labelleft=False)
+                hax[nn].set_ylabel('')
+                hax[nn].do_ylabel=False
+            
+            #___________________________________________________________________
+            # ticks for colorbar 
+            if cb_plt[ii,jj] == 1:
+                if cb_pos=='right':
+                    hcb[nn].set_xticks([])
+                    hcb[nn].yaxis.tick_right()
+                    hcb[nn].yaxis.set_label_position("right")
+                elif cb_pos=='bottom':
+                    hcb[nn].set_yticks([])
+            
+    #___________________________________________________________________________
+    # if there is a single colorbar for the entire pannel, than stretch out the 
+    # width/height of the colorbar over the size of the pannel
+    if cb_plt_single:
+        #_______________________________________________________________________
+        # find axes center (!= figure center) --> make sure that singular colorbar
+        # is centered over all the pannels
+        x_ax_cent = pos_axcm[ 0,0] + 0.5*(pos_axcm[-1,0]+pos_axcm[-1,2]-pos_axcm[0,0])
+        y_ax_cent = pos_axcm[-1,1] + 0.5*(pos_axcm[ 0,1]+pos_axcm[ 0,3]-pos_axcm[-1,1])
+        
+        #_______________________________________________________________________
+        # case of vertical colorbar
+        if cb_pos=='right':
+            w0, h0 = cb_w_s, (pos_axcm[0,1]+pos_axcm[0,3]-pos_axcm[-1,1]) #h0 = cb_h_s
+            x0, y0 = (pos_cbcm[-1,0]), (y_ax_cent-0.5*h0)
+            pos_cb = np.array([x0*cm2fig_x, y0*cm2fig_y, w0*cm2fig_x, h0*cm2fig_y ])
+            
+            nn = -1
+            hcb[nn].set_position(pos_cb)
+            hcb[nn].tick_params(labelsize=fs_ticks)
+            hcb[nn].set_xticks([])
+            hcb[nn].yaxis.tick_right()
+            hcb[nn].yaxis.set_label_position("right")
+            
+        #_______________________________________________________________________
+        # case of horizontal colorbar
+        elif cb_pos=='bottom':
+            w0, h0 = (pos_axcm[-1,0]+pos_axcm[-1,2]-pos_axcm[0,0]), cb_h_s
+            x0, y0 = (x_ax_cent-0.5*w0), (pos_cbcm[-1,1])
+            pos_cb = np.array([ x0*cm2fig_x, y0*cm2fig_y, w0*cm2fig_x, h0*cm2fig_y ])
+            
+            nn = -1
+            hcb[nn].set_position(pos_cb)
+            hcb[nn].tick_params(labelsize=fs_ticks)
+            hcb[nn].set_yticks([])
+    
+    #___________________________________________________________________________
+    list_argout=[]
+    if len(nargout)>0:
+        for stri in nargout:
+            try:
+                list_argout.append(eval(stri))
+            except:
+                print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
+            
+        return(list_argout)
+    else:
+        return
+    
+#
+#
+#_______________________________________________________________________________
+# prepare data for plotting, augment periodic boundaries, interpolate from elements
+# to nodes, kick out nan values from plotting 
+def do_prepare_plotdata(mesh, data_plot, tri, e_box_mask, n_box_mask):
+    is_onvert = True
+    #___________________________________________________________________________
+    # data are on vertices
+    if   data_plot.size==mesh.n2dn:
+        is_onvert = True
+        data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+        
+        # reindex vertices array to box limits
+        if n_box_mask is not None: data_plot = data_plot[n_box_mask]
+        
+    #___________________________________________________________________________
+    # data are on elements
+    elif data_plot.size==mesh.n2de:
+        
+        # interpolate from elements to vertices --> cartopy plotting is faster
+        if do_ie2n:
+            is_onvert = True
+            data_plot = grid_interp_e2n(mesh,data_plot)
+            data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+            
+            # reindex vertices array to box limits
+            if n_box_mask is not None: data_plot = data_plot[n_box_mask]
+            
+        # plot the data on elements    
+        else:    
+            is_onvert = False
+            data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
+            data_plot = data_plot[e_idxbox]
+            
+            # reindex element array to box limits
+            data_plot = data_plot[e_box_mask]
+    
+    #___________________________________________________________________________
+    # kick out triangles with Nan cut elements to box size        
+    isnan   = np.isnan(data_plot)
+    if not is_onvert:
+        e_ok_mask = isnan==False
+        data_plot = data_plot[e_ok_mask]
+    else:
+        e_ok_mask = np.any(isnan[tri.triangles], axis=1)==False
+    del(isnan) 
+    
+    #___________________________________________________________________________
+    return(data_plot, e_ok_mask)    
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_data(hax_ii, do_plot, tri, data_plot, e_ok_mask, cinfo_plot, which_norm_plot):
+    #___________________________________________________________________________
+    # plot tripcolor
+    if   do_plot=='tpc' or (do_plot=='tcf' and not tri_x.size!=data_plot.size):
+        h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[e_ok_mask,:], data_plot,
+                            shading='flat',
+                            cmap=cinfo_plot['cmap'],
+                            vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
+                            norm = which_norm_plot)
+    #___________________________________________________________________________
+    # plot tricontour 
+    elif do_plot=='tcf': 
+        # supress warning message when compared with nan
+        with np.errstate(invalid='ignore'):
+            data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
+            data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
+                
+        h0 = hax_ii.tricontourf(tri.x, tri.y, tri.triangles[e_ok_mask,:], data_plot,
+                                levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
+                                norm=which_norm_plot)    
+    else: 
+        raise ValueError(' --> this do_plot={:s} value is not valid'.format(do_plot))            
+    #___________________________________________________________________________
+    return(h0)
+
+#
+#
+#_______________________________________________________________________________
+def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit):
+    hcb_ii = plt.colorbar(mappable=hp[-1], ax=hax_ii, cax=hcb_ii, 
+                        ticks=cinfo['clevel'], extendrect=False, extendfrac=None,
+                        drawedges=True)
+    #___________________________________________________________________________
+    hcb_ii = do_cbar_label(hcb_ii, 8, cinfo, do_vec=False)
+    hcb_ii = do_cbar_formatting(hcb_ii, do_rescale, 8, cinfo['clevel'])
+            
+    #___________________________________________________________________________
+    ii_v = 0
+    vname    = list(data[ii_v].keys())[0]
+    
+    if cb_label is None:
+        cb_label = ''
+        if  'long_name' in data[ii_v][vname].attrs:
+            cb_label = cb_label+data[ii_v][vname].attrs['long_name']
+        elif 'short_name' in data[ii_v][vname].attrs:
+            c_label = cb_label+data[ii_v][vname].attrs['short_name']
+        
+    if cb_unit  is None: cb_label = cb_label+' ['+data[ii_v][ vname ].attrs['units']+']'
+    else:                cb_label = cb_label+' ['+cb_unit+']'
+    
+    if 'str_ltim' in data[ii_v][vname].attrs.keys():
+        cb_label = cb_label+'\n'+data[ii_v][vname].attrs['str_ltim']
+    if 'str_ldep' in data[ii_v][vname].attrs.keys():
+        cb_label = cb_label+data[ii_v][vname].attrs['str_ldep']
+    
+    fsize =  hcb_ii.ax.get_yticklabels()[0].get_fontsize()
+    hcb_ii.set_label(cb_label, fontsize=fsize)
+    #___________________________________________________________________________
+    return(hcb_ii)
+            
+
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
 #|      *** PLOT HORIZONTAL FESOM2 DATA SLICES --> BASED ON CARTOPY ***        |
@@ -254,6 +1021,8 @@ def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5],
         # periodic augment data
         vname     = list(data[ii].keys())[0]
         data_plot = data[ii][ vname ].data.copy()
+        
+        
         #data_plot = data[ii][ vname[0] ].values.copy()
             
         is_onvert = True
@@ -1867,7 +2636,7 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
 #| ___RETURNS_______________________________________________________________   |
 #| cbar         :   actual colorbar handle                                     |   
 #|_____________________________________________________________________________|  
-def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, clocs, pw_lim=[-3,4]):
+def do_cbar_formatting(cbar, do_rescale, cbar_nl, clocs, pw_lim=[-3,4]):
     # formatting of normal colorbar axis
     
     if len(clocs)>=48: cbar.dividers.set_color('None')
@@ -1878,7 +2647,8 @@ def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, clocs, pw_lim=[-3,4]
         formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))      
         cbar.formatter= formatter
         cbar.locator  = mticker.FixedLocator(clocs, nbins=cbar_nl)
-        cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
+        #cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
+        cbar.ax.yaxis.get_offset_text().set(horizontalalignment='center')
         cbar.update_ticks()
     # formating for log and symlog colorbar axis    
     else:
@@ -1887,7 +2657,7 @@ def do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, clocs, pw_lim=[-3,4]
         cbar.update_ticks()
         cbar.ax.yaxis.set_major_formatter(mticker.LogFormatterSciNotation())
         cbar.ax.yaxis.get_offset_text().set(horizontalalignment='right')
-    cbar.ax.tick_params(labelsize=fontsize)
+    #cbar.ax.tick_params(labelsize=fontsize)
 
     #___________________________________________________________________________
     return(cbar)
