@@ -4,6 +4,7 @@ import time              as time
 import xarray            as xr
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import shapefile         as shp
 
 from .sub_colormap import *
 from .sub_mesh     import vec_r2g
@@ -172,7 +173,8 @@ def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_
         data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
         # define coordinates
         coords    = {'lat' : (['lat' ], lat )}
-        # create dataset        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+        # create dataset        
+        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
         del(data_vars, coords, aux_attr)
     
         #___________________________________________________________________________
@@ -742,7 +744,7 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True,
            
         #_______________________________________________________________________
         # compute  mask index
-        idx_IN   = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimh).chunk({dimh:data.chunksizes[dimh]})
+        idx_IN   = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimh)#.chunk({dimh:data.chunksizes[dimh]})
         
         #_______________________________________________________________________
         # select box area
