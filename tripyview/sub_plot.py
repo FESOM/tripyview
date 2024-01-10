@@ -23,33 +23,46 @@ from .sub_colormap import *
 
 
 #_______________________________________________________________________________
-def plot_hnew(mesh               , 
-              data               , 
-              box        = None  , 
-              cinfo      = None  , # colormap info and defintion
-              nrow       = 1     , # number of row in figures panel
-              ncol       = 1     , # number of column in figure panel
-              proj       = 'pc'  ,
-              do_plot    = 'tpc' , # tpc:tripcolor, tcf:tricontourf
-              do_reffig  = False , 
-              do_ie2n    = False , # interpolate element data to vertices
-              do_rescale = True  ,
-              ref_rescale= True  ,
-              do_mesh    = False ,
-              mesh_opt   = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75}), 
-              do_grid    = True  ,
-              do_bot     = True  ,
-              bot_opt    = dict({'color':[0.8, 0.8, 0.8]}),
-              do_lsm     = 'fesom'  ,
-              lsm_color  = [0.6, 0.6, 0.6], 
-              lsm_linec  = 'k', 
-              lsm_linew  = 0.5,
-              cb_label   = None,
-              cb_unit    = None,
-              ax_opt     = dict(), # dictionary that defines axes and colorbar arangement
-              title      = 'descript',
-              do_save    = None, 
-              save_dpi   = 300,
+def plot_hslice(mesh                , 
+              data                , 
+              box        = None   , 
+              cinfo      = None   , # colormap info and defintion
+              nrow       = 1      , # number of row in figures panel
+              ncol       = 1      , # number of column in figure panel
+              proj       = 'pc'   ,
+              do_plot    = 'tpc'  , # tpc:tripcolor, tcf:tricontourf
+              do_reffig  = False  , 
+              do_ie2n    = False  , # interpolate element data to vertices
+              do_rescale = True   ,
+              ref_rescale= True   ,
+              #--- mesh -----------
+              do_mesh    = False  , 
+              mesh_opt   = dict() , 
+              #--- gridlines ------
+              do_grid    = True   , 
+              grid_opt   = dict() ,
+              #--- bottom mask ----
+              do_bot     = True   , 
+              bot_opt    = dict() ,
+              #--- landsea mask ---
+              do_lsm     = 'fesom', 
+              lsm_opt    = dict() , 
+              lsm_res    = 'low'  ,
+              #--- colorbar -------
+              cb_label   = None   ,
+              cb_unit    = None   ,
+              cb_opt     = dict() , # colorbar option
+              cbl_opt    = dict() , # colorbar label option, fontsize ,...
+              #--- axes -----------
+              ax_opt     = dict() , # dictionary that defines axes and colorbar arangement
+              ax_title   = 'descript',
+              #--- enumerate axes -
+              do_enum    = False  ,
+              enum_opt   = dict() , 
+              #--- save figure ----
+              do_save    = None   , 
+              save_dpi   = 300    ,
+              #--- set output -----
               nargout=['hfig', 'hax', 'hcb'],
              ):
     #___________________________________________________________________________
@@ -77,8 +90,11 @@ def plot_hnew(mesh               ,
     
     #___________________________________________________________________________
     # --> pre-arange axes
-    ax_opt.update({'projection': proj_to, 'box': box})
-    hfig, hax, hcb = do_arrange_axes(ncol, nrow, **ax_opt)
+    ax_optdefault=dict({'projection': proj_to, 'box': box})
+    ax_optdefault.update(ax_opt)
+    hfig, hax, hcb = do_axes_arrange(ncol, nrow, **ax_optdefault)
+    
+    hax = do_axes_enum(hax, do_enum, enum_opt)
     
     #___________________________________________________________________________
     # --> create mesh triangulation
@@ -113,17 +129,14 @@ def plot_hnew(mesh               ,
 
     #___________________________________________________________________________
     # --> set up color info
+    # --> setup normalization log10, symetric log10, None
+    cinfo_plot, norm_plot, idxs = list(), list(), 0
     if do_reffig:
-        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, mesh=mesh, tri=tri)
-        cinfo     = do_setupcinfo(cinfo,      data[1:], do_rescale , mesh=mesh, tri=tri)        
-    else:
-        cinfo     = do_setupcinfo(cinfo, data, do_rescale, mesh=mesh, tri=tri)
-    
-     #___________________________________________________________________________
-    # setup normalization log10, symetric log10, None
-    which_norm = do_compute_scalingnorm(cinfo, do_rescale)
-    if do_reffig:     
-        which_norm_ref = do_compute_scalingnorm(ref_cinfo, ref_rescale)
+        cinfo_plot.append( do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, mesh=mesh, tri=tri) )
+        norm_plot.append(  do_data_norm(cinfo_plot[idxs], ref_rescale))
+        idxs=1
+    cinfo_plot = cinfo_plot + [do_setupcinfo(cinfo, data[idxs:], do_rescale , mesh=mesh, tri=tri)]*(len(data)-idxs)
+    norm_plot  = norm_plot  + [do_data_norm(cinfo_plot[idxs], do_rescale)]*(len(data)-idxs)    
     
     #___________________________________________________________________________
     # --> loop over axes
@@ -141,74 +154,52 @@ def plot_hnew(mesh               ,
             # bottom topo  
             vname     = list(data[ii].keys())[0]
             data_plot = data[ii][ vname ].data.copy()
-            data_plot, e_ok_mask = do_prepare_plotdata(mesh, data_plot, tri, e_box_mask, n_box_mask)
-            
-            #___________________________________________________________________
-            if do_reffig: 
-                if ii==0: cinfo_plot, which_norm_plot = ref_cinfo, which_norm_ref
-                else    : cinfo_plot, which_norm_plot = cinfo    , which_norm
-            else        : cinfo_plot, which_norm_plot = cinfo    , which_norm
+            data_plot, e_ok_mask = do_data_prepare(mesh, data_plot, tri, e_box_mask, n_box_mask)
             
             #___________________________________________________________________
             # add color for ocean bottom
-            if do_bot and np.any(e_ok_mask==False):
-                h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], **bot_opt)
-                hbot.append(h0)
+            h0 = do_plt_bot(hax_ii, do_bot, tri, e_ok_mask, bot_opt)
+            hbot.append(h0)
             
             #___________________________________________________________________
             # add tripcolor or tricontourf plot 
-            h0 = do_plt_data(hax_ii, do_plot, tri, data_plot, e_ok_mask, cinfo_plot, which_norm_plot)
+            h0 = do_plt_data(hax_ii, do_plot, tri, data_plot, e_ok_mask, cinfo_plot[ii], norm_plot[ii])
             hp.append(h0)
             
             #___________________________________________________________________
             # add grid mesh on top
-            if do_mesh: 
-                h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_opt)
-                hmsh.append(h0)
+            h0 = do_plt_mesh(hax_ii, do_mesh, tri, e_ok_mask, mesh_opt)
+            hmsh.append(h0)
                 
             #___________________________________________________________________
             # add mesh land-sea mask
-            if do_lsm is not False:
-                h0 = do_plotlsmask(hax_ii, mesh, do_lsm, box, proj_to, 
-                                   color_lsmask=lsm_color, edgecolor=lsm_linec, 
-                                   linewidth=lsm_linew)
-                hlsm.append(h0)  
+            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, box, proj_to, lsm_opt, resolution=lsm_res)
+            hlsm.append(h0)  
             
             #___________________________________________________________________
             # add grids lines 
-            if do_grid:
-                h0=hax_ii.gridlines(color='black', linestyle='-', draw_labels=False, alpha=0.25, )
-                if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
-                    # give stereographic plot a circular boundary
-                    theta  = np.linspace(0, 2*np.pi, 100)
-                    center, radius = [0.5, 0.5], 0.5
-                    verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
-                    circle = mpath.Path(verts * radius + center)
-                    hax_ii.set_boundary(circle, transform=hax_ii.transAxes)
-                    del(theta, center, verts, circle)
-                else:
-                    if hax_ii.do_ylabel: h0.ylabels_left   = True
-                    if hax_ii.do_xlabel: h0.xlabels_bottom = True
-                hgrd.append(h0)
+            h0 = do_plt_gridlines(hax_ii, do_grid, proj_to, len(data), nrow, grid_opt)
+            hgrd.append(h0)
     
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # add title and axes labels
-            if title is not None: 
+            if ax_title is not None: 
                 # is title  string:
-                if   isinstance(title,str) : 
+                if   isinstance(ax_title,str) : 
                     # if title string is 'descript' than use descript attribute from 
                     # data to set plot title 
-                    if title=='descript' and ('descript' in data[ii][vname].attrs.keys() ):
+                    if ax_title=='descript' and ('descript' in data[ii][vname].attrs.keys() ):
                         hax_ii.set_title(data[ii][ vname ].attrs['descript'], fontsize=hax_ii.fs_label, verticalalignment='top')
                         
                     else:
-                        hax_ii.set_title(title, fontsize=hax_ii.fs_label)
+                        hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
                 # is title list of string        
-                elif isinstance(title,list): hax_ii.set_title(title[ii], fontsize=hax_ii.fs_label)
+                elif isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
                 
         #_______________________________________________________________________
         # add colorbar 
-        if hcb_ii != 0: hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit)
+        if hcb_ii != 0: hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[ii_v], 
+                                         do_rescale, cb_label, cb_unit, cb_opt, cbl_opt)
         
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
@@ -224,6 +215,8 @@ def plot_hnew(mesh               ,
         return(list_argout)
     else:
         return
+
+
     
 #
 #
@@ -237,8 +230,6 @@ def do_projection(mesh, proj, box):
     elif proj=='rob'    : 
         proj_to = ccrs.Robinson()  
         box[0], box[1] = box[0]+0.25, box[1]-0.25
-    elif proj=='mol'    : 
-        proj_to = ccrs.Mollweide()       
     elif proj=='eqearth': 
         proj_to = ccrs.EqualEarth(central_longitude=mesh.focus)
         box[0], box[1] = box[0]+0.25, box[1]-0.25
@@ -247,7 +238,7 @@ def do_projection(mesh, proj, box):
         if box[2]<0: box[2]=0
     elif proj=='sps'    : 
         proj_to = ccrs.SouthPolarStereo()
-        if box[3]>0: box[2]=0
+        if box[3]>0: box[3]=0
     elif proj=='channel':
         proj_to = ccrs.PlateCarree()
         if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
@@ -256,6 +247,8 @@ def do_projection(mesh, proj, box):
         
     #___________________________________________________________________________    
     return(proj_to, box)
+
+
 
 #
 #
@@ -277,6 +270,8 @@ def do_reindex_vert_and_elem(tri, e_box_mask):
     #___________________________________________________________________________
     return(tri, n_box_mask)
 
+
+
 #
 #
 #_______________________________________________________________________________
@@ -284,7 +279,7 @@ def do_reindex_vert_and_elem(tri, e_box_mask):
 # https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
 # i needed this to unify the ploting between icon and fesom for model comparison
 # paper
-def do_arrange_axes(nx, ny,
+def do_axes_arrange(nx, ny,
                     #-----------------------------------------------------------
                     xlabel = '', ylabel = '', tlabel = '', 
                      # font sizes of labels, titles, ticks
@@ -294,7 +289,7 @@ def do_arrange_axes(nx, ny,
                     
                     #---AXES OPTIONS--------------------------------------------
                     ax_sharex   = True ,    # all subplot share x-axes
-                    ax_sharey   = False,    # all subplot share y-axes
+                    ax_sharey   = True,    # all subplot share y-axes
                     ax_dolabels = True ,    # add enumeration labels to axes 
                     ax_optdict  = dict(),   # additional axes option: fontssize, ...
                     ax_asp      = 1.   ,    # aspect ratio of axes
@@ -318,7 +313,7 @@ def do_arrange_axes(nx, ny,
                     cb_plt_single = False, 
                     cb_pos        = 'vertical', 
                     # space around colorbars (left, right, top, bottom) 
-                    cb_dl = 0.5, cb_dr =1.5, cb_dt =0.75, cb_db =0.75,
+                    cb_dl = 0.6, cb_dr =1.5, cb_dt =1.0, cb_db =0.6,
                     # factors to increase spaces (colorbars)
                     cb_fdl= 1.0, cb_fdr=1.0, cb_fdt=1.0, cb_fdb=1.0,
                     # width and height of colorbars
@@ -356,11 +351,11 @@ def do_arrange_axes(nx, ny,
                 poly_x, poly_y = [box[0], box[1], box[1], box[0] ], [box[3], box[3], box[2], box[2] ],
                 #points = ccrs.PlateCarree().transform_points(projection[0], np.array(box[0:2]), np.array(box[2:4]))
                 points = ccrs.PlateCarree().transform_points(projection[0], np.array(poly_x), np.array(poly_y))
-                print(points)
+                #print(points)
                 ax_asp = (points[:,0].max()-points[:,0].min())/(points[:,1].max()-points[:,1].min())
-        print('ax_asp=', ax_asp)
+        #print('ax_asp=', ax_asp)
         ax_w = ax_h*ax_asp
-        print('ax_w=', ax_w, ', ax_h=', ax_h)
+        #print('ax_w=', ax_w, ', ax_h=', ax_h)
 
     # rename horizontal->bottom and vertical->right
     if   cb_pos in ['horizontal', 'horiz', 'bottom', 'bot']: 
@@ -621,9 +616,10 @@ def do_arrange_axes(nx, ny,
                     hcb[nn].set_xticks([])
                     hcb[nn].yaxis.tick_right()
                     hcb[nn].yaxis.set_label_position("right")
+                    hcb[nn].do_orient = 'vertical'
                 elif cb_pos=='bottom':
                     hcb[nn].set_yticks([])
-            
+                    hcb[nn].do_orient = 'horizontal'
     #___________________________________________________________________________
     # if there is a single colorbar for the entire pannel, than stretch out the 
     # width/height of the colorbar over the size of the pannel
@@ -672,13 +668,53 @@ def do_arrange_axes(nx, ny,
         return(list_argout)
     else:
         return
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_axes_enum(hax, do_enum, enum_opt,  enum_str=[], posx=[0.005], posy=[1.00]):
+    
+    enumn_optdefault = dict({'horizontalalignment':'right', 'verticalalignment':'bottom', 'fontsize':hax[0].fs_label})
+    enumn_optdefault.update(enumn_optdefault)
+    if do_enum:
+        #_______________________________________________________________________
+        # make list that looks like [ '(a)', '(b)', '(c)', ... ]
+        if len(enum_str)==0:
+            #lett = "abcdefghijklmnopqrstuvwxyz"
+            lett  = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
+            lett += ["a2","b2","c2","d2","e2","f2","g2","h2","i2","j2","k2","l2","m2","n2","o2","p2","q2","r2","s2","t2","u2","v2","w2","x2","y2","z2"]
+            lett = lett[0:len(hax)]
+            enum_str = ["z"]*len(hax)
+            for nn, ax in enumerate(hax):
+                enum_str[nn] = "(%s)" % (lett[nn])
+    
+        #_______________________________________________________________________
+        if len(posx)==1:
+            posx = posx*len(hax)
+        if len(posy)==1:
+            posy = posy*len(hax)
+    
+        #_______________________________________________________________________
+        # draw text
+        for nn, ax in enumerate(hax):
+            ht = hax[nn].text(posx[nn], posy[nn], enum_str[nn], transform = hax[nn].transAxes, 
+                            **enumn_optdefault)
+            # add text handle to axes to give possibility of changing text properties later
+            # e.g. by hca[nn].axlab.set_fontsize(8)
+            hax[nn].axlab = ht
+    #___________________________________________________________________________
+    return(hax)
+
+
     
 #
 #
 #_______________________________________________________________________________
 # prepare data for plotting, augment periodic boundaries, interpolate from elements
 # to nodes, kick out nan values from plotting 
-def do_prepare_plotdata(mesh, data_plot, tri, e_box_mask, n_box_mask):
+def do_data_prepare(mesh, data_plot, tri, e_box_mask, n_box_mask):
     is_onvert = True
     #___________________________________________________________________________
     # data are on vertices
@@ -724,6 +760,56 @@ def do_prepare_plotdata(mesh, data_plot, tri, e_box_mask, n_box_mask):
     #___________________________________________________________________________
     return(data_plot, e_ok_mask)    
 
+
+
+#
+#
+#_______________________________________________________________________________
+def do_rescale_data(data,do_rescale):
+    #___________________________________________________________________________
+    # cutoff exponentials --> add therefore string to unit parameter
+    str_rescale=None
+    
+    #___________________________________________________________________________
+    if do_rescale==True:
+        if np.nanmax(np.abs(data))<1e-2 and np.nanmax(np.abs(data))>0.0:
+            scal = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
+            data = data/scal
+            str_rescale  = ' $ \\cdot 10^{'+str(int(np.log10(scal)))+'} $'
+        elif np.nanmax(np.abs(data))>1.0e4:
+            scal = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
+            data = data/scal
+            str_rescale  = ' $ \\cdot 10^{'+str(int(np.log10(scal)))+'} $'
+            
+    #___________________________________________________________________________
+    elif do_rescale=='log10':
+        #data[data!=0.0] = np.log10(data[data!=0.0])
+        #data.rescale='log10'
+        str_rescale  = ' log10() '
+    
+    #___________________________________________________________________________
+    return(data,str_rescale)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_data_norm(cinfo, do_rescale):
+    #___________________________________________________________________________
+    which_norm = None
+    if   do_rescale =='log10':
+            which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
+    elif do_rescale =='slog10':    
+            which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
+                                            linscale=1.0, 
+                                            vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
+                                            clip=True)
+    #___________________________________________________________________________
+    return(which_norm)
+
+
+
 #
 #
 #_______________________________________________________________________________
@@ -752,13 +838,134 @@ def do_plt_data(hax_ii, do_plot, tri, data_plot, e_ok_mask, cinfo_plot, which_no
     #___________________________________________________________________________
     return(h0)
 
+
+
 #
 #
 #_______________________________________________________________________________
-def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit):
-    hcb_ii = plt.colorbar(mappable=hp[-1], ax=hax_ii, cax=hcb_ii, 
-                        ticks=cinfo['clevel'], extendrect=False, extendfrac=None,
-                        drawedges=True)
+def do_plt_bot(hax_ii, do_bot, tri, e_ok_mask, bot_opt):
+    h0=None
+    if do_bot and np.any(e_ok_mask==False):
+        bot_optdefault = dict({'color':[0.8, 0.8, 0.8]})
+        bot_optdefault.update(bot_opt)
+        h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], **bot_optdefault)
+    return(h0)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_mesh(hax_ii, do_mesh, tri, e_ok_mask, mesh_opt):
+    h0=None
+    if do_mesh: 
+        mesh_optdefault = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75})
+        mesh_optdefault.update(mesh_opt)
+        h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_optdefault)
+    return(h0)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_lsmask(hax_ii, do_lsm, mesh, box, which_proj, lsm_opt, resolution='low'):
+    #___________________________________________________________________________
+    lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5})
+    lsm_optdefault.update(lsm_opt)
+    #___________________________________________________________________________
+    if do_lsm in ['bluemarble', 'etopo']:
+        import tripyview as tpv
+        bckgrndir = os.path.join(tpv.__path__[0], 'backgrounds/')
+    
+    #___________________________________________________________________________
+    # add mesh land-sea mask
+    h0 = None
+    if   do_lsm is None: 
+        return()
+
+    elif do_lsm=='fesom':
+        h0=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        
+    elif do_lsm=='stock':  
+        h01=hax_ii.stock_img()
+        lsm_optdefault.update({'facecolor':'None'})
+        h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        h0 = [h01,h02]    
+        
+    elif do_lsm=='bluemarble': 
+        # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
+        # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
+        os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
+        h01=hax_ii.background_img(name=do_lsm, resolution=resolution)
+        lsm_optdefault.update({'facecolor':'None'})
+        h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        h0 = [h01,h02]  
+        
+    elif do_lsm=='etopo':   
+        # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
+        # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
+        os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
+        h01=hax_ii.background_img(name=do_lsm, resolution=resolution)    
+        lsm_optdefault.update({'facecolor':'None'})
+        h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        h0 = [h01,h02]
+        
+    else:
+        raise ValueError(" > the do_lsm={} is not supported, must be either 'fesom', 'stock', 'bluemarble' or 'etopo'! ")
+        
+    #___________________________________________________________________________
+    return(h0)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_gridlines(hax_ii, do_grid, proj_to, ldat, nrow, grid_opt):
+    #___________________________________________________________________________
+    grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25,})
+    grid_optdefault.update(grid_opt)
+    #___________________________________________________________________________
+    h0=None
+    if do_grid:
+        #_______________________________________________________________________
+        h0=hax_ii.gridlines(**grid_optdefault )
+        
+        # ensure circular boundary for stereographic projection
+        if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
+            # give stereographic plot a circular boundary
+            theta  = np.linspace(0, 2*np.pi, 100)
+            center, radius = [0.5, 0.5], 0.5
+            verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
+            circle = mpath.Path(verts * radius + center)
+            hax_ii.set_boundary(circle, transform=hax_ii.transAxes)
+            del(theta, center, verts, circle)
+        else:
+            if hax_ii.do_ylabel: h0.ylabels_left   = True
+            if hax_ii.do_xlabel: h0.xlabels_bottom = True
+        
+        # rotate xlabel for PlateCarree so that they dont overlay with 
+        # neighboring plots
+        if isinstance(proj_to, (ccrs.PlateCarree) ) and ldat>1 and nrow>1:
+            h0.xlabel_style = {'rotation': 25}    
+    
+    #___________________________________________________________________________
+    return(h0)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit, cb_opt, cbl_opt):
+    which_orient = hcb_ii.do_orient
+    #___________________________________________________________________________
+    cb_optdefault = dict({'extendrect':False, 'extendfrac':None, 'drawedges':True})
+    cb_optdefault.update(cb_opt)
+    #___________________________________________________________________________
+    hcb_ii = plt.colorbar(mappable=hp[-1], ax=hax_ii, cax=hcb_ii, orientation=which_orient,
+                        ticks=cinfo['clevel'], **cb_optdefault)
     #___________________________________________________________________________
     hcb_ii = do_cbar_label(hcb_ii, 8, cinfo, do_vec=False)
     hcb_ii = do_cbar_formatting(hcb_ii, do_rescale, 8, cinfo['clevel'])
@@ -782,18 +989,111 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit):
     if 'str_ldep' in data[ii_v][vname].attrs.keys():
         cb_label = cb_label+data[ii_v][vname].attrs['str_ldep']
     
-    fsize =  hcb_ii.ax.get_yticklabels()[0].get_fontsize()
-    hcb_ii.set_label(cb_label, fontsize=fsize)
+    if   which_orient=='vertical'  : fsize =  hcb_ii.ax.get_yticklabels()[0].get_fontsize()
+    elif which_orient=='horizontal': fsize =  hcb_ii.ax.get_xticklabels()[0].get_fontsize()
+    
+    cbl_optdefault = dict({'fontsize':fsize})
+    cbl_optdefault.update(cbl_opt)
+    hcb_ii.set_label(cb_label, **cbl_optdefault)
     #___________________________________________________________________________
     return(hcb_ii)
-            
+
+
+
+# ___DO REDUCTION OF COLORBAR LABELS___________________________________________
+#| reduce number of colorbar ticklabels, show minimum number cbar_nl of        |
+#| colorbar labels                                                             |
+#| ___INPUT_________________________________________________________________   |
+#| cbar         :   actual colorbar handle                                     |
+#| cbar_nl      :   int, (default:8) minimum number of colorbar labels to show |
+#| cinfo        :   None, dict() (default: None), dictionary with colorbar     |
+#|                  formation. Information that are given are used others are  |
+#|                  computed. cinfo dictionary entries can me:                 |
+#|                  > cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar   |
+#|                    min, max, reference value                                |
+#|                  > cinfo['crange'] ...  list with [cmin, cmax, cref]        |
+#|                    overrides scalar values                                  |
+#|                  > cinfo['cnum'] ... minimum number of colors               |
+#|                  > cinfo['cstr'] ... name of colormap see in                |
+#|                    sub_colormap_c2c.py                                      |
+#|                  > cinfo['cmap'] ... colormap object ('wbgyr', 'blue2red,   |
+#|                    'jet' ...)                                               |
+#|                  > cinfo['clevel'] ... color level array                    |
+#| ___RETURNS_______________________________________________________________   |
+#| cbar         :   actual colorbar handle                                     |                  
+#|_____________________________________________________________________________|  
+def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
+    #___________________________________________________________________________
+    # kickout some colormap labels if there are to many
+    if cbar.orientation=='vertical': tickl = cbar.ax.get_yticklabels()
+    else:                            tickl = cbar.ax.get_xticklabels()
+    ncbar_l=len(tickl)
+    idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+    #idx_cref = np.asscalar(idx_cref)
+    idx_cref = idx_cref.item()
+    
+    nstep = ncbar_l/cbar_nl
+    nstep = np.max([np.int32(np.floor(nstep)),1])
+    #if nstep==0:nstep=1
+    
+    idx = np.arange(0,len(tickl),1)
+    idxb = np.ones((len(tickl),), dtype=bool)                
+    idxb[idx_cref::nstep]  = False
+    idxb[idx_cref::-nstep] = False
+    idx_not = idx[idxb==True]
+    idx_yes = idx[idxb==False]
+    
+    for ii in list(idx_not): tickl[ii]=''
+    if do_vec: 
+        for ii in list(idx_yes): tickl[ii]='{:2.2f}'.format(cinfo['clevel'][ii])
+    if cbar.orientation=='vertical': cbar.ax.set_yticklabels(tickl)
+    else:                            cbar.ax.set_xticklabels(tickl)
+    
+    #___________________________________________________________________________
+    return(cbar)
+
+
+
+# ___DO FORMATING OF COLORBAR___________________________________________________
+#|
+#|
+#| ___RETURNS_______________________________________________________________   |
+#| cbar         :   actual colorbar handle                                     |   
+#|_____________________________________________________________________________|  
+def do_cbar_formatting(cbar, do_rescale, cbar_nl, clocs, pw_lim=[-3,4]):
+    # formatting of normal colorbar axis
+    
+    if len(clocs)>=48: cbar.dividers.set_color('None')
+    
+    if not do_rescale == 'log10' and not do_rescale == 'slog10':
+        formatter     = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
+        formatter.set_scientific(True)
+        formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))      
+        cbar.formatter= formatter
+        cbar.locator  = mticker.FixedLocator(clocs, nbins=cbar_nl)
+        #cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
+        cbar.ax.yaxis.get_offset_text().set(horizontalalignment='center')
+        cbar.update_ticks()
+    # formating for log and symlog colorbar axis    
+    else:
+        cbar.set_ticks(clocs[np.mod(np.log10(np.abs(clocs)),1)==0.0])
+        #cbar.ax.minorticks_off()
+        cbar.update_ticks()
+        cbar.ax.yaxis.set_major_formatter(mticker.LogFormatterSciNotation())
+        cbar.ax.yaxis.get_offset_text().set(horizontalalignment='right')
+    #cbar.ax.tick_params(labelsize=fontsize)
+
+    #___________________________________________________________________________
+    return(cbar)
+
+
 
 # ___PLOT HORIZONTAL FESOM2 DATA SLICES________________________________________
 #|                                                                             |
 #|      *** PLOT HORIZONTAL FESOM2 DATA SLICES --> BASED ON CARTOPY ***        |
 #|                                                                             |
 #|_____________________________________________________________________________|
-def plot_hslice(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5], 
+def plot_hslice_old(mesh, data, cinfo=None, box=None, proj='pc', figsize=[9, 4.5], 
                 n_rc=[1,1], do_grid=False, do_plot='tcf', do_rescale=True,
                 cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
                 do_lsmask='fesom', do_bottom=True, color_lsmask=[0.6, 0.6, 0.6], 
@@ -2141,59 +2441,6 @@ def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None,
 
 
 
-# ___DO RESCALE DATA___________________________________________________________
-#| rescale data towards multiple of 10  or 1/10 or usinjg log10                |
-#| ___INPUT_________________________________________________________________   |
-#| data         :   xarray dataset object                                      |
-#| do_rescale   :   None, bool, str (default:True) rescale data and writes     |
-#|                  rescaling string into colorbar labels                      |
-#|                  If: None    ... no rescaling is applied                    |
-#|                      True    ... rescale to multiple of 10 or 1/10          |
-#|                      'log10' ... rescale towards log10                      |
-#| ___RETURNS_______________________________________________________________   |
-#| data         :   xarray dataset object                                      |
-#| str_rescale  :   None, str if rescaling is applied returns string with      |
-#|                  rescaling factor to be shown in colorbar                   |
-#|_____________________________________________________________________________|     
-def do_rescale_data(data,do_rescale):
-    #___________________________________________________________________________
-    # cutoff exponentials --> add therefore string to unit parameter
-    str_rescale=None
-    
-    #___________________________________________________________________________
-    if do_rescale==True:
-        if np.nanmax(np.abs(data))<1e-2 and np.nanmax(np.abs(data))>0.0:
-            scal = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
-            data = data/scal
-            str_rescale  = ' $ \\cdot 10^{'+str(int(np.log10(scal)))+'} $'
-        elif np.nanmax(np.abs(data))>1.0e4:
-            scal = 10**(np.floor(np.log10(max(abs(np.nanmin(data)),abs(np.nanmax(data))))-1))
-            data = data/scal
-            str_rescale  = ' $ \\cdot 10^{'+str(int(np.log10(scal)))+'} $'
-            
-    #___________________________________________________________________________
-    elif do_rescale=='log10':
-        #data[data!=0.0] = np.log10(data[data!=0.0])
-        #data.rescale='log10'
-        str_rescale  = ' log10() '
-    
-    #___________________________________________________________________________
-    return(data,str_rescale)
-
-
-
-def do_compute_scalingnorm(cinfo, do_rescale):
-    #___________________________________________________________________________
-    which_norm = None
-    if   do_rescale =='log10':
-            which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
-    elif do_rescale =='slog10':    
-            which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
-                                            linscale=1.0, 
-                                            vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
-                                            clip=True)
-    #___________________________________________________________________________
-    return(which_norm)
 
     
 
@@ -2428,377 +2675,6 @@ def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
 
 
 
-# ___DO PLOT LAND-SEA MASK_____________________________________________________
-#| plot different land sea masks, based on patch: 'fesom', based on png image: |
-#| 'bluemarble', 'stock' or 'etopo'                                            |
-#| ___INPUT_________________________________________________________________   |
-#| ax           :   actual axes handle                                         |
-#| mesh         :   fesom2 mesh object                                         |
-#| do_lsmask    :   None, str (default: 'fesom') plot land-sea mask.           |
-#|                  If:  None   ... no land sea mask is used,                  |
-#|                      'fesom' ... overlay fesom shapefile land-sea mask using|
-#|                                  color color_lsmask                         |
-#|                      'stock' ... use cartopy stock image as land sea mask   |
-#|                      'bluemarble' ... use bluemarble image as land sea mask |
-#|                      'etopo' ... use etopo image as land sea mask           |  
-#| box          :   None, list (default: None) regional limitation of plot     |
-#|                  [lonmin, lonmax, latmin, latmax]                           |
-#| which_proj   :   cartopy projection handle                                  |
-#| color_lsmask :   RGB list with color of fesom land-sea mask patch           |
-#| edgecolor    :   edge color of fesom coastline                              |
-#| linewidth    :   linewidth of fesom coastline                               |
-#| resolution   :   str, (default:'low') resolution of background image when   |
-#|                  using bluemarble or etopo can be either 'low' or           |
-#|                  'high' --> see image.json file in src/backgrounds/         |
-#| ___RETURNS_______________________________________________________________   |
-#| ax           :   actual axes handle                                         |
-#|_____________________________________________________________________________|  
-def do_plotlsmask(ax, mesh, do_lsmask, box, which_proj, 
-                  color_lsmask=[0.6, 0.6, 0.6], edgecolor='k', linewidth=0.5,
-                  resolution='low'):
-    #___________________________________________________________________________
-    # add mesh land-sea mask
-    if   do_lsmask is None: 
-        return(ax)
-
-    elif do_lsmask=='fesom':
-        ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), 
-                              facecolor=color_lsmask, edgecolor=edgecolor ,linewidth=linewidth)
-        
-    elif do_lsmask=='stock':   
-        ax.stock_img()
-        ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), 
-                              facecolor='None', edgecolor=edgecolor, linewidth=linewidth)
-            
-    elif do_lsmask=='bluemarble': 
-        # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
-        # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
-        bckgrndir = os.getcwd()
-        bckgrndir = os.path.normpath(bckgrndir+'/tripyview/backgrounds/')
-        os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
-        ax.background_img(name=do_lsmask, resolution=resolution)
-        ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), 
-                          facecolor='None', edgecolor=edgecolor, linewidth=linewidth)
-            
-    elif do_lsmask=='etopo':   
-        # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
-        # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
-        bckgrndir = os.getcwd()
-        bckgrndir = os.path.normpath(bckgrndir+'/tripyview/backgrounds/')
-        os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
-        ax.background_img(name=do_lsmask, resolution=resolution)    
-        ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), 
-                          facecolor='None', edgecolor=edgecolor, linewidth=linewidth)
-    else:
-        raise ValueError(" > the do_lsmask={} is not supported, must be either 'fesom', 'stock', 'bluemarble' or 'etopo'! ")
-        
-    #___________________________________________________________________________
-    return(ax)
-
-
-
-# ___DO ADD CARTOPY GRIDLINES__________________________________________________
-#| add cartopy grid lines, the functionality of cartopy regarding gridlines is |
-#| still very limited, espesially regarding lon lat labels, so far onyl        |
-#| ccrs.PlateCarree() fully supports labels                                    |
-#| ___INPUT_________________________________________________________________   |
-#| ax           :   actual axes handle                                         |
-#| rowlist      :   list, with panel row indices                               |
-#| collist      :   list, with panel column indices                            |
-#| xticks       :   array, with xticks                                         |
-#| yticks       :   array, yith xticks                                         |
-#| proj         :   str, (default: 'pc') which projection should be used, 'pc'=|
-#|                  ccrs.PlateCarree(), 'merc'=ccrs.Mercator(), 'nps'=         |
-#|                  ccrs.NorthPolarStereo(), 'sps'=ccrs.SouthPolarStereo(),    |
-#| which_proj   :   cartopy projection handle                                  |
-#| ___RETURNS_______________________________________________________________   |
-#| ax           :   actual axes handle                                         |
-#|_____________________________________________________________________________|  
-def do_add_gridlines(ax, rowidx, colidx, xticks, yticks, proj, which_proj, rowlist, collist):
-    from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
-    
-    maxr = np.max(rowlist)+1
-    #_______________________________________________________________________
-    # add gridlines
-    if proj=='merc': 
-        gl=ax.gridlines(color='black', linestyle='-', 
-                            draw_labels=False, xlocs=xticks, ylocs=yticks,
-                            alpha=0.25, )
-        gl.xlabels_top, gl.ylabels_right = False, False
-        
-    elif proj=='pc':
-            
-        #ax.set_xticks(xticks[1:-1], crs=ccrs.PlateCarree())
-        #ax.set_yticks(yticks[1:-1], crs=ccrs.PlateCarree())
-        #ax.xaxis.set_major_formatter(LongitudeFormatter())
-        #ax.yaxis.set_major_formatter(LatitudeFormatter()) 
-        gl=ax.gridlines(crs=which_proj, color='black', linestyle='-', 
-                            draw_labels=False, 
-                            xlocs=xticks, ylocs=yticks, 
-                            alpha=0.25, )
-        gl.ylabels_left   = True
-        gl.xlabels_bottom = True
-        
-        if rowidx!=maxr-1: 
-            #ax.set_xticklabels([])
-            gl.xlabels_bottom=False
-        if colidx >0     : 
-            #ax.set_yticklabels([])
-            gl.ylabels_left = False
-            
-    elif proj=='channel':
-            
-        ax.set_xticks(xticks[1:-1], crs=ccrs.PlateCarree())
-        ax.set_yticks(yticks[1:-1], crs=ccrs.PlateCarree())
-        ax.xaxis.set_major_formatter(LongitudeFormatter())
-        ax.yaxis.set_major_formatter(LatitudeFormatter()) 
-        gl=ax.gridlines(crs=which_proj, color='black', linestyle='-', 
-                            draw_labels=False, 
-                            xlocs=xticks, ylocs=yticks, 
-                            alpha=0.25, )
-        if rowidx!=maxr-1:  ax.set_xticklabels([])
-        if colidx >0     : ax.set_yticklabels([])
-
-    elif proj=='nps' or proj=='sps':
-        ax.gridlines(color='black', linestyle='-', alpha=0.25, xlocs=xticks, ylocs=yticks,  )
-        theta = np.linspace(0, 2*np.pi, 100)
-        center, radius = [0.5, 0.5], 0.5
-        verts = np.vstack([np.sin(theta), np.cos(theta)]).T
-        circle = mpath.Path(verts * radius + center)
-        ax.set_boundary(circle, transform=ax.transAxes)
-        
-    elif proj in ['rob', 'mol', 'eqearth']:
-        ax.gridlines(color='black', linestyle='-', alpha=0.25, xlocs=xticks, ylocs=yticks,
-                     draw_labels=False)
-    
-    #___________________________________________________________________________
-    return(ax)
-
-
-
-# ___DO REDUCTION OF COLORBAR LABELS___________________________________________
-#| reduce number of colorbar ticklabels, show minimum number cbar_nl of        |
-#| colorbar labels                                                             |
-#| ___INPUT_________________________________________________________________   |
-#| cbar         :   actual colorbar handle                                     |
-#| cbar_nl      :   int, (default:8) minimum number of colorbar labels to show |
-#| cinfo        :   None, dict() (default: None), dictionary with colorbar     |
-#|                  formation. Information that are given are used others are  |
-#|                  computed. cinfo dictionary entries can me:                 |
-#|                  > cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar   |
-#|                    min, max, reference value                                |
-#|                  > cinfo['crange'] ...  list with [cmin, cmax, cref]        |
-#|                    overrides scalar values                                  |
-#|                  > cinfo['cnum'] ... minimum number of colors               |
-#|                  > cinfo['cstr'] ... name of colormap see in                |
-#|                    sub_colormap_c2c.py                                      |
-#|                  > cinfo['cmap'] ... colormap object ('wbgyr', 'blue2red,   |
-#|                    'jet' ...)                                               |
-#|                  > cinfo['clevel'] ... color level array                    |
-#| ___RETURNS_______________________________________________________________   |
-#| cbar         :   actual colorbar handle                                     |                  
-#|_____________________________________________________________________________|  
-def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    if cbar.orientation=='vertical': tickl = cbar.ax.get_yticklabels()
-    else:                            tickl = cbar.ax.get_xticklabels()
-    ncbar_l=len(tickl)
-    idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
-    #idx_cref = np.asscalar(idx_cref)
-    idx_cref = idx_cref.item()
-    
-    nstep = ncbar_l/cbar_nl
-    nstep = np.max([np.int32(np.floor(nstep)),1])
-    #if nstep==0:nstep=1
-    
-    idx = np.arange(0,len(tickl),1)
-    idxb = np.ones((len(tickl),), dtype=bool)                
-    idxb[idx_cref::nstep]  = False
-    idxb[idx_cref::-nstep] = False
-    idx_not = idx[idxb==True]
-    idx_yes = idx[idxb==False]
-    
-    for ii in list(idx_not): tickl[ii]=''
-    if do_vec: 
-        for ii in list(idx_yes): tickl[ii]='{:2.2f}'.format(cinfo['clevel'][ii])
-    if cbar.orientation=='vertical': cbar.ax.set_yticklabels(tickl)
-    else:                            cbar.ax.set_xticklabels(tickl)
-    
-    #___________________________________________________________________________
-    return(cbar)
-
-
-
-# ___DO FORMATING OF COLORBAR___________________________________________________
-#|
-#|
-#| ___RETURNS_______________________________________________________________   |
-#| cbar         :   actual colorbar handle                                     |   
-#|_____________________________________________________________________________|  
-def do_cbar_formatting(cbar, do_rescale, cbar_nl, clocs, pw_lim=[-3,4]):
-    # formatting of normal colorbar axis
-    
-    if len(clocs)>=48: cbar.dividers.set_color('None')
-    
-    if not do_rescale == 'log10' and not do_rescale == 'slog10':
-        formatter     = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
-        formatter.set_scientific(True)
-        formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))      
-        cbar.formatter= formatter
-        cbar.locator  = mticker.FixedLocator(clocs, nbins=cbar_nl)
-        #cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
-        cbar.ax.yaxis.get_offset_text().set(horizontalalignment='center')
-        cbar.update_ticks()
-    # formating for log and symlog colorbar axis    
-    else:
-        cbar.set_ticks(clocs[np.mod(np.log10(np.abs(clocs)),1)==0.0])
-        #cbar.ax.minorticks_off()
-        cbar.update_ticks()
-        cbar.ax.yaxis.set_major_formatter(mticker.LogFormatterSciNotation())
-        cbar.ax.yaxis.get_offset_text().set(horizontalalignment='right')
-    #cbar.ax.tick_params(labelsize=fontsize)
-
-    #___________________________________________________________________________
-    return(cbar)
-
-
-
-# ___DO REPOSITIONING OF AXES PANELS AND COLORBAR______________________________
-#| in case of multiple panels reposition the axes and colorbar for tighter     |
-#| fit                                                                         |                  
-#| ___INPUT_________________________________________________________________   |
-#| ax           :   actual axes handle                                         |
-#| cbar         :   actual colorbar handle                                     | 
-#| rowlist      :   list, with panel row indices                               |
-#| collist      :   list, with panel column indices                            |
-#| pos_fac      :   float, (default:1.0) multiplication factor  to             |
-#|                  increase/decrease width and height of plotted  panel       |
-#| pos_gap      :   list, (default: [0.02, 0.02]) gives width and height       |
-#|                  of gaps between multiple panels                            |
-#| title        :   None, str,(default:None) give every plot panel a title     |
-#|                  string                                                     |
-#|                  IF: None       ... no title is plotted                     |
-#|                      'descript' ... use data 'descript' attribute for title |
-#|                                     string                                  |
-#|                      'string'   ... use given string as title               |   
-#| ___RETURNS_______________________________________________________________   |
-#| ax           :   actual axes handle                                         |
-#| cbar         :   actual colorbar handle                                     | 
-#|_____________________________________________________________________________|  
-def do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, title=None, 
-                          extend=None, proj=None):
-    #___________________________________________________________________________
-    # repositioning of axes and colorbar
-    nax = len(ax)
-    ax_pos = np.zeros((nax,4))
-    for jj in range(0,nax):
-        aux = ax[jj].get_position()
-        ax_pos[jj,:] = np.array([aux.x0, aux.y0, aux.width, aux.height])
-    maxr = rowlist.max()+1
-    maxc = collist.max()+1
-    #print(maxr,maxc)
-    #print(ax_pos)
-    
-    #fac = pos_fac
-    ##x0, y0, x1, y1 = 0.05, 0.05, 0.95, 0.95
-    #x0, y0, x1, y1 = 0.1, 0.1, 0.9, 0.9
-    #if cbar is not None:
-        #if cbar.orientation=='horizontal': y0 = 0.21
-    #w, h = ax_pos[:,2].min(), ax_pos[:,3].min()
-    #w, h = w*fac, h*fac
-    #wg, hg = pos_gap[0], pos_gap[1]
-    #if title is not None: hg = hg+0.04
-    
-    fac = pos_fac
-    wg, hg = pos_gap[0], pos_gap[1]
-    x0, y0, x1, y1 = 0.075, 0.05, 0.825, 0.95
-    if extend is not None:
-        x0, y0, x1, y1 = extend[0], extend[1], extend[2], extend[3]
-        #ax_pos[:,2] = x1-x0
-        #ax_pos[:,3] = y1-y0
-    
-    #print(ax_pos[:,3], ax_pos[:,2])
-    if cbar is not None:
-        if cbar.orientation=='horizontal': y0 = y0+0.25
-        
-    dx = x1-x0-(maxc-1)*wg
-    dy = y1-y0-(maxr-1)*hg
-    #print('dx,dy=', dx, dy)
-    wref  = dx/maxc
-    href  = dy/maxr
-    #print('wref,href=',wref,href)
-    fac   = ax_pos[:,3].min()/ax_pos[:,2].min()
-    w,h   = wref, wref*fac
-    if h>href: 
-        w,h   = href/fac, href
-    #h  = dh*(ax_pos[:,3].min()/ax_pos[:,2].min())
-    #print('w,h=',w,h,)
-    
-    #dy = y1-y0-(maxr-1)*hg
-    #h  = dy/maxr
-    #w  = h*ax_pos[:,2].min()/ax_pos[:,3].min()
-    if proj in ['nps', 'sps']:
-        if title is not None: hg = hg+0.01
-    else:
-        if title is not None: hg = hg+0.06
-    if (h*maxr+hg*(maxr-1)+y0)>y1: fac = 1/(h*maxr+hg*(maxr-1)+y0)
-    if (w*maxc+wg*(maxc-1)+x0)>x1: fac = 1/(w*maxc+wg*(maxc-1)+x0) 
-    #w, h = w*fac, h*fac
-    #print('w,h=',w,h,fac)
-    
-    for jj in range(nax-1,0-1,-1):
-        ax[jj].set_position( [x0+(w+wg)*collist[jj], y0+(h+hg)*np.abs(rowlist[jj]-maxr+1), w, h] )
-    
-    if cbar is not None:
-        cbar_pos = cbar.ax.get_position()
-        if cbar.orientation=='vertical': 
-            cbar.ax.set_position([x0+(w+wg)*maxc, y0, cbar_pos.width*0.75, h*maxr+hg*(maxr-1)])
-            cbar.ax.set_aspect('auto')
-        else: 
-            #cbar.ax.set_position([x0, 0.125, w*maxc+wg*(maxc-1), cbar_pos.height/2])/
-            cbar.ax.set_position([x0, 0.14, w*maxc+wg*(maxc-1), cbar_pos.height/2])
-            cbar.ax.set_aspect('auto')
-        
-    #___________________________________________________________________________
-    return(ax, cbar)    
-
-
-
-# ___DO XTICK AND YTICKS_______________________________________________________
-#| compute xticks and yticks based on minimum number of tick labesl            |                  
-#| ___INPUT_________________________________________________________________   |
-#| mesh         :   fesom2 mesh object                                         |
-#| box          :   None, list (default: None) regional limitation of plot     |
-#|                  [lonmin, lonmax, latmin, latmax]                           |
-#| ticknr       :   int, (default:7) minimum number of lon and lat ticks       |                                     |
-#| ___RETURNS_______________________________________________________________   |
-#| xticks,yticks:   array, with optimal lon and lat ticks                   
-#|_____________________________________________________________________________|  
-def do_ticksteps(mesh, box, ticknr=4):
-    #___________________________________________________________________________
-    tickstep = np.array([0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 360])
-
-    #___________________________________________________________________________
-    idx     = int(np.argmin(np.abs( tickstep-(box[1]-box[0])/ticknr )))
-    if np.abs(box[1]-box[0])==360:
-        xticks   = np.arange(-180+mesh.focus, 180+1, tickstep[idx])
-    else:    
-        xticks   = np.arange(box[0], box[1]+tickstep[idx], tickstep[idx]) 
-    idx     = int(np.argmin(np.abs( tickstep-(box[3]-box[2])/ticknr )))
-    if np.abs(box[3]-box[2])==180:
-        yticks   = np.arange(-90, 90+1, tickstep[idx])  
-    else:   
-        yticks   = np.arange(box[2], box[3]+tickstep[idx], tickstep[idx])  
-        
-    #___________________________________________________________________________
-    xticks = np.unique(np.hstack((box[0], xticks, box[1])))
-    yticks = np.unique(np.hstack((box[2], yticks, box[3])))
-    #print(' > xtick: {}'.format(str(xticks)))    
-    #print(' > ytick: {}'.format(str(yticks))) 
-    
-    #___________________________________________________________________________
-    return(xticks,yticks)
 
 
 
@@ -2836,8 +2712,6 @@ def do_savefigure(do_save, fig, dpi=300, transparent=False, pad_inches=0.1, do_i
         fig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
                     bbox_inches='tight', pad_inches=pad_inches,\
                     transparent=transparent, **kw)
-
-
 
 
 def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh):

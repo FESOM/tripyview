@@ -242,7 +242,7 @@ def plot_index_z(index_list, label_list, box_list, figsize=[12,8], n_rc=[1,1],
             #___________________________________________________________________
             vname = list(index_list[di][bi].keys())[0]
             val   = index_list[di][bi][vname].values.copy()
-            val, str_rescale= do_rescale_data(val, do_rescale)
+            val, str_rescale= do_data_rescale(val, do_rescale)
             cname = list(index_list[di][bi].coords)[0]
             dep = np.abs(index_list[di][bi].coords[cname].values)
             
