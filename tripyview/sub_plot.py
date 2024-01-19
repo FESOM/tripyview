@@ -2986,6 +2986,39 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
 #
 #
 #_______________________________________________________________________________
+# --> compute min/max value range by histogram, computation of cumulativ distribution
+#     function at certain cutoff treshold
+def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
+    """
+    ___INPUT:___________________________________________________________________
+    data_in     :   np.array with data to plot 
+    ctresh      :   cover 99% of value range, means that extreme outliers are cutted of
+    cbin        :   number of bin that are used for the value range histogram
+    cweight     :   provide are weights for the histogramm
+    
+    ___RETURNS:_________________________________________________________________
+    cmin        :   return minimum value of value range
+    cmax        :   return minimum value of value range
+    ____________________________________________________________________________
+    """      
+    if cweights is None:
+        hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, density=False,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
+    else:
+        hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, weights=cweights[~np.isnan(data_in)], density=True,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
+    
+    hist        = hist/hist.sum()
+    bin_m       = bin_e[:-1]+(bin_e[:-1]-bin_e[1:])/2
+    cmin        = bin_m[np.where(np.cumsum(hist[::-1])[::-1]>=ctresh)[0][-1]]
+    cmax        = bin_m[np.where(np.cumsum(hist)            >=ctresh)[0][ 0]]
+    if cmin==cmax: 
+        cmax        = bin_m[np.where(np.cumsum(hist)        >=ctresh)[0][1]]
+    return(cmin, cmax)
+
+
+
+#
+#
+#_______________________________________________________________________________
 # --> initialise cinfo dictionary
 def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh):
     """
@@ -3024,39 +3057,8 @@ def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh)
     if ctresh   is not None: cinfo['ctresh']=ctresh
     return(cinfo)
   
-#
-#
-#_______________________________________________________________________________
-# --> compute min/max value range by histogram, computation of cumulativ distribution
-#     function at certain cutoff treshold
-def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
-    """
-    ___INPUT:___________________________________________________________________
-    data_in     :   np.array with data to plot 
-    ctresh      :   cover 99% of value range, means that extreme outliers are cutted of
-    cbin        :   number of bin that are used for the value range histogram
-    cweight     :   provide are weights for the histogramm
-    
-    ___RETURNS:_________________________________________________________________
-    cmin        :   return minimum value of value range
-    cmax        :   return minimum value of value range
-    ____________________________________________________________________________
-    """      
-    if cweights is None:
-        hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, density=False,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
-    else:
-        hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, weights=cweights[~np.isnan(data_in)], density=True,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
-    
-    hist        = hist/hist.sum()
-    bin_m       = bin_e[:-1]+(bin_e[:-1]-bin_e[1:])/2
-    cmin        = bin_m[np.where(np.cumsum(hist[::-1])[::-1]>=ctresh)[0][-1]]
-    cmax        = bin_m[np.where(np.cumsum(hist)            >=ctresh)[0][ 0]]
-    if cmin==cmax: 
-        cmax        = bin_m[np.where(np.cumsum(hist)        >=ctresh)[0][1]]
-    return(cmin, cmax)
-
-
-
+  
+  
 #
 #
 #_______________________________________________________________________________
