@@ -1053,8 +1053,7 @@ def do_vector_norm(data, do_norm):
         
         # delet variable vname2 from Dataset
         data = data.drop_vars(vname[1])
-        
-        
+ 
     #___________________________________________________________________________    
     return(data)  
 
@@ -1165,7 +1164,13 @@ def do_interp_e2n(data, mesh, do_ie2n):
             data[vname_new].attrs = data[vname].attrs
             
             # delete elem variable from dataset
-            data = data.drop_vars(labels=vname)
+            data = data.drop_vars(vname)
+            
+        #_______________________________________________________________________
+        # kick out element related coordinates 
+        for coordi in list(data.coords):
+            if 'elem' in data[coordi].dims: data = data.drop_vars(coordi)
+                
     
     #___________________________________________________________________________
     return(data)
