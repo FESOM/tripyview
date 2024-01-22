@@ -42,8 +42,12 @@ def plot_hslice(mesh                   ,
                 #--- data -----------
                 do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
-                plt_cont   = False     , # plot contour lines: True/False 
-                pltc_opt   = dict()    , # contour line option
+                plt_contb  = False     , # plot background contour lines: True/False 
+                pltcb_opt  = dict()    , # background contour line option
+                plt_contf  = False     , # plot foreground contour lines: True/False 
+                pltcf_opt  = dict()    , # foreground contour line option
+                plt_contr  = False     , # plot reference contour lines: True/False 
+                pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
                 #--- mesh -----------
@@ -325,8 +329,10 @@ def plot_hslice(mesh                   ,
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
-                                plt_cont=plt_cont, plt_contl=plt_contl, 
-                                plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
+                                plt_contb=plt_contb, pltcb_opt=pltcb_opt,
+                                plt_contf=plt_contf, pltcf_opt=pltcf_opt,
+                                plt_contr=plt_contr, pltcr_opt=pltcr_opt,
+                                plt_contl=plt_contl, pltcl_opt=pltcl_opt)
                 hp.append(h0)
                 
                 #___________________________________________________________________
@@ -347,8 +353,10 @@ def plot_hslice(mesh                   ,
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
-                                plt_cont=plt_cont, plt_contl=plt_contl, 
-                                plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
+                                plt_contb=plt_contb, pltcb_opt=pltcb_opt,
+                                plt_contf=plt_contf, pltcf_opt=pltcf_opt,
+                                plt_contr=plt_contr, pltcr_opt=pltcr_opt,
+                                plt_contl=plt_contl, pltcl_opt=pltcl_opt)
                 hp.append(h0)
                 
             #___________________________________________________________________
@@ -422,7 +430,8 @@ def plot_hmesh( mesh                   ,
                 do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
                 plt_cont   = False     , # plot contour lines: True/False 
-                pltc_opt   = dict()    , # contour line option
+                pltc0_opt  = dict()    ,# background contour line option
+                pltc_opt   = dict()    , # foreground contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
                 #--- mesh -----------
@@ -680,7 +689,8 @@ def plot_hmesh( mesh                   ,
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
                                 cinfo_plot, None, plt_cont=plt_cont, plt_contl=plt_contl, 
-                                plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
+                                plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt, 
+                                pltc0_opt=pltc0_opt)
                 hp.append(h0)
             #___________________________________________________________________
             # add grid mesh on top
@@ -1021,8 +1031,9 @@ def plot_hquiver(mesh                  ,
             #___________________________________________________________________
             # add grey topo
             h0 = do_plt_topo(hax_ii, do_topo, abs(mesh.n_z), mesh, tri, 
-                             plt_cont=topo_cont, plt_contl=topo_contl, 
-                             plt_opt=topo_opt, pltc_opt=topoc_opt, pltcl_opt=topocl_opt)
+                             plt_opt=topo_opt,
+                             plt_contb=topo_cont , pltcb_opt=topoc_opt,
+                             plt_contl=topo_contl, pltcl_opt=topocl_opt)
             htop.append(h0)
             
             #___________________________________________________________________
@@ -1095,12 +1106,13 @@ def plot_hquiver(mesh                  ,
 def plot_vslice(mesh                   , 
                 data                   , 
                 box        = None      , 
-                boxidx     = None      ,
+                box_idx    = None      ,
+                box_label  = None      , 
                 boxl_opt   = dict()    , # option for box label string 
                 cinfo      = None      , # colormap info and defintion
                 nrow       = 1         , # number of row in figures panel
                 ncol       = 1         , # number of column in figure panel
-                proj       = 'index+depth+xy',
+                proj       = None      ,
                 do_reffig  = False     , 
                 do_ie2n    = False     , # interpolate element data to vertices
                 do_rescale = False     ,
@@ -1108,8 +1120,12 @@ def plot_vslice(mesh                   ,
                 #--- data -----------
                 do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
-                plt_cont   = False     , # plot contour lines: True/False 
-                pltc_opt   = dict()    , # contour line option
+                plt_contb  = False     , # plot background contour lines: True/False 
+                pltcb_opt  = dict()    , # background contour line option
+                plt_contf  = False     , # plot foreground contour lines: True/False 
+                pltcf_opt  = dict()    , # foreground contour line option
+                plt_contr  = False     , # plot reference contour lines: True/False 
+                pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
                 #--- mesh -----------
@@ -1135,10 +1151,10 @@ def plot_vslice(mesh                   ,
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
                 #--- enumerate axes -
                 do_enum    = False     ,
-                enum_opt   = dict()    , 
+                enum_opt   = dict({'horizontalalignment':'center'})    , 
                 enum_str   = []        , 
-                enum_x     = [0.005]   , 
-                enum_y     = [1.00]    ,
+                enum_x     = [0.000]   , 
+                enum_y     = [1.005]    ,
                 enum_dir   = 'lr'    ,# prescribed list of enumeration strings
                 #--- save figure ----
                 do_save    = None      , 
@@ -1291,6 +1307,15 @@ def plot_vslice(mesh                   ,
     ndat = len(data)
     
     #___________________________________________________________________________
+    # check vertical plotting mode if index+depth+xy, zmoc, dmoc
+    if proj is None:
+        if isinstance(data[0], xr.Dataset):
+            if 'proj' in data[0].attrs: proj=data[0].attrs['proj']
+        elif isinstance(data[0], list):
+            if isinstance(data[0][box_idx], xr.Dataset):
+                if 'proj' in data[0][box_idx].attrs: proj=data[0][box_idx].attrs['proj']
+    
+    #___________________________________________________________________________
     # --> create projection
     proj_to = None
     # proj is string 
@@ -1329,9 +1354,11 @@ def plot_vslice(mesh                   ,
         idsel = np.where(cb_plt_idx==ii)[0]
         
         cinfo_optdefault=dict()
-        if hax[0].projection == 'index+depth+xy':
-            cinfo_optdefault.update({'do_index':True, 'boxidx':boxidx})
-
+        if   hax[0].projection == 'index+depth+xy':
+            cinfo_optdefault.update({'do_index':True, 'box_idx':box_idx})
+        elif hax[0].projection == 'zmoc':
+            cinfo_optdefault.update({'do_moc':True})
+            
         #_______________________________________________________________________
         if isinstance(cinfo, list):
             cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale, **cinfo_optdefault) )
@@ -1354,18 +1381,18 @@ def plot_vslice(mesh                   ,
         # axis is normally fillt with data    
         else: 
             
-            #_______________________________________________________________
+            #___________________________________________________________________
             # prepare regular gridded data for plotting
-            if boxidx is not None:
-                vname = list(data[ii][boxidx].keys())[0]
-                data_plot = data[ii][boxidx][vname].data.copy()
-                data_y, str_ylabel = data[ii][boxidx]['depth'].values , 'Depth / m'
-                if   'lat'  in list(data[ii][boxidx].coords): 
-                    data_x, str_xlabel = data[ii][boxidx]['lat'].values , 'Latitude / deg'
-                elif 'lon'  in list(data[ii][boxidx].coords): 
-                    data_x, str_xlabel = data[ii][boxidx]['lon'].values , 'Longitude / deg'
-                elif 'dist' in list(data[ii][boxidx].coords): 
-                    data_x, str_xlabel = data[ii][boxidx]['dist'].values , 'Distance / km'
+            if box_idx is not None:
+                vname = list(data[ii][box_idx].keys())[0]
+                data_plot = data[ii][box_idx][vname].data.copy()
+                data_y, str_ylabel = data[ii][box_idx]['depth'].values , 'Depth / m'
+                if   'lat'  in list(data[ii][box_idx].coords): 
+                    data_x, str_xlabel = data[ii][box_idx]['lat'].values , 'Latitude / deg'
+                elif 'lon'  in list(data[ii][box_idx].coords): 
+                    data_x, str_xlabel = data[ii][box_idx]['lon'].values , 'Longitude / deg'
+                elif 'dist' in list(data[ii][box_idx].coords): 
+                    data_x, str_xlabel = data[ii][box_idx]['dist'].values , 'Distance / km'
             else:
                 vname = list(data[ii].keys())[0]
                 data_plot = data[ii][vname].data.copy()
@@ -1380,17 +1407,22 @@ def plot_vslice(mesh                   ,
             if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
             if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
             
-            #_______________________________________________________________
+            #___________________________________________________________________
             # add tripcolor or tricontourf plot 
             h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
-                                plt_cont=plt_cont, plt_contl=plt_contl, 
-                                plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
+                                plt_contb=plt_contb, pltcb_opt=pltcb_opt,
+                                plt_contf=plt_contf, pltcf_opt=pltcf_opt,
+                                plt_contr=plt_contr, pltcr_opt=pltcr_opt,
+                                plt_contl=plt_contl, pltcl_opt=pltcl_opt)
             hp.append(h0)
             
-            ##___________________________________________________________________
+            ##__________________________________________________________________
             ## add bottom  mask
-            h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, data_plot=data_plot, bot_opt=bot_opt)
+            if   hax_ii.projection=='index+depth+xy':
+                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, data_plot=data_plot, bot_opt=bot_opt)
+            elif hax_ii.projection=='zmoc':
+                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, data_plot=data[ii]['botnice'].values, bot_opt=bot_opt)    
             hbot.append(h0)  
             
             #___________________________________________________________________
@@ -1405,7 +1437,7 @@ def plot_vslice(mesh                   ,
                 if   isinstance(ax_title,str) : 
                     # if title string is 'descript' than use descript attribute from 
                     # data to set plot title 
-                    if boxidx is not None: loc_attrs = data[ii][boxidx][vname].attrs
+                    if box_idx is not None: loc_attrs = data[ii][box_idx][vname].attrs
                     else                 : loc_attrs = data[ii][vname].attrs
                     
                     if ax_title=='descript' and ('descript' in loc_attrs.keys() ):
@@ -1418,21 +1450,38 @@ def plot_vslice(mesh                   ,
             
             #___________________________________________________________________________
             # set superior title
-            if  boxidx is not None:
-                vname     = list(data[ii][boxidx].keys())[0]
-                loc_attrs = data[ii][boxidx][vname].attrs
+            boxl_optdefault = dict({'x':0.99, 'y':0.99, 's':'', \
+                                    'fontsize':12, 'fontweight':'bold', 'transform':hax_ii.transAxes,\
+                                    'horizontalalignment':'right', 'verticalalignment':'top', 'zorder':5})                
+            # print transect labels
+            if  box_idx is not None:
+                vname     = list(data[ii][box_idx].keys())[0]
+                loc_attrs = data[ii][box_idx][vname].attrs
+                if 'transect_name' in loc_attrs: boxl_optdefault.update({'s':loc_attrs['transect_name']})
+            
+            # print precribed box_label
+            elif isinstance(box_label, str):
+                boxl_optdefault.update({'s':box_label})
+            
+            # print list of prescribed box_label
+            elif isinstance(box_label, list):
+                boxl_optdefault.update({'s':box_label[ii]}) 
+            
+            # print moc labels
+            elif hax_ii.projection=='zmoc':
+                vname     = list(data[ii].keys())[0]
+                loc_attrs = data[ii][vname].attrs
+                if 'short_name' in loc_attrs: boxl_optdefault.update({'s':loc_attrs['short_name']})
+                boxl_optdefault.update({'x':0.01, 'y':0.01, 'horizontalalignment':'left', 'verticalalignment':'bottom'})
                 
-                boxl_optdefault = dict({'x':0.995, 'y':0.925, 's':loc_attrs['transect_name'], \
-                                        'fontsize':14, 'transform':hax_ii.transAxes,\
-                                        'horizontalalignment':'right', 'verticalalignment':'bottom'})
-                boxl_optdefault.update(boxl_opt)
-                if 'transect_name' in loc_attrs: ht = hax_ii.text(**boxl_optdefault)
-                    
+            boxl_optdefault.update(boxl_opt)
+            ht = hax_ii.text(**boxl_optdefault)
+            
         #_______________________________________________________________________
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii]-1], do_rescale, 
-                             cb_label, cb_unit, boxidx=boxidx, cb_opt=cb_opt, cbl_opt=cbl_opt)
+                             cb_label, cb_unit, box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt)
         
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -1534,6 +1583,8 @@ def do_projection(mesh, proj, box):
     
     #___Vertical "Projection"___________________________________________________
     elif  proj == 'index+depth+xy': proj_to = 'index+depth+xy'
+    elif  proj == 'zmoc'          : proj_to = 'zmoc'
+    elif  proj == 'dmoc'          : proj_to = 'dmoc'
     else: 
         raise ValueError('The projection {} is not supporrted!'.format(proj))
         
@@ -1681,7 +1732,7 @@ def do_axes_arrange(nx, ny,
                 
                     #---COLORBAR OPTION-----------------------------------------
                     cb_plt        = True,
-                    cb_plt_single = False, 
+                    cb_plt_single = True, 
                     cb_pos        = 'vertical', 
                     # space around colorbars (left, right, top, bottom) 
                     cb_dl = 0.6, cb_dr =3.0, cb_dt =1.0, cb_db =0.6,
@@ -1813,7 +1864,6 @@ def do_axes_arrange(nx, ny,
     # determine ax_w in case it is auto
     #if isinstance(ax_w, str) and ax_w=='auto': ax_w = ax_h/ax_asp
     if isinstance(ax_w, str) and ax_w=='auto': 
-        print(box)
         #if box is not None and ax_asp==1.0:
         if ax_asp==1.0:        
             #___________________________________________________________________
@@ -1832,9 +1882,9 @@ def do_axes_arrange(nx, ny,
                     ax_asp = ( (points[:,0].max()-points[:,0].min())/(points[:,1].max()-points[:,1].min()) )
             
             #___________________________________________________________________
-            # projection is depth-xy string 
-            elif projection[0]=='index+depth+xy':
-                ax_asp = 2.0
+            # projection is vertical section
+            elif projection[0]=='index+depth+xy': ax_asp = 2.0
+            elif projection[0]=='zmoc'          : ax_asp = 2.0    
                 
         #print('ax_asp=', ax_asp)
         ax_w = ax_h*ax_asp
@@ -2130,7 +2180,7 @@ def do_axes_arrange(nx, ny,
     # if there is a single colorbar for the entire pannel, than stretch out the 
     # width/height of the colorbar over the size of the pannel
     # ther eis one single colorbar for the entire panel
-    if cb_plt_single :
+    if cb_plt_single and hcb[-1] !=0:
         #_______________________________________________________________________
         # find axes center (!= figure center) --> make sure that singular colorbar
         # is centered over all the pannels
@@ -2387,8 +2437,12 @@ def do_data_norm(cinfo, do_rescale):
 #
 #_______________________________________________________________________________
 # --> plot triangular data based on tripcolor or tricontourf
-def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot, 
-                plt_cont=False, plt_contl=False, plt_opt=dict(), pltc_opt=dict(), pltcl_opt=dict()):
+def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
+                plt_opt  =dict(), 
+                plt_contb=False, pltcb_opt=dict(), 
+                plt_contf=False, pltcf_opt=dict(),
+                plt_contr=False, pltcr_opt=dict(),
+                plt_contl=False, pltcl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -2428,8 +2482,8 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
     if np.sum(tri.mask_e_ok)==0: return(h0)
     #___________________________________________________________________________
     # plot tripcolor
-    if   do_plt=='tpc' or (do_plt=='tcf' and not tri.x.size==data_plot.size):
-        plt_optdefault = dict({'shading':'gouraud'})
+    if   do_plt in ['tpc','pc'] or (do_plt in ['tcf','cf'] and not tri.x.size==data_plot.size):
+        plt_optdefault = dict({'shading':'gouraud', 'zorder':1})
         plt_optdefault.update(plt_opt)
         
         if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
@@ -2441,8 +2495,8 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
                               norm = which_norm_plot, **plt_optdefault)
     #___________________________________________________________________________
     # plot tricontour 
-    elif do_plt=='tcf': 
-        plt_optdefault = dict()
+    elif do_plt in ['tcf','cf']: 
+        plt_optdefault = dict({'zorder':1})
         plt_optdefault.update(plt_opt)
     
         # supress warning message when compared with nan
@@ -2458,20 +2512,42 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
         raise ValueError(' --> this do_plt={:s} value is not valid'.format(do_plt))            
     
     #___________________________________________________________________________
-    # overlay contour lines
-    if plt_cont and tri.x.size==data_plot.size:
-        pltc_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1})
-        pltc_optdefault.update(pltc_opt)
-        h0c = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
-                                levels=cinfo_plot['clevel'], **pltc_optdefault) 
+    # overlay background contour lines, very thin lines 
+    if plt_contb and tri.x.size==data_plot.size:
+        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
+        pltcb_optdefault.update(pltcb_opt)
+        h0cb = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
+                                levels=cinfo_plot['clevel'], **pltcb_optdefault) 
+    
+    #___________________________________________________________________________
+    # overlay foreground contour lines, of colorbar steps thicker line 
+    if plt_contf and tri.x.size==data_plot.size:
+        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
+        pltcf_optdefault.update(pltcf_opt)
+        h0cf = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
+                                levels=cinfo_plot['clab'], **pltcf_optdefault) 
         
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f'})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
-            hax_ii.clabel(h0c, h0c.levels[0::len(pltc_optdefault['linewidths'])], 
-                            **pltcl_optdefault)
+            hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
     
+    #___________________________________________________________________________
+    # overlay reference contour lines, of colorbar reference center value
+    if plt_contr and tri.x.size==data_plot.size:
+        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcr_optdefault.update(pltcr_opt)
+        h0cr = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
+                                levels=[cinfo_plot['cref']], **pltcr_optdefault) 
+        
+        #_______________________________________________________________________
+        if plt_contl:
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault.update(pltcl_opt)
+            hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
+    
+    #___________________________________________________________________________
     return(h0)
 
 
@@ -2481,7 +2557,11 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
 #_______________________________________________________________________________
 # --> plot triangular data based on tripcolor or tricontourf
 def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_norm_plot, 
-                plt_cont=False, plt_contl=False, plt_opt=dict(), pltc_opt=dict(), pltcl_opt=dict()):
+                plt_opt=dict(), 
+                plt_contb=False, pltcb_opt=dict(), 
+                plt_contf=False, pltcf_opt=dict(),
+                plt_contr=False, pltcr_opt=dict(),
+                plt_contl=False, pltcl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -2519,17 +2599,15 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     h0=None
     #___________________________________________________________________________
     # plot pcolor
-    if   do_plt=='tpc':
+    if   do_plt in ['tpc','pc']:
         #plt_optdefault = dict({'shading':'gouraud'})
-        plt_optdefault = dict({'shading':'nearest'})
+        plt_optdefault = dict({'shading':'nearest', 'zorder':1})
         plt_optdefault.update(plt_opt)
         
         if 'shading' in plt_optdefault:
             if plt_optdefault['shading']=='flat':
                 data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
         
-        
-        print(data_x.shape, data_y.shape, data_plot.shape)
         h0 = hax_ii.pcolormesh(data_x, data_y, data_plot,
                               cmap=cinfo_plot['cmap'],
                               vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
@@ -2537,8 +2615,8 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         
     #___________________________________________________________________________
     # plot contourf 
-    elif do_plt=='tcf': 
-        plt_optdefault = dict()
+    elif do_plt in ['tcf','cf']: 
+        plt_optdefault = dict({'zorder':1})
         plt_optdefault.update(plt_opt)
     
         # supress warning message when compared with nan
@@ -2554,20 +2632,40 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         raise ValueError(' --> this do_plt={:s} value is not valid'.format(do_plt))            
     
     #___________________________________________________________________________
-    # overlay contour lines
-    if plt_cont:
-        pltc_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1})
-        pltc_optdefault.update(pltc_opt)
-        h0c = hax_ii.contour(data_x, data_y, data_plot,
-                                levels=cinfo_plot['clevel'], **pltc_optdefault) 
-        
+    # overlay background contour lines, very thin lines 
+    if plt_contb:
+        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
+        pltcb_optdefault.update(pltcb_opt)
+        h0cb = hax_ii.contour(data_x, data_y, data_plot,
+                                levels=cinfo_plot['clevel'], **pltcb_optdefault) 
+    
+    #___________________________________________________________________________
+    # overlay foreground contour lines, of colorbar steps thicker line 
+    if plt_contf:    
+        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
+        pltcf_optdefault.update(pltcf_opt)
+        h0cf = hax_ii.contour(data_x, data_y, data_plot,
+                                levels=cinfo_plot['clab'], **pltcf_optdefault) 
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f'})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
-            hax_ii.clabel(h0c, h0c.levels[0::len(pltc_optdefault['linewidths'])], 
-                            **pltcl_optdefault)
+            hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
     
+    #___________________________________________________________________________
+    # overlay reference contour lines, of colorbar reference center value
+    if plt_contr:    
+        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcr_optdefault.update(pltcr_opt)
+        h0cr = hax_ii.contour(data_x, data_y, data_plot,
+                                levels=[cinfo_plot['cref']], **pltcr_optdefault) 
+        #_______________________________________________________________________
+        if plt_contl:
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault.update(pltcl_opt)
+            hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
+            
+    #___________________________________________________________________________
     return(h0)
 
 
@@ -2697,7 +2795,7 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
     if isinstance(hax_ii.projection, ccrs.CRS) and tri is not None:
         if do_bot and np.any(tri.mask_e_ok==False):
             
-            bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, })
+            bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, 'zorder':4})
             bot_optdefault.update(bot_opt)
             
             # create single color colormap when options like 'facecolor', 'facecolors', 
@@ -2721,7 +2819,7 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
     # plot bottom mask for index+depth+xy
     elif hax_ii.projection=='index+depth+xy':
         
-        bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':2})
+        bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':4})
         bot_optdefault.update(bot_opt)
             
         if data_x is None or data_plot is None:
@@ -2743,6 +2841,14 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
         #del(filt, aux)
         
         h0 = hax_ii.fill_between(data_x, bottom, data_y[-1], **bot_optdefault)#,alpha=0.95)
+    
+    # plot bottom mask for zmoc
+    elif hax_ii.projection=='zmoc':
+        bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':4})
+        bot_optdefault.update(bot_opt)
+            
+        bottom    = data_plot
+        h0 = hax_ii.fill_between(data_x, bottom, data_y[-1], **bot_optdefault)#,alpha=0.95)
         
     return(h0)
     
@@ -2751,7 +2857,9 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
 #_______________________________________________________________________________
 # --> plot topography contour or pcolor
 def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, 
-                plt_cont=True, plt_contl=False, plt_opt=dict(), pltc_opt=dict(), pltcl_opt=dict()):
+                plt_opt=dict(), 
+                plt_contb=True,  pltcb_opt=dict(), 
+                plt_contl=False, pltcl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes 
@@ -2791,8 +2899,11 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
         cinfo_topo = dict({'clevel':levels, 'cmap':topocmp})
                 
         h0 = do_plt_data(hax_ii, do_topo, tri, data_topo, 
-                         cinfo_topo, None, plt_cont=plt_cont, plt_opt=plt_opt,
-                         plt_contl=plt_contl, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
+                         cinfo_topo, None,    plt_opt  =plt_opt, 
+                         plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
+                         plt_contf=False    , pltcf_opt=dict(),
+                         plt_contr=False    , pltcr_opt=dict(),
+                         plt_contl=plt_contl, pltcl_opt=pltcl_opt)
     return(h0)
 
 
@@ -2962,9 +3073,9 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
             
         #_______________________________________________________________________
         # grid options for index vs. depth vs. xy plot
-        elif hax_ii.projection == 'index+depth+xy':
+        elif hax_ii.projection=='index+depth+xy' or hax_ii.projection=='zmoc':
             #___________________________________________________________________
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':-1})
             grid_optdefault.update(grid_opt)
             
             #___________________________________________________________________
@@ -2972,15 +3083,16 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
             do_ylog = False
             rmv  = []
             for ii in grid_optdefault.keys():
-                if ii in ['do_ylog', 'ylog']:
-                    do_ylog = grid_optdefault[ii]
+                if ii in ['do_ylog', 'ylog'] :
+                    # for MOC keep depth axes linear
+                    if hax_ii.projection!='zmoc': do_ylog = grid_optdefault[ii]
                     rmv.append(ii)
-            
+                
             # remove do_ylog string from dictionary since its doesnt exist for tripcolor
             if len(rmv)!=0:
                 for ii in rmv:
                     del(grid_optdefault[ii])
-                
+            
             #___________________________________________________________________
             if do_ylog: 
                 hax_ii.set_yscale('function', functions=(forward, inverse))
@@ -2990,7 +3102,6 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
                 hax_ii.grid(True,which='major')
                 
             else:
-                #hax_ii.set_ylim(depth[0],depth[-1])
                 hax_ii.invert_yaxis()
                 hax_ii.grid(True,which='major')
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
@@ -3005,7 +3116,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
 #
 #_______________________________________________________________________________
 def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit, 
-            boxidx=None, cb_opt=dict(), cbl_opt=dict()):
+            box_idx=None, cb_opt=dict(), cbl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hcb_ii      :   actual colorbar handle 
@@ -3045,18 +3156,16 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     #___________________________________________________________________________
     hcb_ii = plt.colorbar(mappable=hp[-1], ax=hax_ii, cax=hcb_ii, orientation=which_orient,
                         ticks=cinfo['clevel'], **cb_optdefault)
+    
     #___________________________________________________________________________
-    hcb_ii = do_cbar_label(hcb_ii, 8, cinfo, do_vec=False)
-    hcb_ii = do_cbar_formatting(hcb_ii, do_rescale, 8, cinfo['clevel'])
+    hcb_ii = do_cbar_formatting(hcb_ii, do_rescale, cinfo)
             
     #___________________________________________________________________________
     ii_v = 0
-    
     if isinstance(data,list):
-        
-        if boxidx is not None:
-            vname    = list(data[ii_v][boxidx].keys())[0]        
-            loc_attrs= data[ii_v][boxidx][vname].attrs
+        if box_idx is not None:
+            vname    = list(data[ii_v][box_idx].keys())[0]        
+            loc_attrs= data[ii_v][box_idx][vname].attrs
         else:
             vname    = list(data[ii_v].keys())[0]        
             loc_attrs= data[ii_v][vname].attrs
@@ -3068,8 +3177,8 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
             elif 'short_name' in loc_attrs:
                 c_label = cb_label+loc_attrs['short_name']
             
-        if cb_unit  is None: cb_label = cb_label+' ['+loc_attrs['units']+']'
-        else:                cb_label = cb_label+' ['+cb_unit+']'
+        if cb_unit  is None: cb_label = cb_label+' / '+loc_attrs['units']
+        else:                cb_label = cb_label+' / '+cb_unit
         
         if 'str_ltim' in loc_attrs:
             cb_label = cb_label+'\n'+loc_attrs['str_ltim']
@@ -3088,15 +3197,19 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     #___________________________________________________________________________
     return(hcb_ii)
 
+
+
 #
-#             
+# 
 #_______________________________________________________________________________
-#  --> prepare colorbar tick labels
-def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
+# --> dor formating of colorbar for logarithmic data and exponential data
+def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4]):
     """
     ___INPUT:___________________________________________________________________
-    cbar        :   actual colorbar handle                                     |
-    cbar_nl     :   int, (default:8) minimum number of colorbar labels to show |
+    cbar        :   actual colorbar handle  
+    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
+                    string for colorbar. If 'log10' to logaritmic scaling, If 
+                    'slog10' do symetric logarithmic scaling
     cinfo       :   None, dict() (default: None), dictionary with colorbar 
                     information. Information that are given are used, others are 
                     computed. cinfo dictionary entries can be: 
@@ -3107,77 +3220,35 @@ def do_cbar_label(cbar, cbar_nl, cinfo, do_vec=False):
                     cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
                     cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
                     cinfo['clevel'] ... color level array
-                    
-    ___RETURNS:_________________________________________________________________
-    cbar        :   actual colorbar handle  
-    
-    ____________________________________________________________________________
-    """  
-    #___________________________________________________________________________
-    # kickout some colormap labels if there are to many
-    if cbar.orientation=='vertical': tickl = cbar.ax.get_yticklabels()
-    else:                            tickl = cbar.ax.get_xticklabels()
-    ncbar_l=len(tickl)
-    idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
-    #idx_cref = np.asscalar(idx_cref)
-    idx_cref = idx_cref.item()
-    
-    nstep = ncbar_l/cbar_nl
-    nstep = np.max([np.int32(np.floor(nstep)),1])
-    #if nstep==0:nstep=1
-    
-    idx = np.arange(0,len(tickl),1)
-    idxb = np.ones((len(tickl),), dtype=bool)                
-    idxb[idx_cref::nstep]  = False
-    idxb[idx_cref::-nstep] = False
-    idx_not = idx[idxb==True]
-    idx_yes = idx[idxb==False]
-    
-    for ii in list(idx_not): tickl[ii]=''
-    if do_vec: 
-        for ii in list(idx_yes): tickl[ii]='{:2.2f}'.format(cinfo['clevel'][ii])
-    if cbar.orientation=='vertical': cbar.ax.set_yticklabels(tickl)
-    else:                            cbar.ax.set_xticklabels(tickl)
-    
-    #___________________________________________________________________________
-    return(cbar)
-
-
-#
-# 
-#_______________________________________________________________________________
-# --> dor formating of colorbar for logarithmic data and exponential data
-def do_cbar_formatting(cbar, do_rescale, cbar_nl, clocs, pw_lim=[-3,4]):
-    """
-    ___INPUT:___________________________________________________________________
-    cbar        :   actual colorbar handle  
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    cbar_nl     :   minimum number of tick labels
-    clocs       :   location of ticklabels (cinfo['clevel'])
     pw_lim      :   in which decimal limits matplot will rescale the colorbar with 
                     *10^x
     ___RETURNS:_________________________________________________________________
     cbar        :   actual colorbar handle  
     
     ____________________________________________________________________________
-    """  
-    
-    if len(clocs)>=48: cbar.dividers.set_color('None')
+    """
+    if len(cinfo['clevel'])>=48: cbar.dividers.set_color('None')
     
     if not do_rescale == 'log10' and not do_rescale == 'slog10':
+        # set new cticks based on clab
+        if 'clab' in cinfo:
+            cbar.set_ticks(cinfo['clab'])
+            cbar.update_ticks()    
+        else:
+            cbar.locator  = mticker.FixedLocator(cinfo['clevel'], nbins=cinfo['cnlab'])
+            cbar.update_ticks()    
+            
         formatter     = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
         formatter.set_scientific(True)
         formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))      
         cbar.formatter= formatter
-        cbar.locator  = mticker.FixedLocator(clocs, nbins=cbar_nl)
         #cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
         cbar.ax.yaxis.get_offset_text().set(horizontalalignment='center')
         cbar.update_ticks()
     # formating for log and symlog colorbar axis    
     else:
-        cbar.set_ticks(clocs[np.mod(np.log10(np.abs(clocs)),1)==0.0])
+        
+        cbar.set_ticks(cinfo['clevel'][np.mod(np.log10(np.abs(cinfo['clevel'])),1)==0.0])
         #cbar.ax.minorticks_off()
         cbar.update_ticks()
         cbar.ax.yaxis.set_major_formatter(mticker.LogFormatterSciNotation())
@@ -3221,7 +3292,7 @@ def do_cbar_formatting(cbar, do_rescale, cbar_nl, clocs, pw_lim=[-3,4]):
 #_______________________________________________________________________________
 # --> build up colormap dictionary  
 def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
-                  do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False, boxidx=0):
+                  do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False, box_idx=0):
     """
     ___INPUT:___________________________________________________________________
     cinfo       :   None, dict() (default: None), dictionary with colorbar     
@@ -3250,7 +3321,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     do_dmoc     :   str  (default: None ) str, input data are dmoc data 
                     ('inner', 'dmoc', 'srf')
     do_hbstf    :   bool (default: False)
-    boxidx      :   in case input data are list of regional shapefile boxes, 
+    box_idx      :   in case input data are list of regional shapefile boxes, 
                     this is the index of a specific box
     ___RETURNS:_________________________________________________________________
     cinfo       :   None, dict() (default: None), dictionary with colorbar info
@@ -3265,9 +3336,11 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     #___________________________________________________________________________
     # check if dictionary keys exist, if they do not exist fill them up 
     cfac = 1
-    if 'cfac' in cinfo.keys(): cfac = cinfo['cfac']
-    if 'chist'  not in cinfo.keys(): cinfo['chist']  = True
+    if 'cfac'       in cinfo.keys(): cfac = cinfo['cfac' ]
+    if 'chist'  not in cinfo.keys(): cinfo['chist' ] = True
     if 'ctresh' not in cinfo.keys(): cinfo['ctresh'] = 0.995
+    if 'cnlab'  not in cinfo.keys(): cinfo['cnlab' ] = 8
+    
     if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
         #_______________________________________________________________________
         # loop over all the input data --> find out total cmin/cmax value
@@ -3277,13 +3350,13 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             if isinstance(data_ii, np.ndarray):
                 data_plot = data_ii.copy()
             else:    
-                if do_index: vname = list(data_ii[boxidx].keys())
+                if do_index: vname = list(data_ii[box_idx].keys())
                 else       : vname = list(data_ii.keys())
                 
                 #___________________________________________________________________
                 if do_vec==False:
-                    if   do_index: data_plot = data_ii[boxidx][ vname[0] ].data.copy()
-                    elif do_moc  : data_plot = data_ii['zmoc'].isel(nz=np.abs(data_ii['depth'])>=700).values.copy()
+                    if   do_index: data_plot = data_ii[box_idx][ vname[0] ].data.copy()
+                    elif do_moc  : data_plot = data_ii['zmoc'].isel(nz=np.abs(data_ii['depth'])>=500).values.copy()
                     elif do_dmoc is not None  : 
                         if   do_dmoc=='dmoc'  : data_plot = data_ii['dmoc'].data.copy()
                         elif do_dmoc=='srf'   : data_plot = -(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
@@ -3438,6 +3511,24 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     #___________________________________________________________________________
     if 'cmap0' in list(cinfo.keys()): cinfo['cmap'] = cinfo['cmap0'].resampled(cinfo['clevel'].size-1)
         
+    #___________________________________________________________________________
+    # colorbar tick labels
+    nclev    = len(cinfo['clevel'])
+    idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+    idx_cref = idx_cref.item()
+    
+    nstep    = nclev/cinfo['cnlab']
+    nstep    = np.max([np.int32(np.ceil(nstep)),1])
+    
+    idx      = np.arange(0, nclev, 1)
+    idxb     = np.ones(nclev, dtype=bool)                
+    idxb[idx_cref::nstep]  = False
+    idxb[idx_cref::-nstep] = False
+    idx_not  = idx[idxb==True]
+    idx_yes  = idx[idxb==False]
+    
+    cinfo['clab'] = cinfo['clevel'][idx_yes]
+    del(idx_not, idx_yes, idx, idxb, idx_cref)
     #___________________________________________________________________________
     print(cinfo)
     return(cinfo)    

@@ -1728,6 +1728,8 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
             str_name = box.shapeName.split('/')[-1].replace('_',' ')
             data_zm[vname].attrs['transect_name'] = '{} zonal mean'.format(str_name.lower())
         
+        # for the choice of vertical plotting mode
+        data_zm.attrs['proj'] = 'index+depth+xy'
         #_______________________________________________________________________
         if do_compute : data_zm = data_zm.compute() 
         if do_load    : data_zm = data_zm.load()

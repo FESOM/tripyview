@@ -210,10 +210,20 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     #___________________________________________________________________________
     # create ZMOC xarray Dataset
     # define variable attributes    
-    vattr['long_name'    ]= 'MOC'
-    vattr['short_name'   ]= 'MOC'
-    vattr['standard_name']= 'Meridional Overturning Circulation'
-    vattr['description'  ]= 'Meridional Overturning Circulation Streamfunction, positive: clockwise, negative: counter-clockwise circulation', 
+    if   which_moc=='gmoc' : str_region='Global '
+    elif which_moc=='amoc' : str_region='Atlantic '
+    elif which_moc=='aamoc': str_region='Atlantic-Arctic '
+    elif which_moc=='pmoc' : str_region='Pacific '
+    elif which_moc=='ipmoc': str_region='Indo-Pacific '
+    elif which_moc=='pmoc' : str_region='Indo '
+    
+    # for the choice of vertical plotting mode
+    gattr['proj'         ]= 'zmoc'
+    
+    vattr['long_name'    ]= which_moc.upper()
+    vattr['short_name'   ]= which_moc.upper()
+    vattr['standard_name']= str_region+'Meridional Overturning Circulation'
+    vattr['description'  ]= str_region+'Meridional Overturning Circulation Streamfunction, positive: clockwise, negative: counter-clockwise circulation', 
     vattr['units'        ]= 'Sv'
     # define data_vars dict, coordinate dict, as well as list of dimension name 
     # and size 
