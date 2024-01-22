@@ -16,11 +16,14 @@ import matplotlib.ticker        as mticker
 import matplotlib.path          as mpath
 import matplotlib.colors        as mcolors
 from   matplotlib.colors        import ListedColormap
+from   matplotlib.ticker        import MultipleLocator, AutoMinorLocator, ScalarFormatter
+
+from   scipy.signal             import convolve2d
 
 from .sub_mesh     import *
 from .sub_data     import *
 from .sub_colormap import *
-
+from .sub_utility  import *
 #
 #
 #_______________________________________________________________________________
@@ -223,10 +226,11 @@ def plot_hslice(mesh                   ,
     #___________________________________________________________________________
     # --> check if input data is a list
     if not isinstance(data, list): data = [data]
+    ndat = len(data)
     
     #___________________________________________________________________________
     # --> create projection
-    proj_to, proj_from = None, ccrs.PlateCarree()
+    proj_to = None
     # proj is string 
     if   isinstance(proj, str): 
         proj_to, box = do_projection(mesh, proj, box)
@@ -261,36 +265,8 @@ def plot_hslice(mesh                   ,
     tri = None
     if 'nod2' in data[0].dims or 'elem' in data[0].dims:
         #_______________________________________________________________________
-        tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)),
-                            np.hstack((mesh.n_y,mesh.n_ya)),
-                            np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+        tri = do_triangulation(hax[0], mesh, proj_to, box)
         
-        #_______________________________________________________________________
-        # --> limit mesh triangulation to projection box
-        e_box_mask = np.ones(tri.triangles.shape[0], dtype=bool)
-        if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
-            e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
-        elif not isinstance(proj_to, (ccrs.Orthographic, ccrs.NearsidePerspective)):
-            xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
-            fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
-            ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
-            e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
-            del(xpts, ypts, fig_pts, ax_pts)
-
-        # --> reindex vertices and elements --> ensure smallest triangulation object 
-        # hopefully saves some memory when going to very large meshes 
-        n_box_mask = None
-        if any(e_box_mask==False):
-            tri, n_box_mask = do_reindex_vert_and_elem(tri, e_box_mask)
-        
-        #_______________________________________________________________________
-        # --> do the mapping transformation outside of tricontourf is absolutely 
-        #     faster than let doing cartopy doing it within 
-        # when you transpose a 2D array with two columns, it effectively swaps the 
-        # rows and columns, allowing you to use tuple unpacking to assign each 
-        # column to a separate variable.
-        tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
-
     #___________________________________________________________________________
     # --> set up color info
     # --> setup normalization log10, symetric log10, None
@@ -328,8 +304,6 @@ def plot_hslice(mesh                   ,
             hax_ii.axis('off')
         # axis is normally fillt with data    
         else:    
-            ii_v = ii # valid_idx
-            
             #___________________________________________________________________
             # switch between unstrucutred and regular plotting
             # plot unstructured data
@@ -340,25 +314,24 @@ def plot_hslice(mesh                   ,
                 # values from plotting that are bottom topo  
                 vname     = list(data[ii].keys())[0]
                 data_plot = data[ii][ vname ].data.copy()
-                data_plot, e_ok_mask = do_data_prepare_unstruct(mesh, data_plot, tri, e_box_mask, n_box_mask, do_ie2n)
+                data_plot, tri = do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n)
                 
                 #_______________________________________________________________
                 # add color for ocean bottom
-                h0 = do_plt_bot(hax_ii, do_bot, tri, e_ok_mask, bot_opt=bot_opt)
+                h0 = do_plt_bot(hax_ii, do_bot, tri=tri, bot_opt=bot_opt)
                 hbot.append(h0)
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
-                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, e_ok_mask, 
-                                cinfo_plot[ cb_plt_idx[ii]-1 ], 
-                                norm_plot[ cb_plt_idx[ii]-1 ], proj_to, 
+                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
+                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
                                 plt_cont=plt_cont, plt_contl=plt_contl, 
                                 plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
                 hp.append(h0)
                 
                 #___________________________________________________________________
                 # add grid mesh on top
-                h0 = do_plt_mesh(hax_ii, do_mesh, tri, e_ok_mask, mesh_opt=mesh_opt)
+                h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
                 hmsh.append(h0)
             
             # plot regular gridded data
@@ -373,20 +346,19 @@ def plot_hslice(mesh                   ,
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
-                                cinfo_plot[ cb_plt_idx[ii]-1 ], 
-                                norm_plot[ cb_plt_idx[ii]-1 ], proj_to, 
+                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
                                 plt_cont=plt_cont, plt_contl=plt_contl, 
                                 plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
                 hp.append(h0)
                 
             #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, box, lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
             # add grids lines 
-            h0 = do_plt_gridlines(hax_ii, do_grid, proj_to, len(data), nrow, ncol, grid_opt=grid_opt)
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt)
             hgrd.append(h0)
             
             #___________________________________________________________________
@@ -625,7 +597,7 @@ def plot_hmesh( mesh                   ,
     
     #___________________________________________________________________________
     # --> create projection
-    proj_to, proj_from = None, ccrs.PlateCarree()
+    proj_to = None
     # proj is string 
     if   isinstance(proj, str): 
         proj_to, box = do_projection(mesh, proj, box)
@@ -668,39 +640,9 @@ def plot_hmesh( mesh                   ,
             hax_ii.axis('off')
         # axis is normally fillt with data    
         else:    
-            ii_v = ii # valid_idx
-            
             #___________________________________________________________________
-            tri = Triangulation(np.hstack((mesh[ii].n_x,mesh[ii].n_xa)),
-                                np.hstack((mesh[ii].n_y,mesh[ii].n_ya)),
-                                np.vstack((mesh[ii].e_i[mesh[ii].e_pbnd_0,:],mesh[ii].e_ia)))
-            
-            #___________________________________________________________________
-            # --> limit mesh triangulation to projection box
-            e_box_mask = np.ones(tri.triangles.shape[0], dtype=bool)
-            if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
-                e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
-            elif not isinstance(proj_to, (ccrs.Orthographic, ccrs.NearsidePerspective)):
-                xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
-                fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
-                ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
-                e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
-                del(xpts, ypts, fig_pts, ax_pts)
-            
-            # --> reindex vertices and elements --> ensure smallest triangulation object 
-            # hopefully saves some memory when going to very large meshes 
-            n_box_mask = None
-            if any(e_box_mask==False):
-                tri, n_box_mask = do_reindex_vert_and_elem(tri, e_box_mask)
-            e_ok_mask = np.ones(tri.triangles.shape[0], dtype=bool)
-            
-            #___________________________________________________________________
-            # --> do the mapping transformation outside of tricontourf is absolutely 
-            #     faster than let doing cartopy doing it within 
-            # when you transpose a 2D array with two columns, it effectively swaps the 
-            # rows and columns, allowing you to use tuple unpacking to assign each 
-            # column to a separate variable.
-            tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
+            # build triangulation
+            tri = do_triangulation(hax, mesh[ii], proj_to, box)
             
             #___________________________________________________________________
             if data is not None:
@@ -732,28 +674,27 @@ def plot_hmesh( mesh                   ,
                 
                 #_______________________________________________________________
                 # prepare unstructured data for plotting, 
-                data_plot, e_ok_mask = do_data_prepare_unstruct(mesh[ii], data_plot, tri, e_box_mask, n_box_mask, do_ie2n)
+                data_plot, e_ok_mask = do_data_prepare_unstruct(mesh[ii], tri, data_plot, do_ie2n)
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
-                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, e_ok_mask, 
-                                cinfo_plot, None, proj_to, 
-                                plt_cont=plt_cont, plt_contl=plt_contl, 
+                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
+                                cinfo_plot, None, plt_cont=plt_cont, plt_contl=plt_contl, 
                                 plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
                 hp.append(h0)
             #___________________________________________________________________
             # add grid mesh on top
-            h0 = do_plt_mesh(hax_ii, do_mesh, tri, e_ok_mask, mesh_opt=mesh_opt)
+            h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
             hmsh.append(h0)
                 
             #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh[ii], box, lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh[ii], lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
             # add grids lines 
-            h0 = do_plt_gridlines(hax_ii, do_grid, proj_to, len(mesh), nrow, ncol, grid_opt=grid_opt)
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, len(mesh), grid_opt=grid_opt)
             hgrd.append(h0)
             
             #___________________________________________________________________
@@ -999,10 +940,11 @@ def plot_hquiver(mesh                  ,
     #___________________________________________________________________________
     # --> check if input data is a list
     if not isinstance(data, list): data = [data]
+    ndata = len(data)
     
     #___________________________________________________________________________
     # --> create projection
-    proj_to, proj_from = None, ccrs.PlateCarree()
+    proj_to = None
     # proj is string 
     if   isinstance(proj, str): 
         proj_to, box = do_projection(mesh, proj, box)
@@ -1033,37 +975,8 @@ def plot_hquiver(mesh                  ,
     
     #___________________________________________________________________________
     # --> create mesh triangulation, when input data are unstructured
-    tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)),
-                        np.hstack((mesh.n_y,mesh.n_ya)),
-                        np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
-        
-    #_______________________________________________________________________
-    # --> limit mesh triangulation to projection box
-    e_box_mask = np.ones(tri.triangles.shape[0], dtype=bool)
-    if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
-        e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
-    elif not isinstance(proj_to, (ccrs.Orthographic, ccrs.NearsidePerspective)):
-        xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
-        fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
-        ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
-        e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
-        del(xpts, ypts, fig_pts, ax_pts)
-
-    # --> reindex vertices and elements --> ensure smallest triangulation object 
-    # hopefully saves some memory when going to very large meshes 
-    n_box_mask = None
-    if any(e_box_mask==False):
-        tri, n_box_mask = do_reindex_vert_and_elem(tri, e_box_mask)
+    tri =  do_triangulation(hax, mesh, proj_to, box, do_triorig=True)
     
-    #_______________________________________________________________________
-    # --> do the mapping transformation outside of tricontourf is absolutely 
-    #     faster than let doing cartopy doing it within 
-    # when you transpose a 2D array with two columns, it effectively swaps the 
-    # rows and columns, allowing you to use tuple unpacking to assign each 
-    # column to a separate variable.
-    tri.xorig, tri.yorig = tri.x, tri.y
-    tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
-
     #___________________________________________________________________________
     # --> set up color info
     # --> setup normalization log10, symetric log10, None
@@ -1091,51 +1004,47 @@ def plot_hquiver(mesh                  ,
             hax_ii.axis('off')
         # axis is normally fillt with data    
         else:    
-            ii_v = ii # valid_idx
-            
             #___________________________________________________________________
             # prepare unstructured data for plotting, augment periodic 
             # boundaries, interpolate from elements to nodes, kick out nan 
             # values from plotting that are bottom topo  
             vname = list(data[ii].keys())
             data_plot_u, data_plot_v = data[ii][ vname[0] ].data.copy(), data[ii][ vname[1] ].data.copy()
-            data_plot_u, dum         = do_data_prepare_unstruct(mesh, data_plot_u, tri, 
-                                                                e_box_mask, n_box_mask, do_ie2n)
-            data_plot_v, e_ok_mask   = do_data_prepare_unstruct(mesh, data_plot_v, tri, 
-                                                                e_box_mask, n_box_mask, do_ie2n)
+            data_plot_u, tri   = do_data_prepare_unstruct(mesh, tri, data_plot_u, do_ie2n)
+            data_plot_v, tri   = do_data_prepare_unstruct(mesh, tri, data_plot_v, do_ie2n)
             
             #___________________________________________________________________
             # add color for ocean bottom
-            h0 = do_plt_bot(hax_ii, do_bot, tri, e_ok_mask, bot_opt=bot_opt)
+            h0 = do_plt_bot(hax_ii, do_bot, tri=tri, bot_opt=bot_opt)
             hbot.append(h0)
             
             #___________________________________________________________________
             # add grey topo
-            h0 = do_plt_topo(hax_ii, do_topo, abs(mesh.n_z), mesh, tri, e_box_mask, 
-                             n_box_mask, proj_to, plt_cont=topo_cont, plt_contl=topo_contl, 
+            h0 = do_plt_topo(hax_ii, do_topo, abs(mesh.n_z), mesh, tri, 
+                             plt_cont=topo_cont, plt_contl=topo_contl, 
                              plt_opt=topo_opt, pltc_opt=topoc_opt, pltcl_opt=topocl_opt)
             htop.append(h0)
             
             #___________________________________________________________________
             # add grid mesh on top
-            h0 = do_plt_mesh(hax_ii, do_mesh, tri, e_ok_mask, mesh_opt=mesh_opt)
+            h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
             hmsh.append(h0)
             
             #___________________________________________________________________
             # do quiver computations
-            h0 = do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, e_ok_mask, 
+            h0 = do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
-                               proj_to, quiv_hfac, quiv_excl, quiv_opt=quiv_opt)
+                               quiv_hfac, quiv_excl, quiv_opt=quiv_opt)
             hp.append(h0)
                 
             #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, box, lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
             # add grids lines 
-            h0 = do_plt_gridlines(hax_ii, do_grid, proj_to, len(data), nrow, ncol, grid_opt=grid_opt)
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndata, grid_opt=grid_opt)
             hgrd.append(h0)
             
             #___________________________________________________________________
@@ -1158,6 +1067,372 @@ def plot_hquiver(mesh                  ,
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii]-1], do_rescale, 
                              cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt)
+        
+        #_______________________________________________________________________
+        # hfig.canvas.draw()   
+        
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
+    
+    #___________________________________________________________________________
+    list_argout=[]
+    if len(nargout)>0:
+        for stri in nargout:
+            try   : list_argout.append(eval(stri))
+            except: print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
+            
+        return(list_argout)
+    else:
+        return
+    
+    
+
+#
+#
+#_______________________________________________________________________________
+# --> do plotting of horizontal slices
+def plot_vslice(mesh                   , 
+                data                   , 
+                box        = None      , 
+                boxidx     = None      ,
+                boxl_opt   = dict()    , # option for box label string 
+                cinfo      = None      , # colormap info and defintion
+                nrow       = 1         , # number of row in figures panel
+                ncol       = 1         , # number of column in figure panel
+                proj       = 'index+depth+xy',
+                do_reffig  = False     , 
+                do_ie2n    = False     , # interpolate element data to vertices
+                do_rescale = False     ,
+                ref_rescale= True      ,
+                #--- data -----------
+                do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
+                plt_opt    = dict()    ,
+                plt_cont   = False     , # plot contour lines: True/False 
+                pltc_opt   = dict()    , # contour line option
+                plt_contl  = False     , # do contourline labels 
+                pltcl_opt  = dict()    , # contour line label options
+                #--- mesh -----------
+                do_mesh    = False     , 
+                mesh_opt   = dict()    , 
+                #--- bottom mask ----
+                do_bot     = True      , 
+                bot_opt    = dict()    ,
+                #--- landsea mask ---
+                do_lsm     = 'fesom'   , 
+                lsm_opt    = dict()    , 
+                lsm_res    = 'low'     ,
+                #--- gridlines ------
+                do_grid    = True      , 
+                grid_opt   = dict({'ylog':True})    ,
+                #--- colorbar -------
+                cb_label   = None      ,
+                cb_unit    = None      ,
+                cb_opt     = dict()    , # colorbar option
+                cbl_opt    = dict()    , # colorbar label option, fontsize ,...
+                #--- axes -----------
+                ax_title   = 'descript',
+                ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                #--- enumerate axes -
+                do_enum    = False     ,
+                enum_opt   = dict()    , 
+                enum_str   = []        , 
+                enum_x     = [0.005]   , 
+                enum_y     = [1.00]    ,
+                enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                #--- save figure ----
+                do_save    = None      , 
+                save_dpi   = 300       ,
+                save_opt   = dict()    ,
+                #--- set output -----
+                nargout=['hfig', 'hax', 'hcb'],
+                ):
+    """
+    ---> plot FESOM2 horizontal data slice:
+    ___INPUT:___________________________________________________________________
+    mesh        :   fesom2 mesh object,  with all mesh information 
+    data        :   xarray dataset object, or list of xarray dataset object
+    cinfo       :   None, dict() (default: None), dictionary with colorbar 
+                    information. Information that are given are used, others are 
+                    computed. cinfo dictionary entries can be: 
+                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
+                    max, reference value
+                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    cinfo['cnum']   ... minimum number of colors
+                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    cinfo['clevel'] ... color level array
+                    
+    box         :   None, list (default: None) regional limitation of plot. For 
+                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
+                    others box = [lonmin, lonmax, latmin, latmax]
+    
+    proj        :   str, (default: 'pc') which projection should be used, 
+                    pc     = PlateCarree
+                    merc   = Mercator
+                    rob    = Robinson
+                    eqearth= EqualEarth
+                    nps    = NorthPolarStereo
+                    sps    = SouthPolarStereo
+                    ortho  = Orthographic
+                    nears  = NearsidePerspective
+                    channel= PlateCaree
+                    
+    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
+    
+    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
+    
+    do_refig    :   bool, (default: False) do absolute reference figure, with 
+                    own colormap. Data for reference figure is data[0]
+                    
+    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
+                    towards nodes
+    
+    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
+                    string for colorbar. If 'log10' to logaritmic scaling, If 
+                    'slog10' do symetric logarithmic scaling
+    ref_rescale      same as for do_rescale
+    
+    --- plot data parameters ------------
+    do_plt      :   str, (default: tpc) = 
+                    tpc   = make pseudocolor plot (tripcolor)
+                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
+    plt_opt     :   dict, (default: dict()) additional options that are given to 
+                    tripcolor or tricontourf via the **kwarg argument
+    
+    plt_cont    :   bool, (default: False) overlay contour line plot of data
+    pltc_opt    :   dict, (default: dict()) additional options that are given to 
+                    tricontour via the **kwarg argument
+    
+    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
+    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
+                    clabel via the **kwarg argument
+    
+    --- plot mesh -----------------------
+    do_mesh     :   bool, (default: True), overlay FESOM grid over dataplot
+    mesh_opt    :   dict, (default: dict()) additional options that are given to 
+                    the mesh plotting via **kwarg
+    
+    --- plot bottom mask ----------------
+    do_bot      :   bool, (default: True), overlay topographic bottom mask
+    bot_opt     :   dict, (default: dict()) additional options that are given to 
+                    the bottom mask plotting via **kwarg
+    
+    --- plot landsea mask ---------------
+    do_lsm      :   str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
+                    option are here:
+                    fesom       :   grey fesom landsea mask
+                    stock       :   uses cartopy stock image
+                    bluemarble  :   uses bluemarble image in folder tripyview/background/
+                    etopo       :   uses etopo image in folder tripyview/background/
+    lsm_opt     :   dict, (default: dict()) additional options that are given to 
+                    the landsea mask plotting via **kwarg
+    
+    #--- plot cartopy gridlines ---------
+    do_grid     :   bool, (default: True) plot cartopy grid lines
+    grid_opt    :   dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via **kwarg
+    
+    #--- colorbar -----------------------
+    cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
+                    information from data ('long_name, short_name) are used
+    
+    cb_unit     :   str, (default: None) if string its used as colorbar unit label, 
+                    otherwise units from data are used
+
+    cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
+    cbl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+                    (fontsize, fontweight, ...) via **kwarg
+
+    #--- axes ---------------------------
+    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
+                    in data to title label axes, If 'str' use this string to label axes
+    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
+                    do_axes_arrange
+    
+    #--- enumerate axes -----------------
+    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
+    
+    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
+    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
+    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
+                    axes coordinates
+    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
+                    axes coordinates
+    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
+                    right, 'ud' from up to down
+    
+    #--- save figure ---------------------
+    do_save     :   str, (default: None) if None figure will by not saved, if 
+                    string figure will be saved, strings must give directory and 
+                    filename  where to save.     , 
+    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
+    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
+    
+    #--- set output ----------------------
+    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
+                    are given out from the routine. 
+                    Default: 
+                    hfig  - figure handle
+                    hax   - list of axes handle 
+                    hcb   - list of colorbar handles
+                    (every variable that is defined in this subroutine can become 
+                    output parameter)
+                    
+    ___RETURNS:_________________________________________________________________
+    hfig        :    returns figure handle 
+    hax         :    returns list with axes handle 
+    hcb         :    returns colorbar handle
+    ____________________________________________________________________________
+    """
+    #___________________________________________________________________________
+    # --> check if input data is a list
+    if not isinstance(data, list): data = [data]
+    ndat = len(data)
+    
+    #___________________________________________________________________________
+    # --> create projection
+    proj_to = None
+    # proj is string 
+    if   isinstance(proj, str): 
+        proj_to, box = do_projection(mesh, proj, box)
+    # proj is cartopy projection object
+    elif isinstance(proj, ccrs.CRS): 
+        proj_to = proj
+    # proj is list of cartopy projection objects or string
+    elif isinstance(proj, list): 
+        proj_to = list()
+        for proj_ii in proj:
+            if   isinstance(proj_ii, str): 
+                proj_dum, box = do_projection(mesh, proj_ii, box)
+                proj_to.append(proj_dum)                
+            elif isinstance(proj_ii, ccrs.CRS):    
+                proj_to.append(proj_ii)    
+    
+    #___________________________________________________________________________
+    # --> pre-arange axes
+    ax_optdefault=dict({'projection': proj_to, 'box': box})
+    ax_optdefault.update(ax_opt)
+    hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
+    cb_plt_idx=cb_plt_idx[:len(data)]
+    
+    #___________________________________________________________________________
+    # --> axes enumeration 
+    hax = do_axes_enum(hax, do_enum, nrow, ncol, enum_opt=enum_opt, enum_str=enum_str, 
+                       enum_x=enum_x, enum_y=enum_y, enum_dir=enum_dir)
+        
+    #___________________________________________________________________________
+    # --> set up color info
+    # --> setup normalization log10, symetric log10, None
+    cinfo_plot, norm_plot, idxs = list(), list(), 0
+    for ii in np.unique(cb_plt_idx):
+        idsel = np.where(cb_plt_idx==ii)[0]
+        
+        cinfo_optdefault=dict()
+        if hax[0].projection == 'index+depth+xy':
+            cinfo_optdefault.update({'do_index':True, 'boxidx':boxidx})
+
+        #_______________________________________________________________________
+        if isinstance(cinfo, list):
+            cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale, **cinfo_optdefault) )
+        else:    
+            cinfo_plot.append( do_setupcinfo(cinfo, [data[jj] for jj in idsel], do_rescale, **cinfo_optdefault) )
+        
+        #_______________________________________________________________________
+        if isinstance(do_rescale, list):
+            norm_plot.append(  do_data_norm(cinfo_plot[-1], do_rescale[ii-1]) )
+        else:
+            norm_plot.append(  do_data_norm(cinfo_plot[-1], do_rescale) )
+        
+    #___________________________________________________________________________
+    # --> loop over axes
+    hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
+    for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
+        # if there are no ddatra to fill axes, make it invisible 
+        if ii>=len(data): 
+            hax_ii.axis('off')
+        # axis is normally fillt with data    
+        else: 
+            
+            #_______________________________________________________________
+            # prepare regular gridded data for plotting
+            if boxidx is not None:
+                vname = list(data[ii][boxidx].keys())[0]
+                data_plot = data[ii][boxidx][vname].data.copy()
+                data_y, str_ylabel = data[ii][boxidx]['depth'].values , 'Depth / m'
+                if   'lat'  in list(data[ii][boxidx].coords): 
+                    data_x, str_xlabel = data[ii][boxidx]['lat'].values , 'Latitude / deg'
+                elif 'lon'  in list(data[ii][boxidx].coords): 
+                    data_x, str_xlabel = data[ii][boxidx]['lon'].values , 'Longitude / deg'
+                elif 'dist' in list(data[ii][boxidx].coords): 
+                    data_x, str_xlabel = data[ii][boxidx]['dist'].values , 'Distance / km'
+            else:
+                vname = list(data[ii].keys())[0]
+                data_plot = data[ii][vname].data.copy()
+                data_y, str_ylabel = data[ii]['depth'].values , 'Depth / m'
+                if   'lat'  in list(data[ii].coords): 
+                    data_x, str_xlabel = data[ii]['lat'].values , 'Latitude / deg'
+                elif 'lon'  in list(data[ii].coords): 
+                    data_x, str_xlabel = data[ii]['lon'].values , 'Longitude / deg'
+                elif 'dist' in list(data[ii].coords): 
+                    data_x, str_xlabel = data[ii]['dist'].values , 'Distance / km'
+            
+            if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
+            if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
+            
+            #_______________________________________________________________
+            # add tripcolor or tricontourf plot 
+            h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
+                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
+                                plt_cont=plt_cont, plt_contl=plt_contl, 
+                                plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
+            hp.append(h0)
+            
+            ##___________________________________________________________________
+            ## add bottom  mask
+            h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, data_plot=data_plot, bot_opt=bot_opt)
+            hbot.append(h0)  
+            
+            #___________________________________________________________________
+            # add grids lines 
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt)
+            hgrd.append(h0)
+            
+            #___________________________________________________________________
+            # add title and axes labels
+            if ax_title is not None: 
+                # is title  string:
+                if   isinstance(ax_title,str) : 
+                    # if title string is 'descript' than use descript attribute from 
+                    # data to set plot title 
+                    if boxidx is not None: loc_attrs = data[ii][boxidx][vname].attrs
+                    else                 : loc_attrs = data[ii][vname].attrs
+                    
+                    if ax_title=='descript' and ('descript' in loc_attrs.keys() ):
+                        hax_ii.set_title(loc_attrs['descript'], fontsize=hax_ii.fs_label, verticalalignment='top')
+                    else:
+                        hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
+                        
+                # is title list of string        
+                elif isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
+            
+            #___________________________________________________________________________
+            # set superior title
+            if  boxidx is not None:
+                vname     = list(data[ii][boxidx].keys())[0]
+                loc_attrs = data[ii][boxidx][vname].attrs
+                
+                boxl_optdefault = dict({'x':0.995, 'y':0.925, 's':loc_attrs['transect_name'], \
+                                        'fontsize':14, 'transform':hax_ii.transAxes,\
+                                        'horizontalalignment':'right', 'verticalalignment':'bottom'})
+                boxl_optdefault.update(boxl_opt)
+                if 'transect_name' in loc_attrs: ht = hax_ii.text(**boxl_optdefault)
+                    
+        #_______________________________________________________________________
+        # add colorbar 
+        if hcb_ii != 0 and hp[-1] is not None: 
+            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii]-1], do_rescale, 
+                             cb_label, cb_unit, boxidx=boxidx, cb_opt=cb_opt, cbl_opt=cbl_opt)
         
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -1208,27 +1483,40 @@ def do_projection(mesh, proj, box):
     box         :   return projection adapted box list
     ____________________________________________________________________________
     """ 
+    
+    #___Horizontal Projection___________________________________________________
     if   proj=='pc'     :
+        if len(box)!=4: raise ValueError( 'For PlateCarree projection: box=[lon_min, lon_max, lat_min, lat_max]')
         proj_to = ccrs.PlateCarree()     
     
     elif proj=='merc'   : 
+        if len(box)!=4: raise ValueError( 'For Mercator projection: box=[lon_min, lon_max, lat_min, lat_max]')
         proj_to = ccrs.Mercator()
         box[0], box[1] = box[0]+0.25, box[1]-0.25
         box[2], box[3] = max(box[2], -85), min(box[3], 85)
         
     elif proj=='rob'    : 
+        if len(box)!=4: raise ValueError( 'For Robinson projection: box=[lon_min, lon_max, lat_min, lat_max]')
         proj_to = ccrs.Robinson()  
         box[0], box[1] = box[0]+0.25, box[1]-0.25
     
     elif proj=='eqearth': 
+        if len(box)!=4: raise ValueError( 'For EqualEarth projection: box=[lon_min, lon_max, lat_min, lat_max]')
         proj_to = ccrs.EqualEarth(central_longitude=mesh.focus)
         box[0], box[1] = box[0]+0.25, box[1]-0.25
     
+    elif proj=='mol': 
+        if len(box)!=4: raise ValueError( 'For Mollweide projection: box=[lon_min, lon_max, lat_min, lat_max]')
+        proj_to = ccrs.Mollweide(central_longitude=mesh.focus)
+        box[0], box[1] = box[0]+0.25, box[1]-0.25
+    
     elif proj=='nps'    : 
+        if len(box)!=4: raise ValueError( 'For NorthPolarStereo projection: box=[-180, 180, lat_min, lat_max]')
         proj_to = ccrs.NorthPolarStereo()
         if box[2]<0: box[2]=0
     
     elif proj=='sps'    : 
+        if len(box)!=4: raise ValueError( 'For SouthPolarStereo projection: box=[-180, 180, lat_min, lat_max]')
         proj_to = ccrs.SouthPolarStereo()
         if box[3]>0: box[3]=0
     
@@ -1244,11 +1532,82 @@ def do_projection(mesh, proj, box):
         proj_to = ccrs.PlateCarree()
         if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
     
+    #___Vertical "Projection"___________________________________________________
+    elif  proj == 'index+depth+xy': proj_to = 'index+depth+xy'
     else: 
         raise ValueError('The projection {} is not supporrted!'.format(proj))
         
     #___________________________________________________________________________    
     return(proj_to, box)
+
+
+
+#
+#
+#_______________________________________________________________________________
+# --> do triangulation
+def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), do_triorig=False):
+    """
+    ---> plot FESOM2 horizontal data slice:
+    ___INPUT:___________________________________________________________________
+    mesh        :   fesom2 mesh object,  with all mesh information 
+    proj_from   :   cartopy source projection object                   
+    proj_to     :   cartopy destination projection object   
+    box         :   None, list (default: None) regional limitation of plot. For 
+                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
+                    others box = [lonmin, lonmax, latmin, latmax]
+                    
+    ___RETURNS:_________________________________________________________________
+    tri         :    tri         :   matplotlib.tri triangulation object
+    
+    ____________________________________________________________________________
+    """
+    tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)),
+                        np.hstack((mesh.n_y,mesh.n_ya)),
+                        np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+    
+    #___________________________________________________________________________
+    # --> limit mesh triangulation to projection box
+    e_box_mask = np.ones(tri.triangles.shape[0], dtype=bool)
+    if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
+        e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
+    elif not isinstance(proj_to, (ccrs.Orthographic, ccrs.NearsidePerspective)):
+        xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
+        fig_pts    = hax.transData.transform(list(zip(xpts,ypts)))
+        ax_pts     = hax.transAxes.inverted().transform(fig_pts)
+        e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
+        del(xpts, ypts, fig_pts, ax_pts)
+        
+    # --> reindex vertices and elements --> ensure smallest triangulation object 
+    # hopefully saves some memory when going to very large meshes 
+    n_box_mask = None
+    if any(e_box_mask==False):
+        tri, n_box_mask = do_reindex_vert_and_elem(tri, e_box_mask)
+        
+    #___________________________________________________________________________
+    # --> do the mapping transformation outside of tricontourf is absolutely 
+    #     faster than let doing cartopy doing it within 
+    # when you transpose a 2D array with two columns, it effectively swaps the 
+    # rows and columns, allowing you to use tuple unpacking to assign each 
+    # column to a separate variable.
+    
+    if do_triorig: tri.xorig, tri.yorig = tri.x, tri.y
+    tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
+    
+    #___________________________________________________________________________
+    # add some more varaibles i need
+    tri.mask_e_box     = e_box_mask
+    tri.mask_n_box     = n_box_mask
+    del(e_box_mask, n_box_mask)
+    tri.n2dn, tri.n2de = mesh.n2dn, mesh.n2de
+    if tri.mask_n_box is not None: 
+        tri.narea = np.hstack((mesh.n_area[0,:],mesh.n_area[0,mesh.n_pbnd_a]))
+        tri.narea = tri.narea[tri.mask_n_box]
+    else: 
+        tri.narea = mesh.n_area[0,:]
+    
+    #___________________________________________________________________________
+    return(tri)
 
 
 
@@ -1454,19 +1813,29 @@ def do_axes_arrange(nx, ny,
     # determine ax_w in case it is auto
     #if isinstance(ax_w, str) and ax_w=='auto': ax_w = ax_h/ax_asp
     if isinstance(ax_w, str) and ax_w=='auto': 
-        if box is not None and ax_asp==1.0:
-            if isinstance(projection[0], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Orthographic, ccrs.NearsidePerspective) ):
-                ax_asp = 1.0
-                
-            elif isinstance(projection[0], (ccrs.Robinson, ccrs.EqualEarth) ):
-                poly_x, poly_y = np.array([box[0], box[1], box[1], box[0] ]), np.array([box[3], box[3], box[2], box[2] ]),
-                ax_asp = (poly_x.max()-poly_x.min())/(poly_y.max()-poly_y.min())
-                
-            else:
-                poly_x, poly_y = [box[0], box[1], box[1], box[0] ], [box[3], box[3], box[2], box[2] ]
-                points = projection[0].transform_points(ccrs.PlateCarree(), np.array(poly_x), np.array(poly_y))
-                ax_asp = ( (points[:,0].max()-points[:,0].min())/(points[:,1].max()-points[:,1].min()) )
+        print(box)
+        #if box is not None and ax_asp==1.0:
+        if ax_asp==1.0:        
+            #___________________________________________________________________
+            # projection[0] is an arbitrary cartopy-projection object
+            if isinstance(projection[0], ccrs.CRS):
+                if isinstance(projection[0], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Orthographic, ccrs.NearsidePerspective) ):
+                    ax_asp = 1.0
+                    
+                elif isinstance(projection[0], (ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide) ):
+                    poly_x, poly_y = np.array([box[0], box[1], box[1], box[0] ]), np.array([box[3], box[3], box[2], box[2] ]),
+                    ax_asp = (poly_x.max()-poly_x.min())/(poly_y.max()-poly_y.min())
+                    
+                else:
+                    poly_x, poly_y = [box[0], box[1], box[1], box[0] ], [box[3], box[3], box[2], box[2] ]
+                    points = projection[0].transform_points(ccrs.PlateCarree(), np.array(poly_x), np.array(poly_y))
+                    ax_asp = ( (points[:,0].max()-points[:,0].min())/(points[:,1].max()-points[:,1].min()) )
             
+            #___________________________________________________________________
+            # projection is depth-xy string 
+            elif projection[0]=='index+depth+xy':
+                ax_asp = 2.0
+                
         #print('ax_asp=', ax_asp)
         ax_w = ax_h*ax_asp
         #print('ax_w=', ax_w, ', ax_h=', ax_h)
@@ -1554,7 +1923,6 @@ def do_axes_arrange(nx, ny,
     else:
         raise ValueError(' the format of cb_plt is not supported')
     cb_plt_idx = cb_plt_idx.astype(np.int16)
-    
     
     #___________________________________________________________________________
     # create multiple of horizontal axes, colorbar properties
@@ -1689,12 +2057,17 @@ def do_axes_arrange(nx, ny,
             nn+=1
             #___________________________________________________________________
             # axes
-            hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])
+            if isinstance(projection[nn], ccrs.CRS):
+                hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])
+            else:    
+                hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], )
+                hax[nn].projection = projection[nn]                           
             
+            # set position of axes
             hax[nn].set_position(pos_ax[nn,:])
             
             #if box is not None: hax[nn].set_extent(box, crs=projection[nn])
-            if box is not None: 
+            if box is not None and isinstance(projection[nn], ccrs.CRS): 
                 if  not isinstance(projection[nn], (ccrs.Orthographic, ccrs.NearsidePerspective ) ): #ccrs.NorthPolarStereo, ccrs.SouthPolarStereo,
                     hax[nn].set_extent(box, crs=ccrs.PlateCarree())
             #___________________________________________________________________
@@ -1734,7 +2107,13 @@ def do_axes_arrange(nx, ny,
                 hax[nn].tick_params(labelleft=False)
                 hax[nn].set_ylabel('')
                 hax[nn].do_ylabel=False
-                
+            
+            #___________________________________________________________________
+            # add more variables to axes handle 
+            hax[nn].ncol, hax[nn].nrow = nx, ny
+            hax[nn].coli, hax[nn].rowi = ii, jj
+            
+            
             
             #___________________________________________________________________
             # ticks for colorbar 
@@ -1786,7 +2165,6 @@ def do_axes_arrange(nx, ny,
             
     # there is more than independent colorbar within the figure panel        
     elif not cb_plt_single and any(cb_plt.flatten()>1):
-        print(pos_cbcm)
         x_ax_cent = pos_axcm[ 0,0] + 0.5*(pos_axcm[-1,0]+pos_axcm[-1,2]-pos_axcm[0,0])
         y_ax_cent = pos_axcm[-1,1] + 0.5*(pos_axcm[ 0,1]+pos_axcm[ 0,3]-pos_axcm[-1,1])
         nn = -1
@@ -1901,14 +2279,14 @@ def do_axes_enum(hax, do_enum, nrow, ncol, enum_dir='lr', enum_str=[], enum_x=[0
 #_______________________________________________________________________________
 # prepare data for plotting, augment periodic boundaries, interpolate from elements
 # to nodes, kick out nan values from plotting 
-def do_data_prepare_unstruct(mesh, data_plot, tri, e_box_mask, n_box_mask, do_ie2n):
+def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
     """
     ___INPUT:___________________________________________________________________
     mesh        :   fesom2 mesh object,  with all mesh information 
     data_plot   :   np.array of unstructured data 
     tri         :   matplotlib.tri triangulation object
-    e_box_mask  :   bool np.array with element masking from regional box definition
-    n_box_mask  :   bool np.array with vertices masking from regional box selection
+    tri.mask_e_box:   bool np.array with element masking from regional box definition
+    tri.mask_n_box:   bool np.array with vertices masking from regional box selection
     
     ___RETURNS:_________________________________________________________________
     data_plot   :   np.array of unstructured data, augmented with periodic boundary,
@@ -1926,7 +2304,7 @@ def do_data_prepare_unstruct(mesh, data_plot, tri, e_box_mask, n_box_mask, do_ie
         data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
         
         # reindex vertices array to box limits
-        if n_box_mask is not None: data_plot = data_plot[n_box_mask]
+        if tri.mask_n_box is not None: data_plot = data_plot[tri.mask_n_box]
         
     #___________________________________________________________________________
     # data are on elements
@@ -1939,29 +2317,29 @@ def do_data_prepare_unstruct(mesh, data_plot, tri, e_box_mask, n_box_mask, do_ie
             data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
            
             # reindex vertices array to box limits
-            if n_box_mask is not None: data_plot = data_plot[n_box_mask]
+            if tri.mask_n_box is not None: data_plot = data_plot[tri.mask_n_box]
             
         # plot the data on elements    
         else:    
             is_onvert = False
             data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
-            data_plot = data_plot[e_box_mask]
+            data_plot = data_plot[tri.mask_e_box]
             
             # reindex element array to box limits
-            data_plot = data_plot[e_box_mask]
+            data_plot = data_plot[tri.mask_e_box]
     
     #___________________________________________________________________________
     # kick out triangles with Nan cut elements to box size        
     isnan   = np.isnan(data_plot)
     if not is_onvert:
-        e_ok_mask = isnan==False
-        data_plot = data_plot[e_ok_mask]
+        tri.mask_e_ok = isnan==False
+        data_plot     = data_plot[tri.mask_e_ok]
     else:
-        e_ok_mask = np.any(isnan[tri.triangles], axis=1)==False
+        tri.mask_e_ok = np.any(isnan[tri.triangles], axis=1)==False
     del(isnan) 
     
     #___________________________________________________________________________
-    return(data_plot, e_ok_mask)    
+    return(data_plot, tri)    
 
 
 
@@ -2009,7 +2387,7 @@ def do_data_norm(cinfo, do_rescale):
 #
 #_______________________________________________________________________________
 # --> plot triangular data based on tripcolor or tricontourf
-def do_plt_data(hax_ii, do_plt, tri, data_plot, e_ok_mask, cinfo_plot, which_norm_plot, proj_to, 
+def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot, 
                 plt_cont=False, plt_contl=False, plt_opt=dict(), pltc_opt=dict(), pltcl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
@@ -2018,9 +2396,9 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, e_ok_mask, cinfo_plot, which_nor
                     tpc   = make pseudocolor plot (tripcolor)
                     tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
     tri         :   matplotlib.tri triangulation object
-    data_plot   :   np.array of unstructured data, augmented with periodic boundary,
-    e_ok_mask   :   provide mask with nan values, that describe the bottom 
+    tri.mask_e_ok:   provide mask with nan values, that describe the bottom 
                     limited to regional box
+    data_plot   :   np.array of unstructured data, augmented with periodic boundary,
     cinfo       :   None, dict() (default: None), dictionary with colorbar 
                     information. Information that are given are used, others are 
                     computed. cinfo dictionary entries can be: 
@@ -2047,17 +2425,17 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, e_ok_mask, cinfo_plot, which_nor
     ____________________________________________________________________________
     """      
     h0=None
-    if np.sum(e_ok_mask)==0: return(h0)
+    if np.sum(tri.mask_e_ok)==0: return(h0)
     #___________________________________________________________________________
     # plot tripcolor
     if   do_plt=='tpc' or (do_plt=='tcf' and not tri.x.size==data_plot.size):
         plt_optdefault = dict({'shading':'gouraud'})
         plt_optdefault.update(plt_opt)
         
-        if tri.x.size!=data_plot.size or isinstance(proj_to, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
+        if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
             plt_optdefault.update({'shading':'flat'})
         
-        h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[e_ok_mask,:], data_plot,
+        h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                               cmap=cinfo_plot['cmap'],
                               vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
                               norm = which_norm_plot, **plt_optdefault)
@@ -2072,7 +2450,7 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, e_ok_mask, cinfo_plot, which_nor
             data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
             data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
                 
-        h0 = hax_ii.tricontourf(tri.x, tri.y, tri.triangles[e_ok_mask,:], data_plot,
+        h0 = hax_ii.tricontourf(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                 norm=which_norm_plot, **plt_optdefault) 
         
@@ -2084,7 +2462,7 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, e_ok_mask, cinfo_plot, which_nor
     if plt_cont and tri.x.size==data_plot.size:
         pltc_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1})
         pltc_optdefault.update(pltc_opt)
-        h0c = hax_ii.tricontour(tri.x, tri.y, tri.triangles[e_ok_mask,:], data_plot,
+        h0c = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], **pltc_optdefault) 
         
         #_______________________________________________________________________
@@ -2139,17 +2517,24 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     ____________________________________________________________________________
     """      
     h0=None
-    if np.sum(e_ok_mask)==0: return(h0)
     #___________________________________________________________________________
     # plot pcolor
     if   do_plt=='tpc':
-        plt_optdefault = dict({'shading':'gouraud'})
+        #plt_optdefault = dict({'shading':'gouraud'})
+        plt_optdefault = dict({'shading':'nearest'})
         plt_optdefault.update(plt_opt)
         
-        h0 = hax_ii.pcolor(data_x, data_y, data_plot,
+        if 'shading' in plt_optdefault:
+            if plt_optdefault['shading']=='flat':
+                data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
+        
+        
+        print(data_x.shape, data_y.shape, data_plot.shape)
+        h0 = hax_ii.pcolormesh(data_x, data_y, data_plot,
                               cmap=cinfo_plot['cmap'],
                               vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
                               norm = which_norm_plot, **plt_optdefault)
+        
     #___________________________________________________________________________
     # plot contourf 
     elif do_plt=='tcf': 
@@ -2170,10 +2555,10 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     
     #___________________________________________________________________________
     # overlay contour lines
-    if plt_cont and tri.x.size==data_plot.size:
+    if plt_cont:
         pltc_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1})
         pltc_optdefault.update(pltc_opt)
-        h0c = hax_ii.tricontour(data_x, data_y, data_plot,
+        h0c = hax_ii.contour(data_x, data_y, data_plot,
                                 levels=cinfo_plot['clevel'], **pltc_optdefault) 
         
         #_______________________________________________________________________
@@ -2191,8 +2576,8 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
 #
 #_______________________________________________________________________________
 # --> plot triangular data based on tripcolor or tricontourf
-def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, e_ok_mask, 
-                  cinfo_plot, norm_plot, proj_to, quiv_hfac, quiv_excl, quiv_opt=dict()):
+def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
+                  cinfo_plot, norm_plot, quiv_hfac, quiv_excl, quiv_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -2200,10 +2585,10 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, e_ok_mask,
                     tpc   = make pseudocolor plot (tripcolor)
                     tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
     tri         :   matplotlib.tri triangulation object
+    tri.mask_e_ok:  provide mask with nan values, that describe the bottom 
+                    limited to regional box
     data_plot_u :   np.array of unstructured data, augmented with periodic boundary,
     data_plot_v :   np.array of unstructured data, augmented with periodic boundary,
-    e_ok_mask   :   provide mask with nan values, that describe the bottom 
-                    limited to regional box
     cinfo       :   None, dict() (default: None), dictionary with colorbar 
                     information. Information that are given are used, others are 
                     computed. cinfo dictionary entries can be: 
@@ -2240,7 +2625,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, e_ok_mask,
         data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
                 
         # convert into cartopy projection frame 
-        data_plot_u, data_plot_v = proj_to.transform_vectors(ccrs.PlateCarree(), 
+        data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
                                                             tri.xorig, tri.yorig, 
                                                             data_plot_u, data_plot_v)
                 
@@ -2289,13 +2674,13 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, e_ok_mask,
 #
 #_______________________________________________________________________________
 # --> plot bottom mask
-def do_plt_bot(hax_ii, do_bot, tri, e_ok_mask, bot_opt=dict()):
+def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, bot_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
     do_bot      :   bool, (default: True), overlay topographic bottom mask
     tri         :   matplotlib.tri triangulation object
-    e_ok_mask   :   provide mask with nan values, that describe the bottom 
+    tri.mask_e_ok:   provide mask with nan values, that describe the bottom 
                     limited to regional box
     bot_opt     :   dict, (default: dict()) additional options that are given to 
                     the bottom mask plotting via **kwarg
@@ -2307,37 +2692,65 @@ def do_plt_bot(hax_ii, do_bot, tri, e_ok_mask, bot_opt=dict()):
     """      
     from matplotlib.colors import ListedColormap
     h0=None
-    if do_bot and np.any(e_ok_mask==False):
+    
+    # plot bottom mask for cartopy plot
+    if isinstance(hax_ii.projection, ccrs.CRS) and tri is not None:
+        if do_bot and np.any(tri.mask_e_ok==False):
+            
+            bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, })
+            bot_optdefault.update(bot_opt)
+            
+            # create single color colormap when options like 'facecolor', 'facecolors', 
+            # 'color', 'colors' are present
+            cmap = None
+            rmv  = []
+            for ii in bot_optdefault.keys():
+                if ii in ['facecolor', 'facecolors', 'color', 'colors']:
+                    cmap = ListedColormap(bot_optdefault[ii])
+                    rmv.append(ii)
+            if cmap is not None: bot_optdefault.update({'cmap':cmap})
+            
+            # remove facecolor string from dictionary since its doesnt exist for tripcolor
+            if len(rmv)!=0:
+                for ii in rmv:
+                    del(bot_optdefault[ii])
+            
+            #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], **bot_optdefault)
+            h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[tri.mask_e_ok==False,:], np.ones(np.sum(tri.mask_e_ok==False)), **bot_optdefault)
+    
+    # plot bottom mask for index+depth+xy
+    elif hax_ii.projection=='index+depth+xy':
         
-        bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, })
+        bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':2})
         bot_optdefault.update(bot_opt)
+            
+        if data_x is None or data_plot is None:
+            raise ValueError(' cant plot bottom mask for index+depth+xy without data_x and data_plot!')
         
-        # create single color colormap when options like 'facecolor', 'facecolors', 
-        # 'color', 'colors' are present
-        cmap = None
-        rmv  = []
-        for ii in bot_optdefault.keys():
-            if ii in ['facecolor', 'facecolors', 'color', 'colors']:
-                cmap = ListedColormap(bot_optdefault[ii])
-                rmv.append(ii)
-        if cmap is not None: bot_optdefault.update({'cmap':cmap})
+        # compute bottom line based on NaN values
+        aux = np.isnan(data_plot)==False
+        aux = aux.sum(axis=0)
+        aux[aux!=0]=aux[aux!=0]-1
+        bottom = data_y[aux]
+        del(aux)
         
-        # remove facecolor string from dictionary since its doesnt exist for tripcolor
-        if len(rmv)!=0:
-            for ii in rmv:
-                del(bot_optdefault[ii])
+        # smooth bottom patch
+        #filt=np.array([1,2,3,2,1]) #np.array([1,2,1])
+        #filt=filt/np.sum(filt)
+        #aux = np.concatenate( (np.ones((filt.size,))*bottom[0],bottom,np.ones((filt.size,))*bottom[-1] ) )
+        #aux = np.convolve(aux,filt,mode='same')
+        #bottom = aux[filt.size:-filt.size]
+        #del(filt, aux)
         
-        #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], **bot_optdefault)
-        h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], np.ones(np.sum(e_ok_mask==False)), **bot_optdefault)
+        h0 = hax_ii.fill_between(data_x, bottom, data_y[-1], **bot_optdefault)#,alpha=0.95)
+        
     return(h0)
-
-
-
+    
 #
 #
 #_______________________________________________________________________________
 # --> plot topography contour or pcolor
-def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, e_box_mask, n_box_mask, proj_to, 
+def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, 
                 plt_cont=True, plt_contl=False, plt_opt=dict(), pltc_opt=dict(), pltcl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
@@ -2346,9 +2759,8 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, e_box_mask, n_box_mask, p
     data_topo   :   np.array topography data
     mesh        :   fesom2 mesh object,  with all mesh information 
     tri         :   matplotlib.tri triangulation object
-    e_box_mask  :   provide mask with with box limited values for elements
-    n_box_mask  :   provide mask with with box limited values for vertices 
-    proj_to     :   cartopy projection object                 
+    tri.mask_e_box:   provide mask with with box limited values for elements
+    tri.mask_n_box:   provide mask with with box limited values for vertices 
     mesh_opt    :   dict, (default: dict()) additional options that are given to 
                     the mesh plotting via **kwarg
     plt_cont    :   bool, (default: False) overlay contour line plot of data
@@ -2366,7 +2778,7 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, e_box_mask, n_box_mask, p
     """ 
     h0=None
     if do_topo in ['tpc', 'tcf']:
-        data_topo, e_ok_mask   = do_data_prepare_unstruct(mesh, data_topo, tri, e_box_mask, n_box_mask, False)
+        data_topo, tri   = do_data_prepare_unstruct(mesh, tri, data_topo, False)
                 
         levels = np.hstack((25, 50, 100, 150, 200, 250, np.arange(500,6000+1,500)))
         N = len(levels)
@@ -2378,8 +2790,8 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, e_box_mask, n_box_mask, p
         topocmp = ListedColormap(vals)
         cinfo_topo = dict({'clevel':levels, 'cmap':topocmp})
                 
-        h0 = do_plt_data(hax_ii, do_topo, tri, data_topo, e_ok_mask, 
-                         cinfo_topo, None, proj_to, plt_cont=plt_cont, plt_opt=plt_opt,
+        h0 = do_plt_data(hax_ii, do_topo, tri, data_topo, 
+                         cinfo_topo, None, plt_cont=plt_cont, plt_opt=plt_opt,
                          plt_contl=plt_contl, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt)
     return(h0)
 
@@ -2389,7 +2801,7 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, e_box_mask, n_box_mask, p
 #
 #_______________________________________________________________________________
 # --> plot overlaying triangular mesh
-def do_plt_mesh(hax_ii, do_mesh, tri, e_ok_mask, mesh_opt=dict()):
+def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes 
@@ -2419,7 +2831,7 @@ def do_plt_mesh(hax_ii, do_mesh, tri, e_ok_mask, mesh_opt=dict()):
 #
 #_______________________________________________________________________________
 # --> plot fesom mesh inverted land sea mask
-def do_plt_lsmask(hax_ii, do_lsm, mesh, box, lsm_opt=dict(), resolution='low'):
+def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes 
@@ -2430,9 +2842,6 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, box, lsm_opt=dict(), resolution='low'):
                     bluemarble  :   uses bluemarble image in folder tripyview/background/
                     etopo       :   uses etopo image in folder tripyview/background/
     mesh        :   fesom2 mesh object,  with all mesh information 
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
     lsm_opt     :   dict, (default: dict()) additional options that are given to 
                     the landsea mask plotting via **kwarg
     resolution  :   str, (default: 'low') switch resolution of background image 
@@ -2444,8 +2853,11 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, box, lsm_opt=dict(), resolution='low'):
     ____________________________________________________________________________
     """  
     #___________________________________________________________________________
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="cartopy")
+    
     lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5})
     lsm_optdefault.update(lsm_opt)
+    
     #___________________________________________________________________________
     if do_lsm in ['bluemarble', 'etopo']:
         import tripyview as tpv
@@ -2495,13 +2907,12 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, box, lsm_opt=dict(), resolution='low'):
 #
 #
 #_______________________________________________________________________________
-def do_plt_gridlines(hax_ii, do_grid, proj_to, ldat, nrow, ncol, grid_opt=dict()):
+def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
     do_grid     :   bool, (default: True) plot cartopy grid lines
-    proj_to     :   cartopy projection object 
-    ldat        :   int, total length of data list
+    ndat        :   int, total length of data list
     nrow        :   int, number of rows in multi panel plot
     grid_opt    :   dict, (default: dict()) additional options that are given to 
                     the cartopy gridline plotting via **kwarg
@@ -2512,36 +2923,79 @@ def do_plt_gridlines(hax_ii, do_grid, proj_to, ldat, nrow, ncol, grid_opt=dict()
     ____________________________________________________________________________
     """  
     #___________________________________________________________________________
-    grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25,})
-    grid_optdefault.update(grid_opt)
-    #___________________________________________________________________________
     h0=None
     if do_grid:
-        #_______________________________________________________________________
-        h0=hax_ii.gridlines(**grid_optdefault )
         
-        # ensure circular boundary for stereographic projection
-        if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
-            # give stereographic plot a circular boundary
-            theta  = np.linspace(0, 2*np.pi, 100)
-            center, radius = [0.5, 0.5], 0.5
-            verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
-            circle = mpath.Path(verts * radius + center)
-            hax_ii.set_boundary(circle, transform=hax_ii.transAxes)
-            del(theta, center, verts, circle)
-
-        elif isinstance(proj_to, (ccrs.Orthographic, ccrs.NearsidePerspective)):
-            hax_ii.set_global()
+        if isinstance(hax_ii.projection, ccrs.CRS):
+            #___________________________________________________________________
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25,})
+            grid_optdefault.update(grid_opt)
             
-        if not isinstance(proj_to, (ccrs.NearsidePerspective, ccrs.Orthographic, ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
-            if hax_ii.do_ylabel: h0.ylabels_left   = True
-            if hax_ii.do_xlabel: h0.xlabels_bottom = True
-        
-        # rotate xlabel for PlateCarree so that they dont overlay with 
-        # neighboring plots
-        if isinstance(proj_to, (ccrs.PlateCarree) ) and ldat>1 and ncol>1:
-            h0.xlabel_style = {'rotation': 25}    
-    
+            #___________________________________________________________________
+            h0=hax_ii.gridlines(**grid_optdefault )
+            
+            # ensure circular boundary for stereographic projection
+            if isinstance(hax_ii.projection, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
+                # give stereographic plot a circular boundary
+                theta  = np.linspace(0, 2*np.pi, 100)
+                center, radius = [0.5, 0.5], 0.5
+                verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
+                circle = mpath.Path(verts * radius + center)
+                hax_ii.set_boundary(circle, transform=hax_ii.transAxes)
+                del(theta, center, verts, circle)
+            
+            elif isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)):
+                hax_ii.set_global()
+            
+            elif isinstance(hax_ii.projection, (ccrs.Mollweide, ccrs.EqualEarth, ccrs.Robinson)):
+                if box[1]-box[0]>359 and box[3]-box[2]>89 : hax_ii.set_global()
+                
+            if not isinstance(hax_ii.projection, (ccrs.NearsidePerspective, ccrs.Orthographic, ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
+                #if hax_ii.do_ylabel: h0.ylabels_left   = True
+                #if hax_ii.do_xlabel: h0.xlabels_bottom = True
+                if hax_ii.do_ylabel: h0.left_labels   = True
+                if hax_ii.do_xlabel: h0.bottom_labels = True
+            # rotate xlabel for PlateCarree so that they dont overlay with 
+            # neighboring plots
+            if isinstance(hax_ii.projection, (ccrs.PlateCarree) ) and ndat>1 and hax_ii.ncol>1:
+                h0.xlabel_style = {'rotation': 25}    
+            
+        #_______________________________________________________________________
+        # grid options for index vs. depth vs. xy plot
+        elif hax_ii.projection == 'index+depth+xy':
+            #___________________________________________________________________
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0})
+            grid_optdefault.update(grid_opt)
+            
+            #___________________________________________________________________
+            # check if do_ylog string exists in grid_opt dictionary
+            do_ylog = False
+            rmv  = []
+            for ii in grid_optdefault.keys():
+                if ii in ['do_ylog', 'ylog']:
+                    do_ylog = grid_optdefault[ii]
+                    rmv.append(ii)
+            
+            # remove do_ylog string from dictionary since its doesnt exist for tripcolor
+            if len(rmv)!=0:
+                for ii in rmv:
+                    del(grid_optdefault[ii])
+                
+            #___________________________________________________________________
+            if do_ylog: 
+                hax_ii.set_yscale('function', functions=(forward, inverse))
+                yticklog = np.array([10,50,100,250,500,1000,2000,4000,6000])
+                hax_ii.set_yticks(yticklog)
+                hax_ii.invert_yaxis()
+                hax_ii.grid(True,which='major')
+                
+            else:
+                #hax_ii.set_ylim(depth[0],depth[-1])
+                hax_ii.invert_yaxis()
+                hax_ii.grid(True,which='major')
+            hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
+            hax_ii.grid(**grid_optdefault)
+            
     #___________________________________________________________________________
     return(h0)
 
@@ -2551,7 +3005,7 @@ def do_plt_gridlines(hax_ii, do_grid, proj_to, ldat, nrow, ncol, grid_opt=dict()
 #
 #_______________________________________________________________________________
 def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit, 
-            cb_opt=dict(), cbl_opt=dict()):
+            boxidx=None, cb_opt=dict(), cbl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hcb_ii      :   actual colorbar handle 
@@ -2599,21 +3053,28 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     ii_v = 0
     
     if isinstance(data,list):
-        vname    = list(data[ii_v].keys())[0]        
+        
+        if boxidx is not None:
+            vname    = list(data[ii_v][boxidx].keys())[0]        
+            loc_attrs= data[ii_v][boxidx][vname].attrs
+        else:
+            vname    = list(data[ii_v].keys())[0]        
+            loc_attrs= data[ii_v][vname].attrs
+            
         if cb_label is None:
             cb_label = ''
-            if  'long_name' in data[ii_v][vname].attrs:
-                cb_label = cb_label+data[ii_v][vname].attrs['long_name']
-            elif 'short_name' in data[ii_v][vname].attrs:
-                c_label = cb_label+data[ii_v][vname].attrs['short_name']
+            if  'long_name' in loc_attrs:
+                cb_label = cb_label+loc_attrs['long_name']
+            elif 'short_name' in loc_attrs:
+                c_label = cb_label+loc_attrs['short_name']
             
-        if cb_unit  is None: cb_label = cb_label+' ['+data[ii_v][ vname ].attrs['units']+']'
+        if cb_unit  is None: cb_label = cb_label+' ['+loc_attrs['units']+']'
         else:                cb_label = cb_label+' ['+cb_unit+']'
         
-        if 'str_ltim' in data[ii_v][vname].attrs.keys():
-            cb_label = cb_label+'\n'+data[ii_v][vname].attrs['str_ltim']
-        if 'str_ldep' in data[ii_v][vname].attrs.keys():
-            cb_label = cb_label+data[ii_v][vname].attrs['str_ldep']
+        if 'str_ltim' in loc_attrs:
+            cb_label = cb_label+'\n'+loc_attrs['str_ltim']
+        if 'str_ldep' in loc_attrs:
+            cb_label = cb_label+loc_attrs['str_ldep']
     else:
         if cb_label is None: cb_label = ''
         if cb_unit is not None: cb_label = cb_label + ' / ' + cb_unit
