@@ -949,16 +949,21 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         elif 'nz'   in data.dims: list_dimname.append('nz'  ), list_dimsize.append(mesh.zlev.size), list_dimval.append(mesh.zlev)  
         list_dimname.append('npts'), list_dimsize.append(dst.size)
         
+        
+        gattrs = data.attrs
+        gattrs['proj']          = 'index+depth+xy'
+        
         # define variable 
         data_vars = dict()
-        aux_attr  = data[vname].attrs
-        aux_attr['transect_name'] = transect['Name']
-        aux_attr['transect_lon']  = transect['lon']
-        aux_attr['transect_lat']  = transect['lat']
-        if do_transectattr: aux_attr['transect'] = transect
+        lattr  = data[vname].attrs
+        lattr['transect_name'] = transect['Name']
+        lattr['transect_lon']  = transect['lon']
+        lattr['transect_lat']  = transect['lat']
+        if do_transectattr: lattr['transect'] = transect
         
         #data_vars['transp'] = (list_dimname, scalarPcut, aux_attr) 
-        data_vars[vname] = (list_dimname, scalarPcut, aux_attr) 
+        data_vars[vname] = (list_dimname, scalarPcut, lattr) 
+        del(lattr)
         
         # define coordinates
         coords = dict()
@@ -978,14 +983,14 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
 
         # create dataset
         if is_list:
-            csects.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs))
+            csects.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs))
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
             # are not possible
             if 'time' in data.dims: csects[-1] = csects[-1].assign_coords(time=data.time)  
         else:
-            csects = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+            csects = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']

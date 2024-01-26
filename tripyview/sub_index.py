@@ -40,10 +40,13 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         #_______________________________________________________________________
         # compute  mask index
         if   'nod2' in data.dims: 
-            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2').chunk({'nod2':data.chunksizes['nod2']})
+            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2')
+            if any(data.chunks.values()): idx_IN = idx_IN.chunk({'nod2':data.chunksizes['nod2']})
             
         elif 'elem' in data.dims: 
-            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem').chunk({'elem':data.chunksizes['elem']})
+            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem')
+            if any(data.chunks.values()): idx_IN = idx_IN.chunk({'elem':data.chunksizes['elem']})
+            
         #_______________________________________________________________________
         # check basin selection
         if do_checkbasin:
@@ -119,8 +122,25 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         warnings.resetwarnings()
             
         #_______________________________________________________________________
-        vname = list(index_list[cnt].keys())    
+        # set additional attributes
+        vname = list(index_list[cnt].data_vars)
         index_list[cnt][vname[0]].attrs['boxname'] = boxname
+        proj = 'index'
+        if 'nz1' in list(index_list[cnt].variables) or 'nz' in list(index_list[cnt].variables):
+            proj = proj+'+depth'
+            if 'nz1' in list(index_list[cnt].variables):
+                index_list[cnt] = index_list[cnt].rename_vars({'nz1': 'depth'})
+            elif 'nz' in list(index_list[cnt].variables):
+                index_list[cnt] = index_list[cnt].rename_vars({'nz' : 'depth'})
+                
+        if 'time' in list(index_list[cnt].variables):
+            proj = proj+'+time'
+            
+        if 'nod2' in list(index_list[cnt].variables) or 'elem' in list(index_list[cnt].variables):
+            proj = proj+'+xy'
+            
+        index_list[cnt].attrs['proj'] = proj    
+        
         
         #_______________________________________________________________________
         cnt = cnt + 1

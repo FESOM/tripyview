@@ -68,6 +68,7 @@ def plot_hslice(mesh                   ,
                 cb_unit    = None      ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
+                cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
@@ -179,9 +180,11 @@ def plot_hslice(mesh                   ,
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
                     (fontsize, fontweight, ...) via **kwarg
-
+    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+                    (fontsize, fontweight, ...) via **kwarg
+                    
     #--- axes ---------------------------
     ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
@@ -308,6 +311,7 @@ def plot_hslice(mesh                   ,
             hax_ii.axis('off')
         # axis is normally fillt with data    
         else:    
+            ii_valid=ii
             #___________________________________________________________________
             # switch between unstrucutred and regular plotting
             # plot unstructured data
@@ -387,8 +391,9 @@ def plot_hslice(mesh                   ,
         #_______________________________________________________________________
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
-            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii]-1], do_rescale, 
-                             cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt)
+            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
+                             cb_label, cb_unit, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                             cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -449,6 +454,7 @@ def plot_hmesh( mesh                   ,
                 cb_unit    = None      ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
+                cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
                 #--- axes -----------
                 ax_title   = None,
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
@@ -552,9 +558,10 @@ def plot_hmesh( mesh                   ,
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
                     (fontsize, fontweight, ...) via **kwarg
-
+    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+                    (fontsize, fontweight, ...) via **kwarg
     #--- axes ---------------------------
     ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
@@ -719,7 +726,7 @@ def plot_hmesh( mesh                   ,
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None and (data is not None): 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, False, 
-                             cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt)
+                             cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -783,6 +790,7 @@ def plot_hquiver(mesh                  ,
                 cb_unit    = None      ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
+                cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
@@ -899,9 +907,11 @@ def plot_hquiver(mesh                  ,
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
                     (fontsize, fontweight, ...) via **kwarg
-
+    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+                    (fontsize, fontweight, ...) via **kwarg
+                    
     #--- axes ---------------------------
     ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
@@ -1077,7 +1087,7 @@ def plot_hquiver(mesh                  ,
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii]-1], do_rescale, 
-                             cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt)
+                             cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -1146,9 +1156,12 @@ def plot_vslice(mesh                   ,
                 cb_unit    = None      ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
+                cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                ax_xlim    = None      ,
+                ax_ylim    = None      ,
                 #--- enumerate axes -
                 do_enum    = False     ,
                 enum_opt   = dict({'horizontalalignment':'center'})    , 
@@ -1257,14 +1270,18 @@ def plot_vslice(mesh                   ,
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
                     (fontsize, fontweight, ...) via **kwarg
-
+    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
+                    (fontsize, fontweight, ...) via **kwarg
+                    
     #--- axes ---------------------------
     ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
     ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
                     do_axes_arrange
+    ax_xlim     :   list (default: None) overright xlimits of vslice
+    ax_ylim     :   list (default: None) overright ylimits of vslice       
     
     #--- enumerate axes -----------------
     do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
@@ -1339,11 +1356,11 @@ def plot_vslice(mesh                   ,
     ax_optdefault=dict({'projection': proj_to, 'box': box})
     ax_optdefault.update(ax_opt)
     hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
-    cb_plt_idx=cb_plt_idx[:len(data)]
+    cb_plt_idx=cb_plt_idx[:ndat]
     
     #___________________________________________________________________________
     # --> axes enumeration 
-    hax = do_axes_enum(hax, do_enum, nrow, ncol, enum_opt=enum_opt, enum_str=enum_str, 
+    do_axes_enum(hax[:ndat], do_enum, nrow, ncol, enum_opt=enum_opt, enum_str=enum_str, 
                        enum_x=enum_x, enum_y=enum_y, enum_dir=enum_dir)
         
     #___________________________________________________________________________
@@ -1354,7 +1371,7 @@ def plot_vslice(mesh                   ,
         idsel = np.where(cb_plt_idx==ii)[0]
         
         cinfo_optdefault=dict()
-        if   hax[0].projection == 'index+depth+xy':
+        if   hax[0].projection in ['index+depth+xy', 'index+depth+time']:
             cinfo_optdefault.update({'do_index':True, 'box_idx':box_idx})
         elif hax[0].projection == 'zmoc':
             cinfo_optdefault.update({'do_moc':True})
@@ -1380,29 +1397,67 @@ def plot_vslice(mesh                   ,
             hax_ii.axis('off')
         # axis is normally fillt with data    
         else: 
-            
+            ii_valid=ii
             #___________________________________________________________________
             # prepare regular gridded data for plotting
             if box_idx is not None:
                 vname = list(data[ii][box_idx].keys())[0]
                 data_plot = data[ii][box_idx][vname].data.copy()
-                data_y, str_ylabel = data[ii][box_idx]['depth'].values , 'Depth / m'
-                if   'lat'  in list(data[ii][box_idx].coords): 
-                    data_x, str_xlabel = data[ii][box_idx]['lat'].values , 'Latitude / deg'
-                elif 'lon'  in list(data[ii][box_idx].coords): 
-                    data_x, str_xlabel = data[ii][box_idx]['lon'].values , 'Longitude / deg'
-                elif 'dist' in list(data[ii][box_idx].coords): 
-                    data_x, str_xlabel = data[ii][box_idx]['dist'].values , 'Distance / km'
+                data_y, str_ylabel = np.abs(data[ii][box_idx]['depth'].values) , 'Depth / m'
+                #_______________________________________________________________
+                # data must be a transect 
+                if 'dst' in list(data[ii][box_idx].variables):
+                    auxlat, auxlon = data[ii][box_idx]['lat'].values[[1,-2]], data[ii][box_idx]['lon'].values[[1,-2]]
+                    auxlat, auxlon = np.abs(np.diff(auxlat)), np.abs(np.diff(auxlon))
+                    auxlat, auxlon = auxlat/np.sqrt(auxlat**2+auxlon**2), auxlon/np.sqrt(auxlat**2+auxlon**2)
+                    angle = np.abs(-np.arctan2(auxlat, auxlon)*180/np.pi)
+                    if   angle > 80: data_x, str_xlabel = data[ii][box_idx]['lat'].values  , 'Latitude / deg'
+                    elif angle < 10: data_x, str_xlabel = data[ii][box_idx]['lon'].values  , 'Longitude / deg'
+                    else           : data_x, str_xlabel = data[ii][box_idx]['dst'].values , 'Distance / km'   
+                    del(auxlat, auxlon, angle)
+                    
+                #_______________________________________________________________
+                # data can be any other vertical index
+                else:
+                    if   'lat'  in list(data[ii][box_idx].coords): 
+                        data_x, str_xlabel = data[ii][box_idx]['lat'].values , 'Latitude / deg'
+                    elif 'lon'  in list(data[ii][box_idx].coords): 
+                        data_x, str_xlabel = data[ii][box_idx]['lon'].values , 'Longitude / deg'
+                    elif 'time'  in list(data[ii][box_idx].coords):     
+                        data_x, str_xlabel = data[ii][box_idx]['time'] , 'Time / year'
+                        # recompute xarray time vector into units of year
+                        totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                        data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear
+                        data_plot = data_plot.transpose()
             else:
                 vname = list(data[ii].keys())[0]
                 data_plot = data[ii][vname].data.copy()
-                data_y, str_ylabel = data[ii]['depth'].values , 'Depth / m'
-                if   'lat'  in list(data[ii].coords): 
-                    data_x, str_xlabel = data[ii]['lat'].values , 'Latitude / deg'
-                elif 'lon'  in list(data[ii].coords): 
-                    data_x, str_xlabel = data[ii]['lon'].values , 'Longitude / deg'
-                elif 'dist' in list(data[ii].coords): 
-                    data_x, str_xlabel = data[ii]['dist'].values , 'Distance / km'
+                data_y, str_ylabel = np.abs(data[ii]['depth'].values) , 'Depth / m'
+                #_______________________________________________________________
+                # data must be a transect 
+                if 'dst' in  list(data[ii][box_idx].variables):
+                    auxlat, auxlon = data[ii][box_idx]['lat'].values[[0,-1]], data[ii][box_idx]['lon'].values[[0,1]]
+                    auxlat, auxlon = np.abs(np.diff(auxlat)), np.abs(np.diff(auxlon))
+                    auxlat, auxlon = auxlat/np.sqrt(auxlat**2+auxlon**2), auxlon/np.sqrt(auxlat**2+auxlon**2)
+                    angle = np.abs(-np.arctan2(auxlat, auxlon)*180/np.pi)
+                    if   angle > 80: data_x, str_xlabel = data[ii][box_idx]['lat'].values  , 'Latitude / deg'
+                    elif angle < 10: data_x, str_xlabel = data[ii][box_idx]['lon'].values  , 'Longitude / deg'
+                    else           : data_x, str_xlabel = data[ii][box_idx]['dst'].values , 'Distance / km'   
+                    del(auxlat, auxlon, angle)
+                    
+                #_______________________________________________________________
+                # data can be any other vertical index    
+                else:     
+                    if   'lat'  in list(data[ii].coords): 
+                        data_x, str_xlabel = data[ii]['lat'].values , 'Latitude / deg'
+                    elif 'lon'  in list(data[ii].coords): 
+                        data_x, str_xlabel = data[ii]['lon'].values , 'Longitude / deg'
+                    elif 'time'  in list(data[ii][box_idx].coords):     
+                        data_x, str_xlabel = data[ii][box_idx]['time'] , 'Time / year'
+                        # recompute xarray time vector into units of year
+                        totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                        data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear  
+                        data_plot = data_plot.transpose()
             
             if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
             if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
@@ -1427,7 +1482,9 @@ def plot_vslice(mesh                   ,
             
             #___________________________________________________________________
             # add grids lines 
-            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt)
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, data_x=data_x, 
+                                  data_y=data_y, xlim=ax_xlim, ylim=ax_ylim, 
+                                  grid_opt=grid_opt)
             hgrd.append(h0)
             
             #___________________________________________________________________
@@ -1480,8 +1537,9 @@ def plot_vslice(mesh                   ,
         #_______________________________________________________________________
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
-            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii]-1], do_rescale, 
-                             cb_label, cb_unit, box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt)
+            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
+                             cb_label, cb_unit, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                             box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -1582,9 +1640,10 @@ def do_projection(mesh, proj, box):
         if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
     
     #___Vertical "Projection"___________________________________________________
-    elif  proj == 'index+depth+xy': proj_to = 'index+depth+xy'
-    elif  proj == 'zmoc'          : proj_to = 'zmoc'
-    elif  proj == 'dmoc'          : proj_to = 'dmoc'
+    elif  proj == 'index+depth+xy'   : proj_to = 'index+depth+xy'
+    elif  proj == 'index+depth+time' : proj_to = 'index+depth+time'
+    elif  proj == 'zmoc'             : proj_to = 'zmoc'
+    elif  proj == 'dmoc'             : proj_to = 'dmoc'
     else: 
         raise ValueError('The projection {} is not supporrted!'.format(proj))
         
@@ -1735,7 +1794,7 @@ def do_axes_arrange(nx, ny,
                     cb_plt_single = True, 
                     cb_pos        = 'vertical', 
                     # space around colorbars (left, right, top, bottom) 
-                    cb_dl = 0.6, cb_dr =3.0, cb_dt =1.0, cb_db =0.6,
+                    cb_dl = 0.6, cb_dr =3.0, cb_dt =0.6, cb_db =0.6,
                     # factors to increase spaces (colorbars)
                     cb_fdl= 1.0, cb_fdr=1.0, cb_fdt=1.0, cb_fdb=1.0,
                     # width and height of colorbars
@@ -1883,8 +1942,9 @@ def do_axes_arrange(nx, ny,
             
             #___________________________________________________________________
             # projection is vertical section
-            elif projection[0]=='index+depth+xy': ax_asp = 2.0
-            elif projection[0]=='zmoc'          : ax_asp = 2.0    
+            elif projection[0]=='index+depth+xy'  : ax_asp = 2.0
+            elif projection[0]=='index+depth+time': ax_asp = 2.0
+            elif projection[0]=='zmoc'            : ax_asp = 2.0    
                 
         #print('ax_asp=', ax_asp)
         ax_w = ax_h*ax_asp
@@ -1892,10 +1952,12 @@ def do_axes_arrange(nx, ny,
 
     # rename horizontal->bottom and vertical->right
     if   cb_pos in ['horizontal', 'horiz', 'bottom', 'bot']: 
-        if isinstance(cb_w, str) and cb_w=='auto': cb_w, cb_h = ax_w, 0.5
+        if cb_h =='auto': cb_h = 0.5
+        if isinstance(cb_w, str) and cb_w=='auto': cb_w = ax_w
         cb_pos = 'bottom'
     elif cb_pos in ['vertical', 'vert', 'right']: 
-        if isinstance(cb_h, str) and cb_h=='auto': cb_h, cb_w = ax_h, 0.5
+        if cb_w =='auto': cb_w = 0.5
+        if isinstance(cb_h, str) and cb_h=='auto': cb_h = ax_h
         cb_pos = 'right'
     
     #___________________________________________________________________________
@@ -2215,17 +2277,25 @@ def do_axes_arrange(nx, ny,
             
     # there is more than independent colorbar within the figure panel        
     elif not cb_plt_single and any(cb_plt.flatten()>1):
-        x_ax_cent = pos_axcm[ 0,0] + 0.5*(pos_axcm[-1,0]+pos_axcm[-1,2]-pos_axcm[0,0])
-        y_ax_cent = pos_axcm[-1,1] + 0.5*(pos_axcm[ 0,1]+pos_axcm[ 0,3]-pos_axcm[-1,1])
+        
         nn = -1
         for jj in range(ny):
             for ii in range(nx):
                 nn+=1
                 if hcb[nn] != 0:
+                    
+                    auxidx = np.where(cb_plt_idx[nn]==cb_plt_idx)[0]
+                    print(auxidx)
+                    
                     #_______________________________________________________________________
                     # case of vertical colorbar
                     if cb_pos=='right':
-                        w0, h0 = cb_w_s, (pos_axcm[0,1]+pos_axcm[0,3]-pos_axcm[-1,1]) #h0 = cb_h_s
+                        ymax   = np.max(pos_axcm[auxidx,1])
+                        yd     = np.max(pos_axcm[auxidx,3])
+                        ymin   = np.min(pos_axcm[auxidx,1])
+                        y_ax_cent = ymin + 0.5*(ymax+yd-ymin)
+                        
+                        w0, h0 = cb_w_s, (ymax+yd-ymin)
                         x0, y0 = (pos_cbcm[nn,0]), (y_ax_cent-0.5*h0)
                         pos_cb = np.array([x0*cm2fig_x, y0*cm2fig_y, w0*cm2fig_x, h0*cm2fig_y ])
                         
@@ -2238,7 +2308,12 @@ def do_axes_arrange(nx, ny,
                     #_______________________________________________________________________
                     # case of horizontal colorbar
                     elif cb_pos=='bottom':
-                        w0, h0 = (pos_axcm[-1,0]+pos_axcm[-1,2]-pos_axcm[0,0]), cb_h_s
+                        xmax   = np.max(pos_axcm[auxidx,0])
+                        xd     = np.max(pos_axcm[auxidx,2])
+                        xmin   = np.min(pos_axcm[auxidx,0])
+                        x_ax_cent = ymin + 0.5*(ymax+yd-ymin)
+                        
+                        w0, h0 = (xmax+xd-xmin), cb_h_s
                         x0, y0 = (x_ax_cent-0.5*w0), (pos_cbcm[nn,1])
                         pos_cb = np.array([ x0*cm2fig_x, y0*cm2fig_y, w0*cm2fig_x, h0*cm2fig_y ])
                         
@@ -2320,7 +2395,7 @@ def do_axes_enum(hax, do_enum, nrow, ncol, enum_dir='lr', enum_str=[], enum_x=[0
             # e.g. by hca[nn].axlab.set_fontsize(8)
             hax[nn].henum = ht
     #___________________________________________________________________________
-    return(hax)
+    #return(hax)
 
 
     
@@ -2424,10 +2499,13 @@ def do_data_norm(cinfo, do_rescale):
     if   do_rescale =='log10':
             which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
     elif do_rescale =='slog10':    
+            print(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])))
             which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
                                             linscale=1.0, 
                                             vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
                                             clip=True)
+    #else:
+        #which_norm = mcolors.NoNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1], clip=False)
     #___________________________________________________________________________
     return(which_norm)
 
@@ -2486,13 +2564,20 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
         plt_optdefault = dict({'shading':'gouraud', 'zorder':1})
         plt_optdefault.update(plt_opt)
         
+        # pcolor plot in combination with shading :gouraud and orthographic projection
+        # leads to an blow up of the plotting therefor change to flat shading 
         if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
             plt_optdefault.update({'shading':'flat'})
         
+        # if which_normplot is specified like in case of log10 and slog10 scaling
+        # vmin and vmax argumetns are not allows
+        cminmax=dict()
+        if which_norm_plot is None:cminmax.update({'vmin':cinfo_plot['clevel'][0], 'vmax':cinfo_plot['clevel'][-1]})
+        
         h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
-                              cmap=cinfo_plot['cmap'],
-                              vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
-                              norm = which_norm_plot, **plt_optdefault)
+                              cmap=cinfo_plot['cmap'], norm = which_norm_plot,
+                              **cminmax, **plt_optdefault)
+
     #___________________________________________________________________________
     # plot tricontour 
     elif do_plt in ['tcf','cf']: 
@@ -2531,7 +2616,7 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
         if plt_contl:
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
-            hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
+            h0cft = hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
     
     #___________________________________________________________________________
     # overlay reference contour lines, of colorbar reference center value
@@ -2545,7 +2630,7 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
         if plt_contl:
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
-            hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
+            h0crt= hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
     
     #___________________________________________________________________________
     return(h0)
@@ -2608,10 +2693,14 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
             if plt_optdefault['shading']=='flat':
                 data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
         
+        # if which_normplot is specified like in case of log10 and slog10 scaling
+        # vmin and vmax argumetns are not allows
+        cminmax=dict()
+        if which_norm_plot is None:cminmax.update({'vmin':cinfo_plot['clevel'][0], 'vmax':cinfo_plot['clevel'][-1]})
+        
         h0 = hax_ii.pcolormesh(data_x, data_y, data_plot,
                               cmap=cinfo_plot['cmap'],
-                              vmin=cinfo_plot['clevel'][0], vmax=cinfo_plot['clevel'][ -1],
-                              norm = which_norm_plot, **plt_optdefault)
+                              norm = which_norm_plot, **cminmax, **plt_optdefault)
         
     #___________________________________________________________________________
     # plot contourf 
@@ -2966,7 +3055,7 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="cartopy")
     
-    lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5})
+    lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5, 'zorder':4})
     lsm_optdefault.update(lsm_opt)
     
     #___________________________________________________________________________
@@ -3018,7 +3107,8 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
 #
 #
 #_______________________________________________________________________________
-def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
+def do_plt_gridlines(hax_ii, do_grid, box, ndat, 
+                     data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -3039,7 +3129,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
         
         if isinstance(hax_ii.projection, ccrs.CRS):
             #___________________________________________________________________
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25,})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':5})
             grid_optdefault.update(grid_opt)
             
             #___________________________________________________________________
@@ -3073,7 +3163,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
             
         #_______________________________________________________________________
         # grid options for index vs. depth vs. xy plot
-        elif hax_ii.projection=='index+depth+xy' or hax_ii.projection=='zmoc':
+        elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'zmoc']:
             #___________________________________________________________________
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':-1})
             grid_optdefault.update(grid_opt)
@@ -3098,12 +3188,12 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
                 hax_ii.set_yscale('function', functions=(forward, inverse))
                 yticklog = np.array([10,50,100,250,500,1000,2000,4000,6000])
                 hax_ii.set_yticks(yticklog)
-                hax_ii.invert_yaxis()
-                hax_ii.grid(True,which='major')
                 
-            else:
-                hax_ii.invert_yaxis()
-                hax_ii.grid(True,which='major')
+                if data_y is not None: hax_ii.set_ylim(data_y[0],data_y[-1])
+                if ylim   is not None: hax_ii.set_ylim(np.max([ylim[0], data_y[0]]) ,np.min([ylim[1], data_y[-1]]))
+                if xlim   is not None: hax_ii.set_xlim(xlim[0]  ,xlim[-1])
+            hax_ii.invert_yaxis()
+            hax_ii.grid(True,which='major')
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
             hax_ii.grid(**grid_optdefault)
             
@@ -3116,7 +3206,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=dict()):
 #
 #_______________________________________________________________________________
 def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit, 
-            box_idx=None, cb_opt=dict(), cbl_opt=dict()):
+            box_idx=None, norm=None, cb_opt=dict(), cbl_opt=dict(), cbtl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hcb_ii      :   actual colorbar handle 
@@ -3155,10 +3245,12 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     cb_optdefault.update(cb_opt)
     #___________________________________________________________________________
     hcb_ii = plt.colorbar(mappable=hp[-1], ax=hax_ii, cax=hcb_ii, orientation=which_orient,
-                        ticks=cinfo['clevel'], **cb_optdefault)
+                          ticks=cinfo['clevel'], boundaries=cinfo['clevel'], #norm=norm, 
+                          **cb_optdefault)
     
     #___________________________________________________________________________
-    hcb_ii = do_cbar_formatting(hcb_ii, do_rescale, cinfo)
+    # do formating of colorbar tick labels
+    hcb_ii = do_cbar_formatting(hcb_ii, do_rescale, cinfo, cbtl_opt=cbtl_opt)
             
     #___________________________________________________________________________
     ii_v = 0
@@ -3203,7 +3295,7 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
 # 
 #_______________________________________________________________________________
 # --> dor formating of colorbar for logarithmic data and exponential data
-def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4]):
+def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4], cbtl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     cbar        :   actual colorbar handle  
@@ -3229,6 +3321,11 @@ def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4]):
     """
     if len(cinfo['clevel'])>=48: cbar.dividers.set_color('None')
     
+    cbtl_optdefault = dict()
+    cbtl_optdefault.update(cbtl_opt)
+    cbar.ax.tick_params(**cbtl_optdefault)
+    
+    
     if not do_rescale == 'log10' and not do_rescale == 'slog10':
         # set new cticks based on clab
         if 'clab' in cinfo:
@@ -3247,14 +3344,26 @@ def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4]):
         cbar.update_ticks()
     # formating for log and symlog colorbar axis    
     else:
-        
-        cbar.set_ticks(cinfo['clevel'][np.mod(np.log10(np.abs(cinfo['clevel'])),1)==0.0])
-        #cbar.ax.minorticks_off()
+        ...
+        #print(cinfo['clevel'][np.mod(np.log10(np.abs(cinfo['clevel'])),1)==0.0])
+        #cbar.set_ticks(cinfo['clevel'][np.mod(np.log10(np.abs(cinfo['clevel'])),1)==0.0])
         cbar.update_ticks()
-        cbar.ax.yaxis.set_major_formatter(mticker.LogFormatterSciNotation())
-        cbar.ax.yaxis.get_offset_text().set(horizontalalignment='right')
+        cbar.ax.minorticks_off()
+        
+        #cbar.ax.yaxis.set_major_locator(cinfo['clevel'][np.mod(np.log10(np.abs(cinfo['clevel'])),1)==0.0])
+        #cbar.ax.yaxis.set_major_locator(mticker.SymmetricalLogLocator(cinfo['clevel'][np.mod(np.log10(np.abs(cinfo['clevel'])),1)==0.0])), 
+                                                                      #base=10))
+        if cbar.orientation=='vertical':
+            cbar.ax.yaxis.set_major_formatter(mticker.LogFormatterSciNotation())
+            cbar.ax.yaxis.get_offset_text().set(horizontalalignment='right')
+        elif cbar.orientation=='horizontal':
+            cbar.ax.xaxis.set_major_formatter(mticker.LogFormatterSciNotation())
+            cbar.ax.xaxis.get_offset_text().set(horizontalalignment='center')
+        #cbar.update_ticks()
+        
     #cbar.ax.tick_params(labelsize=fontsize)
-
+    #STOP
+    
     #___________________________________________________________________________
     return(cbar)
 
@@ -3524,9 +3633,13 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     idxb     = np.ones(nclev, dtype=bool)                
     idxb[idx_cref::nstep]  = False
     idxb[idx_cref::-nstep] = False
+    if do_rescale == 'log10' or do_rescale == 'slog10':
+        idxb[cinfo['clevel']==0.0]=True
+    
     idx_not  = idx[idxb==True]
     idx_yes  = idx[idxb==False]
     
+       
     cinfo['clab'] = cinfo['clevel'][idx_yes]
     del(idx_not, idx_yes, idx, idxb, idx_cref)
     #___________________________________________________________________________

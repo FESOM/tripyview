@@ -101,8 +101,13 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         wd, w     = np.diff(std_dens), np.zeros(dens.size)
         w[0], w[1:-1], w[-1] = wd[0]/2., (wd[0:-1]+wd[1:])/2., wd[-1]/2.  # drho @  std_dens level boundary
         w_dens    = xr.DataArray(w, dims=["ndens"]).astype('float32')
-        data_dMOC = data_dMOC.assign_coords({ 'dens'  :dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']}), \
-                                              'w_dens':w_dens.chunk({'ndens':data_dMOC.chunksizes['ndens']}) })
+        
+        # check if input data have been chunked
+        if any(data_dMOC.chunks.values()):
+            w_dens = w_dens.chunk({'ndens':data_dMOC.chunksizes['ndens']})
+            dens   = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
+        data_dMOC = data_dMOC.assign_coords({ 'dens'  :dens  , \
+                                              'w_dens':w_dens })
         del(w, wd, w_dens)
         
         #_______________________________________________________________________
@@ -136,6 +141,10 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         # Best option do compute the projection is via the densitz class layer
         # thickness H, second best option is via is via the sigma2 density on vertices
         # and the interpolation of the densitz bins to estimate the vertical coordinate
+        
+        # check if input data have been chunked
+        if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']}
         #_______________________________________________________________________
         if do_useZinfo=='std_dens_H':
             # add vertical density class thickness
@@ -143,7 +152,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_H':'ndens_h'})
-            data_h = data_h.assign_coords({'dens':dens.chunk({'ndens':data_h.chunksizes['ndens']})})
+            data_h = data_h.assign_coords({'dens':dens})
             data_h = data_h.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_h], combine_attrs="no_conflicts")
             if do_ndensz:
@@ -165,7 +174,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_Z':'ndens_z'})
-            data_z = data_z.assign_coords({'dens':dens.chunk({'ndens':data_z.chunksizes['ndens']})})
+            data_z = data_z.assign_coords({'dens':dens})
             data_z = data_z.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs="no_conflicts")
             del(data_z)
@@ -198,7 +207,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                 data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
             
             data_sigma2  = data_sigma2.drop_vars(['ndens','lon','lat', 'nodi', 'nodiz', 'w_A']) 
-            data_sigma2  = data_sigma2.assign_coords({'dens':dens.chunk({'ndens':data_sigma2.chunksizes['ndens']})})
+            data_sigma2  = data_sigma2.assign_coords({'dens':dens})
             
             # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
             # array an save the attributes in the same time
@@ -219,13 +228,18 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             
     #___________________________________________________________________________
     if (not do_dflx) and ( 'inner' in which_transf or 'dmoc' in which_transf ):
+        
+        # check if input data have been chunked
+        if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']}
+        
         # add divergence of density classes --> diapycnal velocity
         data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIV':'dmoc'})
         data_div  = data_div.drop_vars(['ndens', 'nodi']) 
-        data_div  = data_div.assign_coords({'dens':dens.chunk({'ndens':data_div.chunksizes['ndens']})})
+        data_div  = data_div.assign_coords({'dens':dens})
         
         # doing this step here so that the MOC amplitude is correct, setp 1 of 2
         # divide with verice area
@@ -269,7 +283,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                                     do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIVbolus':'dmoc_bolus'})
             data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi']) 
-            data_div_bolus  = data_div_bolus.assign_coords({'dens':dens.chunk({'ndens':data_div_bolus.chunksizes['ndens']})})
+            data_div_bolus  = data_div_bolus.assign_coords({'dens':dens})
             
             # doing this step here so that the MOC amplitude is correct, setp 1 of 2
             # divide with verice area

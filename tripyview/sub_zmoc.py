@@ -183,7 +183,8 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
                 else: 
                     raise ValueError('could not find ...mesh.diag.nc file')
             
-            data = data.assign_coords(w_A=nz_w_A.chunk(data.chunksizes))
+            if any(data.chunks.values()): nz_w_A=nz_w_A.chunk(data.chunksizes)
+            data = data.assign_coords(w_A=nz_w_A)
             del(nz_w_A)
         
         #_______________________________________________________________________    
