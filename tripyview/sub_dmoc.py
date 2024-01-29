@@ -144,7 +144,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         
         # check if input data have been chunked
         if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
-            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']}
+            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         #_______________________________________________________________________
         if do_useZinfo=='std_dens_H':
             # add vertical density class thickness
@@ -231,7 +231,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         
         # check if input data have been chunked
         if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
-            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']}
+            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         
         # add divergence of density classes --> diapycnal velocity
         data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
