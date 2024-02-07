@@ -70,7 +70,8 @@ def plot_hslice(mesh                   ,
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
                 #--- axes -----------
                 ax_title   = 'descript',
-                ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                ax_opt     = dict()    ,
+                axl_opt    = dict()    ,# dictionary that defines axes and colorbar arangement
                 #--- enumerate axes -
                 do_enum    = False     ,
                 enum_opt   = dict()    , 
@@ -363,18 +364,24 @@ def plot_hslice(mesh                   ,
             
             #___________________________________________________________________
             # add title and axes labels
+            axl_optdefault=dict({'fontsize':hax_ii.fs_label})
             if ax_title is not None: 
                 # is title  string:
                 if   isinstance(ax_title,str) : 
                     # if title string is 'descript' than use descript attribute from 
                     # data to set plot title 
                     if ax_title=='descript' and ('descript' in data[ii][vname].attrs.keys() ):
-                        hax_ii.set_title(data[ii][ vname ].attrs['descript'], fontsize=hax_ii.fs_label, verticalalignment='top')
+                        axl_optdefault.update({'verticalalignment':'top'})
+                        axl_optdefault.update(axl_opt)
+                        hax_ii.set_title(data[ii][ vname ].attrs['descript'], **axl_optdefault )
                         
                     else:
-                        hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
+                        axl_optdefault.update(axl_opt)
+                        hax_ii.set_title(ax_title, **axl_optdefault )
                 # is title list of string        
-                elif isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
+                elif isinstance(ax_title,list): 
+                    axl_optdefault.update(axl_opt)
+                    hax_ii.set_title(ax_title[ii], **axl_optdefault )
                 
         #_______________________________________________________________________
         # add colorbar 
@@ -3564,13 +3571,15 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
         elif 'short_name' in loc_attrs:
             c_label = cb_label+loc_attrs['short_name']
         
-    if cb_unit  is None: cb_label = cb_label+' / '+loc_attrs['units']
-    else:                cb_label = cb_label+' / '+cb_unit
+        if cb_unit  is None: cb_label = cb_label+' / '+loc_attrs['units']
+        else:                cb_label = cb_label+' / '+cb_unit
+            
+        if 'str_ltim' in loc_attrs: cb_label = cb_label+'\n'+loc_attrs['str_ltim']
+        if 'str_ldep' in loc_attrs: cb_label = cb_label+loc_attrs['str_ldep']
         
-    if 'str_ltim' in loc_attrs:
-        cb_label = cb_label+'\n'+loc_attrs['str_ltim']
-    if 'str_ldep' in loc_attrs:
-        cb_label = cb_label+loc_attrs['str_ldep']
+    else:
+        if cb_unit  is None: cb_label = cb_label+' / '+loc_attrs['units']
+        else:                cb_label = cb_label+' / '+cb_unit
         
     if   which_orient=='vertical'  : fsize =  hcb_ii.ax.get_yticklabels()[0].get_fontsize()
     elif which_orient=='horizontal': fsize =  hcb_ii.ax.get_xticklabels()[0].get_fontsize()
