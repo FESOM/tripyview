@@ -1776,6 +1776,241 @@ def plot_vprofile(data                   ,
     
 
 
+#
+#
+#_______________________________________________________________________________
+# --> do plot timeseries
+def plot_tseries(data, 
+                box, 
+                nrow       = 1         , # number of row in figures panel
+                ncol       = 1         , # number of column in figure panel
+                proj       = 'index+time',
+                n_cycl     = None, 
+                do_allcycl = False, 
+                do_concat  = False, 
+                #--- gridlines ------
+                do_grid    = True      , 
+                grid_opt   = dict()    ,
+                #--- axes -----------
+                ax_title   = 'descript',
+                ax_opt     = dict()    ,
+                axl_opt    = dict()    ,
+                ax_xlim    = None      ,
+                ax_ylim    = None      ,
+                #--- enumerate axes -
+                do_enum    = False     ,
+                enum_opt   = dict()    , 
+                enum_str   = []        , 
+                enum_x     = [0.005]   , 
+                enum_y     = [1.00]    ,
+                enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                #--- save figure ----
+                do_save    = None      , 
+                save_dpi   = 300       ,
+                save_opt   = dict()    ,
+                #--- set output -----
+                nargout=['hfig', 'hax', 'hcb'],
+                ):    
+    
+    import matplotlib.patheffects as path_effects
+    from matplotlib.ticker import AutoMinorLocator, MultipleLocator
+
+    #___________________________________________________________________________
+    # --> check if input data is a list
+    if not isinstance(data, list): data = [data]
+    ndat = len(data)
+    nbox = len(data[0])
+    
+    #___________________________________________________________________________
+    # check vertical plotting mode if index+depth+xy, zmoc, dmoc
+    if proj is None:
+        if isinstance(data[0], xr.Dataset):
+            if 'proj' in data[0].attrs: proj=data[0].attrs['proj']
+        elif isinstance(data[0], list):
+            if isinstance(data[0][box_idx], xr.Dataset):
+                if 'proj' in data[0][box_idx].attrs: proj=data[0][box_idx].attrs['proj']
+    
+    #___________________________________________________________________________
+    # --> create projection
+    proj_to = None
+    # proj is string 
+    if   isinstance(proj, str): 
+        proj_to, box = do_projection(None, proj, box)
+    # proj is cartopy projection object
+    elif isinstance(proj, ccrs.CRS): 
+        proj_to = proj
+    # proj is list of cartopy projection objects or string
+    elif isinstance(proj, list): 
+        proj_to = list()
+        for proj_ii in proj:
+            if   isinstance(proj_ii, str): 
+                proj_dum, box = do_projection(None, proj_ii, box)
+                proj_to.append(proj_dum)                
+            elif isinstance(proj_ii, ccrs.CRS):    
+                proj_to.append(proj_ii)    
+
+    #___________________________________________________________________________
+    # --> pre-arange axes
+    ax_optdefault=dict({'projection': proj_to})
+    ax_optdefault.update(ax_opt)
+    hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
+    cb_plt_idx=cb_plt_idx[:ndat]
+    
+    #___________________________________________________________________________
+    # --> axes enumeration 
+    do_axes_enum(hax[:ndat], do_enum, nrow, ncol, enum_opt=enum_opt, enum_str=enum_str, 
+                       enum_x=enum_x, enum_y=enum_y, enum_dir=enum_dir)
+
+    #___________________________________________________________________________
+    # setup colormap
+    if do_allcycl: 
+        if n_cycl is not None:
+            cmap = categorical_cmap(np.int32(len(data)/n_cycl), n_cycl, cmap="tab10")
+        else:
+            cmap = categorical_cmap(len(data), 1, cmap="tab10")
+    else:
+        if do_concat: do_concat=False
+        cmap = categorical_cmap(len(data), 1, cmap="tab10")
+    
+    STOP
+    #___________________________________________________________________________
+    ii_datlen = 0
+    totdatlen = len(tseries_list)
+    ii_cycle=1
+    if which_cycl is None: totnr_cycl = 1
+    else                 : totnr_cycl = which_cycl
+    
+    ymin, ymax, list_tmax=np.inf, -np.inf, list()
+    tottime = []
+    labl_reduce_handle, labl_reduce_txt = [], []
+    for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
+        
+        #_______________________________________________________________________
+        time = tseries[0]['time.year'].values + (tseries[0]['time.dayofyear'].values-1)/365
+        if isinstance(tseries,list): tseries = tseries[0]
+        if do_concat: time = np.arange(1, time.size+1,1)
+        
+        #_______________________________________________________________________
+        if 'keys' in dir(tseries):
+            vname   = list(tseries.keys())[0]
+            tseries = tseries[vname]
+            
+        ymin, ymax = np.min([ymin, tseries.min()]), np.max([ymax, tseries.max()])
+        
+        #_______________________________________________________________________
+        # line and marker options
+        optline = dict({'color':cmap.colors[ii_ts,:], 'label':tname, 'linewidth':1.5, 
+                   'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
+        optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
+                        'color':cmap.colors[ii_ts,:], 'clip_box':False, 'clip_on':False, 'zorder':3})
+            
+        #_______________________________________________________________________
+        if tseries.ndim>1: tseries = tseries.squeeze()
+        auxtime = time.copy()
+        if ii_cycle==1: auxtimeold=[0]
+        #if np.mod(ii_ts+1,totnr_cycl)==0 or do_allcycl==False:
+        if True:    
+            if do_concat: 
+                #auxtime = auxtime + (time[-1]-time[0])*(ii_cycle-1)
+                auxtime = auxtime + auxtimeold[-1]
+                auxtimeold = auxtime
+                list_tmax.append(auxtime[-1])
+            #___________________________________________________________________
+            hp=ax.plot(auxtime,tseries, **optline)
+            
+            #___________________________________________________________________
+            if do_pltmean: 
+                # plot mean value with triangle 
+                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(), marker='<', **optmark)
+                        
+            if do_pltstd:
+                # plot std. range
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(), marker='^', **optmark)
+                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(), marker='v', **optmark)
+        
+        #else:
+            ##if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
+            #if do_concat: auxtime = auxtime + (time[-1]-time[0])*(ii_cycle-1)
+            #auxtilist_tmaxmeend.append(auxtime[-1])
+            #hp=ax.plot(auxtime, tseries, **optline)
+        if ii_cycle==1:
+            labl_reduce_handle.append(hp[0])   
+            labl_reduce_txt.append(tname)
+        ii_cycle  = ii_cycle+1
+        ii_datlen = ii_datlen+1
+        if ii_cycle>totnr_cycl and ii_datlen!=totdatlen: 
+            ii_cycle=1
+            list_tmax=list()
+        
+    #___________________________________________________________________________  
+    if do_ylim is not None : ymin, ymax = do_ylim[0], do_ylim[1]
+    if do_concat:
+        vlinex = np.vstack([list_tmax, list_tmax]) 
+        vliney = np.ones(vlinex.shape)
+        vliney[0,:], vliney[1,:] = ymin, ymax
+        ax.plot(vlinex, vliney,'-k')
+        
+        for ti, tmax in enumerate(list_tmax):
+            if do_yflip: ax.text(tmax, ymax, '{:d} '.format(ti+1), ha='right', va='bottom', fontsize=20)
+            else       : ax.text(tmax, ymin, '{:d} '.format(ti+1), ha='right', va='bottom', fontsize=20)
+        del(vlinex, vliney, list_tmax)
+          
+    #___________________________________________________________________________
+    if totdatlen>10 and which_cycl is not None:
+        ax.legend(labl_reduce_handle, labl_reduce_txt,
+              shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, la
+    else:
+        ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, labelspacing=1.0,)
+    #ax.set_xlabel('Time [years]',fontsize=12)
+    #ax.set_ylabel('{:s} in [{:s}]'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
+    ax.set_xlabel('Time /years',fontsize=12)
+    ax.set_ylabel('{:s} / {:s}'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
+    ax.set_title(sect_name, fontsize=12, fontweight='bold')
+    ax.ticklabel_format(useOffset=False)
+
+    
+    #___________________________________________________________________________
+    if do_concat: xmaxstep=20
+    xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
+    ax.xaxis.set_major_locator(xmajor_locator)
+    if ymaxstep is not None: 
+        ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
+        ax.yaxis.set_major_locator(ymajor_locator)
+    #if not do_concat:
+        #xminor_locator = AutoMinorLocator(5)
+        #yminor_locator = AutoMinorLocator(4)
+        #ax.yaxis.set_minor_locator(yminor_locator)
+        #ax.xaxis.set_minor_locator(xminor_locator)
+    
+    #___________________________________________________________________________
+    # rotate xtick label
+    xtlabel=ax.get_xticklabels()
+    if len(xtlabel)>20:
+        for label in xtlabel:
+            label.set_ha("right")   
+            label.set_rotation(60)
+    
+    
+    
+    plt.grid(which='major')
+    if not do_concat:
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
+    else:    
+        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(totnr_cycl-1)+(time[-1]-time[0])*0.015)    
+    plt.ylim(ymin,ymax)
+    if do_yflip: ax.invert_yaxis()
+    #___________________________________________________________________________
+    plt.show()
+    fig.canvas.draw()
+    
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, fig, dpi=save_dpi)
+    
+    #___________________________________________________________________________
+    return(fig,ax)
+
+
 
     
 #
@@ -1860,6 +2095,7 @@ def do_projection(mesh, proj, box):
     elif  proj == 'index+depth+xy'   : proj_to = 'index+depth+xy'
     elif  proj == 'index+depth+time' : proj_to = 'index+depth+time'
     elif  proj == 'index+depth'      : proj_to = 'index+depth'
+    elif  proj == 'index+time'       : proj_to = 'index+time'
     elif  proj == 'zmoc'             : proj_to = 'zmoc'
     elif  proj == 'dmoc'             : proj_to = 'dmoc'
     else: 
@@ -2163,6 +2399,7 @@ def do_axes_arrange(nx, ny,
             elif projection[0]=='index+depth+xy'  : ax_asp = 2.0
             elif projection[0]=='index+depth+time': ax_asp = 2.0
             elif projection[0]=='index+depth'     : ax_asp = 0.75
+            elif projection[0]=='index+time'     : ax_asp = 2.5
             elif projection[0]=='zmoc'            : ax_asp = 2.0   
             elif projection[0]=='zmoc'            : ax_asp = 2.0   
             else                                  : ax_asp = 1.0    
@@ -2415,7 +2652,7 @@ def do_axes_arrange(nx, ny,
             
             #___________________________________________________________________
             # colorbar
-            if cb_plt[ii,jj] != 0 and projection[0]!='index+depth':
+            if cb_plt[ii,jj] != 0 and projection[0]!='index+depth' and projection[0]!='index+time':
                 hcb[nn] = hfig.add_subplot(position=pos_cb[nn,:])
                 hcb[nn].set_position(pos_cb[nn,:])
                 hcb[nn].tick_params(labelsize=fs_ticks)
@@ -2442,8 +2679,6 @@ def do_axes_arrange(nx, ny,
             # add more variables to axes handle 
             hax[nn].ncol, hax[nn].nrow = nx, ny
             hax[nn].coli, hax[nn].rowi = ii, jj
-            
-            
             
             #___________________________________________________________________
             # ticks for colorbar 
@@ -4066,172 +4301,6 @@ def do_savefigure(do_save, hfig, dpi=300, do_info=True, save_opt=dict()):
         hfig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
                     **save_optdefault)
     
-
-
-#+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def plot_tseries(tseries_list, input_names, sect_name, which_cycl=None, 
-                       do_allcycl=False, do_concat=False, str_descript='', str_time='', figsize=[], 
-                       do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False,
-                       ymaxstep=None, xmaxstep=5, do_ylim=None, do_xlim=None, do_yflip=False):    
-    
-    import matplotlib.patheffects as path_effects
-    from matplotlib.ticker import AutoMinorLocator, MultipleLocator
-
-    if len(figsize)==0: figsize=[13,6.5]
-    if do_concat: figsize[0] = figsize[0]*2
-    fig,ax= plt.figure(figsize=figsize),plt.gca()
-    
-    #___________________________________________________________________________
-    # setup colormap
-    if do_allcycl: 
-        if which_cycl is not None:
-            cmap = categorical_cmap(np.int32(len(tseries_list)/which_cycl), which_cycl, cmap="tab10")
-        else:
-            cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
-    else:
-        if do_concat: do_concat=False
-        cmap = categorical_cmap(len(tseries_list), 1, cmap="tab10")
-    
-    #___________________________________________________________________________
-    ii_datlen = 0
-    totdatlen = len(tseries_list)
-    ii_cycle=1
-    if which_cycl is None: totnr_cycl = 1
-    else                 : totnr_cycl = which_cycl
-    
-    ymin, ymax, list_tmax=np.inf, -np.inf, list()
-    tottime = []
-    labl_reduce_handle, labl_reduce_txt = [], []
-    for ii_ts, (tseries, tname) in enumerate(zip(tseries_list, input_names)):
-        
-        #_______________________________________________________________________
-        time = tseries[0]['time.year'].values + (tseries[0]['time.dayofyear'].values-1)/365
-        if isinstance(tseries,list): tseries = tseries[0]
-        if do_concat: time = np.arange(1, time.size+1,1)
-        
-        #_______________________________________________________________________
-        if 'keys' in dir(tseries):
-            vname   = list(tseries.keys())[0]
-            tseries = tseries[vname]
-            
-        ymin, ymax = np.min([ymin, tseries.min()]), np.max([ymax, tseries.max()])
-        
-        #_______________________________________________________________________
-        # line and marker options
-        optline = dict({'color':cmap.colors[ii_ts,:], 'label':tname, 'linewidth':1.5, 
-                   'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
-        optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
-                        'color':cmap.colors[ii_ts,:], 'clip_box':False, 'clip_on':False, 'zorder':3})
-            
-        #_______________________________________________________________________
-        if tseries.ndim>1: tseries = tseries.squeeze()
-        auxtime = time.copy()
-        if ii_cycle==1: auxtimeold=[0]
-        #if np.mod(ii_ts+1,totnr_cycl)==0 or do_allcycl==False:
-        if True:    
-            if do_concat: 
-                #auxtime = auxtime + (time[-1]-time[0])*(ii_cycle-1)
-                auxtime = auxtime + auxtimeold[-1]
-                auxtimeold = auxtime
-                list_tmax.append(auxtime[-1])
-            #___________________________________________________________________
-            hp=ax.plot(auxtime,tseries, **optline)
-            
-            #___________________________________________________________________
-            if do_pltmean: 
-                # plot mean value with triangle 
-                plt.plot(time[0]-(time[-1]-time[0])*0.0120, tseries.mean(), marker='<', **optmark)
-                        
-            if do_pltstd:
-                # plot std. range
-                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()+tseries.std(), marker='^', **optmark)
-                plt.plot(time[0]-(time[-1]-time[0])*0.015, tseries.mean()-tseries.std(), marker='v', **optmark)
-        
-        #else:
-            ##if do_concat: auxtime = auxtime + (time[-1]-time[0]+1)*(ii_cycle-1)
-            #if do_concat: auxtime = auxtime + (time[-1]-time[0])*(ii_cycle-1)
-            #auxtilist_tmaxmeend.append(auxtime[-1])
-            #hp=ax.plot(auxtime, tseries, **optline)
-        if ii_cycle==1:
-            labl_reduce_handle.append(hp[0])   
-            labl_reduce_txt.append(tname)
-        ii_cycle  = ii_cycle+1
-        ii_datlen = ii_datlen+1
-        if ii_cycle>totnr_cycl and ii_datlen!=totdatlen: 
-            ii_cycle=1
-            list_tmax=list()
-        
-    #___________________________________________________________________________  
-    if do_ylim is not None : ymin, ymax = do_ylim[0], do_ylim[1]
-    if do_concat:
-        vlinex = np.vstack([list_tmax, list_tmax]) 
-        vliney = np.ones(vlinex.shape)
-        vliney[0,:], vliney[1,:] = ymin, ymax
-        ax.plot(vlinex, vliney,'-k')
-        
-        for ti, tmax in enumerate(list_tmax):
-            if do_yflip: ax.text(tmax, ymax, '{:d} '.format(ti+1), ha='right', va='bottom', fontsize=20)
-            else       : ax.text(tmax, ymin, '{:d} '.format(ti+1), ha='right', va='bottom', fontsize=20)
-        del(vlinex, vliney, list_tmax)
-          
-    #___________________________________________________________________________
-    if totdatlen>10 and which_cycl is not None:
-        ax.legend(labl_reduce_handle, labl_reduce_txt,
-              shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, la
-    else:
-        ax.legend(shadow=True, fancybox=True, frameon=True, bbox_to_anchor=(1.0, 1.0), loc='upper left')#, labelspacing=1.0,)
-    #ax.set_xlabel('Time [years]',fontsize=12)
-    #ax.set_ylabel('{:s} in [{:s}]'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
-    ax.set_xlabel('Time /years',fontsize=12)
-    ax.set_ylabel('{:s} / {:s}'.format(tseries.attrs['description'], tseries.attrs['units']),fontsize=12)
-    ax.set_title(sect_name, fontsize=12, fontweight='bold')
-    ax.ticklabel_format(useOffset=False)
-
-    
-    #___________________________________________________________________________
-    if do_concat: xmaxstep=20
-    xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
-    ax.xaxis.set_major_locator(xmajor_locator)
-    if ymaxstep is not None: 
-        ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
-        ax.yaxis.set_major_locator(ymajor_locator)
-    #if not do_concat:
-        #xminor_locator = AutoMinorLocator(5)
-        #yminor_locator = AutoMinorLocator(4)
-        #ax.yaxis.set_minor_locator(yminor_locator)
-        #ax.xaxis.set_minor_locator(xminor_locator)
-    
-    #___________________________________________________________________________
-    # rotate xtick label
-    xtlabel=ax.get_xticklabels()
-    if len(xtlabel)>20:
-        for label in xtlabel:
-            label.set_ha("right")   
-            label.set_rotation(60)
-    
-    
-    
-    plt.grid(which='major')
-    if not do_concat:
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
-    else:    
-        plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(totnr_cycl-1)+(time[-1]-time[0])*0.015)    
-    plt.ylim(ymin,ymax)
-    if do_yflip: ax.invert_yaxis()
-    #___________________________________________________________________________
-    plt.show()
-    fig.canvas.draw()
-    
-    #___________________________________________________________________________
-    # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, fig, dpi=save_dpi)
-    
-    #___________________________________________________________________________
-    return(fig,ax)
-
-
 
 #
 #
