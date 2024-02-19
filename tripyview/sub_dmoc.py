@@ -143,7 +143,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         # and the interpolation of the densitz bins to estimate the vertical coordinate
         
         # check if input data have been chunked
-        if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+        # if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+        if any(data_dMOC.chunks.values()) and dens.chunks is None:    
             dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         #_______________________________________________________________________
         if do_useZinfo=='std_dens_H':
@@ -228,9 +229,9 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             
     #___________________________________________________________________________
     if (not do_dflx) and ( 'inner' in which_transf or 'dmoc' in which_transf ):
-        
         # check if input data have been chunked
-        if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+        # if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+        if any(data_dMOC.chunks.values()) and dens.chunks is None:
             dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         
         # add divergence of density classes --> diapycnal velocity
@@ -323,6 +324,12 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     if 'elemi' in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['elemi'])
     if 'nodi'  in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['nodi'])
     if 'nzi'   in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['nzi'])
+    
+    str_proj = 'dmoc'
+    if which_transf in ['srf','inner']: str_proj = str_proj + '_' + which_transf
+    if do_zcoord: str_proj = str_proj + '+depth'
+    else        : str_proj = str_proj + '+dens'
+    data_dMOC.attrs['proj'] = str_proj
     
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
