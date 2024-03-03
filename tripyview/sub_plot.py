@@ -428,12 +428,16 @@ def plot_hmesh( mesh                   ,
                 ncol       = 1         , # number of column in figure panel
                 proj       = 'pc'      ,
                 do_ie2n    = False     ,
+                do_rescale = False     ,
                 #--- data -----------
                 do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
-                plt_cont   = False     , # plot contour lines: True/False 
-                pltc0_opt  = dict()    ,# background contour line option
-                pltc_opt   = dict()    , # foreground contour line option
+                plt_contb  = False     , # plot background contour lines: True/False 
+                pltcb_opt  = dict()    , # background contour line option
+                plt_contf  = False     , # plot foreground contour lines: True/False 
+                pltcf_opt  = dict()    , # foreground contour line option
+                plt_contr  = False     , # plot reference contour lines: True/False 
+                pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
                 #--- mesh -----------
@@ -662,7 +666,7 @@ def plot_hmesh( mesh                   ,
             if data is not None:
                 if  data in ['resolution', 'resol', 'n_resol', 'nresol']:
                     if len(mesh[ii].n_resol)==0: mesh[ii]=mesh[ii].compute_n_resol()
-                    data_plot = mesh[ii].n_resol/1000
+                    data_plot = mesh[ii].n_resol[0,:]/1000
                     cb_label, cb_unit = 'vertice resolution', 'km'
                 elif data in ['narea', 'n_area', 'clusterarea', 'scalararea']:    
                     if len(mesh[ii].n_area)==0: mesh[ii]=mesh[ii].compute_n_area()
@@ -684,19 +688,24 @@ def plot_hmesh( mesh                   ,
                     cb_label, cb_unit = 'element depth', 'm'
                 
                 #_______________________________________________________________
-                cinfo_plot = do_setupcinfo(cinfo, [data_plot], False, mesh=mesh[ii], tri=tri)
+                cinfo_plot = do_setupcinfo(cinfo, [data_plot], do_rescale, mesh=mesh[ii], tri=tri)
+                norm_plot  = do_data_norm(cinfo_plot, do_rescale)
                 
                 #_______________________________________________________________
                 # prepare unstructured data for plotting, 
                 data_plot, e_ok_mask = do_data_prepare_unstruct(mesh[ii], tri, data_plot, do_ie2n)
-                
+
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
-                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
-                                cinfo_plot, None, plt_cont=plt_cont, plt_contl=plt_contl, 
-                                plt_opt=plt_opt, pltc_opt=pltc_opt, pltcl_opt=pltcl_opt, 
-                                pltc0_opt=pltc0_opt)
+                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, norm_plot, 
+                                 plt_opt=plt_opt, 
+                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
+                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
+                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
+                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt)
                 hp.append(h0)
+                
+                
             #___________________________________________________________________
             # add grid mesh on top
             h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
@@ -723,7 +732,7 @@ def plot_hmesh( mesh                   ,
         #_______________________________________________________________________
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None and (data is not None): 
-            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, False, 
+            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, norm_plot, 
                              cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #_______________________________________________________________________
@@ -3051,7 +3060,6 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
         else:    
             is_onvert = False
             data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
-            data_plot = data_plot[tri.mask_e_box]
             
             # reindex element array to box limits
             data_plot = data_plot[tri.mask_e_box]
@@ -3184,15 +3192,21 @@ def do_data_norm(cinfo, do_rescale):
     """      
     #___________________________________________________________________________
     which_norm = None
-    if   do_rescale =='log10':
-            which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
-    elif do_rescale =='slog10':    
-            print(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])))
-            which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
-                                            linscale=1.0, 
-                                            vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
-                                            clip=True)
-    #else:
+    if isinstance(do_rescale, str):
+        if   do_rescale =='log10':
+                which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
+                
+        elif do_rescale =='slog10':    
+                print(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])))
+                which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
+                                                linscale=1.0, 
+                                                vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
+                                                clip=True)
+                
+    elif isinstance(do_rescale, np.ndarray):
+            which_norm = mcolors.BoundaryNorm(do_rescale, len(do_rescale)-1, clip=True)
+
+    #else:  
         #which_norm = mcolors.NoNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1], clip=False)
     #___________________________________________________________________________
     return(which_norm)
@@ -3949,7 +3963,7 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     if isinstance(data,list) and box_idx is not None:
         vname    = list(data[box_idx].keys())[0]        
         loc_attrs= data[box_idx][vname].attrs
-    else:
+    elif isinstance(data, xr.Dataset) :
         vname    = list(data.keys())[0]        
         loc_attrs= data[vname].attrs
             
@@ -4172,9 +4186,10 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
             
             # for logarythmic rescaling cmin or cmax can not be zero
-            if do_rescale=='log10' or do_rescale=='slog10': 
-                data_plot[np.abs(data_plot)==0]=np.nan
-                data_plot[np.abs(data_plot)<=1e-15]=np.nan
+            if isinstance(do_rescale, str):
+                if do_rescale=='log10' or do_rescale=='slog10': 
+                    data_plot[np.abs(data_plot)==0]=np.nan
+                    data_plot[np.abs(data_plot)<=1e-15]=np.nan
             
             #___________________________________________________________________
             if tri is None or do_index:
@@ -4217,7 +4232,8 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         
         #_______________________________________________________________________
         # dezimal rounding of cmin and cmax
-        if not do_rescale=='log10' and not do_rescale=='slog10':
+        # if not do_rescale=='log10' and not do_rescale=='slog10':
+        if not isinstance(do_rescale,str) or not isinstance(do_rescale, np.ndarray):
             cdmin, cdmax = 0.0, 0.0
             if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
             if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
@@ -4237,18 +4253,19 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
         cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
         if 'cref' not in cinfo.keys(): 
-            if do_rescale=='log10':
-                # compute cref in decimal units and tranfer back to normal units 
-                # afterwards
-                cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
-                cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
-                cref = cdmin + (cdmax-cdmin)/2
-                cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
-                cinfo['cref'] = np.power(10.0,cinfo['cref'])
-            elif do_rescale=='slog10':    
-                # cref becomes cutoff value for logarithmic to liner transition in 
-                # case of symetric log10
-                cinfo['cref'] = np.power(10.0,-6)
+            if isinstance(do_rescale,str):
+                if do_rescale=='log10':
+                    # compute cref in decimal units and tranfer back to normal units 
+                    # afterwards
+                    cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
+                    cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
+                    cref = cdmin + (cdmax-cdmin)/2
+                    cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
+                    cinfo['cref'] = np.power(10.0,cinfo['cref'])
+                elif do_rescale=='slog10':    
+                    # cref becomes cutoff value for logarithmic to liner transition in 
+                    # case of symetric log10
+                    cinfo['cref'] = np.power(10.0,-6)
             else:
                 dez = 0
                 if cref==0.0: 
@@ -4269,37 +4286,44 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     
     #___________________________________________________________________________    
     # compute clevels and cmap
-    if do_rescale=='log10':
-        # transfer cmin, cmax, cref into decimal units
-        cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
-        cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
-        cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
-        
-        #print(cinfo)
-        #print(cdmin,cdmax,cdref)
-        #compute levels in decimal units
-        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
-        
-        # transfer levels back to normal units
-        cinfo['clevel'] = np.power(10.0,cinfo['clevel'])
-        cinfo['cref']   = np.power(10.0,cinfo['cref'])
-           
-    elif do_rescale=='slog10':
-        # transfer cmin, cmax, cref into decimal units
-        cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
-        cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
-        cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
-        
-        ddcmin, ddcmax = -(cdmin-cdref), (cdmax-cdref)
-        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(ddcmin,ddcmax,0.0,cinfo['cnum'],cinfo['cstr'], do_slog=True)
-        
-        # rescale clevels towards symetric logarithm
-        isneg = cinfo['clevel']<0
-        ispos = cinfo['clevel']>0
-        cinfo['clevel'][isneg] = (np.abs(cinfo['clevel'][isneg]) + cdref)
-        cinfo['clevel'][ispos] = (np.abs(cinfo['clevel'][ispos]) + cdref)
-        cinfo['clevel'][isneg] = -np.power(10.0, cinfo['clevel'][isneg])
-        cinfo['clevel'][ispos] = np.power(10.0, cinfo['clevel'][ispos])
+    if isinstance(do_rescale, str):
+        if do_rescale=='log10':
+            # transfer cmin, cmax, cref into decimal units
+            cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
+            cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
+            cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
+            
+            #print(cinfo)
+            #print(cdmin,cdmax,cdref)
+            #compute levels in decimal units
+            cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
+            
+            # transfer levels back to normal units
+            cinfo['clevel'] = np.power(10.0,cinfo['clevel'])
+            cinfo['cref']   = np.power(10.0,cinfo['cref'])
+            
+        elif do_rescale=='slog10':
+            # transfer cmin, cmax, cref into decimal units
+            cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
+            cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
+            cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
+            
+            ddcmin, ddcmax = -(cdmin-cdref), (cdmax-cdref)
+            cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(ddcmin,ddcmax,0.0,cinfo['cnum'],cinfo['cstr'], do_slog=True)
+            
+            # rescale clevels towards symetric logarithm
+            isneg = cinfo['clevel']<0
+            ispos = cinfo['clevel']>0
+            cinfo['clevel'][isneg] = (np.abs(cinfo['clevel'][isneg]) + cdref)
+            cinfo['clevel'][ispos] = (np.abs(cinfo['clevel'][ispos]) + cdref)
+            cinfo['clevel'][isneg] = -np.power(10.0, cinfo['clevel'][isneg])
+            cinfo['clevel'][ispos] = np.power(10.0, cinfo['clevel'][ispos])
+    
+    elif isinstance(do_rescale, np.ndarray):
+        nrscal = len(do_rescale)-1
+        cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(0, nrscal, np.int16(nrscal/2), nrscal  ,cinfo['cstr'], do_slog=False)
+        cinfo['clevel'] = do_rescale
+        cinfo['cref'] = do_rescale[cinfo['cref']]
         
     else:    
         if cinfo['cref'] == 0.0:
@@ -4312,26 +4336,29 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         
     #___________________________________________________________________________
     # colorbar tick labels
-    nclev    = len(cinfo['clevel'])
-    idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
-    idx_cref = idx_cref.item()
-    
-    nstep    = nclev/cinfo['cnlab']
-    nstep    = np.max([np.int32(np.ceil(nstep)),1])
-    
-    idx      = np.arange(0, nclev, 1)
-    idxb     = np.ones(nclev, dtype=bool)                
-    idxb[idx_cref::nstep]  = False
-    idxb[idx_cref::-nstep] = False
-    if do_rescale == 'log10' or do_rescale == 'slog10':
-        idxb[cinfo['clevel']==0.0]=True
-    
-    idx_not  = idx[idxb==True]
-    idx_yes  = idx[idxb==False]
-    
-       
-    cinfo['clab'] = cinfo['clevel'][idx_yes]
-    del(idx_not, idx_yes, idx, idxb, idx_cref)
+    if isinstance(do_rescale, np.ndarray):
+        cinfo['clab'] = cinfo['clevel'][1:-1]
+    else:    
+        nclev    = len(cinfo['clevel'])
+        idx_cref = np.where(cinfo['clevel']==cinfo['cref'])[0]
+        idx_cref = idx_cref.item()
+        
+        nstep    = nclev/cinfo['cnlab']
+        nstep    = np.max([np.int32(np.ceil(nstep)),1])
+        
+        idx      = np.arange(0, nclev, 1)
+        idxb     = np.ones(nclev, dtype=bool)                
+        idxb[idx_cref::nstep]  = False
+        idxb[idx_cref::-nstep] = False
+        if do_rescale == 'log10' or do_rescale == 'slog10':
+            idxb[cinfo['clevel']==0.0]=True
+        
+        idx_not  = idx[idxb==True]
+        idx_yes  = idx[idxb==False]
+        
+        
+        cinfo['clab'] = cinfo['clevel'][idx_yes]
+        del(idx_not, idx_yes, idx, idxb, idx_cref)
     #___________________________________________________________________________
     print(cinfo)
     return(cinfo)    
@@ -4399,17 +4426,17 @@ def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh)
     
     ____________________________________________________________________________
     """  
-    cinfo=dict()   
-    if cstr     is not None: cinfo['cstr'  ]=cstr
-    if cnum     is not None: cinfo['cnum'  ]=cnum
-    if crange   is not None: cinfo['crange']=crange
-    if cmin     is not None: cinfo['cmin'  ]=cmin
-    if cmax     is not None: cinfo['cmax'  ]=cmax
-    if cref     is not None: cinfo['cref'  ]=cref
-    if cfac     is not None: cinfo['cfac'  ]=cfac
-    if climit   is not None: cinfo['climit']=climit    
-    if chist    is not None: cinfo['chist' ]=chist
-    if ctresh   is not None: cinfo['ctresh']=ctresh
+    cinfo=dict()
+    if cstr      is not None: cinfo['cstr'     ]=cstr
+    if cnum      is not None: cinfo['cnum'     ]=cnum
+    if crange    is not None: cinfo['crange'   ]=crange
+    if cmin      is not None: cinfo['cmin'     ]=cmin
+    if cmax      is not None: cinfo['cmax'     ]=cmax
+    if cref      is not None: cinfo['cref'     ]=cref
+    if cfac      is not None: cinfo['cfac'     ]=cfac
+    if climit    is not None: cinfo['climit'   ]=climit    
+    if chist     is not None: cinfo['chist'    ]=chist
+    if ctresh    is not None: cinfo['ctresh'   ]=ctresh
     return(cinfo)
   
   
