@@ -300,6 +300,8 @@ def plot_hslice(mesh                   ,
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
             hax_ii.axis('off')
+        elif data[ii] is None: 
+            hax_ii.axis('off')    
         # axis is normally fillt with data    
         else:    
             ii_valid=ii
@@ -398,6 +400,7 @@ def plot_hslice(mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
+    plt.show()
     
     #___________________________________________________________________________
     list_argout=[]
@@ -1401,6 +1404,8 @@ def plot_vslice(mesh                   ,
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
             hax_ii.axis('off')
+        elif data[ii] is None: 
+            hax_ii.axis('off')        
         # axis is normally fillt with data    
         else: 
             ii_valid=ii
@@ -1498,6 +1503,7 @@ def plot_vslice(mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
+    plt.show()
     
     #___________________________________________________________________________
     list_argout=[]
@@ -1839,7 +1845,7 @@ def plot_tseries(data,
     if not isinstance(data, list): data = [data]
     ndat = len(data)
     nbox = len(data[0])
-    print(ndat, nbox)
+    #print(ndat, nbox)
     
     #___________________________________________________________________________
     # check vertical plotting mode if index+depth+xy, zmoc, dmoc
@@ -2216,7 +2222,7 @@ def do_projection(mesh, proj, box):
     elif proj=='rob'    : 
         if len(box)!=4: raise ValueError( 'For Robinson projection: box=[lon_min, lon_max, lat_min, lat_max]')
         proj_to = ccrs.Robinson()  
-        box[0], box[1] = box[0]+0.25, box[1]-0.25
+        #box[0], box[1] = box[0]+0.25, box[1]-0.25
     
     elif proj=='eqearth': 
         if len(box)!=4: raise ValueError( 'For EqualEarth projection: box=[lon_min, lon_max, lat_min, lat_max]')
@@ -2568,13 +2574,15 @@ def do_axes_arrange(nx, ny,
 
     # rename horizontal->bottom and vertical->right
     if   cb_pos in ['horizontal', 'horiz', 'bottom', 'bot']: 
-        if cb_h =='auto': cb_h = 0.5
+        if cb_h =='auto': cb_h = 0.5*fig_sizefac
         if isinstance(cb_w, str) and cb_w=='auto': cb_w = ax_w
         cb_pos = 'bottom'
+        if nx>1: cb_h = cb_h*fig_sizefac
     elif cb_pos in ['vertical', 'vert', 'right']: 
         if cb_w =='auto': cb_w = 0.5
         if isinstance(cb_h, str) and cb_h=='auto': cb_h = ax_h
         cb_pos = 'right'
+        if ny>1: cb_w = cb_w*fig_sizefac
     
     #___________________________________________________________________________
     # apply fig_size_fac
@@ -2609,7 +2617,8 @@ def do_axes_arrange(nx, ny,
         fs_label *= fs_fac
         fs_title *= fs_fac
         fs_ticks *= fs_fac
-
+    #print(fs_label, fs_title, fs_ticks)
+    
     #___________________________________________________________________________
     # make vector of plot_cb if it has been true or false before
     # --> 1: plot cb,  0: do not plot cb    # 
@@ -2808,6 +2817,7 @@ def do_axes_arrange(nx, ny,
             hax[nn].tick_params(labelsize=fs_ticks)
             hax[nn].fs_label=fs_label
             hax[nn].fs_ticks=fs_ticks
+            hax[nn].fs_title=fs_title
             
             #___________________________________________________________________
             # colorbar
@@ -2815,7 +2825,10 @@ def do_axes_arrange(nx, ny,
                 hcb[nn] = hfig.add_subplot(position=pos_cb[nn,:])
                 hcb[nn].set_position(pos_cb[nn,:])
                 hcb[nn].tick_params(labelsize=fs_ticks)
-            
+                hcb[nn].fs_label=fs_label
+                hcb[nn].fs_ticks=fs_ticks
+                hcb[nn].fs_title=fs_title
+                
             #___________________________________________________________________
             # ticks for axes
             # delete labels for shared axes
@@ -3869,7 +3882,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             #___________________________________________________________________
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':-1})
             grid_optdefault.update(grid_opt)
-            print(grid_optdefault)
+            #print(grid_optdefault)
+            
             #___________________________________________________________________
             # check if do_ylog string exists in grid_opt dictionary
             do_ylog = False
@@ -3888,7 +3902,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             #___________________________________________________________________
             if do_ylog: 
                 hax_ii.set_yscale('function', functions=(forward, inverse))
-                yticklog = np.array([10,50,100,250,500,1000,2000,4000,6000])
+                #yticklog = np.array([10,50,100,250,500,1000,2000,4000,6000])
+                yticklog = np.array([10,100,250,500,1000,2000,4000,6000])
                 hax_ii.set_yticks(yticklog)
                 
                 if data_y is not None: hax_ii.set_ylim(data_y[0],data_y[-1])
@@ -3960,6 +3975,7 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     hcb_ii = do_cbar_formatting(hcb_ii, do_rescale, cinfo, cbtl_opt=cbtl_opt)
             
     #___________________________________________________________________________
+    loc_attrs = dict()
     if isinstance(data,list) and box_idx is not None:
         vname    = list(data[box_idx].keys())[0]        
         loc_attrs= data[box_idx][vname].attrs
@@ -3983,6 +3999,8 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     else:
         if cb_unit  is None: cb_label = cb_label+' / '+loc_attrs['units']
         else:                cb_label = cb_label+' / '+cb_unit
+        if 'str_ltim' in loc_attrs: cb_label = cb_label+'\n'+loc_attrs['str_ltim']
+        if 'str_ldep' in loc_attrs: cb_label = cb_label+loc_attrs['str_ldep']
         
     if   which_orient=='vertical'  : fsize =  hcb_ii.ax.get_yticklabels()[0].get_fontsize()
     elif which_orient=='horizontal': fsize =  hcb_ii.ax.get_xticklabels()[0].get_fontsize()
@@ -4463,25 +4481,45 @@ def do_savefigure(do_save, hfig, dpi=300, do_info=True, save_opt=dict()):
     if do_save is not None:
         save_optdefault=dict({'bbox_inches':'tight', 'pad_inches':0.1, 'transparent':True})
         save_optdefault.update(save_opt)
-        #_______________________________________________________________________
-        # extract filename from do_save
-        sfname = os.path.basename(do_save)
-        
-        # extract file extensions
-        sfformat = os.path.splitext(sfname)[1][1:]
-        
-        # extract dirname from do_save --> create directory if not exist
-        sdname = os.path.dirname(do_save)
-        sdname = os.path.expanduser(sdname)
-        if do_info: print(' > save figure: {}'.format(os.path.join(sdname,sfname)))
-        
-        #_______________________________________________________________________
-        if not os.path.isdir(sdname): os.makedirs(sdname)
-        
-        #_______________________________________________________________________
-        hfig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
-                    **save_optdefault)
-    
+        if isinstance(do_save, str):
+            #___________________________________________________________________
+            # extract filename from do_save
+            sfname = os.path.basename(do_save)
+            
+            # extract file extensions
+            sfformat = os.path.splitext(sfname)[1][1:]
+            
+            # extract dirname from do_save --> create directory if not exist
+            sdname = os.path.dirname(do_save)
+            sdname = os.path.expanduser(sdname)
+            if do_info: print(' > save figure: {}'.format(os.path.join(sdname,sfname)))
+            
+            #___________________________________________________________________
+            if not os.path.isdir(sdname): os.makedirs(sdname)
+            
+            #___________________________________________________________________
+            hfig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
+                        **save_optdefault)
+        elif isinstance(do_save, list):
+            #___________________________________________________________________
+            # extract filename from do_save
+            for do_save0 in do_save:
+                sfname = os.path.basename(do_save0)
+                
+                # extract file extensions
+                sfformat = os.path.splitext(sfname)[1][1:]
+                
+                # extract dirname from do_save --> create directory if not exist
+                sdname = os.path.dirname(do_save0)
+                sdname = os.path.expanduser(sdname)
+                if do_info: print(' > save figure: {}'.format(os.path.join(sdname,sfname)))
+                
+                #___________________________________________________________________
+                if not os.path.isdir(sdname): os.makedirs(sdname)
+                
+                #___________________________________________________________________
+                hfig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
+                            **save_optdefault)
 
 #
 #

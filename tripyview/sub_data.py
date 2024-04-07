@@ -191,6 +191,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         
     #___________________________________________________________________________
     # create path name list that needs to be loaded
+    if '~/' in datapath: datapath = os.path.abspath(os.path.expanduser(datapath))
     pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
     if len(pathlist)==0: 
         data = None
@@ -1243,7 +1244,8 @@ def do_anomaly(data1,data2):
                     continue
                 
                 elif key in ['descript']: 
-                    if len(data1[vname].attrs[key])+len(data2[vname2].attrs[key])>30:
+                    # print(len(data1[vname].attrs[key])+len(data2[vname2].attrs[key]))
+                    if len(data1[vname].attrs[key])+len(data2[vname2].attrs[key])>75:
                         anom[vname].attrs[key]  = data1[vname].attrs[key]+'\n - '+data2[vname2].attrs[key]
                     else:     
                         anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname2].attrs[key]
