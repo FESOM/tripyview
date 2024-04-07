@@ -49,7 +49,6 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     idx       = [i for i, item in enumerate(list(data.coords)) if item.lower() in list_zlevstr][0]
     coord_zlev= list(data.coords)[idx]
     
-        
     #___________________________________________________________________________
     # compute potential temperature
     if vname == 'pdens' or 'sigma' in vname: do_ptemp=True
@@ -174,7 +173,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     #___________________________________________________________________________
     # do vertical interplation to fesom grid
     if do_zinterp and (depth is None):
-        #add fesom2 mesh coordinatesro xarray dataset
+        #add fesom2 mesh coordinates to xarray dataset
         zmid = xr.DataArray(np.abs(mesh.zmid), dims="nz1")
         
         # improvise extrapolation --> fesom depth levels reach usually deeper than 
@@ -213,7 +212,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         #data = data.assign_coords(w_A=w_A)
     #del(w_A)
     data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=False, do_hweight=True)
-    #print(data)
+    data = data.drop_vars(['depth'])
     
     #___________________________________________________________________________
     data = data.transpose()    

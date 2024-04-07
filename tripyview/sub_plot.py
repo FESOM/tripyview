@@ -1364,6 +1364,8 @@ def plot_vslice(mesh                   ,
     # --> pre-arange axes
     ax_optdefault=dict({'projection': proj_to})
     ax_optdefault.update(ax_opt)
+    #print(ncol, nrow)
+    
     hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
     cb_plt_idx=cb_plt_idx[:ndat]
     
