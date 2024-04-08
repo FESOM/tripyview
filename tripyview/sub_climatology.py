@@ -83,7 +83,15 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         if len(list(data.keys()))>1:
             vname_drop.remove(vname)
             data = data.drop_vars(vname_drop)
-    
+            if vname == 'temp':
+                data[vname].attrs['units'] = '°C'
+                data[vname].attrs['short_name'] = 'temp'
+                data[vname].attrs['long_name'] = 'Temperature'
+            elif vname == 'salt':
+                data[vname].attrs['units'] = 'psu'
+                data[vname].attrs['short_name'] = 'salt'
+                data[vname].attrs['long_name'] = 'Salinity'
+                
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with 
     # the fesom2 mesh focus 

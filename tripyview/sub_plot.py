@@ -229,7 +229,7 @@ def plot_hslice(mesh                   ,
     """
     #___________________________________________________________________________
     # --> create box
-    if box is None or box=="None": box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
+    if (box is None or box=="None") and proj!='channel': box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
     
     #___________________________________________________________________________
     # --> check if input data is a list
@@ -257,7 +257,7 @@ def plot_hslice(mesh                   ,
     
     #___________________________________________________________________________
     # --> pre-arange axes
-    ax_optdefault=dict({'projection': proj_to, 'box': box})
+    ax_optdefault=dict({'projection': proj_to, 'box': box, 'proj':proj})
     ax_optdefault.update(ax_opt)
     hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
     cb_plt_idx=cb_plt_idx[:ndat]
@@ -295,7 +295,7 @@ def plot_hslice(mesh                   ,
         
     #___________________________________________________________________________
     # --> loop over axes
-    hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
+    hp, hbot, hmsh, hlsm, hgrd, hall = list(), list(), list(), list(), list(), list()
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
@@ -363,7 +363,7 @@ def plot_hslice(mesh                   ,
             
             #___________________________________________________________________
             # add grids lines 
-            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt)
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt, proj=proj)
             hgrd.append(h0)
             
             #___________________________________________________________________
@@ -394,8 +394,13 @@ def plot_hslice(mesh                   ,
                              cb_label, cb_unit, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                              cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
+        #___________________________________________________________________
+        # add all handles together 
+        hall = hp + hbot + hmsh + hlsm + hgrd
+            
         #_______________________________________________________________________
-        # hfig.canvas.draw()   
+        # hfig.canvas.draw() 
+        
         
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
@@ -2258,6 +2263,7 @@ def do_projection(mesh, proj, box):
         proj_to = ccrs.PlateCarree()
         if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
     
+        print(proj, box)
     #___Vertical "Projection"___________________________________________________
     elif  proj == 'index+depth+xy'   : proj_to = 'index+depth+xy'
     elif  proj == 'index+depth+time' : proj_to = 'index+depth+time'
@@ -2425,6 +2431,7 @@ def do_axes_arrange(nx, ny,
                  
                     #-----------------------------------------------------------
                     projection = None, # projection (e.g. for cartopy)
+                    proj       = None,
                     box        = None, # define regional box needed for aspect ratio
                     #-----------------------------------------------------------
                     nargout=['hfig', 'hax', 'hcb', 'cb_plt_idx'],
@@ -2548,7 +2555,7 @@ def do_axes_arrange(nx, ny,
         if ax_asp==1.0:        
             #___________________________________________________________________
             # projection[0] is an arbitrary cartopy-projection object
-            if isinstance(projection[0], ccrs.CRS):
+            if isinstance(projection[0], ccrs.CRS) and proj!='channel':
                 if isinstance(projection[0], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Orthographic, ccrs.NearsidePerspective) ):
                     ax_asp = 1.0
                     
@@ -2562,11 +2569,15 @@ def do_axes_arrange(nx, ny,
                     ax_asp = ( (points[:,0].max()-points[:,0].min())/(points[:,1].max()-points[:,1].min()) )
             
             #___________________________________________________________________
+            # channel 
+            elif isinstance(projection[0], ccrs.CRS) and proj=='channel': ax_asp = 2.0
+                
+            #___________________________________________________________________
             # projection is vertical section
             elif projection[0]=='index+depth+xy'  : ax_asp = 2.0
             elif projection[0]=='index+depth+time': ax_asp = 2.0
             elif projection[0]=='index+depth'     : ax_asp = 0.75
-            elif projection[0]=='index+time'     : ax_asp = 2.5
+            elif projection[0]=='index+time'      : ax_asp = 2.5
             elif projection[0]=='zmoc'            : ax_asp = 2.0   
             elif projection[0]=='zmoc'            : ax_asp = 2.0   
             else                                  : ax_asp = 1.0    
@@ -2585,7 +2596,7 @@ def do_axes_arrange(nx, ny,
         if isinstance(cb_h, str) and cb_h=='auto': cb_h = ax_h
         cb_pos = 'right'
         if ny>1: cb_w = cb_w*fig_sizefac
-    
+    #print(ax_w, ax_h)
     #___________________________________________________________________________
     # apply fig_size_fac
     ax_fh *= fig_sizefac
@@ -2796,8 +2807,10 @@ def do_axes_arrange(nx, ny,
             nn+=1
             #___________________________________________________________________
             # axes
-            if isinstance(projection[nn], ccrs.CRS):
-                hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])
+            if isinstance(projection[nn], ccrs.CRS) and proj=='channel':
+                hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn], aspect='auto' )
+            elif isinstance(projection[nn], ccrs.CRS):
+                hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])    
             else:    
                 hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], )
                 hax[nn].projection = projection[nn]                           
@@ -3825,7 +3838,7 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
 #
 #_______________________________________________________________________________
 def do_plt_gridlines(hax_ii, do_grid, box, ndat, 
-                     data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict()):
+                     data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict(), proj=None):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -3843,8 +3856,17 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
     #___________________________________________________________________________
     h0=None
     if do_grid:
-        
-        if isinstance(hax_ii.projection, ccrs.CRS):
+        #_______________________________________________________________________
+        if proj=='channel':
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':5})
+            grid_optdefault.update(grid_opt)
+            #___________________________________________________________________
+            h0=hax_ii.gridlines(**grid_optdefault )
+            if hax_ii.do_ylabel: h0.left_labels   = True
+            if hax_ii.do_xlabel: h0.bottom_labels = True
+
+        #_______________________________________________________________________
+        elif isinstance(hax_ii.projection, ccrs.CRS):
             #___________________________________________________________________
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':5})
             grid_optdefault.update(grid_opt)
