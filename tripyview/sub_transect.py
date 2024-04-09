@@ -734,6 +734,9 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         
         #_______________________________________________________________________
         # define variable 
+        gattrs = data.attrs
+        gattrs['proj']          = 'index+depth+xy'
+        
         data_vars = dict()
         aux_attr  = data[vname].attrs
         #aux_attr['long_name'], aux_attr['units'] = 'Transport through cross-section', 'Sv'
@@ -768,7 +771,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         #_______________________________________________________________________
         # create dataset
         if is_list:
-            transp.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs))
+            transp.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs))
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
@@ -779,7 +782,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
                 print(' (+) transport:', transp[-1]['transp'].where(transp[-1]['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
                 print(' (-) transport:', transp[-1]['transp'].where(transp[-1]['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
         else:
-            transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs, )
+            transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=dgattrs )
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
