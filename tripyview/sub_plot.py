@@ -1923,6 +1923,7 @@ def plot_tseries(data,
                             'clip_box':False, 'clip_on':False, 'zorder':3})
         
             cnt_cycl=0
+            xmax_list=list()
             for jj in range(0,ndat):
                 #_______________________________________________________________
                 vname  = list(data[jj][ii].data_vars)[0]
@@ -1945,6 +1946,7 @@ def plot_tseries(data,
                     
                 xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
                 data_x0, data_y0 = data_x, data_y
+                xmax_list.append(xmax)
                 
                 #_______________________________________________________________
                 # set labels
@@ -1966,8 +1968,9 @@ def plot_tseries(data,
                 else:
                     str_ylabel = ax_ylabel
                 
-                if   'descript'   in loc_attrs: str_llabel = str_llabel +loc_attrs['descript']
-                if   'boxname'    in loc_attrs: str_blabel = str_blabel +loc_attrs['boxname']
+                if   'descript'       in loc_attrs: str_llabel = str_llabel +loc_attrs['descript']
+                if   'boxname'        in loc_attrs: str_blabel = str_blabel +loc_attrs['boxname']
+                if   'transect_name'  in loc_attrs: str_blabel = str_blabel +loc_attrs['transect_name']
                 
                 #_______________________________________________________________
                 # plot lines 
@@ -1997,6 +2000,8 @@ def plot_tseries(data,
                     warnings.resetwarnings()
                     
                 hp.append(h0)
+                
+                #_______________________________________________________________
                 cnt      = cnt+1
                 cnt_cycl = cnt_cycl+1
                 if cnt_cycl>= n_cycl: cnt_cycl=0
@@ -2012,6 +2017,12 @@ def plot_tseries(data,
                                   data_y=data_y, xlim=ax_xlim, ylim=ax_ylim, 
                                   grid_opt=grid_opt)
             hgrd.append(h0)  
+            
+            #_______________________________________________________________
+            if do_concat:
+                aux_ylim=hax_ii.get_ylim()
+                hax_ii.vlines(np.unique(xmax_list), aux_ylim[0], aux_ylim[1], 'k', linewidth=1.5, zorder=1)
+                hax_ii.set_ylim(aux_ylim)
             
             #_______________________________________________________________________
             # do legend and legend positioning 
