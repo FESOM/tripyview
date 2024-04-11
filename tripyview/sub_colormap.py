@@ -1,5 +1,5 @@
 # Patrick Scholz, 14.12.2017
-def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[], do_slog=False):
+def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[], do_slog=False, do_rescal=None, rescal_ref=None):
 
     import numpy                as np
     from   matplotlib.colors    import ListedColormap
@@ -51,7 +51,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[], do_slog=False):
         clevel   = np.around(clevel, -np.int32(np.floor(np.log10(np.abs( cstep ))-2) ) )
         cref     = np.around(cref  , -np.int32(np.floor(np.log10(np.abs( cstep ))-2) ) )
     clevel   = np.unique(clevel)
-    
+    #print(clevel)
     
     # rescale the interpolation frojm linear to more exponential, but only for 
     # the color interpolation
@@ -63,10 +63,19 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[], do_slog=False):
         clevel_slg10 = np.sort(np.unique(dum_clev))
         
     #___________________________________________________________________________
-    # number of colors below ref value
-    cnmb_bref = sum(clevel<cref)
-    # number of color above ref value
-    cnmb_aref = sum(clevel>cref)
+    
+    if do_rescal is not None and rescal_ref is not None:
+        # number of colors below ref value
+        cnmb_bref = sum(do_rescal<rescal_ref)
+        # number of color above ref value
+        cnmb_aref = sum(do_rescal>rescal_ref)
+        cref = cnmb_bref
+    else:
+        # number of colors below ref value
+        cnmb_bref = sum(clevel<cref)
+        # number of color above ref value
+        cnmb_aref = sum(clevel>cref)
+    #print(cnmb_aref, cnmb_bref)
     
     #___________________________________________________________________________
     if   'matplotlib' in cname:
@@ -429,11 +438,11 @@ def categorical_cmap(nc, nsc, cmap="tab10", cmap2='nipy_spectral', continuous=Fa
         if not chsv[0]==0.0 and not chsv[1]==0.0:
             arhsv[:,1] = np.linspace(chsv[1],0.2,nsc)
             if light2dark: arhsv[:,2] = np.linspace(chsv[2], 0.9, nsc)
-            else         : arhsv[:,2] = np.linspace(0.2, chsv[2], nsc)[::-1]  
+            else         : arhsv[:,2] = np.linspace(0.1, chsv[2], nsc)[::-1]  
             
         else:
-            if light2dark: arhsv[:,2] = np.linspace(chsv[2],0.8,nsc)
-            else         : arhsv[:,2] = np.linspace(0.8, chsv[2], nsc)[::-1]
+            if light2dark: arhsv[:,2] = np.linspace(chsv[2],0.9,nsc)
+            else         : arhsv[:,2] = np.linspace(0.1, chsv[2], nsc)[::-1]
             
         arhsv      = np.flipud(arhsv)
         rgb = hsv_to_rgb(arhsv)

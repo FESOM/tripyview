@@ -23,13 +23,15 @@ def calc_mhflx(mesh, data, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
     list_dimname, list_dimsize = ['nlat'], [lat.size]
     
     data_vars = dict()
+    gattr = data.attrs
+    gattrs['proj'] = 'index+xy'
     aux_attr  = data[vname].attrs
     aux_attr['long_name'], aux_attr['units'] = 'Meridional Heat Transport', 'PW'
     data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
     # define coordinates
     coords    = {'nlat' : (['nlat' ], lat )}
     # create dataset
-    mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+    mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
     del(data_vars, coords, aux_attr)
     
     #___________________________________________________________________________
@@ -162,6 +164,8 @@ def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_
         # Create xarray dataset
         list_dimname, list_dimsize = ['lat'], [lat.size]
         data_vars = dict()
+        gattrs = data.attrs
+        gattrs['proj'] = 'index+xy'
         aux_attr  = data[vname].attrs
         #aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
         #aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
@@ -172,7 +176,8 @@ def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_
         data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
         # define coordinates
         coords    = {'lat' : (['lat' ], lat )}
-        # create dataset        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+        # create dataset        
+        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
         del(data_vars, coords, aux_attr)
     
         #___________________________________________________________________________
@@ -275,7 +280,8 @@ def calc_mhflx_box_fast(mesh, data, box_list, dlat=1.0, do_info=True, do_checkba
     #vnameu, vnamev = vname_list[0], vname_list[1]
     
     # save global and local variable attributes
-    gattr = data.attrs
+    gattrs = data.attrs
+    gattrs['proj'] = 'index+xy'
     vattr = data[vnameu].attrs
 
     #___________________________________________________________________________
@@ -410,7 +416,7 @@ def calc_mhflx_box_fast(mesh, data, box_list, dlat=1.0, do_info=True, do_checkba
             elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
         data_vars['mhflx'] = (dim_n, np.zeros(dim_s, dtype='float32')*np.nan, vattr) 
         # create dataset
-        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
         del(data_vars, coords, dim_n, dim_s, lat)
         
         #_______________________________________________________________________
@@ -667,13 +673,15 @@ def calc_gmhflx(mesh, data, lat):
     # Create xarray dataset
     list_dimname, list_dimsize = ['nlat'], [lat.size]
     data_vars = dict()
+    gattrs = data.attrs
+    gattrs['proj']          = 'index+xy'
     aux_attr  = data[vname].attrs
     aux_attr['long_name'], aux_attr['units'] = 'Global Meridional Heat Transport', 'PW'
     data_vars['gmhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
     # define coordinates
     coords    = {'nlat' : (['nlat' ], lat )}
     # create dataset
-    ghflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+    ghflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
     del(data_vars, coords, aux_attr)
     
     #___________________________________________________________________________
@@ -710,7 +718,8 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True,
     vname = list(data.keys())[0]
     
     # save global and local variable attributes
-    gattr = data.attrs
+    gattrs = data.attrs
+    gattrs['proj'] = 'index+xy'
     vattr = data[vname].attrs
     
     # factors for heatflux computation
@@ -776,7 +785,7 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True,
             elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
         data_vars['gmhflx'] = (dim_n, np.zeros(dim_s, dtype='float32'), vattr) 
         # create dataset
-        gmhflx = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+        gmhflx = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
         del(data_vars, coords, dim_n, dim_s, lat)
         
         #___________________________________________________________________________
