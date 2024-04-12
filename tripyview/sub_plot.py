@@ -1125,376 +1125,7 @@ def plot_hquiver(mesh                  ,
     else:
         return
     
-    
-#
-#
-#_______________________________________________________________________________
-# --> do plotting of horizontal slices
-def plot_hline(data                   , 
-                box        = None      , 
-                box_idx    = None      ,
-                box_label  = None      , 
-                boxl_opt   = dict()    , # option for box label string 
-                nrow       = 1         , # number of row in figures panel
-                ncol       = 1         , # number of column in figure panel
-                proj       = 'index+xy',
-                n_cycl     = None      ,
-                do_allcycl = False     , 
-                do_shdw    = True      ,
-                do_mean    = False     ,
-                #--- data -----------
-                plt_opt    = dict()    ,
-                mark_opt   = dict()    ,
-                #--- gridlines ------
-                do_grid    = True      , 
-                grid_opt   = dict({'ylog': False})    ,
-                #--- axes -----------
-                ax_title   = 'descript',
-                ax_xlabel  = None      ,
-                ax_ylabel  = None      ,
-                ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
-                ax_xlim    = None      ,
-                ax_ylim    = None      ,
-                #--- enumerate axes -
-                do_enum    = False     ,
-                enum_opt   = dict({'horizontalalignment':'center'})    , 
-                enum_str   = []        , 
-                enum_x     = [0.000]   , 
-                enum_y     = [1.005]    ,
-                enum_dir   = 'lr'    ,# prescribed list of enumeration strings
-                #--- save figure ----
-                do_save    = None      , 
-                save_dpi   = 300       ,
-                save_opt   = dict()    ,
-                #--- set output -----
-                nargout=['hfig', 'hax'],
-                ):
-    """
-    ---> plot FESOM2 horizontal data slice:
-    ___INPUT:___________________________________________________________________
-    data        :   xarray dataset object, or list of xarray dataset object
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-                    
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
-    
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
-    
-    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
-    
-    do_refig    :   bool, (default: False) do absolute reference figure, with 
-                    own colormap. Data for reference figure is data[0]
-                    
-    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
-                    towards nodes
-    
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    
-    --- plot data parameters ------------
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    
-    #--- plot gridlines -----------------
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
-                    
-    #--- axes ---------------------------
-    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
-                    in data to title label axes, If 'str' use this string to label axes
-    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
-                    do_axes_arrange
-    ax_xlim     :   list (default: None) overright xlimits of vslice
-    ax_ylim     :   list (default: None) overright ylimits of vslice       
-    
-    #--- enumerate axes -----------------
-    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
-    
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    
-    #--- save figure ---------------------
-    do_save     :   str, (default: None) if None figure will by not saved, if 
-                    string figure will be saved, strings must give directory and 
-                    filename  where to save.     , 
-    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
-    
-    #--- set output ----------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
-                    are given out from the routine. 
-                    Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
-                    
-    ___RETURNS:_________________________________________________________________
-    hfig        :    returns figure handle 
-    hax         :    returns list with axes handle 
-    hcb         :    returns colorbar handle
-    ____________________________________________________________________________
-    """
-    #___________________________________________________________________________
-    # --> check if input data is a list
-    if not isinstance(data, list): data = [data]
-    # keep in mind ndat is here the number index boxes in thre list, not the number 
-    # of datas that are loaded
-    nbox = len(data[0])
-    ndat = len(data)
-    
-    #___________________________________________________________________________
-    # check vertical plotting mode if index+depth+xy, zmoc, dmoc
-    if proj is None:
-        if isinstance(data[0], xr.Dataset):
-            if 'proj' in data[0].attrs: proj=data[0].attrs['proj']
-        elif isinstance(data[0], list):
-            if isinstance(data[0][0], xr.Dataset):
-                if 'proj' in data[0][0].attrs: proj=data[0][0].attrs['proj']
-    
-    #___________________________________________________________________________
-    # --> create projection
-    proj_to = None
-    # proj is string 
-    if   isinstance(proj, str): 
-        proj_to, box = do_projection(None, proj, box)
-    # proj is cartopy projection object
-    elif isinstance(proj, ccrs.CRS): 
-        proj_to = proj
-    # proj is list of cartopy projection objects or string
-    elif isinstance(proj, list): 
-        proj_to = list()
-        for proj_ii in proj:
-            if   isinstance(proj_ii, str): 
-                proj_dum, box = do_projection(None, proj_ii, box)
-                proj_to.append(proj_dum)                
-            elif isinstance(proj_ii, ccrs.CRS):    
-                proj_to.append(proj_ii)    
-    
-    #___________________________________________________________________________
-    # --> pre-arange axes
-    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_sharey':True, 'ax_dt':1.75})
-    ax_optdefault.update(ax_opt)
-    hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
-    cb_plt_idx=cb_plt_idx[:nbox]
-    
-    #___________________________________________________________________________
-    # --> axes enumeration 
-    do_axes_enum(hax[:nbox], do_enum, nrow, ncol, enum_opt=enum_opt, enum_str=enum_str, 
-                       enum_x=enum_x, enum_y=enum_y, enum_dir=enum_dir)
-    
-    #___________________________________________________________________________
-    # setup colormap
-    if do_allcycl: 
-        if n_cycl is not None:
-            cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
-        else:
-            cmap = categorical_cmap(ndat, 1, cmap="tab10")
-    else:
-        cmap = categorical_cmap(ndat, 1, cmap="tab10")
         
-    #___________________________________________________________________________
-    # --> loop over axes
-    hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
-    list_strdatalabel = list()
-    list_strboxlabel  = list()
-    for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
-        # if there are no ddatra to fill axes, make it invisible 
-        if ii>=nbox: 
-            hax_ii.axis('off')
-        # axis is normally fillt with data    
-        else: 
-            #___________________________________________________________________
-            # prepare regular gridded data for plotting
-            # prepare regular gridded data for plotting
-            optline = dict({'linewidth':1.5, 'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
-            optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
-                            'clip_box':False, 'clip_on':False, 'zorder':3})
-            list_lstyle=['solid', 'dashed', 'dotted', 'dashdot', 'dashdotdotted']
-            
-            #___________________________________________________________________
-            allinone = False
-            if   nrow*ncol == 1:
-                if   nbox == 1: box_idx = [0]
-                elif nbox >  1: 
-                    box_idx, allinone = list(range(0,nbox)), True
-                    
-            elif nrow*ncol > 1 and nrow*ncol <= nbox:   
-                box_idx, allinone = [ii], False
-            xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
-            
-            #___________________________________________________________________
-            # If nrow*ncol=1    && nbox > 1: plot all box lines in one figure panel
-            #    nrow*ncol=nbox && nbox > 1: plot each box lines in separate figure panel
-            for bi in box_idx:
-            
-                #___________________________________________________________________
-                cnt, cnt_cycl = 0, 0
-                if not allinone: xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
-                for jj in range(0,ndat):
-                    #_______________________________________________________________
-                    vname = list(data[jj][bi].data_vars)[0]
-                    data_y = data[jj][bi][vname].data.copy()
-                    ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
-                    
-                    #_______________________________________________________________
-                    if   'lat' in data[jj][bi]: 
-                        data_x     =  data[jj][bi]['lat'].values 
-                        str_xlabel = 'Latitude / deg' if ax_xlabel is None else ax_xlabel
-                    elif 'lon' in data[jj][bi]: 
-                        data_x     = data[jj][bi]['lon'].values 
-                        str_xlabel = 'Longitude / deg' if ax_xlabel is None else ax_xlabel
-                        
-                    xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
-                    
-                    #_______________________________________________________________
-                    loc_attrs= data[jj][bi][vname].attrs
-                    str_ylabel, str_llabel, str_blabel = '', '', ''
-                    if ax_ylabel is None:
-                        if   'long_name'     in loc_attrs: str_ylabel = str_ylabel + loc_attrs['long_name']
-                        elif 'short_name'    in loc_attrs: str_ylabel = str_ylabel + loc_attrs['short_name']
-                        if   'units'         in loc_attrs: str_ylabel = str_ylabel + ' / ' + loc_attrs['units']
-                    else: 
-                        str_ylabel = ax_ylabel
-                    if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
-                    if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
-                    if   'transect_name' in loc_attrs: str_blabel = str_blabel + loc_attrs['transect_name']    
-                    str_blabel = str_blabel.replace('MOC','').replace('_','')
-                    if bi==0: list_strdatalabel.append(str_llabel)
-                    if jj==0: list_strboxlabel.append(str_blabel)
-                    
-                    #_______________________________________________________________
-                    # plot lines 
-                    optline.update({'color':cmap.colors[cnt,:]})
-                    optline.update(plt_opt)
-                    if allinone and nrow*ncol==1: optline.update({'linestyle':list_lstyle[bi]})
-                    optmark.update({'color':cmap.colors[cnt,:]})
-                    optmark.update(mark_opt)
-                    
-                    # plot black underlying shadow slightly wider than line on top 
-                    if do_shdw:
-                        optline2 = optline.copy()
-                        optline2.update({'color':'k', 'linewidth':optline['linewidth']*1.2, 'zorder':1})
-                        hax_ii.plot(data_x, data_y, **optline2)
-                    
-                    # plot actual line with color 
-                    h0 = hax_ii.plot(data_x, data_y, label=str_llabel, **optline)
-                    hp.append(h0)
-                    
-                    # plot mean value with left triangle 
-                    if do_mean: 
-                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<', **optmark)
-                    
-                    #_______________________________________________________________
-                    cnt      = cnt+1
-                    cnt_cycl = cnt_cycl+1
-                    if n_cycl is not None:
-                        if cnt_cycl>= n_cycl: cnt_cycl=0
-                
-            #___________________________________________________________________
-            if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
-            if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
-            
-            #___________________________________________________________________
-            # add grids lines 
-            ax_xlim0 = ax_xlim
-            if ax_xlim is None: ax_xlim0=[xmin,xmax]
-            h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
-                                  data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim, 
-                                  grid_opt=grid_opt)
-            hgrd.append(h0)
-            
-            #_______________________________________________________________________
-            # do legend and legend positioning 
-            # -->bbox_to_anchor=(1.0, 1.0), loc='upper left' this should make sure 
-            #    that the legend is always outside in the upper right corner 
-            if hax_ii.coli==ncol-1 and hax_ii.rowi==0 : 
-                if allinone and nbox>1:
-                    # make data legend:
-                    legend1 = plt.legend([hp[i][0] for i in range(0,ndat,1)], list_strdatalabel, 
-                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                                         labelspacing=0.5, bbox_to_anchor=(1.0, 0.0), loc='lower right')
-                    hax_ii.add_artist(legend1)
-                    
-                    # make box list legend:
-                    import copy as cp
-                    lines = [cp.copy(hp[i][0]) for i in range(0,ndat*nbox, ndat)]
-                    # make legend box lines always black, just show linestyle 
-                    for li in range(0,len(lines)): lines[li].set(color='k')
-                    legend2 = plt.legend(lines, list_strboxlabel, 
-                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                                         labelspacing=0.5, bbox_to_anchor=(0.0, 1.0), loc='upper left')
-                    hax_ii.add_artist(legend2)
-                else:
-                    # make data legend:
-                    hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
-                    # box label becomes here axes title
-            #___________________________________________________________________
-            # add title and axes labels
-            if ax_title is not None: 
-                if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
-                else                        : 
-                    if not allinone and nbox>1: hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
-                    
-         
-    #___________________________________________________________________________
-    # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
-    #___________________________________________________________________________
-    list_argout=[]
-    if len(nargout)>0:
-        for stri in nargout:
-            try   : list_argout.append(eval(stri))
-            except: print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
-            
-        return(list_argout)
-    else:
-        return
-    
-    
     
 #
 #
@@ -1893,40 +1524,35 @@ def plot_vslice(mesh                   ,
         return(list_argout)
     else:
         return
-    
-    
+ 
+ 
+
 #
 #
 #_______________________________________________________________________________
 # --> do plotting of horizontal slices
-def plot_vprofile(data                   , 
+def plot_hline(data                   , 
                 box        = None      , 
                 box_idx    = None      ,
                 box_label  = None      , 
                 boxl_opt   = dict()    , # option for box label string 
-                cinfo      = None      , # colormap info and defintion
                 nrow       = 1         , # number of row in figures panel
                 ncol       = 1         , # number of column in figure panel
-                proj       = None      ,
-                do_reffig  = False     , 
-                do_rescale = False     ,
-                ref_rescale= False      ,
+                proj       = 'index+xy',
+                n_cycl     = None      ,
+                do_allcycl = False     , 
+                do_shdw    = True      ,
+                do_mean    = False     ,
                 #--- data -----------
-                do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
-                plt_contb  = False     , # plot background contour lines: True/False 
-                pltcb_opt  = dict()    , # background contour line option
-                plt_contf  = False     , # plot foreground contour lines: True/False 
-                pltcf_opt  = dict()    , # foreground contour line option
-                plt_contr  = False     , # plot reference contour lines: True/False 
-                pltcr_opt  = dict()    , # reference contour line option
-                plt_contl  = False     , # do contourline labels 
-                pltcl_opt  = dict()    , # contour line label options
+                mark_opt   = dict()    ,
                 #--- gridlines ------
                 do_grid    = True      , 
-                grid_opt   = dict({'ylog':True})    ,
+                grid_opt   = dict({'ylog': False})    ,
                 #--- axes -----------
                 ax_title   = 'descript',
+                ax_xlabel  = None      ,
+                ax_ylabel  = None      ,
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
                 ax_xlim    = None      ,
                 ax_ylim    = None      ,
@@ -2089,7 +1715,7 @@ def plot_vprofile(data                   ,
     
     #___________________________________________________________________________
     # --> pre-arange axes
-    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_dt':1.75})
+    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_sharey':True, 'ax_dt':1.75})
     ax_optdefault.update(ax_opt)
     hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
     cb_plt_idx=cb_plt_idx[:nbox]
@@ -2098,45 +1724,123 @@ def plot_vprofile(data                   ,
     # --> axes enumeration 
     do_axes_enum(hax[:nbox], do_enum, nrow, ncol, enum_opt=enum_opt, enum_str=enum_str, 
                        enum_x=enum_x, enum_y=enum_y, enum_dir=enum_dir)
+    
+    #___________________________________________________________________________
+    # setup colormap
+    if do_allcycl: 
+        if n_cycl is not None:
+            cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
+        else:
+            cmap = categorical_cmap(ndat, 1, cmap="tab10")
+    else:
+        cmap = categorical_cmap(ndat, 1, cmap="tab10")
         
     #___________________________________________________________________________
     # --> loop over axes
     hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
+    list_strdatalabel,list_strboxlabel = list(), list()
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=nbox: 
             hax_ii.axis('off')
         # axis is normally fillt with data    
         else: 
-            ii_valid=ii
             #___________________________________________________________________
             # prepare regular gridded data for plotting
-            for jj in range(0,ndat):
-                vname = list(data[jj][ii].data_vars)[0]
-                data_x = data[jj][ii][vname].data.copy()
-                data_y, str_ylabel = np.abs(data[jj][ii]['depth'].values) , 'Depth / m'
-                
-                loc_attrs= data[jj][ii][vname].attrs
-                str_xlabel, str_llabel, str_blabel = '', '', ''
-                if   'long_name'     in loc_attrs: str_xlabel = str_xlabel + loc_attrs['long_name']
-                elif 'short_name'    in loc_attrs: str_xlabel = str_xlabel + loc_attrs['short_name']
-                if   'units'         in loc_attrs: str_xlabel = str_xlabel + ' / ' + loc_attrs['units']
-                if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
-                if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
-                if   'transect_name' in loc_attrs: str_blabel = str_blabel + loc_attrs['transect_name']
-                
-                h0 = hax_ii.plot(data_x, data_y, label=str_llabel)
-                hp.append(h0)
+            # prepare regular gridded data for plotting
+            optline = dict({'linewidth':1.5, 'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
+            optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
+                            'clip_box':False, 'clip_on':False, 'zorder':3})
+            list_lstyle=['solid', 'dashed', 'dotted', 'dashdot', 'dashdotdotted']
             
+            #___________________________________________________________________
+            allinone = False
+            if   nrow*ncol == 1:
+                if   nbox == 1: box_idx = [0]
+                elif nbox >  1: 
+                    box_idx, allinone = list(range(0,nbox)), True
+                    
+            elif nrow*ncol > 1 and nrow*ncol <= nbox:   
+                box_idx, allinone = [ii], False
+            xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
+            
+            #___________________________________________________________________
+            # If nrow*ncol=1    && nbox > 1: plot all box lines in one figure panel
+            #    nrow*ncol=nbox && nbox > 1: plot each box lines in separate figure panel
+            for bi in box_idx:
+            
+                #___________________________________________________________________
+                cnt, cnt_cycl = 0, 0
+                if not allinone: xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
+                for jj in range(0,ndat):
+                    #_______________________________________________________________
+                    vname = list(data[jj][bi].data_vars)[0]
+                    data_y = data[jj][bi][vname].data.copy()
+                    ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
+                    
+                    #_______________________________________________________________
+                    if   'lat' in data[jj][bi]: 
+                        data_x     =  data[jj][bi]['lat'].values 
+                        str_xlabel = 'Latitude / deg' if ax_xlabel is None else ax_xlabel
+                    elif 'lon' in data[jj][bi]: 
+                        data_x     = data[jj][bi]['lon'].values 
+                        str_xlabel = 'Longitude / deg' if ax_xlabel is None else ax_xlabel 
+                    xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                    
+                    #_______________________________________________________________
+                    loc_attrs= data[jj][bi][vname].attrs
+                    str_ylabel, str_llabel, str_blabel = '', '', ''
+                    if ax_ylabel is None:
+                        if   'long_name'     in loc_attrs: str_ylabel = str_ylabel + loc_attrs['long_name']
+                        elif 'short_name'    in loc_attrs: str_ylabel = str_ylabel + loc_attrs['short_name']
+                        if   'units'         in loc_attrs: str_ylabel = str_ylabel + ' / ' + loc_attrs['units']
+                    else: 
+                        str_ylabel = ax_ylabel
+                    if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
+                    if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
+                    if   'transect_name' in loc_attrs: str_blabel = str_blabel + loc_attrs['transect_name']    
+                    str_blabel = str_blabel.replace('MOC','').replace('_','')
+                    if bi==0: list_strdatalabel.append(str_llabel)
+                    if jj==0: list_strboxlabel.append(str_blabel)
+                    
+                    #_______________________________________________________________
+                    # plot lines 
+                    optline.update({'color':cmap.colors[cnt,:]})
+                    optline.update(plt_opt)
+                    if allinone and nrow*ncol==1: optline.update({'linestyle':list_lstyle[bi]})
+                    optmark.update({'color':cmap.colors[cnt,:]})
+                    optmark.update(mark_opt)
+                    
+                    # plot black underlying shadow slightly wider than line on top 
+                    if do_shdw:
+                        optline2 = optline.copy()
+                        optline2.update({'color':'k', 'linewidth':optline['linewidth']*1.2, 'zorder':1})
+                        hax_ii.plot(data_x, data_y, **optline2)
+                    
+                    # plot actual line with color 
+                    h0 = hax_ii.plot(data_x, data_y, label=str_llabel, **optline)
+                    hp.append(h0)
+                    
+                    # plot mean value with left triangle 
+                    if do_mean: 
+                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<', **optmark)
+                    
+                    #_______________________________________________________________
+                    cnt      = cnt+1
+                    cnt_cycl = cnt_cycl+1
+                    if n_cycl is not None:
+                        if cnt_cycl>= n_cycl: cnt_cycl=0
+                
             #___________________________________________________________________
             if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
             if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
             
-            
             #___________________________________________________________________
             # add grids lines 
+            ax_xlim0 = ax_xlim
+            if ax_xlim is None: ax_xlim0=[xmin,xmax]
             h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
-                                  data_y=data_y, xlim=ax_xlim, ylim=ax_ylim, 
+                                  data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim, 
                                   grid_opt=grid_opt)
             hgrd.append(h0)
             
@@ -2145,15 +1849,402 @@ def plot_vprofile(data                   ,
             # -->bbox_to_anchor=(1.0, 1.0), loc='upper left' this should make sure 
             #    that the legend is always outside in the upper right corner 
             if hax_ii.coli==ncol-1 and hax_ii.rowi==0 : 
-                hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                              labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
-            
+                if allinone and nbox>1:
+                    # make data legend:
+                    legend1 = plt.legend([hp[i][0] for i in range(0,ndat,1)], list_strdatalabel, 
+                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                         labelspacing=0.5, bbox_to_anchor=(1.0, 0.0), loc='lower right')
+                    hax_ii.add_artist(legend1)
+                    
+                    # make box list legend:
+                    import copy as cp
+                    lines = [cp.copy(hp[i][0]) for i in range(0,ndat*nbox, ndat)]
+                    # make legend box lines always black, just show linestyle 
+                    for li in range(0,len(lines)): lines[li].set(color='k')
+                    legend2 = plt.legend(lines, list_strboxlabel, 
+                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                         labelspacing=0.5, bbox_to_anchor=(0.0, 1.0), loc='upper left')
+                    hax_ii.add_artist(legend2)
+                else:
+                    # make data legend:
+                    hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
+                    # box label becomes here axes title
             #___________________________________________________________________
             # add title and axes labels
             if ax_title is not None: 
                 if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
-                else                        : hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
+                else                        : 
+                    if not allinone and nbox>1: hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
+                    
+         
+    #___________________________________________________________________________
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
+    
+    #___________________________________________________________________________
+    list_argout=[]
+    if len(nargout)>0:
+        for stri in nargout:
+            try   : list_argout.append(eval(stri))
+            except: print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
+            
+        return(list_argout)
+    else:
+        return
+    
+
+    
+#
+#
+#_______________________________________________________________________________
+# --> do plotting of horizontal slices
+def plot_vline(data                   , 
+                box        = None      , 
+                box_idx    = None      ,
+                box_label  = None      , 
+                boxl_opt   = dict()    , # option for box label string 
+                cinfo      = None      , # colormap info and defintion
+                nrow       = 1         , # number of row in figures panel
+                ncol       = 1         , # number of column in figure panel
+                proj       = 'index+depth',
+                n_cycl     = None      ,
+                do_allcycl = False     , 
+                do_shdw    = True      ,
+                do_mean    = False     ,
+                #--- data -----------
+                plt_opt    = dict()    ,
+                mark_opt   = dict()    ,
+                #--- gridlines ------
+                do_grid    = True      , 
+                grid_opt   = dict({'ylog':True})    ,
+                #--- axes -----------
+                ax_title   = 'descript',
+                ax_xlabel  = None      ,
+                ax_ylabel  = None      ,
+                ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                ax_xlim    = None      ,
+                ax_ylim    = None      ,
+                #--- enumerate axes -
+                do_enum    = False     ,
+                enum_opt   = dict({'horizontalalignment':'center'})    , 
+                enum_str   = []        , 
+                enum_x     = [0.000]   , 
+                enum_y     = [1.005]    ,
+                enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                #--- save figure ----
+                do_save    = None      , 
+                save_dpi   = 300       ,
+                save_opt   = dict()    ,
+                #--- set output -----
+                nargout=['hfig', 'hax'],
+                ):
+    """
+    ---> plot FESOM2 horizontal data slice:
+    ___INPUT:___________________________________________________________________
+    data        :   xarray dataset object, or list of xarray dataset object
+    cinfo       :   None, dict() (default: None), dictionary with colorbar 
+                    information. Information that are given are used, others are 
+                    computed. cinfo dictionary entries can be: 
+                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
+                    max, reference value
+                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    cinfo['cnum']   ... minimum number of colors
+                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    cinfo['clevel'] ... color level array
+                    
+    box         :   None, list (default: None) regional limitation of plot. For 
+                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
+                    others box = [lonmin, lonmax, latmin, latmax]
+    
+    proj        :   str, (default: 'pc') which projection should be used, 
+                    pc     = PlateCarree
+                    merc   = Mercator
+                    rob    = Robinson
+                    eqearth= EqualEarth
+                    nps    = NorthPolarStereo
+                    sps    = SouthPolarStereo
+                    ortho  = Orthographic
+                    nears  = NearsidePerspective
+                    channel= PlateCaree
+                    
+    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
+    
+    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
+    
+    do_refig    :   bool, (default: False) do absolute reference figure, with 
+                    own colormap. Data for reference figure is data[0]
+                    
+    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
+                    towards nodes
+    
+    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
+                    string for colorbar. If 'log10' to logaritmic scaling, If 
+                    'slog10' do symetric logarithmic scaling
+    
+    --- plot data parameters ------------
+    do_plt      :   str, (default: tpc) = 
+                    tpc   = make pseudocolor plot (tripcolor)
+                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
+    plt_opt     :   dict, (default: dict()) additional options that are given to 
+                    tripcolor or tricontourf via the **kwarg argument
+    
+    plt_cont    :   bool, (default: False) overlay contour line plot of data
+    pltc_opt    :   dict, (default: dict()) additional options that are given to 
+                    tricontour via the **kwarg argument
+    
+    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
+    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
+                    clabel via the **kwarg argument
+    
+    #--- plot gridlines -----------------
+    do_grid     :   bool, (default: True) plot cartopy grid lines
+    grid_opt    :   dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via **kwarg
+                    
+    #--- axes ---------------------------
+    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
+                    in data to title label axes, If 'str' use this string to label axes
+    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
+                    do_axes_arrange
+    ax_xlim     :   list (default: None) overright xlimits of vslice
+    ax_ylim     :   list (default: None) overright ylimits of vslice       
+    
+    #--- enumerate axes -----------------
+    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
+    
+    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
+    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
+    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
+                    axes coordinates
+    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
+                    axes coordinates
+    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
+                    right, 'ud' from up to down
+    
+    #--- save figure ---------------------
+    do_save     :   str, (default: None) if None figure will by not saved, if 
+                    string figure will be saved, strings must give directory and 
+                    filename  where to save.     , 
+    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
+    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
+    
+    #--- set output ----------------------
+    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
+                    are given out from the routine. 
+                    Default: 
+                    hfig  - figure handle
+                    hax   - list of axes handle 
+                    hcb   - list of colorbar handles
+                    (every variable that is defined in this subroutine can become 
+                    output parameter)
+                    
+    ___RETURNS:_________________________________________________________________
+    hfig        :    returns figure handle 
+    hax         :    returns list with axes handle 
+    hcb         :    returns colorbar handle
+    ____________________________________________________________________________
+    """
+    #___________________________________________________________________________
+    # --> check if input data is a list
+    if not isinstance(data, list): data = [data]
+    # keep in mind ndat is here the number index boxes in thre list, not the number 
+    # of datas that are loaded
+    nbox = len(data[0])
+    ndat = len(data)
+    
+    #___________________________________________________________________________
+    # check vertical plotting mode if index+depth+xy, zmoc, dmoc
+    if proj is None:
+        if isinstance(data[0], xr.Dataset):
+            if 'proj' in data[0].attrs: proj=data[0].attrs['proj']
+        elif isinstance(data[0], list):
+            if isinstance(data[0][0], xr.Dataset):
+                if 'proj' in data[0][0].attrs: proj=data[0][0].attrs['proj']
+    
+    #___________________________________________________________________________
+    # --> create projection
+    proj_to = None
+    # proj is string 
+    if   isinstance(proj, str): 
+        proj_to, box = do_projection(None, proj, box)
+    # proj is cartopy projection object
+    elif isinstance(proj, ccrs.CRS): 
+        proj_to = proj
+    # proj is list of cartopy projection objects or string
+    elif isinstance(proj, list): 
+        proj_to = list()
+        for proj_ii in proj:
+            if   isinstance(proj_ii, str): 
+                proj_dum, box = do_projection(None, proj_ii, box)
+                proj_to.append(proj_dum)                
+            elif isinstance(proj_ii, ccrs.CRS):    
+                proj_to.append(proj_ii)    
+    
+    #___________________________________________________________________________
+    # --> pre-arange axes
+    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_sharey':True, 'ax_dt':1.75})
+    ax_optdefault.update(ax_opt)
+    hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
+    cb_plt_idx=cb_plt_idx[:nbox]
+    
+    #___________________________________________________________________________
+    # --> axes enumeration 
+    do_axes_enum(hax[:nbox], do_enum, nrow, ncol, enum_opt=enum_opt, enum_str=enum_str, 
+                       enum_x=enum_x, enum_y=enum_y, enum_dir=enum_dir)
+    
+    #___________________________________________________________________________
+    # setup colormap
+    if do_allcycl: 
+        if n_cycl is not None:
+            cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
+        else:
+            cmap = categorical_cmap(ndat, 1, cmap="tab10")
+    else:
+        cmap = categorical_cmap(ndat, 1, cmap="tab10")
+        
+    #___________________________________________________________________________
+    # --> loop over axes
+    hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
+    list_strdatalabel,list_strboxlabel = list(), list()
+    for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
+        # if there are no ddatra to fill axes, make it invisible 
+        if ii>=nbox: 
+            hax_ii.axis('off')
+        # axis is normally fillt with data    
+        else: 
+            #___________________________________________________________________
+            # prepare regular gridded data for plotting
+            # prepare regular gridded data for plotting
+            optline = dict({'linewidth':1.5, 'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
+            optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
+                            'clip_box':False, 'clip_on':False, 'zorder':3})
+            list_lstyle=['solid', 'dashed', 'dotted', 'dashdot', 'dashdotdotted']
+            
+            #___________________________________________________________________
+            allinone = False
+            if   nrow*ncol == 1:
+                if   nbox == 1: box_idx = [0]
+                elif nbox >  1: 
+                    box_idx, allinone = list(range(0,nbox)), True
+                    
+            elif nrow*ncol > 1 and nrow*ncol >= nbox:   
+                box_idx, allinone = [ii], False
+            xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
+            
+            #___________________________________________________________________
+            # If nrow*ncol=1    && nbox > 1: plot all box lines in one figure panel
+            #    nrow*ncol=nbox && nbox > 1: plot each box lines in separate figure panel
+            for bi in box_idx:
                 
+                #___________________________________________________________________
+                # prepare regular gridded data for plotting
+                cnt, cnt_cycl = 0, 0
+                if not allinone: xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
+                for jj in range(0,ndat):
+                    #_______________________________________________________________
+                    vname = list(data[jj][ii].data_vars)[0]
+                    data_x = data[jj][ii][vname].data.copy()
+                    xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                    
+                    #_______________________________________________________________
+                    data_y, str_ylabel = np.abs(data[jj][ii]['depth'].values) , 'Depth / m'
+                    ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
+                    
+                    #_______________________________________________________________
+                    loc_attrs= data[jj][ii][vname].attrs
+                    str_xlabel, str_llabel, str_blabel = '', '', ''
+                    if ax_xlabel is None:
+                        if   'long_name'     in loc_attrs: str_xlabel = str_xlabel + loc_attrs['long_name']
+                        elif 'short_name'    in loc_attrs: str_xlabel = str_xlabel + loc_attrs['short_name']
+                        if   'units'         in loc_attrs: str_xlabel = str_xlabel + ' / ' + loc_attrs['units']
+                    else:
+                        str_xlabel = ax_xlabel
+                    if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
+                    if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
+                    if   'transect_name' in loc_attrs: str_blabel = str_blabel + loc_attrs['transect_name']
+                    str_blabel = str_blabel.replace('MOC','').replace('_','')
+                    if bi==0: list_strdatalabel.append(str_llabel)
+                    if jj==0: list_strboxlabel.append(str_blabel)
+                    
+                    #_______________________________________________________________
+                    # plot lines 
+                    optline.update({'color':cmap.colors[cnt,:]})
+                    optline.update(plt_opt)
+                    if allinone and nrow*ncol==1: optline.update({'linestyle':list_lstyle[bi]})
+                    optmark.update({'color':cmap.colors[cnt,:]})
+                    optmark.update(mark_opt)
+                    
+                    # plot black underlying shadow slightly wider than line on top 
+                    if do_shdw:
+                        optline2 = optline.copy()
+                        optline2.update({'color':'k', 'linewidth':optline['linewidth']*1.2, 'zorder':1})
+                        hax_ii.plot(data_x, data_y, **optline2)
+                        
+                        
+                    h0 = hax_ii.plot(data_x, data_y, label=str_llabel, **optline)
+                    hp.append(h0)
+                    
+                    # plot mean value with left triangle 
+                    if do_mean: 
+                        auxx, auxy = data_x.copy(), data_y.copy()
+                        auxy[np.isnan(auxx)]=0
+                        auxx[np.isnan(auxx)]=0
+                        hax_ii.plot(np.nansum(auxx*auxy)/np.nansum(auxy), ymax+(data_y[-1]-data_y[0])*0.00, marker='v', **optmark)
+                        del(auxx,auxy)
+                    #_______________________________________________________________
+                    cnt      = cnt+1
+                    cnt_cycl = cnt_cycl+1
+                    if n_cycl is not None:
+                        if cnt_cycl>= n_cycl: cnt_cycl=0
+                        
+                #___________________________________________________________________
+                if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
+                if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
+            
+            
+            #___________________________________________________________________
+            # add grids lines 
+            ax_ylim0 = ax_ylim
+            if ax_ylim is None: ax_ylim0=[ymin,ymax]
+            h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
+                                  data_y=data_y, xlim=ax_xlim, ylim=ax_ylim0, 
+                                  grid_opt=grid_opt)
+            hgrd.append(h0)
+            
+            #_______________________________________________________________________
+            # do legend and legend positioning 
+            # -->bbox_to_anchor=(1.0, 1.0), loc='upper left' this should make sure 
+            #    that the legend is always outside in the upper right corner 
+            if hax_ii.coli==ncol-1 and hax_ii.rowi==0 : 
+                if allinone and nbox>1:
+                    # make data legend:
+                    legend1 = plt.legend([hp[i][0] for i in range(0,ndat,1)], list_strdatalabel, 
+                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                         labelspacing=0.5, bbox_to_anchor=(1.0, 0.0), loc='lower right')
+                    hax_ii.add_artist(legend1)
+                    
+                    # make box list legend:
+                    import copy as cp
+                    lines = [cp.copy(hp[i][0]) for i in range(0,ndat*nbox, ndat)]
+                    # make legend box lines always black, just show linestyle 
+                    for li in range(0,len(lines)): lines[li].set(color='k')
+                    legend2 = plt.legend(lines, list_strboxlabel, 
+                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                         labelspacing=0.5, bbox_to_anchor=(0.0, 1.0), loc='upper left')
+                    hax_ii.add_artist(legend2)
+                else:
+                    # make data legend:
+                    hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
+                    # box label becomes here axes title
+            #___________________________________________________________________
+            # add title and axes labels
+            if ax_title is not None: 
+                if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
+                else                        : 
+                    if not allinone and nbox>1: hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
          
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
@@ -2176,7 +2267,7 @@ def plot_vprofile(data                   ,
 #
 #_______________________________________________________________________________
 # --> do plot timeseries
-def plot_tseries(data, 
+def plot_tline(data, 
                 box, 
                 nrow       = 1         , # number of row in figures panel
                 ncol       = 1         , # number of column in figure panel
@@ -3069,8 +3160,10 @@ def do_axes_arrange(nx, ny,
                         if ax_sharey: y_share=hax[0]
                         hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], sharex=x_share, sharey=y_share)
                     
+                #hax[nn] = hfig.add_subplot(position=pos_ax[nn,:])    
                 hax[nn].projection = projection[nn]                           
-            
+                hax[nn].sharex     = ax_sharex
+                hax[nn].sharey     = ax_sharey
             # set position of axes
             hax[nn].set_position(pos_ax[nn,:])
             
@@ -4167,13 +4260,18 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             #___________________________________________________________________
             # check if do_ylog string exists in grid_opt dictionary
             do_ylog = False
+            do_yinv = False
             rmv  = []
             for ii in grid_optdefault.keys():
                 if ii in ['do_ylog', 'ylog'] :
                     # for MOC keep depth axes linear
                     if hax_ii.projection!='zmoc': do_ylog = grid_optdefault[ii]
                     rmv.append(ii)
-                
+                elif ii in ['do_yinv', 'yinv', 'do_yinvert', 'yinvert'] :
+                    # for MOC keep depth axes linear
+                    do_yinv = grid_optdefault[ii]
+                    rmv.append(ii)    
+              
             # remove do_ylog string from dictionary since its doesnt exist for tripcolor
             if len(rmv)!=0:
                 for ii in rmv:
@@ -4193,8 +4291,18 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                 if xlim   is not None: hax_ii.set_xlim(xlim[0]  ,xlim[-1])
                 if ylim   is not None: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
                 
+            
+            #if do_yinv: hax_ii.invert_yaxis()
+            
             if isinstance(hax_ii.projection, str):
-                if 'depth' in hax_ii.projection: hax_ii.invert_yaxis()
+                # Only invert the first axes in a multi axes plot since they are 
+                # coupled together with sharey the rest of the axes will change as well
+                if (hax_ii.coli==0 and hax_ii.rowi==0) and hax_ii.sharey:
+                    if hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+depth', 'zmoc']: 
+                        hax_ii.invert_yaxis()
+                
+                elif hax_ii.sharey and hax_ii.projection in ['index+depth']:
+                    hax_ii.invert_yaxis()
             
             hax_ii.grid(True,which='major')
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())

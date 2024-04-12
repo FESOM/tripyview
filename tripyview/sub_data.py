@@ -357,7 +357,6 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # write additional attribute info
     str_lsave = str_ltim+str_ldep
     str_lsave = str_lsave.replace(' ','_').replace(',','').replace(':','')
-    
     for vname in list(data.keys()):
         attr_dict=dict({'datapath':datapath, 'runid':runid, 'do_file':do_file, 'do_filename':do_filename, 
                         'year':year, 'mon':mon, 'day':day, 'record':record, 'depth':depth, 
