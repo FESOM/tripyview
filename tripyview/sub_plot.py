@@ -3852,11 +3852,18 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         raise ValueError(' --> this do_plt={:s} value is not valid'.format(do_plt))            
     
     #___________________________________________________________________________
+    # solve problem between  using lat_bnd & lon_bnd and lat & lon
+    if   data_plot.shape[1] == data_x.shape[0]  : data_x0=data_x
+    elif data_plot.shape[1] == data_x.shape[0]-1: data_x0=(data_x[1:] + data_x[:-1])*0.5
+    if   data_plot.shape[0] == data_y.shape[0]  : data_y0=data_y
+    elif data_plot.shape[0] == data_y.shape[0]-1: data_y0=(data_y[1:] + data_y[:-1])*0.5
+        
+    #___________________________________________________________________________
     # overlay background contour lines, very thin lines 
     if plt_contb:
         pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
         pltcb_optdefault.update(pltcb_opt)
-        h0cb = hax_ii.contour(data_x, data_y, data_plot,
+        h0cb = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=cinfo_plot['clevel'], transform=which_transf, **pltcb_optdefault) 
     
     #___________________________________________________________________________
@@ -3864,7 +3871,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     if plt_contf:    
         pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
         pltcf_optdefault.update(pltcf_opt)
-        h0cf = hax_ii.contour(data_x, data_y, data_plot,
+        h0cf = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=cinfo_plot['clab'], transform=which_transf, **pltcf_optdefault) 
         #_______________________________________________________________________
         if plt_contl:
@@ -3877,7 +3884,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     if plt_contr:    
         pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
         pltcr_optdefault.update(pltcr_opt)
-        h0cr = hax_ii.contour(data_x, data_y, data_plot,
+        h0cr = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=[cinfo_plot['cref']], transform=which_transf, **pltcr_optdefault) 
         #_______________________________________________________________________
         if plt_contl:

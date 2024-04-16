@@ -841,15 +841,6 @@ def convert_box2shp(boxlist, boxnamelist, shppath):
     return
 
 
-#
-#
-#+_____________________________________________________________________________+
-def forward(x):
-    return np.abs(x)**(1.0/2.5)
-def inverse(x):
-    return np.abs(x)**(2.5)
-
-
 
 #+___RAY TRACING METHOD PARALLEL TO CHECK IF POINT IS IN POLYGON_______________+
 #| see...https://stackoverflow.com/questions/36399381/whats-the-fastest-way-of-|
