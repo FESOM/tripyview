@@ -112,7 +112,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         
         #_______________________________________________________________________
         # rescue global attributes will get lost during multiplication
-        data_attrs= data_dMOC.attrs 
+        gattrs= data_dMOC.attrs 
         
         # multiply with weights
         data_dMOC = data_dMOC / data_dMOC.w_dens * 1024
@@ -120,8 +120,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             data_dMOC = data_dMOC / data_dMOC.w_A#--> element area
         
         # put back global attributes
-        data_dMOC = data_dMOC.assign_attrs(data_attrs)
-        del(data_attrs)
+        data_dMOC = data_dMOC.assign_attrs(gattrs)
+        del(gattrs)
         
     #___________________________________________________________________________
     # add volume trend  
@@ -244,7 +244,11 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         
         # doing this step here so that the MOC amplitude is correct, setp 1 of 2
         # divide with verice area
-        data_div  = data_div/data_div['w_A']    # --> vertice area
+        gattrs   = data_div.attrs
+        data_div = data_div/data_div['w_A']    # --> vertice area
+        
+        # save global attributes
+        data_div = data_div.assign_attrs(gattrs)
         
         # skip this when doing diapycnal vertical velocity
         if not do_wdiap:
@@ -271,7 +275,11 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             
             # doing this step here so that the MOC amplitude is correct, setp 2 of 2
             # multiply with elemental area
-            data_div  = data_div*data_dMOC['w_A']# --> element area
+            gattrs   = data_div.attrs
+            data_div = data_div*data_dMOC['w_A']# --> element area
+            
+            # save global attributes
+            data_div = data_div.assign_attrs(gattrs)
             
         data_dMOC = xr.merge([data_dMOC, data_div], combine_attrs="no_conflicts")  
         del(data_div)
@@ -288,7 +296,11 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             
             # doing this step here so that the MOC amplitude is correct, setp 1 of 2
             # divide with verice area
+            gattrs          = data_div_bolus.attrs
             data_div_bolus  = data_div_bolus/data_div_bolus['w_A'] # --> vertice area
+            
+            # save global attributes
+            data_div_bolus  = data_div_bolus.assign_attrs(gattrs)
             
             # skip this when doing diapycnal vertical velocity
             if not do_wdiap:
@@ -326,7 +338,6 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     if 'nzi'   in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['nzi'])
     
     str_proj = 'dmoc'
-    if which_transf in ['srf','inner']: str_proj = str_proj + '_' + which_transf
     if do_zcoord: str_proj = str_proj + '+depth'
     else        : str_proj = str_proj + '+dens'
     data_dMOC.attrs['proj'] = str_proj
@@ -347,10 +358,14 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
 #|                                                                             |
 #+_____________________________________________________________________________+
-def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_checkbasin=False,
+def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', which_transf=None, do_info=True, do_checkbasin=False,
               exclude_meditoce=True, do_bolus=True, do_parallel=False, n_workers=10, 
-              do_compute=False, do_load=True, do_persist=False, 
+              do_compute=False, do_load=True, do_persist=False, do_dropvar=True, 
               **kwargs):
+    
+    # rescue global dataset attributes
+    gattr = data_dMOC.attrs
+    
     #___________________________________________________________________________
     # compute index for basin domain limitation
     ts1 = clock.time()
@@ -469,20 +484,22 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
         
         #_______________________________________________________________________
         # add more variable attributes
+        strmoc = 'd'+which_moc.upper()
         vattr = data_dMOC[vari].attrs
-        if   vari=='dmoc_fh'   : vattr.update({'long_name':'Transformation from heat flux'                 , 'units':'Sv'   })
-        elif vari=='dmoc_fw'   : vattr.update({'long_name':'Transformation from freshwater flux'           , 'units':'Sv'   })
-        elif vari=='dmoc_fr'   : vattr.update({'long_name':'Transformation from surface salinity restoring', 'units':'Sv'   })
-        elif vari=='dmoc_fd'   : vattr.update({'long_name':'Transformation from total density flu'         , 'units':'Sv'   })
-        elif vari=='dmoc_dvdt' : vattr.update({'long_name':'Transformation from volume change'             , 'units':'Sv'   })
-        elif vari=='dmoc'      : vattr.update({'long_name':'Density MOC'                                   , 'units':'Sv'   })
-        elif vari=='dmoc_bolus': vattr.update({'long_name':'Density MOC bolus vel.'                        , 'units':'Sv'   })
-        elif vari=='ndens_h'   : vattr.update({'long_name':'Density class thickness'                       , 'units':'m'    })
-        elif vari=='ndens_zfh' : vattr.update({'long_name':'Density class z position'                      , 'units':'m'    })
-        elif vari=='ndens_z'   : vattr.update({'long_name':'Density class z position'                      , 'units':'m'    })
-        elif vari=='nz_rho'    : vattr.update({'long_name':'sigma2 density in zcoord'                      , 'units':'kg/m³'})
+        if   vari=='dmoc_fh'   : vattr.update({'long_name':'Transformation from heat flux'                 , 'short_name':strmoc+'_fh'   , 'units':'Sv'   })
+        elif vari=='dmoc_fw'   : vattr.update({'long_name':'Transformation from freshwater flux'           , 'short_name':strmoc+'_fw'   , 'units':'Sv'   })
+        elif vari=='dmoc_fr'   : vattr.update({'long_name':'Transformation from surface salinity restoring', 'short_name':strmoc+'_fr'   , 'units':'Sv'   })
+        elif vari=='dmoc_fd'   : vattr.update({'long_name':'Transformation from total density flu'         , 'short_name':strmoc+'_fd'   , 'units':'Sv'   })
+        elif vari=='dmoc_dvdt' : vattr.update({'long_name':'Transformation from volume change'             , 'short_name':strmoc+'_dv'   , 'units':'Sv'   })
+        elif vari=='dmoc'      : vattr.update({'long_name':'Density MOC'                                   , 'short_name':strmoc         , 'units':'Sv'   })
+        elif vari=='dmoc_bolus': vattr.update({'long_name':'Density MOC bolus vel.'                        , 'short_name':strmoc+'_bolus', 'units':'Sv'   })
+        elif vari=='ndens_h'   : vattr.update({'long_name':'Density class thickness'                       , 'short_name':'ndens_h'      , 'units':'m'    })
+        elif vari=='ndens_zfh' : vattr.update({'long_name':'Density class z position'                      , 'short_name':'ndens_zfh'    , 'units':'m'    })
+        elif vari=='ndens_z'   : vattr.update({'long_name':'Density class z position'                      , 'short_name':'ndens_z'      , 'units':'m'    })
+        elif vari=='nz_rho'    : vattr.update({'long_name':'sigma2 density in zcoord'                      , 'short_name':'nz_rho'       , 'units':'kg/m³'})
         dmoc[vari]=dmoc[vari].assign_attrs(vattr)
     del(data_dMOC)
+    dmoc=dmoc.assign_attrs(gattr)
     
     #___________________________________________________________________________
     # exclude variables that should not be cumulatively integrated --> than do
@@ -517,10 +534,36 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
         dmoc[ 'ndens_zfh'  ].loc[dict(ndens=dmoc['ndens'][0])]=0.0
     
     #___________________________________________________________________________
-    # Add bolus MOC to normal MOC
-    if 'dmoc_bolus'in list(dmoc.keys()) and do_bolus:  
-        dmoc['dmoc'].data = dmoc['dmoc'].data + dmoc['dmoc_bolus'].data 
+    # Move grid related variables into coordinate section of the xarray dataset
+    if 'ndens_h'   in list(dmoc.keys()): dmoc = dmoc.set_coords('ndens_h')
+    if 'ndens_zfh' in list(dmoc.keys()): dmoc = dmoc.set_coords('ndens_zfh')
+    if 'nz_rho'    in list(dmoc.keys()): dmoc = dmoc.set_coords('nz_rho')
     
+    #___________________________________________________________________________
+    # Add bolus MOC to normal MOC
+    if 'dmoc' in list(dmoc.keys()) and 'dmoc_bolus' in list(dmoc.keys()) and do_bolus:  
+        dmoc['dmoc'].data = dmoc['dmoc'].data + dmoc['dmoc_bolus'].data
+        if do_dropvar: dmoc = dmoc.drop_vars('dmoc_bolus')
+        
+    if which_transf is not None:    
+        if 'srf' in which_transf: 
+            if 'dmoc_fh' in dmoc.data_vars and 'dmoc_fw' in dmoc.data_vars and 'dmoc_fr' in dmoc.data_vars:
+                dmoc['dmoc_srf'] =  -(dmoc['dmoc_fh']+dmoc['dmoc_fw']+dmoc['dmoc_fr'])
+                
+                vattr = dmoc['dmoc_fh'].attrs
+                vattr.update({'long_name':'Surface Transformation'                 , 'short_name':strmoc+'_srf'   , 'units':'Sv'   })
+                dmoc['dmoc_srf'] = dmoc['dmoc_srf'].assign_attrs(vattr)
+                if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr'])
+
+        elif 'inner' in which_transf:
+            if 'dmoc_fh' in dmoc.data_vars and 'dmoc_fw' in dmoc.data_vars and 'dmoc_fr' in dmoc.data_vars and 'dmoc' in dmoc.data_vars:
+                dmoc['dmoc_inner'] =  dmoc['dmoc']+(dmoc['dmoc_fh']+dmoc['dmoc_fw']+dmoc['dmoc_fr'])
+                
+                vattr = dmoc['dmoc'].attrs
+                vattr.update({'long_name':'Inner Transformation'                 , 'short_name':strmoc+'_inner'   , 'units':'Sv'   })
+                dmoc['dmoc_inner'] = dmoc['dmoc_inner'].assign_attrs(vattr)
+                if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr', 'dmoc'])
+                
     #___________________________________________________________________________
     # compute depth of max and mean bottom topography
     elemz     = xr.DataArray(np.abs(mesh.zlev[mesh.e_iz]), dims=['elem'])

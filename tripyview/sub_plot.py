@@ -19,6 +19,7 @@ from   matplotlib.colors        import ListedColormap
 from   matplotlib.ticker        import MultipleLocator, AutoMinorLocator, ScalarFormatter
 
 from   scipy.signal             import convolve2d
+from   scipy.interpolate        import interp1d
 
 import warnings
 
@@ -1167,7 +1168,7 @@ def plot_vslice(mesh                   ,
                 lsm_res    = 'low'     ,
                 #--- gridlines ------
                 do_grid    = True      , 
-                grid_opt   = dict({'ylog':True})    ,
+                grid_opt   = dict({'yexp':True})    ,
                 #--- colorbar -------
                 cb_label   = None      ,
                 cb_unit    = None      ,
@@ -1388,19 +1389,24 @@ def plot_vslice(mesh                   ,
     for ii in np.unique(cb_plt_idx):
         idsel = np.where(cb_plt_idx==ii)[0]
         
+        print(hax[0].projection)
+        #_______________________________________________________________________
+        # setup my own colormap definition dictionary
         cinfo_optdefault=dict()
         if   hax[0].projection in ['index+depth+xy', 'index+depth+time']:
             cinfo_optdefault.update({'do_index':True, 'box_idx':box_idx})
-        elif hax[0].projection == 'zmoc':
+        elif hax[0].projection == 'zmoc' :
             cinfo_optdefault.update({'do_moc':True})
+        elif hax[0].projection == 'dmoc+depth' or hax[0].projection == 'dmoc+dens':
+            cinfo_optdefault.update({'do_dmoc':True})
             
-        #_______________________________________________________________________
         if isinstance(cinfo, list):
             cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale, **cinfo_optdefault) )
         else:    
             cinfo_plot.append( do_setupcinfo(cinfo, [data[jj] for jj in idsel], do_rescale, **cinfo_optdefault) )
         
         #_______________________________________________________________________
+        # setup matplotlib rescaling options for, log10, slog10, or predefined array
         if isinstance(do_rescale, list):
             norm_plot.append(  do_data_norm(cinfo_plot[-1], do_rescale[ii-1]) )
         else:
@@ -1434,16 +1440,31 @@ def plot_vslice(mesh                   ,
             
             ##__________________________________________________________________
             ## add bottom  mask
+            ax_xlim0, ax_ylim0 = ax_xlim, ax_ylim
             if   hax_ii.projection=='index+depth+xy':
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, data_plot=data_plot, bot_opt=bot_opt)
+                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, 
+                                data_plot=data_plot, bot_opt=bot_opt)
+            
+            # zmoc bottom patch
             elif hax_ii.projection=='zmoc':
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, data_plot=data[ii]['botnice'].values, bot_opt=bot_opt)    
-            hbot.append(h0)  
+                ax_ylim0 = [0, abs(mesh.zlev[-1])]
+                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, 
+                                data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
+                                bot_opt=bot_opt) 
+                
+            # dmoc when doeing z-coordinate projection bottom patch                   
+            elif 'dmoc' in hax_ii.projection and \
+                ('ndens_zfh' in data[ii].coords or 'nz_rho' in data[ii].coords or'ndens_z' in data[ii].coords) :
+                ax_ylim0 = [0, abs(mesh.zlev[-1])]
+                h0 = do_plt_bot(hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
+                                data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
+                                bot_opt=bot_opt)    
+            hbot.append(h0)
             
             #___________________________________________________________________
             # add grids lines 
             h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, data_x=data_x, 
-                                  data_y=data_y, xlim=ax_xlim, ylim=ax_ylim, 
+                                  data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim0, 
                                   grid_opt=grid_opt)
             hgrd.append(h0)
             
@@ -1490,7 +1511,7 @@ def plot_vslice(mesh                   ,
                 boxl_optdefault.update({'s':box_label[ii]}) 
             
             # print moc labels
-            elif hax_ii.projection=='zmoc':
+            elif hax_ii.projection in ['zmoc', 'dmoc+depth', 'dmoc+dens']:
                 vname     = list(data[ii].keys())[0]
                 loc_attrs = data[ii][vname].attrs
                 if 'short_name' in loc_attrs: boxl_optdefault.update({'s':loc_attrs['short_name']})
@@ -2607,6 +2628,8 @@ def do_projection(mesh, proj, box):
     elif  proj == 'index+xy'         : proj_to = 'index+xy'
     elif  proj == 'zmoc'             : proj_to = 'zmoc'
     elif  proj == 'dmoc'             : proj_to = 'dmoc'
+    elif  proj == 'dmoc+depth'       : proj_to = 'dmoc+depth'
+    elif  proj == 'dmoc+dens'        : proj_to = 'dmoc+dens'
     else: 
         raise ValueError('The projection {} is not supporrted!'.format(proj))
         
@@ -2916,7 +2939,9 @@ def do_axes_arrange(nx, ny,
             elif projection[0]=='index+time'      : ax_asp = 2.5
             elif projection[0]=='index+xy'        : ax_asp = 1.5
             elif projection[0]=='zmoc'            : ax_asp = 2.0   
-            elif projection[0]=='zmoc'            : ax_asp = 2.0   
+            elif projection[0]=='dmoc'            : ax_asp = 2.0
+            elif projection[0]=='dmoc+depth'      : ax_asp = 2.0   
+            elif projection[0]=='dmoc+dens'       : ax_asp = 2.0   
             else                                  : ax_asp = 1.0    
         #print('ax_asp=', ax_asp)
         ax_w = ax_h*ax_asp
@@ -3503,10 +3528,35 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx):
              
     # data is a direct vertical profile and not a list of index profiles e,g MOC         
     else:
-        vname = list(data_ii.keys())[0]
+        vname = list(data_ii.data_vars)[0]
         data_plot = data_ii[vname].data.copy()
-        data_y, str_ylabel = np.abs(data_ii['depth'].values) , 'Depth / m'
-        #_______________________________________________________________________
+        
+        #___Y-axis variables____________________________________________________
+        # 
+        if   'depth' in list(data_ii.coords):
+            data_y, str_ylabel = np.abs(data_ii['depth'].values) , 'Depth / m'
+        
+        # dmoc y-varaible for zcoord remapping 
+        elif 'ndens_zfh' in list(data_ii.coords): 
+            data_y, str_ylabel = data_ii['ndens_zfh'].values , 'Depth / m'
+             
+        elif 'nz_rho'    in list(data_ii.coords): 
+            #data_x, data_y, data_v, dum = do_ztransform_martin(mesh, data[ii])
+            #data_x, data_y, data_v = do_ztransform_mom6(mesh, data[ii])
+            data_x, data_y, data_v = do_ztransform_hydrography(mesh, data_ii)
+            data_y = -data_y
+            
+        elif 'ndens_z'    in list(data_ii.coords): 
+            data_x, data_y = do_ztransform(data_plot)
+            data_plot = data_plot.copy()
+            data_plot = data_plot[1:-1,:]
+        
+        # dmoc in density coordinates         
+        elif 'dens'    in list(data_ii.coords): 
+            data_y, str_ylabel = data_ii['dens'].values, '${\\sigma}_{2}$ pot. Density / kg${\\cdot}$m$^{-3}$'
+            data_y, data_plot = data_y[1:-1], data_plot[1:-1,:]
+        
+        #___X-axis variables____________________________________________________
         # data must be a transect 
         if 'dst' in  list(data_ii.variables):
             auxlat, auxlon = data_ii['lat'].values[[0,-1]], data_ii['lon'].values[[0,1]]
@@ -3518,7 +3568,6 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx):
             else           : data_x, str_xlabel = data_ii['dst'].values , 'Distance / km'   
             del(auxlat, auxlon, angle)
             
-        #_______________________________________________________________________
         # data can be any other vertical index    
         else:     
             if   'lat'  in list(data_ii.coords): 
@@ -3531,7 +3580,10 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx):
                 totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
                 data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear  
                 data_plot = data_plot.transpose()
-    
+                
+            if 'ndens_zfh' in list(data_ii.coords): 
+                data_x = np.ones(data_y.shape)*data_x
+
     #___________________________________________________________________________
     if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
     if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
@@ -3940,7 +3992,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
 #
 #_______________________________________________________________________________
 # --> plot bottom mask
-def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, bot_opt=dict()):
+def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, ylim=None, bot_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -4011,13 +4063,16 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
         h0 = hax_ii.fill_between(data_x, bottom, data_y[-1], **bot_optdefault)#,alpha=0.95)
     
     # plot bottom mask for zmoc
-    elif hax_ii.projection=='zmoc':
+    elif 'zmoc' in hax_ii.projection or 'dmoc+depth' in hax_ii.projection:
         bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':4})
         bot_optdefault.update(bot_opt)
             
-        bottom    = data_plot
-        h0 = hax_ii.fill_between(data_x, bottom, data_y[-1], **bot_optdefault)#,alpha=0.95)
-        
+        if ylim==None: maxbot=np.nanmax(data_y)
+        else        : maxbot=ylim[-1]
+            
+        bottom = data_plot
+        h0 = hax_ii.fill_between(data_x, bottom, maxbot, **bot_optdefault)#,alpha=0.95)
+    
     return(h0)
     
 #
@@ -4251,59 +4306,142 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             
         #_______________________________________________________________________
         # grid options for index vs. depth vs. xy plot
-        elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+depth', 'zmoc', 'index+time', 'index+xy']:
+        elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 
+                                   'index+depth', 'index+time', 'index+xy', 
+                                   'zmoc', 'dmoc', 'dmoc+dens', 'dmoc+depth']:
             #___________________________________________________________________
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':-1})
             grid_optdefault.update(grid_opt)
-            #print(grid_optdefault)
             
             #___________________________________________________________________
-            # check if do_ylog string exists in grid_opt dictionary
-            do_ylog = False
-            do_yinv = False
+            # default do_yexp, do_ysig settings
+            do_yexp         = False  # do nonlinear/ exponential depth sscaling for vertical plots
+            yexp_majorticks = np.array([10,100,250,500,1000,2000,4000,6000])
+            yexp_fac        = 2.0
+            
+            do_ysig         = False  # do nonlinear sigma sscaling for dmoc plot
+            ysig_majorticks = np.array([30.00, 36.00, 36.65, 36.92, 37.05])
+            ysig_minorticks = np.sort(np.unique(np.hstack([0.00, 
+                                np.arange(30.00, 35.99, 1.00), np.arange(36.00, 36.64, 0.20),# 0.15
+                                np.arange(36.65, 36.91, 0.05), np.arange(36.92, 37.04, 0.02),
+                                np.arange(37.05, 38.50, 0.25), 40.00])))
+            
+            do_yinv         = False  # invert y-axis
+            
+            #___________________________________________________________________
+            # check if do_yscaling (do_yexp, do_ysig) related string exists in 
+            # grid_opt dictionary
             rmv  = []
             for ii in grid_optdefault.keys():
-                if ii in ['do_ylog', 'ylog'] :
+                if ii in ['do_yexp', 'yexp', 'do_yexponential', 'yexponential'] :
                     # for MOC keep depth axes linear
-                    if hax_ii.projection!='zmoc': do_ylog = grid_optdefault[ii]
+                    if not 'zmoc' in hax_ii.projection and not 'dmoc' in hax_ii.projection : do_yexp = grid_optdefault[ii]
                     rmv.append(ii)
+                elif ii in ['yexp_majorticks'] :
+                    yexp_majorticks = grid_optdefault[ii]
+                    rmv.append(ii)
+                elif ii in ['yexp_fac'] :
+                    yexp_fac = grid_optdefault[ii]
+                    rmv.append(ii)       
                 elif ii in ['do_yinv', 'yinv', 'do_yinvert', 'yinvert'] :
                     # for MOC keep depth axes linear
                     do_yinv = grid_optdefault[ii]
                     rmv.append(ii)    
-              
-            # remove do_ylog string from dictionary since its doesnt exist for tripcolor
+                elif ii in ['do_ysig', 'ysig', 'ysigma', 'do_ysigma'] :    
+                    if 'dmoc+dens' in hax_ii.projection : do_ysig = grid_optdefault[ii]
+                    rmv.append(ii) 
+                elif ii in ['ysig_majorticks'] :
+                    yexp_majorticks = grid_optdefault[ii]
+                    rmv.append(ii) 
+                elif ii in ['ysig_minorticks'] :
+                    ysig_minorticks = grid_optdefault[ii]
+                    rmv.append(ii)     
+            
+            # remove do_ylog, do_yinv, do_ysig string from dictionary since its 
+            # doesnt exist for tripcolor
             if len(rmv)!=0:
                 for ii in rmv:
                     del(grid_optdefault[ii])
             
             #___________________________________________________________________
-            if do_ylog: 
-                hax_ii.set_yscale('function', functions=(forward, inverse))
-                #yticklog = np.array([10,50,100,250,500,1000,2000,4000,6000])
-                yticklog = np.array([10,100,250,500,1000,2000,4000,6000])
-                hax_ii.set_yticks(yticklog)
+            # do exponential depth axis scaling
+            if do_yexp and hax_ii.projection not in ['dmoc+dens']: 
+                # Define your custom transformation function
+                def forward_yexp(y, *args):
+                    return np.abs(y)**(1.0/args[0])
                 
-                if data_y is not None: hax_ii.set_ylim(data_y[0],data_y[-1])
-                if ylim   is not None: hax_ii.set_ylim(np.max([ylim[0], data_y[0]]) ,np.min([ylim[1], data_y[-1]]))
-                if xlim   is not None: hax_ii.set_xlim(xlim[0]  ,xlim[-1])
-            else:
-                if xlim   is not None: hax_ii.set_xlim(xlim[0]  ,xlim[-1])
-                if ylim   is not None: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
+                def inverse_yexp(y, *args):
+                    return np.abs(y)**(args[0])
                 
+                hax_ii.set_yscale( 'function', functions=(lambda y: forward_yexp(y, yexp_fac), lambda y: inverse_yexp(y, yexp_fac)) )
+                hax_ii.set_yticks(yexp_majorticks)
+                         
+            #___________________________________________________________________
+            # do nonlinear sigma2 scaling for dmoc in density space
+            elif do_ysig and hax_ii.projection in ['dmoc+dens']:
+                # Define your custom transformation function
+                def forward_ysig(y, *args):
+                    reg = np.linspace(0, len(args[0]), len(args[0]))[::-1]
+                    dens2reg = interp1d(args[0], reg, kind='linear')
+                    y1       = dens2reg(y)
+                    y1[y1<0] = 0
+                    y1[y1>np.max(reg)] = np.max(reg)
+                    return y1
+                
+                def inverse_ysig(y, *args):
+                    reg = np.linspace(0, len(args[0]), len(args[0]))[::-1]
+                    reg2dens = interp1d(reg, args[0], kind='linear')
+                    y[y<0]   = 0
+                    y[y>np.max(reg)] = np.max(reg)
+                    y1       = reg2dens(y)
+                    return y1 
+                
+                hax_ii.set_yscale( 'function', functions=(lambda y: forward_ysig(y, ysig_minorticks), lambda y: inverse_ysig(y, ysig_minorticks)) )
+                
+                # do custom sigma y-labels
+                # do major ticklabels in larger font
+                hax_ii.set_yticks( ysig_majorticks, minor=False ) 
+                ylabelmayjor_list_fmt=list()
+                for num in ysig_majorticks: ylabelmayjor_list_fmt.append('{:2.2f}'.format(num))
+                hax_ii.set_yticklabels(ylabelmayjor_list_fmt, minor=False, size=10)
+                    
+                # do minor ticklabels in small font
+                yminorticks = np.setdiff1d(ysig_minorticks[1:-1], ysig_majorticks)
+                hax_ii.set_yticks(yminorticks, minor=True  )
+                ylabelminor_list_fmt=list()
+                for num in yminorticks: ylabelminor_list_fmt.append('{:2.2f}'.format(num))
+                hax_ii.set_yticklabels(ylabelminor_list_fmt, minor=True, size = 6)
+                
+                if not hax_ii.do_ylabel: # bugfix in case of shared yaxes
+                    hax_ii.tick_params(axis='y', which='minor', left=True, right=False, labelleft=False, labelright=False)
             
-            #if do_yinv: hax_ii.invert_yaxis()
+            #___________________________________________________________________
+            # set x/y limits
+            if data_y is not None: 
+                if np.ndim(data_y)==1 : hax_ii.set_ylim(data_y[0],data_y[-1])
+                if np.ndim(data_y)==2 : hax_ii.set_ylim(np.nanmin(data_y),np.nanmax(data_y))
             
+            if ylim is not None: 
+                if do_yexp: hax_ii.set_ylim(np.max([ylim[0], data_y[0]]) ,np.min([ylim[1], data_y[-1]]))
+                # bug fix for invert y-axis when doing moc 
+                elif hax_ii.projection not in ['zmoc', 'dmoc+depth']: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
+            
+            if xlim is not None: hax_ii.set_xlim(xlim[0]  ,xlim[-1])
+            
+            #___________________________________________________________________
+            # invert y-axis
             if isinstance(hax_ii.projection, str):
-                # Only invert the first axes in a multi axes plot since they are 
-                # coupled together with sharey the rest of the axes will change as well
-                if (hax_ii.coli==0 and hax_ii.rowi==0) and hax_ii.sharey:
-                    if hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+depth', 'zmoc']: 
-                        hax_ii.invert_yaxis()
-                
-                elif hax_ii.sharey and hax_ii.projection in ['index+depth']:
+                if   hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+depth']: 
                     hax_ii.invert_yaxis()
+                elif hax_ii.projection in ['zmoc', 'dmoc+depth']:    
+                    if ylim is not None: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
+                    hax_ii.invert_yaxis()
+                
+            else:
+                if do_yinv: hax_ii.invert_yaxis()
             
+            #___________________________________________________________________
+            # set grid options 
             hax_ii.grid(True,which='major')
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
             hax_ii.get_xaxis().set_minor_locator(AutoMinorLocator())
@@ -4578,11 +4716,12 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 if do_vec==False:
                     if   do_index: data_plot = data_ii[box_idx][ vname[0] ].data.copy()
                     elif do_moc  : data_plot = data_ii['zmoc'].isel(nz=np.abs(data_ii['depth'])>=500).values.copy()
-                    elif do_dmoc is not None  : 
-                        if   do_dmoc=='dmoc'  : data_plot = data_ii['dmoc'].data.copy()
-                        elif do_dmoc=='srf'   : data_plot = -(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
-                        elif do_dmoc=='inner' : data_plot = data_ii['dmoc'].data.copy() + \
-                                                            (data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
+                    elif do_dmoc : data_plot = data_ii[ vname[0] ].data.copy()
+                    #elif do_dmoc is not None  : 
+                        #if   do_dmoc=='dmoc'  : data_plot = data_ii['dmoc'].data.copy()
+                        #elif do_dmoc=='srf'   : data_plot = -(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
+                        #elif do_dmoc=='inner' : data_plot = data_ii['dmoc'].data.copy() + \
+                                                            #(data_ii['dmoc_fh'].data.copy()+data_ii['dmoc_fw'].data.copy()+data_ii['dmoc_fr'].data.copy())
                     elif do_hbstf: data_plot = data_ii[ vname[0] ].data.copy() 
                     else         : 
                         data_plot   = data_ii[ vname[0] ].data.copy()
