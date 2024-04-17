@@ -5065,6 +5065,8 @@ def do_savefigure(do_save, hfig, dpi=300, do_info=True, save_opt=dict()):
                 hfig.savefig(os.path.join(sdname,sfname), format=sfformat, dpi=dpi, 
                             **save_optdefault)
 
+
+
 #
 #
 #_______________________________________________________________________________
@@ -5378,6 +5380,7 @@ def arrange_axes(nx, ny,
     else:
         return
     #return fig, hca, hcb
+
 
 
 #
