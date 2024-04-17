@@ -4530,7 +4530,8 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
         elif 'short_name' in loc_attrs:
             c_label = cb_label+loc_attrs['short_name']
         
-        if cb_unit  is None: cb_label = cb_label+' / '+loc_attrs['units']
+        if cb_unit  is None:
+            if 'units' in loc_attrs: cb_label = cb_label+' / '+loc_attrs['units']
         else:                cb_label = cb_label+' / '+cb_unit
             
         if 'str_ltim' in loc_attrs: cb_label = cb_label+'\n'+loc_attrs['str_ltim']
@@ -4879,9 +4880,10 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cinfo['clevel'][ispos] = np.power(10.0, cinfo['clevel'][ispos])
     
     elif isinstance(do_rescale, np.ndarray):
-        rescale_ref=None
+        rescal_ref=None
         if any(do_rescale==0.0) and do_rescale[0]!=0.0 and cinfo['cref']==0.0: rescal_ref=cinfo['cref']
         nrscal = len(do_rescale)-1
+        print(do_rescale, rescal_ref)
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(0, nrscal, np.int16(nrscal/2), nrscal, cinfo['cstr'], 
                                                                    cstep=1 ,do_slog=False, do_rescal=do_rescale, rescal_ref=rescal_ref)
         cinfo['clevel'] = do_rescale
