@@ -1389,7 +1389,6 @@ def plot_vslice(mesh                   ,
     for ii in np.unique(cb_plt_idx):
         idsel = np.where(cb_plt_idx==ii)[0]
         
-        print(hax[0].projection)
         #_______________________________________________________________________
         # setup my own colormap definition dictionary
         cinfo_optdefault=dict()
@@ -1569,7 +1568,7 @@ def plot_hline(data                   ,
                 mark_opt   = dict()    ,
                 #--- gridlines ------
                 do_grid    = True      , 
-                grid_opt   = dict({'ylog': False})    ,
+                grid_opt   = dict()    ,
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_xlabel  = None      ,
@@ -1736,7 +1735,7 @@ def plot_hline(data                   ,
     
     #___________________________________________________________________________
     # --> pre-arange axes
-    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_sharey':True, 'ax_dt':1.75})
+    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_sharey':False, 'ax_dt':1.75})
     ax_optdefault.update(ax_opt)
     hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
     cb_plt_idx=cb_plt_idx[:nbox]
@@ -1858,10 +1857,11 @@ def plot_hline(data                   ,
             
             #___________________________________________________________________
             # add grids lines 
-            ax_xlim0 = ax_xlim
+            ax_xlim0, ax_ylim0 = ax_xlim, ax_ylim 
             if ax_xlim is None: ax_xlim0=[xmin,xmax]
+            if ax_ylim is None: ax_ylim0=[ymin,ymax]
             h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
-                                  data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim, 
+                                  data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim0, 
                                   grid_opt=grid_opt)
             hgrd.append(h0)
             
@@ -1938,7 +1938,7 @@ def plot_vline(data                   ,
                 mark_opt   = dict()    ,
                 #--- gridlines ------
                 do_grid    = True      , 
-                grid_opt   = dict({'ylog':True})    ,
+                grid_opt   = dict({'yexp':True})    ,
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_xlabel  = None      ,
@@ -2496,10 +2496,11 @@ def plot_tline(data,
             
             #___________________________________________________________________
             # add grids lines 
-            if ax_xlim is None: ax_xlim=[xmin,xmax]
-            #if ax_ylim is None: ax_ylim=[ymin,ymax]
+            ax_xlim0, ax_ylim0 = ax_xlim, ax_ylim 
+            if ax_xlim is None: ax_xlim0=[xmin,xmax]
+            if ax_ylim is None: ax_ylim0=[ymin,ymax]
             h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
-                                  data_y=data_y, xlim=ax_xlim, ylim=ax_ylim, 
+                                  data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim0, 
                                   grid_opt=grid_opt)
             hgrd.append(h0)  
             
@@ -3853,10 +3854,12 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     
     #___________________________________________________________________________
     # solve problem between  using lat_bnd & lon_bnd and lat & lon
-    if   data_plot.shape[1] == data_x.shape[0]  : data_x0=data_x
-    elif data_plot.shape[1] == data_x.shape[0]-1: data_x0=(data_x[1:] + data_x[:-1])*0.5
-    if   data_plot.shape[0] == data_y.shape[0]  : data_y0=data_y
-    elif data_plot.shape[0] == data_y.shape[0]-1: data_y0=(data_y[1:] + data_y[:-1])*0.5
+    if   np.ndim(data_x) == 1:
+        if   data_plot.shape[1] == data_x.shape[0]  : data_x0=data_x
+        elif data_plot.shape[1] == data_x.shape[0]-1: data_x0=(data_x[1:] + data_x[:-1])*0.5
+        if   data_plot.shape[0] == data_y.shape[0]  : data_y0=data_y
+        elif data_plot.shape[0] == data_y.shape[0]-1: data_y0=(data_y[1:] + data_y[:-1])*0.5
+    elif np.ndim(data_x) == 2: data_x0, data_y0=data_x, data_y
         
     #___________________________________________________________________________
     # overlay background contour lines, very thin lines 
@@ -3877,7 +3880,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         if plt_contl:
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
-            hax_ii.clabel(h0cf, h0cf.levels, transform=which_transf, **pltcl_optdefault)
+            hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
     
     #___________________________________________________________________________
     # overlay reference contour lines, of colorbar reference center value
@@ -3890,7 +3893,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         if plt_contl:
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
-            hax_ii.clabel(h0cr, h0cr.levels, transform=which_transf, **pltcl_optdefault)
+            hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
             
     #___________________________________________________________________________
     return(h0)
@@ -4431,7 +4434,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             if ylim is not None: 
                 if do_yexp: hax_ii.set_ylim(np.max([ylim[0], data_y[0]]) ,np.min([ylim[1], data_y[-1]]))
                 # bug fix for invert y-axis when doing moc 
-                elif hax_ii.projection not in ['zmoc', 'dmoc+depth']: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
+                elif hax_ii.projection not in ['zmoc', 'dmoc+depth']: 
+                    hax_ii.set_ylim(ylim[0]-(ylim[1]-ylim[0])*0.025  ,ylim[-1]+(ylim[1]-ylim[0])*0.025)
             
             if xlim is not None: hax_ii.set_xlim(xlim[0]  ,xlim[-1])
             
@@ -4440,12 +4444,13 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             if isinstance(hax_ii.projection, str):
                 if   hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+depth']: 
                     hax_ii.invert_yaxis()
+
                 elif hax_ii.projection in ['zmoc', 'dmoc+depth']:    
                     if ylim is not None: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
                     hax_ii.invert_yaxis()
                 
-            else:
-                if do_yinv: hax_ii.invert_yaxis()
+                else:
+                    if do_yinv: hax_ii.invert_yaxis()
             
             #___________________________________________________________________
             # set grid options 
