@@ -11,13 +11,15 @@ import os
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
 #except: pkg_path='.'    
 #sys.path.append(os.path.join(pkg_path,"src/"))
-from .sub_diagdriver import *
+from .sub_tripydriver import *
 
 #_________________________________________________________________________________________________            
 # open htnl template file
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
 #except: pkg_path='' 
 pkg_path          = os.path.dirname(os.path.dirname(__file__))
+templates_path    = os.path.join(pkg_path,'templates_html')
+templates_nb_path = os.path.join(pkg_path,'templates_notebooks')
 print(pkg_path)
 
 #
@@ -41,10 +43,10 @@ class cd:
 #
 #_______________________________________________________________________________
 # command line input --> diagrun() 
-def diagrun():
+def tripyrun():
     
     # command line input arguments
-    parser = argparse.ArgumentParser(prog='diagrun', description='un FESOM tripyview diagnostics in command line')
+    parser = argparse.ArgumentParser(prog='tripyrun', description='do FESOM tripyview diagnostics in command line')
     parser.add_argument('workflow_file', help='name of work flow yaml file')
     parser.add_argument('--diagnostics',
                         '-d',
@@ -82,7 +84,7 @@ def diagrun():
 
     #____DICTIONARY CONTENT_____________________________________________________
     # name of workflow runs --> also folder name 
-    workflow_name = yaml_settings['workflow_name']
+    tripyrun_name = yaml_settings['tripyrun_name']
 
     # setup data input paths & input names
     input_paths = yaml_settings['input_paths']
@@ -96,48 +98,58 @@ def diagrun():
     
     # setup save path    
     if 'save_path' in yaml_settings: 
-        save_path = f"{yaml_settings['save_path']}/{workflow_name}"
+        save_path = f"{yaml_settings['save_path']}/{tripyrun_name}"
     else:
-        save_path = os.path.join(pkg_path, f"Results/{workflow_name}") 
+        save_path = os.path.join(pkg_path, f"Results/{tripyrun_name}") 
     save_path = os.path.expanduser(save_path)
     save_path = os.path.abspath(save_path)
 
         
     #_________________________________________________________________________________________________    
     # actualize settings dictionary    
+    yaml_settings['tripyrun_name']     = tripyrun_name
     yaml_settings['input_paths']       = input_paths
     yaml_settings['input_names']       = input_names
-    yaml_settings['workflow_name']     = workflow_name
-    yaml_settings['workflow_settings'] = None
-    yaml_settings['save_path']         = save_path
-    yaml_settings['save_path_nb' ]     = os.path.join(save_path, "notebooks")
-    yaml_settings['save_path_fig']     = os.path.join(save_path, "figures")    
+    yaml_settings['do_papermill']      = True
+    #yaml_settings['workflow_settings'] = None
+    
+    yaml_settings['save_path']    = save_path
+    yaml_settings['tripyrun_spath_nb' ]= os.path.join(save_path, "notebooks")
+    yaml_settings['tripyrun_spath_fig']= os.path.join(save_path, "figures")  
+    
+    # papermiller imports python None variable declaration as "None" string this causes 
+    # trouble in the if VAR is None: comparison:
+    for key in yaml_settings: 
+        if yaml_settings[key] == "None": yaml_settings[key]=None
 
     #_________________________________________________________________________________________________
     # create save directory if they do not exist
     if not os.path.exists(yaml_settings['save_path']):
         print(f' --> mkdir: {yaml_settings["save_path"]}')
-        os.makedirs(yaml_settings["save_path"])
-        print(f' --> mkdir: {yaml_settings["save_path_nb"]}')
-        os.makedirs(yaml_settings["save_path_nb"])
-        print(f' --> mkdir: {yaml_settings["save_path_fig"]}')
-        os.makedirs(yaml_settings["save_path_fig"])
+        os.makedirs(yaml_settings['save_path'])
+        print(f' --> mkdir: {yaml_settings["tripyrun_spath_nb"]}')
+        os.makedirs(yaml_settings['tripyrun_spath_nb'])
+        print(f' --> mkdir: {yaml_settings["tripyrun_spath_fig"]}')
+        os.makedirs(yaml_settings['tripyrun_spath_fig'])
         
     #___________________________________________________________________________
     # initialise/create webpage interface .json file
-    fname_json = f"{yaml_settings['workflow_name']}.json"
+    fname_json = f"{yaml_settings['tripyrun_name']}.json"
     save_path_json = os.path.join(yaml_settings['save_path'], fname_json)
     if os.path.exists(save_path_json):
         with open(save_path_json) as json_file:
             webpages = json.load(json_file)
-            print(f"Data on previous runs exist in {save_path_json},")
+            print(f"Jupyter Notebooks from previous runs exist in {save_path_json},")
             print(f"they will be used to generate output for diagnostics you do not run this time.")
     else:
         webpages = {}
         webpages["analyses"] = {}
-
+    
+    #___________________________________________________________________________
     webpages["general"] = {}
-    webpages["general"]["name"] = yaml_settings["workflow_name"]
+    webpages["general"]["name"] = yaml_settings["tripyrun_name"]
+    webpages["logo"] = {}
+    webpages["logo"]["path"] =os.path.join(templates_path, 'fesom2_logo.png')
 
     #___________________________________________________________________________
     # define analyses drivers
@@ -148,7 +160,7 @@ def diagrun():
     analyses_driver_list["hslice_clim"        ] = drive_hslice_clim
     analyses_driver_list["hslice_clim_np"     ] = drive_hslice_clim
     analyses_driver_list["hslice_clim_sp"     ] = drive_hslice_clim
-    analyses_driver_list["hslice_isotherm_z"  ] = drive_hslice_isotherm_z
+    analyses_driver_list["hslice_isotdep"     ] = drive_hslice_isotdep
     
     analyses_driver_list["hovm"               ] = drive_hovm
     analyses_driver_list["hovm_clim"          ] = drive_hovm_clim
@@ -182,21 +194,6 @@ def diagrun():
     analyses_driver_list["ghflx"              ] = drive_ghflx
     analyses_driver_list["mhflx"              ] = drive_mhflx
     
-    ##___________________________________________________________________________
-    ## start dask client 
-    client=None
-    #if inargs.nworkers is not None:
-        #from dask.distributed import Client
-        #from dask.diagnostics import ProgressBar
-        #import dask
-
-        #n_workers= inargs.nworkers[0]
-        #tot_mem  = inargs.memory[0] # GB
-        #print(' --> memory_limit: {:3.3f} GB'.format(tot_mem/(n_workers+1)))
-        ##dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
-        #client = Client(n_workers=n_workers, threads_per_worker=1, memory_limit='{:3.3f} GB'.format(tot_mem/n_workers))
-        ##client
-    
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file
     # loop over all analyses
@@ -210,7 +207,7 @@ def diagrun():
             if inargs.diagnostics is None:
                 print(f" --> compute {analysis_name}:")
                 # drive specific analysis from analyses_driver_list
-                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, client)
+                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
                 webpages["analyses"][analysis_name] = webpage
             
             #___________________________________________________________________
@@ -219,7 +216,7 @@ def diagrun():
                 if analysis_name in inargs.diagnostics:
                     print(f" --> compute {analysis_name}:")
                     # drive specific analysis from analyses_driver_list
-                    webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, client)
+                    webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
                     webpages["analyses"][analysis_name] = webpage
                 
             # write linked analysis to .json file
@@ -227,7 +224,7 @@ def diagrun():
             
     #___________________________________________________________________________
     # save everything to .html
-    fname_html     = f"{yaml_settings['workflow_name']}.html"
+    fname_html     = f"{yaml_settings['tripyrun_name']}.html"
     save_path_html = os.path.join(yaml_settings['save_path'], fname_html)
     ofile          = open(save_path_html, "w")
     template       = env.get_template("experiment.html")
@@ -245,4 +242,4 @@ def diagrun():
 if __name__ == "__main__":
     # args = parser.parse_args()
     # args.func(args)
-    diagrun()    
+    tripyrun()    

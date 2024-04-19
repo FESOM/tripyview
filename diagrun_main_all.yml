@@ -1,15 +1,17 @@
-workflow_name: "diagrun_all_analysis"
+tripyrun_name: "diagrun_all_analysis"
+do_parallel: True
 input_paths:
-    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/
-    #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/
-    #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_nycander_bin_ck0.1/
-    #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_stormtide_bin_ck0.1/
+    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/5/
+    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_nycander_bin_ck0.1/5/
+    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_stormtide_bin_ck0.1/5/
+    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
+
     
 input_names:
-    - '$TKE_{{ck:0.1}}$'
-    #- '$TKE_{{ck:0.1}}{{+}}IDEMIX_{{Jayne}}$'
-    #- '$TKE_{{ck:0.1}}{{+}}IDEMIX_{{Nycander}}$'
-    #- '$TKE_{{ck:0.1}}{{+}}IDEMIX_{{Stormtide_{{M2}}+Nycander_{{NoM2}}}}$'
+    - '$TKE{{+}}IDEMIX_{{Jayne}}$'
+    - '$TKE{{+}}IDEMIX_{{Nycander}}$'
+    - '$TKE{{+}}IDEMIX_{{Stormtide}}$'
+    - '$TKE$'
     
 #ref_path: /home/ollie/pscholz/results/trr181_tke_ctrl_ck0.1_v2/
 #ref_name: '$TKE_{{ck:0.1}}$'    
@@ -17,40 +19,37 @@ input_names:
 mesh_path: '/albedo/work/user/pscholz/mesh_fesom2.0/core2_srt_dep@node/'
 save_path: './Results/'
 
-clim: 'phc3'
+which_clim: 'phc3'
 clim_path: '/albedo/work/projects/p_fesom/FROM-OLLIE/FESOM2/hydrography/phc3.0/phc3.0_annual.nc'
 
-ncolumn: 2
+ncol: 2
 box: None
 
-which_cycl: None
-#which_cycl: 5
-
+n_cycl: None
+do_allcycl: False
 year: [2000, 2019]
-depth: 100
-which_dpi: 200
+save_dpi: 150
 
 #_______________________________________________________________________________
 # horizontal plots
-hslice:
-    temp:
-        depths: [500, 1000, 2000, 3000, 4000]
-        cstr: 'blue2red'
+#hslice:
+    #temp:
+        ##depths: [100, 1000, 2000, 4000]
+        #depths: [100, 1000]
+        #cstr: 'blue2red'
     #salt:
-        #depths: [500, 1000, 2000, 3000, 4000]
-        #cstr: 'green2orange'
-    ##sigma2:
-        ##depths: [500, 1000, 2000, 3000, 4000]
-        ##cstr: 'grads'
-    ##Kv:
-        ##depths: [500, 1000, 2000, 3000, 4000]
-        ##do_rescale: 'slog10'
-        ##cstr: 'blue2red'
-        ##crange: [-1.0e-1, 1.0e-1, 1.0e-4]
-    ##N2:
-        ##depths: [500, 1000, 2000, 3000, 4000]
-        ##cstr: 'blue2red'
-        ##cfac: 0.5
+        #depths: [100, 1000]
+    #sigma2:
+        #depths: [100, 1000]
+        #cstr: 'grads'
+    #Kv:
+        #depths: [100, 1000]
+        #do_rescale: 'log10'
+        #cstr: 'wbgyr'
+        #crange: [1.0e-6, 1.0e-1, 1.0e-3]
+    #N2:
+        #depths: [100, 1000]
+        #cstr: 'wbgyr'
     #ssh:
         #depths: [0]
         #cstr: 'grads'
@@ -64,21 +63,18 @@ hslice:
 #hslice_np:
     #a_ice:
         #months: [3, 9]
-        #depths: [0]
         #cstr: 'wbgyr'
         #crange: [0,1.0,0.5]
         #box: [-180,180,50,90]
         #proj: 'nps'
     #m_ice:
         #months: [3, 9]
-        #depths: [0]
         #cstr: 'wbgyr'
         #crange: [0.0, 5.0, 2.5]
         #box: [-180,180,50,90]
         #proj: 'nps'
     #MLD2:
         #months: [3, 9]
-        #depths: [0]
         #cstr: 'rygbw'
         #box: [-180,180,45,90]
         #proj: 'nps'
@@ -86,27 +82,24 @@ hslice:
 #hslice_sp:        
     #a_ice:
         #months: [9, 3]
-        #depths: [0]
         #cstr: 'wbgyr'
         #crange: [0,1.0,0.5]
         #box: [-180,180,-90,-50]
         #proj: 'sps'
     #m_ice:
         #months: [9, 3]
-        #depths: [0]
         #cstr: 'wbgyr'
         #crange: [0.0, 1.5, 0.75]
         #box: [-180,180,-90,-50]
         #proj: 'sps'   
     #MLD2:
         #months: [9, 3]
-        #depths: [0]
         #cstr: 'rygbw'
         #box: [-180,180,-90,-50]
         #proj: 'sps'
 
-##_______________________________________________________________________________
-## horizontal temp/salt climatology anomaly 
+#_______________________________________________________________________________
+# horizontal temp/salt climatology anomaly 
 #hslice_clim:
     #temp:
         #depths: [10, 100, 1000, 2000, 3000]
@@ -115,6 +108,17 @@ hslice:
         #depths: [10, 100, 1000, 2000, 3000]
         #crange: [-0.5, 0.5, 0]
 
+#_______________________________________________________________________________
+# horizontal isotherm depth
+hslice_isotdep:
+    which_isotherms: [12.0, 6.0]
+    cstr: 'wbgyr'
+        
+    #salt:
+        #depths: [10, 100, 1000, 2000, 3000]
+        #crange: [-0.5, 0.5, 0]
+        
+        
 ##_______________________________________________________________________________
 ## hovmöller plots absolute or with respect to reference run for different regions 
 #hovm:  

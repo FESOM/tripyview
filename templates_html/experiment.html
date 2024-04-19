@@ -21,24 +21,32 @@ body {
   padding-top: 20px;
 }
 
-/* Style the sidenav links and the dropdown button */
+/* Style the sidenav links and the dropdown button (dark blue) */
 .sidenav a, .dropdown-btn {
   padding: 6px 8px 6px 16px;
   text-decoration: none;
   font-size: 18px;
   color: #818181;
+  background-color: #003E6E;
   display: block;
   border: none;
-  background: none;
   width: 100%;
   text-align: left;
   cursor: pointer;
   outline: none;
 }
 
-/* On mouse-over */
+/* Change the background color of links and dropdown buttons in the second layer dropdown menu */
+.dropdown-container a,
+.dropdown-container .dropdown-btn {
+  background-color: #262626; /* Change this to your desired color */
+}
+
+
+/* On mouse-over  (orange) */
 .sidenav a:hover, .dropdown-btn:hover {
   color: #f1f1f1;
+  background-color: #ffaa00;
 }
 
 /* Main content */
@@ -48,13 +56,14 @@ body {
   padding: 0px 10px;
 }
 
-/* Add an active class to the active dropdown button */
+/* Add an active class to the active dropdown button (awi blue)*/
 .active {
-  background-color: green;
+  background-color: #01ace9;
   color: white;
 }
 
-/* Dropdown container (hidden by default). Optional: add a lighter background color and some left padding to change the design of the dropdown content */
+/* Dropdown container (hidden by default). Optional: add a lighter background 
+/* color and some left padding to change the design of the dropdown content */
 .dropdown-container {
   display: none;
   background-color: #262626;
@@ -104,8 +113,12 @@ body {
 </div>
 
 <div class="main">
-  <h1> FESOM2 diagnostics <small>{{ general.name }}  </small></h1>
-
+<!-- <img src="fesom2_logo.png" alt="logo" height="50px"/> <h1> diagnostics <small>{{ general.name }}  </small></h1> -->
+  <div>
+    <img src="{{ logo.path }}" alt="logo" style="height: 35px; display: inline-block;"/>
+    <h1 style="display: inline; margin-left: 10px;">tripyview diagnostics: <small>{{ general.name }}</small></h1>
+  </div>
+  
   {% for analysis_name, analysis_content in analyses.items() %}
     {% for image_name, image_content in analysis_content.items() %}
     <div class="card" id="{{ image_content.short_name }}">

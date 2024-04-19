@@ -50,6 +50,7 @@ pip install -e .
 * `hslice_clim_np` - plot horizontal slices of temperature, salinity and density climatology in north polar stereographic projection
 * `hslice_clim_sp` - plot horizontal slices of temperature, salinity and density climatology in south polar stereographic projection
 * `hslice_channel` - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
+* `hslice_isotdep` - plot horizontal slices of depth of distinct isotherm (e.g 12°C isotherm)
 
 <p align="center" width="100%">
   <img width=40% src="tripyview/tripyview_mov_channel.gif">
@@ -128,7 +129,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 </p>
 
 ### command line batch diagnostics:
-`diagrun <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
+`tripyrun  <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
 template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linked plots
 
 ## Credits:

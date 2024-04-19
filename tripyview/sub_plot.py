@@ -4854,7 +4854,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
             
             #print(cinfo)
-            #print(cdmin,cdmax,cdref)
+            print(cdmin,cdmax,cdref)
             #compute levels in decimal units
             cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
             
@@ -4879,6 +4879,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cinfo['clevel'][isneg] = -np.power(10.0, cinfo['clevel'][isneg])
             cinfo['clevel'][ispos] = np.power(10.0, cinfo['clevel'][ispos])
     
+    # define custom non-linear colorsteps via numpy array
     elif isinstance(do_rescale, np.ndarray):
         rescal_ref=None
         if any(do_rescale==0.0) and do_rescale[0]!=0.0 and cinfo['cref']==0.0: rescal_ref=cinfo['cref']

@@ -39,7 +39,7 @@ requirements = [
     'black',
     'jinja2',
     'pyyaml',
-    'pyvista[all,jupyter,trame]',
+    'pyvista[all]', #,jupyter,trame]',
     'vtk',
     'ipyvtklink',
     'imageio[ffmpeg]', 
@@ -64,7 +64,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'diagrun=tripyview.sub_diagrun:diagrun',  # command=package.module:function
+            'tripyrun=tripyview.sub_diagrun:tripyrun',  # command=package.module:function
         ]
     },
     description='FESOM2 tools',
