@@ -1,4 +1,4 @@
-tripyrun_name: "diagrun_all_analysis"
+tripyrun_name: "tripyrun_all_analysis"
 do_parallel: True
 input_paths:
     - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/5/
@@ -32,11 +32,11 @@ save_dpi: 150
 
 #_______________________________________________________________________________
 # horizontal plots
-#hslice:
-    #temp:
-        ##depths: [100, 1000, 2000, 4000]
-        #depths: [100, 1000]
-        #cstr: 'blue2red'
+hslice:
+    temp:
+        #depths: [100, 1000, 2000, 4000]
+        depths: [100, 1000]
+        cstr: 'blue2red'
     #salt:
         #depths: [100, 1000]
     #sigma2:
@@ -60,63 +60,59 @@ save_dpi: 150
 
 ##_______________________________________________________________________________
 ## northern/southern stereographic plots
-#hslice_np:
-    #a_ice:
-        #months: [3, 9]
-        #cstr: 'wbgyr'
-        #crange: [0,1.0,0.5]
-        #box: [-180,180,50,90]
-        #proj: 'nps'
+hslice_np:
+    a_ice:
+        months: [3, 9]
+        cstr: 'wbgyr'
+        crange: [0,1.0,0.5]
+        box: [-180,180,50,90]
+        proj: 'nps'
     #m_ice:
         #months: [3, 9]
         #cstr: 'wbgyr'
         #crange: [0.0, 5.0, 2.5]
         #box: [-180,180,50,90]
         #proj: 'nps'
-    #MLD2:
-        #months: [3, 9]
-        #cstr: 'rygbw'
-        #box: [-180,180,45,90]
-        #proj: 'nps'
+    MLD2:
+        months: [3, 9]
+        cstr: 'rygbw'
+        box: [-180,180,45,90]
+        proj: 'nps'
          
-#hslice_sp:        
-    #a_ice:
-        #months: [9, 3]
-        #cstr: 'wbgyr'
-        #crange: [0,1.0,0.5]
-        #box: [-180,180,-90,-50]
-        #proj: 'sps'
+hslice_sp:        
+    a_ice:
+        months: [9, 3]
+        cstr: 'wbgyr'
+        crange: [0,1.0,0.5]
+        box: [-180,180,-90,-50]
+        proj: 'sps'
     #m_ice:
         #months: [9, 3]
         #cstr: 'wbgyr'
         #crange: [0.0, 1.5, 0.75]
         #box: [-180,180,-90,-50]
         #proj: 'sps'   
-    #MLD2:
-        #months: [9, 3]
-        #cstr: 'rygbw'
-        #box: [-180,180,-90,-50]
-        #proj: 'sps'
+    MLD2:
+        months: [9, 3]
+        cstr: 'rygbw'
+        box: [-180,180,-90,-50]
+        proj: 'sps'
 
 #_______________________________________________________________________________
 # horizontal temp/salt climatology anomaly 
-#hslice_clim:
-    #temp:
-        #depths: [10, 100, 1000, 2000, 3000]
-        #crange: [-4, 4, 0]
-    #salt:
-        #depths: [10, 100, 1000, 2000, 3000]
-        #crange: [-0.5, 0.5, 0]
+hslice_clim:
+    temp:
+        depths: [10, 100, 1000, 2000, 3000]
+        crange: [-4, 4, 0]
+    salt:
+        depths: [10, 100, 1000, 2000, 3000]
+        crange: [-0.5, 0.5, 0]
 
 #_______________________________________________________________________________
 # horizontal isotherm depth
 hslice_isotdep:
     which_isotherms: [12.0, 6.0]
     cstr: 'wbgyr'
-        
-    #salt:
-        #depths: [10, 100, 1000, 2000, 3000]
-        #crange: [-0.5, 0.5, 0]
         
         
 ##_______________________________________________________________________________

@@ -64,7 +64,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'tripyrun=tripyview.sub_diagrun:tripyrun',  # command=package.module:function
+            'tripyrun=tripyview.sub_tripyrun:tripyrun',  # command=package.module:function
         ]
     },
     description='FESOM2 tools',
