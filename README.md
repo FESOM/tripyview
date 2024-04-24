@@ -129,10 +129,12 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 </p>
 
 ### command line batch diagnostics:
-`tripyrun  <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
-template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linked plots
-`tripyrun  <workflowfile.yml> -d <driver>` - re-run one specific driver from .yml file 
-`tripyrun  <workflowfile.yml> -d <driver> -v <var1 var2 ...>` - re-run specific variable 
+* `tripyrun  <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
+template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linked plots.
+
+* `tripyrun  <workflowfile.yml> -d <driver>` - re-run one specific driver from .yml file 
+
+* `tripyrun  <workflowfile.yml> -d <driver> -v <var1 var2 ...>` - re-run specific variable 
 subset of one specific driver driver from .yml file
 
 ## Credits:
