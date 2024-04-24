@@ -20,6 +20,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     
     str_mdep = ''
     is_data = 'scalar'
+    if isinstance(depth, list): depth = depth[0]
+    
     #___________________________________________________________________________
     # load climatology data with xarray
     data = xr.open_dataset(datapath, decode_times=False, **kwargs)

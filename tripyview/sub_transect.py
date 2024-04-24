@@ -1368,7 +1368,9 @@ def do_transect_anomaly(index1,index2):
             for key in attrs_data1.keys():
                 if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
                     if key in ['long_name']:
-                        anom_idx[vname].attrs[key] = 'anomalous '+anom_idx[vname].attrs[key] 
+                        anom_idx[vname].attrs[key] = 'anom. '+anom_idx[vname].attrs[key].capitalize() 
+                    elif key in ['short_name']:
+                        anom_idx[vname].attrs[key] = 'anom. '+anom_idx[vname].attrs[key]        
                     elif key in ['units',]: 
                         continue
                     elif key in ['descript']: 

@@ -1233,7 +1233,7 @@ def do_anomaly(data1,data2):
             if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
                 if key in ['long_name']:
                    # anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key]
-                   anom[vname].attrs[key] = 'anom. '+anom[vname].attrs[key]
+                   anom[vname].attrs[key] = 'anom. '+anom[vname].attrs[key].capitalize()
                    
                 elif key in ['short_name']:
                    # anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key]

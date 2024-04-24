@@ -5,7 +5,7 @@ import json
 import shutil
 import sys
 import os
-
+import numpy     as np
 #os.environ['PATH_TRIPYVIEW'] = '/home/ollie/pscholz/tripyview_github/'
 
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
@@ -13,7 +13,7 @@ import os
 #sys.path.append(os.path.join(pkg_path,"src/"))
 from .sub_tripydriver import *
 
-#_________________________________________________________________________________________________            
+#_______________________________________________________________________________       
 # open htnl template file
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
 #except: pkg_path='' 
@@ -47,34 +47,29 @@ def tripyrun():
     
     # command line input arguments
     parser = argparse.ArgumentParser(prog='tripyrun', description='do FESOM tripyview diagnostics in command line')
+    
+    # input tripyrun_main_all.yml yaml diagnostic file 
     parser.add_argument('workflow_file', help='name of work flow yaml file')
+    
+    # only run specific diagnostic driver
     parser.add_argument('--diagnostics',
                         '-d',
                         nargs='+',
                         help='run only particular diagnostics from the yml file.',)
     
-    #parser.add_argument('--nworkers',
-                        #'-nw',
-                        #nargs=1,
-                        #type=int, 
-                        #help='start dask client with #workers',)
-    
-    #parser.add_argument('--memory',
-                            #'-mem',
-                            #nargs=1,
-                            #default=100,
-                            #type=int,
-                            #help='total memory avaible, become distributed over workers',)
+    # only run specific variable within diagnostic driver
+    parser.add_argument('--variable',
+                        '-v',
+                        nargs='+',
+                        help='run only particular diagnostics from the yml file.',)
     
     # input arguments from command line
     inargs = parser.parse_args()
     if inargs.diagnostics:
-        print(f"selective diagnostics will be run: {inargs.diagnostics}")
-    #if inargs.nworkers:
-        #print(f" --> Number of dask workers to ask for: {inargs.nworkers}")    
-        #if inargs.memory:
-            #print(f" --> Total memory avaiable: {inargs.memory}")        
-
+        print(f" --> selected diagnostics will be run: {inargs.diagnostics}")
+        if inargs.variable:
+            print(f"     --> selected variable will be run: {inargs.diagnostics}")
+        
     #___________________________________________________________________________
     # open selected yaml files
     yaml_filename = inargs.workflow_file
@@ -105,15 +100,14 @@ def tripyrun():
     save_path = os.path.abspath(save_path)
 
         
-    #_________________________________________________________________________________________________    
+    #___________________________________________________________________________
     # actualize settings dictionary    
     yaml_settings['tripyrun_name']     = tripyrun_name
     yaml_settings['input_paths']       = input_paths
     yaml_settings['input_names']       = input_names
     yaml_settings['do_papermill']      = True
-    #yaml_settings['workflow_settings'] = None
     
-    yaml_settings['save_path']    = save_path
+    yaml_settings['save_path']         = save_path
     yaml_settings['tripyrun_spath_nb' ]= os.path.join(save_path, "notebooks")
     yaml_settings['tripyrun_spath_fig']= os.path.join(save_path, "figures")  
     
@@ -122,7 +116,7 @@ def tripyrun():
     for key in yaml_settings: 
         if yaml_settings[key] == "None": yaml_settings[key]=None
 
-    #_________________________________________________________________________________________________
+    #___________________________________________________________________________
     # create save directory if they do not exist
     if not os.path.exists(yaml_settings['save_path']):
         print(f' --> mkdir: {yaml_settings["save_path"]}')
@@ -133,26 +127,7 @@ def tripyrun():
         os.makedirs(yaml_settings['tripyrun_spath_fig'])
         
     #___________________________________________________________________________
-    # initialise/create webpage interface .json file
-    fname_json = f"{yaml_settings['tripyrun_name']}.json"
-    save_path_json = os.path.join(yaml_settings['save_path'], fname_json)
-    if os.path.exists(save_path_json):
-        with open(save_path_json) as json_file:
-            webpages = json.load(json_file)
-            print(f"Jupyter Notebooks from previous runs exist in {save_path_json},")
-            print(f"they will be used to generate output for diagnostics you do not run this time.")
-    else:
-        webpages = {}
-        webpages["analyses"] = {}
-    
-    #___________________________________________________________________________
-    webpages["general"] = {}
-    webpages["general"]["name"] = yaml_settings["tripyrun_name"]
-    webpages["logo"] = {}
-    webpages["logo"]["path"] =os.path.join(templates_path, 'fesom2_logo.png')
-
-    #___________________________________________________________________________
-    # define analyses drivers
+    # define all the analyses drivers
     analyses_driver_list = {}
     analyses_driver_list["hslice"             ] = drive_hslice
     analyses_driver_list["hslice_np"          ] = drive_hslice
@@ -169,7 +144,6 @@ def tripyrun():
     analyses_driver_list["transect_clim"      ] = drive_transect_clim
     analyses_driver_list["transect_transp"    ] = drive_transect_transp
     analyses_driver_list["transect_transp_t"  ] = drive_transect_transp_t
-    analyses_driver_list["transect_transp_t_OSNAP"] = drive_transect_transp_t_OSNAP
     analyses_driver_list["transect_zmean"     ] = drive_transect_zmean
     analyses_driver_list["transect_zmean_clim"] = drive_transect_zmean_clim
     
@@ -195,6 +169,26 @@ def tripyrun():
     analyses_driver_list["mhflx"              ] = drive_mhflx
     
     #___________________________________________________________________________
+    # initialise/create webpage interface based on .json file, if it exist
+    fname_json = f"{yaml_settings['tripyrun_name']}.json"
+    save_path_json = os.path.join(yaml_settings['save_path'], fname_json)
+    if os.path.exists(save_path_json):
+        with open(save_path_json) as json_file:
+            webpages = json.load(json_file)
+            print(f"Jupyter Notebooks from previous runs exist in {save_path_json},")
+            print(f"they will be used to generate output for diagnostics you do not run this time.")
+    else:
+        # json file doesnt exist, freshly initialise webpage
+        webpages = {}
+        webpages["analyses"] = {}
+    
+    #___________________________________________________________________________
+    webpages["general"] = {}
+    webpages["general"]["name"] = yaml_settings["tripyrun_name"]
+    webpages["logo"] = {}
+    webpages["logo"]["path"] =os.path.join(templates_path, 'fesom2_logo.png')
+
+    #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file
     # loop over all analyses
     for analysis_name in analyses_driver_list:
@@ -205,7 +199,7 @@ def tripyrun():
             #___________________________________________________________________
             # if no -d ... flag is setted perform full yml file diagnostic
             if inargs.diagnostics is None:
-                print(f" --> compute {analysis_name}:")
+                print(f"\n --> compute {analysis_name}:")
                 # drive specific analysis from analyses_driver_list
                 webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
                 webpages["analyses"][analysis_name] = webpage
@@ -213,17 +207,44 @@ def tripyrun():
             #___________________________________________________________________
             # if -d ... flag is setted perform specific yml file diagnostic    
             else:
+                #_______________________________________________________________
+                # if -v vname1 vname2 ... flag is setted perform specific variable 
+                # in specific yml file diagnostic    
                 if analysis_name in inargs.diagnostics:
-                    print(f" --> compute {analysis_name}:")
-                    # drive specific analysis from analyses_driver_list
+                    print(f"\n --> compute {analysis_name}:")
+                    # execute one specfic variable in  specfic driver section as 
+                    # it is defined in the yaml file
+                    if inargs.variable:
+                        for vname in inargs.variable:
+                            cnt, cnt_max = -1, -1
+                            
+                            # drive specific analysis from analyses_driver_list only
+                            # for one specifc anlysis
+                            for values in webpages["analyses"][analysis_name].values():
+                                cnt_max = np.maximum(cnt_max,values['cnt'])
+                                if values['variable']==vname: 
+                                    cnt = values['cnt']
+                                    break
+                            if cnt==-1: 
+                                print(" --> could not find variable: {vname} in loaded webpage. This variable will be attached if it exist")
+                                cnt=cnt_max+1
+                            webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=webpages["analyses"][analysis_name], image_count=cnt, vname=vname)
+                            webpages["analyses"][analysis_name] = webpage
+                
+                #_______________________________________________________________
+                # if no -v vname1 vname2 ... flag is setted
+                # execute entire specfic driver section as it is defined in the yaml file
+                else:    
+                    print(f"\n --> compute {analysis_name}:")
                     webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
                     webpages["analyses"][analysis_name] = webpage
-                
+            
+            #___________________________________________________________________
             # write linked analysis to .json file
             with open(save_path_json, "w") as fp: json.dump(webpages, fp)
             
     #___________________________________________________________________________
-    # save everything to .html
+    # save everything to .html and render it 
     fname_html     = f"{yaml_settings['tripyrun_name']}.html"
     save_path_html = os.path.join(yaml_settings['save_path'], fname_html)
     ofile          = open(save_path_html, "w")
@@ -242,4 +263,4 @@ def tripyrun():
 if __name__ == "__main__":
     # args = parser.parse_args()
     # args.func(args)
-    tripyrun()    
+    tripyrun()

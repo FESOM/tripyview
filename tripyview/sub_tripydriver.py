@@ -10,6 +10,7 @@ import glob
 import shutil
 import sys
 import os
+import warnings
 
 #_______________________________________________________________________________       
 # open htnl template file
@@ -26,35 +27,113 @@ env               = Environment(loader=file_loader)
 #
 #
 #_______________________________________________________________________________
-def hslice_exec_papermill(webpage, cnt, vname_params, exec_template='hslice'):
+def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     #___________________________________________________________________________
     # create strings for fname and labels in the webpage
-    str_vname1, str_vname2 = f"_{vname_params['vname'].replace('/',':')}", f"{vname_params['vname'].replace('/',':')}"
-    str_proj               = f"_{vname_params['proj']}" if 'proj' in vname_params else ''
-    str_dep1, str_dep2     = '', ''
-    if 'depth' in vname_params: str_dep1, str_dep2 = f"_z{vname_params['depth']}", f", @dep:{vname_params['depth']}"
-    str_mon1, str_mon2     = '', ''
-    if 'mon'   in vname_params: str_mon1, str_mon2 = f"_m{vname_params['mon']}"  , f", @mon:{vname_params['mon']}"
-    str_isotd1, str_isotd2 = '', ''
-    if 'which_isotherm' in vname_params: str_isotd1, str_isotd2 = f"_{vname_params['which_isotherm']}", f"depth of {vname_params['which_isotherm']} °C isotherm"
+    str_vname1, str_vname2, str_dep1, str_dep2, str_mon1, str_mon2, str_proj = '', '', '', '', '', '', ''
+    if 'vname' in params_vname:
+        str_vname1, str_vname2 = f"_{params_vname['vname'].replace('/',':')}", f"{params_vname['vname'].replace('/',':')}"
+    if 'proj' in params_vname:
+        str_proj = f"_{params_vname['proj']}" if 'proj' in params_vname else ''
+    if 'depth' in params_vname: 
+        str_dep1, str_dep2 = f"_z{params_vname['depth']}", f", @dep:{params_vname['depth']}"
+    if 'mon'   in params_vname: 
+        str_mon1, str_mon2 = f"_m{params_vname['mon']}"  , f", @mon:{params_vname['mon']}"
+    
+    #___________________________________________________________________________
+    # assemble total strings
+    str_all1 = f"{params_vname['tripyrun_name']}_{params_vname['tripyrun_analysis']}{str_vname1}"
+    if exec_template in ['hslice', 'hslice_clim']:
+        str_all1 = f"{str_all1}{str_proj}{str_dep1}{str_mon1}"
+        str_all2 = f"{str_vname2}{str_dep2}{str_mon2}"
+        
+    elif exec_template in ['hslice_isotdep']:
+        str_isotd1, str_isotd2 = '', ''
+        if 'which_isotherm' in params_vname: str_isotd1, str_isotd2 = f"_{params_vname['which_isotherm']}", f"depth of {params_vname['which_isotherm']}C isotherm"
+        str_all1 = f"{str_all1}{str_proj}{str_isotd1}{str_dep1}{str_mon1}"
+        str_all2 = f"{str_isotd2}{str_mon2}"
+        
+    elif exec_template in ['hovm', 'hovm_clim', 'transect_zmean', 'transect_zmean_clim', 'var_t']:
+        str_box1, str_box2 = '', ''
+        if 'box_region' in params_vname: 
+            auxboxr = params_vname['box_region'][0].split('/')[-1].split('.')[0]            
+            str_box1, str_box2 = f"_{auxboxr}", f"@ {auxboxr}"
+        str_all1 = f"{str_all1}{str_box1}"
+        str_all2 = f"{str_vname2}{str_box2}"
+        
+    elif exec_template in ['vprofile', 'vprofile_clim', 'transp_zmoc', 'transp_zmoc_t']:
+        if exec_template in ['transp_zmoc_t']: 
+            str_all1 = f"{str_all1}{params_vname['which_lat']}"
+            if params_vname['which_lat'] == 'max':
+                str_all2 = f" max AMOC @ 30°N<lat<45°N"
+            else:
+                str_all2 = f" AMOC @ {params_vname['which_lat']}°N"
+        else:
+            str_all1 = f"{str_all1}"
+            str_all2 = f"{str_vname2}"
+        
+    elif exec_template in ['transect', 'transect_clim', 'transect_transp', 'transect_transp_t']:
+        str_tra1, str_tra2 = '', ''
+        if 'input_transect' in params_vname: 
+            auxtra = params_vname['input_transect'][0][2].replace(' ','_').replace(',','').replace('°','')
+            str_tra1, str_tra2 = f"_{auxtra}", f"@ {params_vname['input_transect'][0][2]}"
+        str_all1 = f"{str_all1}{str_tra1}"
+        str_all2 = f"{str_vname2}{str_tra2}"
+    
+    elif exec_template in ['transp_dmoc', 'transp_dmoc_t']:
+        str_moc1=''
+        if params_vname["which_transf"] != 'dmoc': str_moc1 = f"_{params_vname['which_transf']}"
+        if params_vname["do_zcoord"]             : str_moc1 = f"{str_moc1}z"
+        if exec_template in ['transp_dmoc_t']: 
+            if params_vname['which_lat'] == 'max':
+                str_all1 = f"{str_all1}{str_moc1}"
+                str_all2 = f" max Density-AMOC @ 30°N<lat<45°N"
+            else:
+                str_all1 = f"{str_all1}{str_moc1}"
+                str_all2 = f" Density-AMOC @ {params_vname['which_lat']}°N"
+        else:
+            str_all1 = f"{str_all1}{str_moc1}"
+            str_all2 = f"Density-{str_vname2}{str_moc1}"
+    
+    elif exec_template in ['transp_dmoc_wdiap', 'transp_dmoc_srfcbflx']:
+        str_isop1, str_isop2 = '', ''        
+        if exec_template in ['transp_dmoc_wdiap']: 
+            if 'which_isopyc' in params_vname: str_isop1, str_isop2 = f"_{params_vname['which_isopyc']}", f"W_diap @ sigma2= {params_vname['which_isopyc']} kg/m^3"
+        elif exec_template in ['transp_dmoc_srfcbflx']:
+            if 'which_isopyc' in params_vname: str_isop1, str_isop2 = f"_{params_vname['which_isopyc']}", f"Srf. buoyancy transf. @ sigma2= {params_vname['which_isopyc']} kg/m^3"
+        str_all1 = f"{str_all1}{str_proj}{str_isop1}{str_mon1}"
+        str_all2 = f"{str_isop2}{str_mon2}"
+    
+    elif exec_template in ['transp_hbstreamf']:
+        str_all1 = f"{str_all1}{str_mon1}"
+        str_all2 = f"Horiz. barotrop. streamfunction {str_mon2}"
+    
+    elif exec_template in ['transp_ghflx', 'transp_mhflx']:
+        str_all1 = f"{str_all1}{str_mon1}"
+        if   exec_template in ['transp_ghflx']:  str_all2 = f"Global. Merid. Heatflx. {str_mon2}"
+        elif exec_template in ['transp_mhflx']:  str_all2 = f"Dyn. Merid. Heatflx. {str_mon2}"
+        
     #___________________________________________________________________________
     # create filepaths for notebook and figures 
-    save_fname    = f"{vname_params['tripyrun_name']}_{vname_params['tripyrun_analysis']}{str_vname1}{str_proj}{str_isotd1}{str_dep1}{str_mon1}.png"
-    save_fname_nb = f"{vname_params['tripyrun_name']}_{vname_params['tripyrun_analysis']}{str_vname1}{str_proj}{str_isotd1}{str_dep1}{str_mon1}.ipynb"
-    short_name    = f"{vname_params['tripyrun_name']}_{vname_params['tripyrun_analysis']}{str_vname1}{str_proj}{str_isotd1}{str_dep1}{str_mon1}"
-    vname_params["save_fname"] = os.path.join(vname_params['tripyrun_spath_fig'], save_fname)
-                
+    save_fname    = f"{str_all1}.png"
+    save_fname_nb = f"{str_all1}.ipynb"
+    short_name    = f"{str_all1}"
+    params_vname["save_fname"] = os.path.join(params_vname['tripyrun_spath_fig'], save_fname)
+    
     #___________________________________________________________________________
     # execute notebook with papermill
     pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
-                        os.path.join(vname_params['tripyrun_spath_nb'], save_fname_nb),
-                        parameters=vname_params,
+                        os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
+                        parameters=params_vname,
                         nest_asyncio=True,)
                 
     #___________________________________________________________________________
     # attach created figures to webpage collection
     webpage[f"image_{cnt}"] = {}
-    webpage[f"image_{cnt}"]["name"]       = f"{str_isotd2}{str_vname2}{str_dep2}{str_mon2}"
+    if 'vname' in params_vname: webpage[f"image_{cnt}"]["variable"] = params_vname['vname']
+    else                      : webpage[f"image_{cnt}"]["variable"] = ''
+    webpage[f"image_{cnt}"]["cnt"]        = cnt
+    webpage[f"image_{cnt}"]["name"]       = str_all2
     webpage[f"image_{cnt}"]["path"]       = os.path.join('./figures/', save_fname)
     webpage[f"image_{cnt}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
     webpage[f"image_{cnt}"]["short_name"] = short_name
@@ -68,186 +147,129 @@ def hslice_exec_papermill(webpage, cnt, vname_params, exec_template='hslice'):
 #
 #
 #_______________________________________________________________________________
-def drive_hslice(yaml_settings, analysis_name):
-    print(' --> drive_hslice:',analysis_name)
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            if value=="None": value=None 
-            current_params[key] = value
-    
-    #___________________________________________________________________________
-    # loop over variable name  
-    webpage, image_count = {}, 0
-    for vname in driver_settings:
-        print(f'         --> compute: {vname}')
-        vname_params = current_params.copy()
-        vname_params.update(driver_settings[vname])
-        vname_params["vname"] = vname
-        vname_params["tripyrun_analysis"] = analysis_name
-        
-        #_______________________________________________________________________
-        # make no loop over depths
-        if 'depths' not in driver_settings[vname]:
-            #___________________________________________________________________
-            # make no loops over the months
-            if 'months' not in driver_settings[vname]:
-                webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params)
-                
-            #___________________________________________________________________
-            # make loop over list of months
+def extract_params(yaml_settings):
+    # create current primary parameter from yaml settings, these are the parameter 
+    # that arev setted at the very beginning of the yaml file. These parameters 
+    # can than be overwritten from the parameters that are defined in the driver
+    # section 
+    params_current = dict()
+    if isinstance(yaml_settings,dict):
+        for key, value in yaml_settings.items():
+            # if value is a dictionary its not a primary paramter anymore e.g.
+            # hslice: --> dict(...)
+            #    temp:
+            #        levels: [-2, 30, 41]
+            #        depths: [0, 100, 400, 1000]
+            # ....
+            if isinstance(value, dict) or value is None:
+                pass
             else:
-                del vname_params["months"]
-                for mon in driver_settings[vname]["months"]:
-                    print(f'                 --> mon: {mon}')
-                    vname_params["mon"] = mon
-                    webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params)
-        
-        #_______________________________________________________________________
-        # make loop over list of depths
-        else:    
-            del vname_params["depths"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            for depth in driver_settings[vname]["depths"]:
-                print(f'             --> depth: {depth}')
-                vname_params["depth"] = depth
-                
-                #_______________________________________________________________
-                # make no loops over the months
-                if 'months' not in driver_settings[vname]:
-                    webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params)
-                
-                #_______________________________________________________________
-                # make loop over list of months
-                else:
-                    del vname_params["months"]
-                    for mon in driver_settings[vname]["months"]:
-                        print(f'                 --> mon: {mon}')
-                        vname_params["mon"] = mon
-                        webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params)
-    #___________________________________________________________________________        
-    return webpage
+                if value=="None": value=None 
+                params_current[key] = value
+    else:
+        pass
+    return(params_current)
 
-
+  
 
 #
 #
 #_______________________________________________________________________________
-def drive_hslice_clim(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            if value=="None": value=None
-            current_params[key] = value
-    
+# define subroutine for loop over box_regions list 
+def loop_over_param(webpage, image_count, params_vname, target='box_region', source_loop='box_regions', source_single=None, exec_template='hovm'):
     #___________________________________________________________________________
-    # loop over variable name  
-    webpage, image_count = {}, 0
-    for vname in driver_settings:
-        print(f'         --> compute:{vname}')
-        vname_params = current_params.copy()
-        vname_params.update(driver_settings[vname])
-        vname_params["vname"] = vname
-        vname_params["tripyrun_analysis"] = analysis_name
-        
-        #_______________________________________________________________________
-        # make no loop over depths
-        if 'depths' not in driver_settings[vname]:
-            webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params, exec_template='hslice_clim')
-        #_______________________________________________________________________
-        # make loop over list of depths
-        else: 
-            del vname_params["depths"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            for depth in driver_settings[vname]["depths"]:
-                print(f'             --> depth: {depth}')
-                vname_params["depth"] = depth
-                webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params, exec_template='hslice_clim')
-    return webpage
-
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_hslice_isotdep(yaml_settings, analysis_name):
-    print(' --> drive_hslice:',analysis_name)
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            if value=="None": value=None 
-            current_params[key] = value
-    
-    #___________________________________________________________________________
-    # loop over isotherms
-    #_______________________________________________________________________
-    # make no loop over isotherms
-    webpage, image_count = {}, 0
-    vname_params = current_params.copy()
-    vname_params.update(driver_settings)
-    vname_params["tripyrun_analysis"] = analysis_name
-    vname_params["vname"] = 'isotdep'
-    if 'which_isotherms' not in driver_settings:
-        print(f'         --> compute isotherm depth @: {which_isotherm}')
-        vname_params["which_isotherm"]    = driver_settings['which_isotherm']
-    #_______________________________________________________________________
-    # make loop over list of isotherms    
-    else:   
-        del vname_params["which_isotherms"]
-        for which_isotherm in driver_settings['which_isotherms']:
-            print(f'         --> compute isotherm depth @: {which_isotherm}')
-            vname_params["which_isotherm"] = which_isotherm
+    # make loop over list of variables
+    if source_loop != None and source_loop in params_vname:
+        var_loop = params_vname[source_loop]
+        del params_vname[source_loop]
+        for var in var_loop:
+            if   isinstance(var,list) : params_vname[target] = [var]
+            elif isinstance(var,str)  : params_vname[target] = [var]
+            else                      : params_vname[target] =  var  
             
             #___________________________________________________________________
-            # make no loops over the months
-            if 'months' not in driver_settings:
-                webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params, exec_template='hslice_isotdep')
-                
-            #___________________________________________________________________
-            # make loop over list of months
+            if isinstance(params_vname[target],list) and len(params_vname[target][0])==3:
+                print(f"          --> compute {target}: {params_vname[target][0][2]}")
             else:
-                del vname_params["months"]
-                for mon in driver_settings["months"]:
-                    print(f'                 --> mon: {mon}')
-                    vname_params["mon"] = mon
-                    webpage, image_count = hslice_exec_papermill(webpage, image_count, vname_params, exec_template='hslice_isotdep')
+                print(f"          --> compute {target}: {params_vname[target]}")
+                
+            #___________________________________________________________________
+            webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+    
+    #___________________________________________________________________________
+    # only single var is defined or use list as single input 
+    elif source_single != None and source_single in params_vname:    
+        var_single = params_vname[source_single]
+        del params_vname[source_single]
+        params_vname[target] = var_single
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+        
+    #___________________________________________________________________________
+    # no variables defined or found use the one defined in the notebook 
+    else:
+        #warnings.warn(' -WARNING-> box_regions is not defined, use the default on defined in the notebook')
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+    return(webpage, image_count)   
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_hslice(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over depths
+        if 'depths' in params_vname:
+            depths = params_vname["depths"]
+            del params_vname["depths"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
+            for depth in depths:
+                print(f'          --> depth: {depth}')
+                params_vname["depth"] = depth
+                # make loops over the months or not 
+                webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                       source_loop='months', exec_template='hslice')
+        #_______________________________________________________________________
+        # only single boxregion defined 
+        elif 'depth' in params_vname:    
+            # make loops over the months or not 
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                   source_loop='months', exec_template='hslice')
+            
+        #_______________________________________________________________________    
+        # no depth defined use the one defined in the notebook 
+        else:
+            #warnings.warn(' -WARNING-> depths is not defined, use the default on defined in the notebook')
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                   source_loop='months', exec_template='hslice')
     return webpage
 
 
@@ -255,68 +277,180 @@ def drive_hslice_isotdep(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_hovm(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_hslice_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
     # loop over variable name  
-    for vname in driver_settings:
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over depths
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='depth', 
+                                               source_loop='depths', exec_template='hslice_clim')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_hslice_isotdep(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over which_isotherms
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='which_isotherm', 
+                                               source_loop='which_isotherms', exec_template='hslice_isotdep')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_hovm(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over box_regions
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
+                                               source_loop='box_regions', exec_template='hovm')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_hovm_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over box_regions
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
+                                               source_loop='box_regions', exec_template='hovm_clim')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_zmoc(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
         print(f'         --> compute: {vname}')
-        auxvname = vname.replace('/',':')
-        
-        # loop over depths
-        for box_region in driver_settings[vname]["box_regions"]:
-            print(f'             --> compute: {box_region}')
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["box_region"] = list([box_region])
-            current_params2.update(driver_settings[vname])
-            del current_params2["box_regions"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            str_boxregion = box_region.split('/')[-1].split('.')[0]
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{str_boxregion}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{str_boxregion}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                f"{templates_nb_path}/template_hovm.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True,
-            )
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"][
-                "name"
-            ] = f"{auxvname.capitalize()} at {str_boxregion} m"
-            webpage[f"image_{image_count}"]["path"] = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"] = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"][
-                "short_name"
-            ] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{str_boxregion}"
-            image_count += 1
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_zmoc')
     return webpage
 
 
@@ -324,63 +458,36 @@ def drive_hovm(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_hovm_clim(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_zmoc_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
     # loop over variable name  
-    for vname in driver_settings:
+    for vname in driver_vars:
         print(f'         --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
         
-        # loop over depths
-        for box_region in driver_settings[vname]["box_regions"]:
-            print(f'             --> compute: {box_region}')
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["box_region"] = list([box_region])
-            current_params2.update(driver_settings[vname])
-            del current_params2["box_regions"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            str_boxregion = box_region.split('/')[-1].split('.')[0]
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}_{str_boxregion}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}_{str_boxregion}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                f"{templates_nb_path}/template_hovm_clim.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True,
-            )
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"]["name"      ] = f"{vname.capitalize()} at {str_boxregion} m"
-            webpage[f"image_{image_count}"]["path"      ] = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"   ] = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}_{str_boxregion}"
-            image_count += 1
+        #_______________________________________________________________________
+        # make loop over which_lats
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='which_lat', 
+                                           source_loop='which_lats', source_single=None, exec_template='transp_zmoc_t')
     return webpage
 
 
@@ -388,57 +495,81 @@ def drive_hovm_clim(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_zmoc(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_dmoc(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
     # loop over variable name  
-    for vname in driver_settings:
+    for vname in driver_vars:
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        params_vname["do_zcoord"] = False
+        if   analysis_name == 'dmoc'        : params_vname["which_transf"] = 'dmoc' 
+        elif analysis_name == 'dmoc_srf'    : params_vname["which_transf"] = 'srf'  
+        elif analysis_name == 'dmoc_inner'  : params_vname["which_transf"] = 'inner'
+        elif analysis_name == 'dmoc_z'      : params_vname["which_transf"], params_vname["do_zcoord"] = 'dmoc' , True
+        elif analysis_name == 'dmoc_srf_z'  : params_vname["which_transf"], params_vname["do_zcoord"] = 'srf'  , True
+        elif analysis_name == 'dmoc_inner_z': params_vname["which_transf"], params_vname["do_zcoord"] = 'inner', True
+        
+        #_______________________________________________________________________
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_dmoc')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_dmoc_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+        
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
         print(f'         --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"]        = vname
+        params_vname["which_transf"] = 'dmoc'
+        params_vname["do_zcoord"]    = False
         
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["vname"] = vname
-        if driver_settings[vname] is not None:
-            current_params2.update(driver_settings[vname])
-            
         #_______________________________________________________________________
-        save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.png"
-        save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.ipynb"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-        #_______________________________________________________________________
-        pm.execute_notebook(
-                f"{templates_nb_path}/template_transp_zmoc.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True)
-            
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        webpage[f"image_{image_count}"]["name"]       = f"{vname.upper()}"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}"
-        image_count += 1
+        # make loop over which_lats
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='which_lat', 
+                                           source_loop='which_lats', source_single=None, exec_template='transp_dmoc_t')
     return webpage
 
 
@@ -446,60 +577,25 @@ def drive_zmoc(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_zmoc_t(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_dmoc_wdiap(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
-    # loop over variable name  
-    for which_lat in driver_settings['which_lats']:
-        print(f'         --> compute tseries @: {str(which_lat)}')
-        
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["which_lat"] = [which_lat]
-        current_params2.update(driver_settings)
-        del current_params2["which_lats"]
-            
-        #_______________________________________________________________________
-        save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_lat}.png"
-        save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_lat}.ipynb"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-        #_______________________________________________________________________
-        pm.execute_notebook(
-                f"{templates_nb_path}/template_transp_zmoc_t.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True)
-            
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        if which_lat == 'max':
-            webpage[f"image_{image_count}"]["name"]       = f" max AMOC @ 30°N<lat<45°N"
-        else:
-            webpage[f"image_{image_count}"]["name"]       = f" AMOC @ {which_lat}°N"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_lat}"
-        image_count += 1
+    #___________________________________________________________________________
+    # make no loop over isopycnals
+    params_vname = dict({'tripyrun_analysis':analysis_name})
+    params_vname.update(params_1lvl)
+    params_vname.update(params_2lvl)
+    params_vname["vname"] = 'wdiap_isopyc'
+    
+    #___________________________________________________________________________
+    # make loop over which_isopycs
+    webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='which_isopyc', 
+                                           source_loop='which_isopycs', source_single=None, exec_template='transp_dmoc_wdiap')
     return webpage
 
 
@@ -507,308 +603,47 @@ def drive_zmoc_t(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_dmoc(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_dmoc_srfcbflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
-    # loop over variable name  
-    for vname in driver_settings:
-        print(f'         --> compute: {vname}')
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["vname"] = vname
-        if   analysis_name == 'dmoc'      : 
-            current_params2["which_transf"], str_mode = 'dmoc' , ''
-        elif analysis_name == 'dmoc_srf'  : 
-            current_params2["which_transf"], str_mode = 'srf'  , '_srf'
-        elif analysis_name == 'dmoc_inner': 
-            current_params2["which_transf"], str_mode = 'inner', '_inner'
-        elif analysis_name == 'dmoc_z': 
-            current_params2["which_transf"], str_mode = 'dmoc', '_z'    
-            current_params2["do_zcoord"] = True
-        elif analysis_name == 'dmoc_srf_z'  : 
-            current_params2["do_zcoord"] = True
-            current_params2["which_transf"], str_mode = 'srf'  , '_srf_z'
-        elif analysis_name == 'dmoc_inner_z': 
-            current_params2["which_transf"], str_mode = 'inner', '_inner_z'
-            current_params2["do_zcoord"] = True
-        if driver_settings[vname] is not None:
-            current_params2.update(driver_settings[vname])
-        #_______________________________________________________________________
-        save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.png"
-        save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.ipynb"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-        #_______________________________________________________________________
-        pm.execute_notebook(
-                f"{templates_nb_path}/template_transp_dmoc.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True)
-            
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        webpage[f"image_{image_count}"]["name"]       = f"Density-{vname.upper()}{str_mode}"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}"
-        image_count += 1
+    #___________________________________________________________________________
+    # make no loop over isopycnals
+    params_vname = dict({'tripyrun_analysis':analysis_name})
+    params_vname.update(params_1lvl)
+    params_vname.update(params_2lvl)
+    params_vname["vname"] = 'srfbflx_isopyc'
+    
+    #___________________________________________________________________________
+    # make loop over which_isopycs
+    webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='which_isopyc', 
+                                           source_loop='which_isopycs', source_single=None, exec_template='transp_dmoc_srfcbflx')
     return webpage
+
 
 
 #
 #
 #_______________________________________________________________________________
-def drive_dmoc_t(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_hbarstreamf(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+     #__________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
-    # loop over variable name  
-    for which_lat in driver_settings['which_lats']:
-        print(f'         --> compute tseries @: {which_lat}')
-        
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["which_lat"] = [which_lat]
-        current_params2.update(driver_settings)
-        del current_params2["which_lats"]
-            
-        #_______________________________________________________________________
-        save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_lat}.png"
-        save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_lat}.ipynb"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-        #_______________________________________________________________________
-        pm.execute_notebook(
-                f"{templates_nb_path}/template_transp_dmoc_t.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True)
-            
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        if which_lat == 'max':
-            webpage[f"image_{image_count}"]["name"]       = f" max density-AMOC @ 45°N<lat<60°N"
-        else:
-            webpage[f"image_{image_count}"]["name"]       = f" density AMOC @ {which_lat}°N"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_lat}"
-        image_count += 1
-    return webpage
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_dmoc_wdiap(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    # loop over diffrent ispycnals   
-    for which_isopyc in driver_settings['which_isopycs']:
-        
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["which_isopyc"] = [which_isopyc]
-        current_params2.update(driver_settings)
-        del current_params2["which_isopycs"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            
-        #_______________________________________________________________________
-        if 'proj' in current_params2.keys(): 
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.ipynb"
-            short_name    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}"
-        else:
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_isopyc}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_isopyc}.ipynb"
-            short_name    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_isopyc}"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-        #_______________________________________________________________________
-        pm.execute_notebook(
-            f"{templates_nb_path}/template_transp_dmoc_wdiap.ipynb",
-            os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-            parameters=current_params2,
-            nest_asyncio=True,
-        )
-            
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        webpage[f"image_{image_count}"]["name"]       = f"{'W_diap'} at sigma2={which_isopyc} kg/m^3"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = short_name
-        image_count += 1
-    return webpage
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_dmoc_srfcbflx(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    # loop over diffrent ispycnals   
-    for which_isopyc in driver_settings['which_isopycs']:
-        
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["which_isopyc"] = [which_isopyc]
-        current_params2.update(driver_settings)
-        del current_params2["which_isopycs"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            
-        #_______________________________________________________________________
-        if 'proj' in current_params2.keys(): 
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}.ipynb"
-            short_name    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{current_params2['proj']}_{which_isopyc}"
-        else:
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_isopyc}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_isopyc}.ipynb"
-            short_name    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{which_isopyc}"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-        
-        #_______________________________________________________________________
-        pm.execute_notebook(
-            f"{templates_nb_path}/template_transp_dmoc_srfcbflx.ipynb",
-            os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-            parameters=current_params2,
-            nest_asyncio=True,
-        )
-        
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        webpage[f"image_{image_count}"]["name"]       = f"{'srf. buoyancy transf.'} at sigma2={which_isopyc} kg/m^3"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = short_name
-        image_count += 1
-    return webpage
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_hbarstreamf(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #            
-    if not yaml_settings[analysis_name]: driver_settings = dict()
-    else                               : driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = dict()
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
+    #___________________________________________________________________________
     # initialse webpage for analyis
-    webpage = {}
-    image_count = 0
-    print(f'         --> compute: hbarstreamf')
-    if not current_params: current_params2 = dict()
-    else                 : current_params2 = current_params.copy()
-    current_params2.update(driver_settings)
-            
-    #_______________________________________________________________________
-    save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}.png"
-    save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}.ipynb"
-    current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-    #_______________________________________________________________________
-    pm.execute_notebook(
-            f"{templates_nb_path}/template_transp_hbstreamf.ipynb",
-            os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-            parameters=current_params2,
-            nest_asyncio=True)
-            
-    #_______________________________________________________________________
-    webpage[f"image_{image_count}"] = {}
-    webpage[f"image_{image_count}"]["name"]       = f"{'horiz. barotrop. streamfunction'}"
-    webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-    webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-    webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}"
-    image_count += 1
+    params_vname = dict({'tripyrun_analysis':analysis_name})
+    params_vname.update(params_1lvl)
+    params_vname.update(params_2lvl)
+    params_vname["vname"] = 'hbstreamf'
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_hbstreamf')
     return webpage
 
 
@@ -816,56 +651,36 @@ def drive_hbarstreamf(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_vprofile(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_vprofile(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
     # loop over variable name  
-    for vname in driver_settings:
-        print(f'         --> compute: {vname}')
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname   
         
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["vname"] = vname
-        current_params2.update(driver_settings[vname])
-            
         #_______________________________________________________________________
-        save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.png"
-        save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.ipynb"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-        #_______________________________________________________________________
-        pm.execute_notebook(
-                f"{templates_nb_path}/template_vprofile.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True)
-            
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        webpage[f"image_{image_count}"]["name"]       = f"{vname.upper()}"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}"
-        image_count += 1
+        # make no loop over box_regions
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
+                                               source_loop=None, source_single='box_regions', exec_template='vprofile')
     return webpage
 
 
@@ -873,132 +688,36 @@ def drive_vprofile(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_vprofile_clim(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_vprofile_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
     # loop over variable name  
-    for vname in driver_settings:
-        print(f'         --> compute: {vname}')
-        
-        current_params2 = {}
-        current_params2 = current_params.copy()
-        current_params2["vname"] = vname
-        current_params2.update(driver_settings[vname])
-            
-        #_______________________________________________________________________
-        save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.png"
-        save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}.ipynb"
-        current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-        #_______________________________________________________________________
-        pm.execute_notebook(
-                f"{templates_nb_path}/template_vprofile_clim.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True)
-            
-        #_______________________________________________________________________
-        webpage[f"image_{image_count}"] = {}
-        webpage[f"image_{image_count}"]["name"]       = f"{vname.capitalize()}"
-        webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-        webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-        webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}"
-        image_count += 1
-    return webpage
-
-
-
-#
-#
-#
-#_______________________________________________________________________________
-def drive_transect(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    #___________________________________________________________________________
-    which_transects = driver_settings['which_transects']
-    driver_settings2 = yaml_settings[analysis_name].copy()
-    del driver_settings2['which_transects']
-    
-    #___________________________________________________________________________
-    # loop over variable name
-    for vname in driver_settings2: 
-        auxvname = vname.replace('/',':')
-        print(f'     -->{vname}')
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname   
         
         #_______________________________________________________________________
-        # loop over transect name  
-        for transect in which_transects:
-            tname = transect[2]
-            tname = tname.replace(' ','_')
-            tname = tname.replace(',','')
-            tname = tname.replace('°','')
-            print(f'         -->{tname}')
-            
-            #___________________________________________________________________
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["input_transect"] = list([transect])
-            current_params2.update(driver_settings2[vname])
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                    f"{templates_nb_path}/template_transect.ipynb",
-                    os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                    parameters=current_params2,
-                    nest_asyncio=True)
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"]["name"]       = f"{auxvname.upper()} @ {tname}"
-            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}"
-            image_count += 1
+        # make no loop over box_regions
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
+                                               source_loop=None, source_single='box_regions', exec_template='vprofile_clim')
     return webpage
 
 
@@ -1006,614 +725,278 @@ def drive_transect(yaml_settings, analysis_name):
 #
 #
 #_______________________________________________________________________________
-def drive_transect_clim(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
+def drive_transect(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
     
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
     
     #___________________________________________________________________________
-    which_transects = driver_settings['which_transects']
-    driver_settings2 = yaml_settings[analysis_name].copy()
-    del driver_settings2['which_transects']
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
     
     #___________________________________________________________________________
-    # loop over variable name
-    for vname in driver_settings2: 
-        auxvname = vname.replace('/',':')
-        print(f'            -->{vname}')
-        
-        #_______________________________________________________________________
-        # loop over transect name  
-        for transect in which_transects:
-            tname = transect[2]
-            tname = tname.replace(' ','_')
-            tname = tname.replace(',','')
-            tname = tname.replace('°','')
-            print(f'         -->{tname}')
-            
-            #___________________________________________________________________
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["input_transect"] = list([transect])
-            current_params2.update(driver_settings2[vname])
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                    f"{templates_nb_path}/template_transect_clim.ipynb",
-                    os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                    parameters=current_params2,
-                    nest_asyncio=True)
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"]["name"]       = f"{auxvname.upper()} @ {tname}"
-            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}"
-            image_count += 1
-    return webpage
-
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_transect_transp(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    #___________________________________________________________________________
-    which_transects = driver_settings['which_transects']
-    driver_settings2 = yaml_settings[analysis_name].copy()
-    del driver_settings2['which_transects']
-    
-    #___________________________________________________________________________
-    # loop over variable name
-    for vname in driver_settings2: 
-        auxvname = vname.replace('/',':')
-        print(f'            -->{vname}')
-        
-        #_______________________________________________________________________
-        # loop over transect name  
-        for transect in which_transects:
-            tname = transect[2]
-            tname = tname.replace(' ','_')
-            tname = tname.replace(',','')
-            tname = tname.replace('°','')
-            print(f'         -->{tname}')
-            
-            #___________________________________________________________________
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["input_transect"] = list([transect])
-            current_params2.update(driver_settings2[vname])
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                    f"{templates_nb_path}/template_transect_transp.ipynb",
-                    os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                    parameters=current_params2,
-                    nest_asyncio=True)
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"]["name"]       = f"{auxvname.upper()} @ {tname}"
-            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}"
-            image_count += 1
-    return webpage
-
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_transect_transp_t(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    #___________________________________________________________________________
-    which_transects = driver_settings['which_transects']
-    driver_settings2 = yaml_settings[analysis_name].copy()
-    del driver_settings2['which_transects']
-    
-    #___________________________________________________________________________
-    # loop over variable name
-    for vname in driver_settings2: 
-        auxvname = vname.replace('/',':')
-        print(f'            -->{vname}')
-        
-        #_______________________________________________________________________
-        # loop over transect name  
-        for transect in which_transects:
-            tname = transect[2]
-            tname = tname.replace(' ','_')
-            print(f'         -->{tname}')
-            
-            #___________________________________________________________________
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["input_transect"] = list([transect])
-            current_params2.update(driver_settings2[vname])    
-            
-            #_______________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #_______________________________________________________________________
-            pm.execute_notebook(
-                    f"{templates_nb_path}/template_transect_transp_t.ipynb",
-                    os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                    parameters=current_params2,
-                    nest_asyncio=True)
-            
-            #_______________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"]["name"]       = f"{auxvname.upper()} @ {tname}"
-            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}"
-            image_count += 1
-    return webpage
-
-#
-#
-#_______________________________________________________________________________
-def drive_transect_transp_t_OSNAP(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    #___________________________________________________________________________
-    which_transects = driver_settings['which_transects']
-    driver_settings2 = yaml_settings[analysis_name].copy()
-    del driver_settings2['which_transects']
-    
-    #___________________________________________________________________________
-    # loop over variable name
-    for vname in driver_settings2: 
-        auxvname = vname.replace('/',':')
-        print(f'            -->{vname}')
-        
-        #_______________________________________________________________________
-        # loop over transect name  
-        for transect in which_transects:
-            tname = transect[2]
-            tname = tname.replace(' ','_')
-            print(f'         -->{tname}')
-            
-            #___________________________________________________________________
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["input_transect"] = list([transect])
-            current_params2.update(driver_settings2[vname])    
-            
-            #_______________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #_______________________________________________________________________
-            pm.execute_notebook(
-                    f"{templates_nb_path}/template_transect_transp_t_OSNAP.ipynb",
-                    os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                    parameters=current_params2,
-                    nest_asyncio=True)
-            
-            #_______________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"]["name"]       = f"{auxvname.upper()} @ {tname}"
-            webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{tname}"
-            image_count += 1
-    return webpage
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_transect_zmean(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    #___________________________________________________________________________
-    which_box_regions = driver_settings['which_box_regions']
-    driver_settings2 = yaml_settings[analysis_name].copy()
-    del driver_settings2['which_box_regions']
-    
-    #___________________________________________________________________________
-    # loop over variable name
-    for vname in driver_settings2: 
-        auxvname = vname.replace('/',':')
-        print(f'            -->{vname}')
-        
-        #_______________________________________________________________________
-        # loop over transect name  
-        for box_region in which_box_regions:
-            aux_boxname = box_region.split('/')[-1].split('.')[0]
-            print(f'         -->{box_region}')
-            
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["box_region"] = list([box_region])
-            current_params2.update(driver_settings2[vname])
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{aux_boxname}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{aux_boxname}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                f"{templates_nb_path}/template_transect_zmean.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True,
-            )
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"][
-                "name"
-            ] = f"{auxvname.capitalize()} at {aux_boxname} m"
-            webpage[f"image_{image_count}"]["path"] = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"] = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"][
-                "short_name"
-            ] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{aux_boxname}"
-            image_count += 1
-    return webpage
-
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_transect_zmean_clim(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    #___________________________________________________________________________
-    which_box_regions = driver_settings['which_box_regions']
-    driver_settings2 = yaml_settings[analysis_name].copy()
-    del driver_settings2['which_box_regions']
-    
-    #___________________________________________________________________________
-    # loop over variable name
-    for vname in driver_settings2: 
-        auxvname = vname.replace('/',':')
-        print(f'            -->{vname}')
-        
-        #_______________________________________________________________________
-        # loop over transect name  
-        for box_region in which_box_regions:
-            aux_boxname = box_region.split('/')[-1].split('.')[0]
-            print(f'         -->{box_region}')
-            
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["box_region"] = list([box_region])
-            current_params2.update(driver_settings2[vname])
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}_{aux_boxname}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}_{aux_boxname}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                f"{templates_nb_path}/template_transect_zmean_clim.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True,
-            )
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"][
-                "name"
-            ] = f"{vname.capitalize()} at {aux_boxname} m"
-            webpage[f"image_{image_count}"]["path"] = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"] = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"][
-                "short_name"
-            ] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{vname}_{aux_boxname}"
-            image_count += 1
-    return webpage
-
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_ghflx(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    print(f'         --> compute ghflx:')
-    current_params2 = {}
-    current_params2 = current_params.copy()
-            
-    #___________________________________________________________________________
-    save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}.png"
-    save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}.ipynb"
-    current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-    #___________________________________________________________________________
-    pm.execute_notebook(
-            f"{templates_nb_path}/template_transp_ghflx.ipynb",
-            os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-            parameters=current_params2,
-            nest_asyncio=True)
-            
-    #___________________________________________________________________________
-    webpage[f"image_{image_count}"] = {}
-    webpage[f"image_{image_count}"]["name"]       = f" GHFLX"
-    webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-    webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-    webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}"
-    image_count += 1
-    return webpage
-
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_mhflx(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
-    print(f'         --> compute mhflx:')
-    current_params2 = {}
-    current_params2 = current_params.copy()
-            
-    #___________________________________________________________________________
-    save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}.png"
-    save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}.ipynb"
-    current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-    #___________________________________________________________________________
-    pm.execute_notebook(
-            f"{templates_nb_path}/template_transp_mhflx.ipynb",
-            os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-            parameters=current_params2,
-            nest_asyncio=True)
-            
-    #___________________________________________________________________________
-    webpage[f"image_{image_count}"] = {}
-    webpage[f"image_{image_count}"]["name"]       = f" MHFLX"
-    webpage[f"image_{image_count}"]["path"]       = os.path.join('./figures/', save_fname)
-    webpage[f"image_{image_count}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
-    webpage[f"image_{image_count}"]["short_name"] = f"{yaml_settings['tripyrun_name']}_{analysis_name}"
-    image_count += 1
-    return webpage
-
-
-#
-#
-#_______________________________________________________________________________
-def drive_var_t(yaml_settings, analysis_name):
-    # copy yaml settings for  analysis driver --> hslice: 
-    #                                         
-    driver_settings = yaml_settings[analysis_name].copy()
-    
-    # create current primary parameter from yaml settings
-    current_params = {}
-    for key, value in yaml_settings.items():
-        # if value is a dictionary its not a primary paramter anymore e.g.
-        # hslice: --> dict(...)
-        #    temp:
-        #        levels: [-2, 30, 41]
-        #        depths: [0, 100, 400, 1000]
-        # ....
-        if isinstance(value, dict):
-            pass
-        else:
-            current_params[key] = value
-    # initialse webpage for analyis 
-    webpage = {}
-    image_count = 0
-    
     # loop over variable name  
-    for vname in driver_settings:
-        print(f'         --> compute: {vname}')
-        auxvname = vname.replace('/',':')
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
         
-        # loop over depths
-        for box_region in driver_settings[vname]["box_regions"]:
-            print(f'             --> compute: {box_region}')
-            current_params2 = {}
-            current_params2 = current_params.copy()
-            current_params2["vname"] = vname
-            current_params2["box_region"] = list([box_region])
-            current_params2.update(driver_settings[vname])
-            del current_params2["box_regions"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            str_boxregion = box_region.split('/')[-1].split('.')[0]
-            
-            #___________________________________________________________________
-            save_fname    = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{str_boxregion}.png"
-            save_fname_nb = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{str_boxregion}.ipynb"
-            current_params2["save_fname"] = os.path.join(yaml_settings['tripyrun_spath_fig'], save_fname)
-            
-            #___________________________________________________________________
-            pm.execute_notebook(
-                f"{templates_nb_path}/template_var_t.ipynb",
-                os.path.join(yaml_settings['tripyrun_spath_nb'], save_fname_nb),
-                parameters=current_params2,
-                nest_asyncio=True,
-            )
-            
-            #___________________________________________________________________
-            webpage[f"image_{image_count}"] = {}
-            webpage[f"image_{image_count}"][
-                "name"
-            ] = f"{auxvname.capitalize()} at {str_boxregion} m"
-            webpage[f"image_{image_count}"]["path"] = os.path.join('./figures/', save_fname)
-            webpage[f"image_{image_count}"]["path_nb"] = os.path.join('./notebooks/', save_fname_nb)
-            webpage[f"image_{image_count}"][
-                "short_name"
-            ] = f"{yaml_settings['tripyrun_name']}_{analysis_name}_{auxvname}_{str_boxregion}"
-            image_count += 1
+        #_______________________________________________________________________
+        # make loop over transects
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
+                                               source_loop="transects", source_single='transect', exec_template='transect')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_transect_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over transects
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
+                                               source_loop="transects", source_single='transect', exec_template='transect_clim')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_transect_transp(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    params_vname = dict({'tripyrun_analysis':analysis_name})
+    params_vname.update(params_1lvl)
+    params_vname.update(params_2lvl)
+    #params_vname["vname"] = vname
+        
+    #___________________________________________________________________________
+    # make loop over transects
+    webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
+                                               source_loop="transects", source_single='transect', exec_template='transect_transp')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_transect_transp_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    params_vname = dict({'tripyrun_analysis':analysis_name})
+    params_vname.update(params_1lvl)
+    params_vname.update(params_2lvl)
+    #params_vname["vname"] = vname
+        
+    #___________________________________________________________________________
+    # make loop over transects
+    webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
+                                               source_loop="transects", source_single='transect', exec_template='transect_transp_t')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over box_regions
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
+                                               source_loop='box_regions', exec_template='transect_zmean')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_transect_zmean_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over box_regions
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
+                                               source_loop='box_regions', exec_template='transect_zmean_clim')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_ghflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # initialse webpage for analyis
+    params_vname = dict({'tripyrun_analysis':analysis_name})
+    params_vname.update(params_1lvl)
+    params_vname.update(params_2lvl)
+    params_vname["vname"] = 'ghflx'
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_ghflx')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_mhflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # initialse webpage for analyis
+    params_vname = dict({'tripyrun_analysis':analysis_name})
+    params_vname.update(params_1lvl)
+    params_vname.update(params_2lvl)
+    params_vname["vname"] = 'mhflx'
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_mhflx')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_var_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over box_regions
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
+                                               source_loop='box_regions', exec_template='var_t')
     return webpage

@@ -16,10 +16,12 @@ import matplotlib.ticker        as mticker
 import matplotlib.path          as mpath
 import matplotlib.colors        as mcolors
 from   matplotlib.colors        import ListedColormap
-from   matplotlib.ticker        import MultipleLocator, AutoMinorLocator, ScalarFormatter
+from   matplotlib.ticker        import MultipleLocator, AutoMinorLocator, ScalarFormatter, LogLocator, LogFormatter
 
 from   scipy.signal             import convolve2d
 from   scipy.interpolate        import interp1d
+
+import textwrap
 
 import warnings
 
@@ -27,6 +29,9 @@ from .sub_mesh     import *
 from .sub_data     import *
 from .sub_colormap import *
 from .sub_utility  import *
+
+
+
 #
 #
 #_______________________________________________________________________________
@@ -1933,6 +1938,7 @@ def plot_vline(data                   ,
                 do_allcycl = False     , 
                 do_shdw    = True      ,
                 do_mean    = False     ,
+                do_rescale = False     ,
                 #--- data -----------
                 plt_opt    = dict()    ,
                 mark_opt   = dict()    ,
@@ -2105,7 +2111,7 @@ def plot_vline(data                   ,
     
     #___________________________________________________________________________
     # --> pre-arange axes
-    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_sharey':True, 'ax_dt':1.75})
+    ax_optdefault=dict({'projection': proj_to, 'ax_sharex':False, 'ax_sharey':True, 'ax_dt':2.0})
     ax_optdefault.update(ax_opt)
     hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
     cb_plt_idx=cb_plt_idx[:nbox]
@@ -2177,7 +2183,7 @@ def plot_vline(data                   ,
                     loc_attrs= data[jj][ii][vname].attrs
                     str_xlabel, str_llabel, str_blabel = '', '', ''
                     if ax_xlabel is None:
-                        if   'long_name'     in loc_attrs: str_xlabel = str_xlabel + loc_attrs['long_name']
+                        if   'long_name'     in loc_attrs: str_xlabel = str_xlabel + loc_attrs['long_name'].capitalize()
                         elif 'short_name'    in loc_attrs: str_xlabel = str_xlabel + loc_attrs['short_name']
                         if   'units'         in loc_attrs: str_xlabel = str_xlabel + ' / ' + loc_attrs['units']
                     else:
@@ -2221,8 +2227,22 @@ def plot_vline(data                   ,
                         if cnt_cycl>= n_cycl: cnt_cycl=0
                         
                 #___________________________________________________________________
-                if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
-                if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
+                if hax_ii.do_xlabel: 
+                    # wrap xlabel string when they are to long
+                    # Estimate the width of the axes dynamically
+                    fig_width, fig_height = hfig.get_size_inches()
+                    fig_dpi = hfig.get_dpi()
+                    axes_width_px = hax_ii.get_position().width * fig_width * fig_dpi
+                    
+                    # Estimate the width of the axes in terms of characters
+                    # font_size = plt.rcParams['font.size']
+                    font_size = hax_ii.xaxis.get_label().get_size()
+                    max_chars_per_line = int(axes_width_px / (font_size*0.6))  # Empirical factor for font size to character width ratio
+                    str_xlabel = '\n'.join(textwrap.wrap(str_xlabel, width=max_chars_per_line))
+                    hax_ii.set_xlabel(str_xlabel)
+                    
+                if hax_ii.do_ylabel: 
+                    hax_ii.set_ylabel(str_ylabel)
             
             
             #___________________________________________________________________
@@ -2231,7 +2251,7 @@ def plot_vline(data                   ,
             if ax_ylim is None: ax_ylim0=[ymin,ymax]
             h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
                                   data_y=data_y, xlim=ax_xlim, ylim=ax_ylim0, 
-                                  grid_opt=grid_opt)
+                                  grid_opt=grid_opt, do_rescale=do_rescale)
             hgrd.append(h0)
             
             #_______________________________________________________________________
@@ -4252,7 +4272,8 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
 #
 #_______________________________________________________________________________
 def do_plt_gridlines(hax_ii, do_grid, box, ndat, 
-                     data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict(), proj=None):
+                     data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict(), 
+                     proj=None, do_rescale=None):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -4426,6 +4447,23 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                     hax_ii.tick_params(axis='y', which='minor', left=True, right=False, labelleft=False, labelright=False)
             
             #___________________________________________________________________
+            # rescale x-axhes in case of vline index+depth plot
+            if   hax_ii.projection in ['index+depth'] and isinstance(do_rescale,str): 
+                if   do_rescale in ['log10' , 'slog10']: 
+                    if   do_rescale=='log10' : hax_ii.set_xscale('log')
+                    elif do_rescale=='slog10': hax_ii.set_xscale('symlog')
+                    hax_ii.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0, ), numticks=10))
+                    
+                    xtlabels = hax_ii.get_xticklabels()
+                    if hax_ii.xaxis.get_tick_space()+2<len(xtlabels):
+                        for ll in range(0,len(xtlabels),2):
+                                xtlabels[ll] = ''
+                    hax_ii.set_xticklabels(xtlabels)
+                    hax_ii.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks=10))
+                else: hax_ii.get_xaxis().set_minor_locator(AutoMinorLocator())
+            else: hax_ii.get_xaxis().set_minor_locator(AutoMinorLocator())
+               
+            #___________________________________________________________________
             # set x/y limits
             if data_y is not None: 
                 if np.ndim(data_y)==1 : hax_ii.set_ylim(data_y[0],data_y[-1])
@@ -4444,7 +4482,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             if isinstance(hax_ii.projection, str):
                 if   hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+depth']: 
                     hax_ii.invert_yaxis()
-
+                
                 elif hax_ii.projection in ['zmoc', 'dmoc+depth']:    
                     if ylim is not None: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
                     hax_ii.invert_yaxis()
@@ -4454,9 +4492,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             
             #___________________________________________________________________
             # set grid options 
-            hax_ii.grid(True,which='major')
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
-            hax_ii.get_xaxis().set_minor_locator(AutoMinorLocator())
+            hax_ii.grid(True,which='major')
             hax_ii.grid(**grid_optdefault)
             
     #___________________________________________________________________________
@@ -4526,9 +4563,9 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
     if cb_label is None:
         cb_label = ''
         if  'long_name' in loc_attrs:
-            cb_label = cb_label+loc_attrs['long_name']
+            cb_label = cb_label+loc_attrs['long_name'].capitalize()
         elif 'short_name' in loc_attrs:
-            c_label = cb_label+loc_attrs['short_name']
+            c_label = cb_label+loc_attrs['short_name'].capitalize()
         
         if cb_unit  is None:
             if 'units' in loc_attrs: cb_label = cb_label+' / '+loc_attrs['units']
@@ -4558,6 +4595,7 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
 # 
 #_______________________________________________________________________________
 # --> dor formating of colorbar for logarithmic data and exponential data
+
 def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4], cbtl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
