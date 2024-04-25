@@ -1,13 +1,5 @@
-import yaml
 import papermill as pm
-import math
-import pkg_resources
 from jinja2 import Environment, FileSystemLoader
-import yaml
-import argparse
-import json
-import glob
-import shutil
 import sys
 import os
 import warnings
@@ -148,10 +140,11 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
 #
 #_______________________________________________________________________________
 def extract_params(yaml_settings):
-    # create current primary parameter from yaml settings, these are the parameter 
-    # that arev setted at the very beginning of the yaml file. These parameters 
-    # can than be overwritten from the parameters that are defined in the driver
-    # section 
+    # create current parameter level from yaml settings, these are either the parameter 
+    # that are setted at the very beginning of the yaml file (1st level) or the 
+    # parameterssetted at the beginning of the driver section (2nd level) or the 
+    # parameters that are setted in each variable section. These parameters 
+    # can than be overwritten param_1lvl --> param_2lvl --> param_3lvl
     params_current = dict()
     if isinstance(yaml_settings,dict):
         for key, value in yaml_settings.items():
@@ -519,9 +512,9 @@ def drive_dmoc(yaml_settings, analysis_name, webpage=dict(), image_count=0, vnam
         params_vname.update(params_2lvl)
         params_vname.update(params_3lvl)
         params_vname["vname"] = vname
+        params_vname["do_zcoord"] = False
         
         #_______________________________________________________________________
-        params_vname["do_zcoord"] = False
         if   analysis_name == 'dmoc'        : params_vname["which_transf"] = 'dmoc' 
         elif analysis_name == 'dmoc_srf'    : params_vname["which_transf"] = 'srf'  
         elif analysis_name == 'dmoc_inner'  : params_vname["which_transf"] = 'inner'

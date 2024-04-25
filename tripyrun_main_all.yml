@@ -62,6 +62,7 @@ hslice:
     MLD2:
         #___3lvl Parameter___
         cstr: 'rygbw'
+        crange: [-3000, 0, -1500]
 
 #_______________________________________________________________________________
 # northern/southern stereographic plots
@@ -83,6 +84,7 @@ hslice_np:
         #___3lvl Parameter___
         months: [3, 9]
         cstr: 'rygbw'
+        crange: [-3000, 0, -1500]
          
 hslice_sp:        
     #___2lvl Parameter___
@@ -94,13 +96,14 @@ hslice_sp:
         #___3lvl Parameter___
         cstr: 'wbgyr'
         crange: [0,1.0,0.5]
-    #m_ice:
-        ##___3lvl Parameter___
-        #cstr: 'wbgyr'
-        #crange: [0.0, 1.5, 0.75]
-    #MLD2:
-        ##___3lvl Parameter___
-        #cstr: 'rygbw'
+    m_ice:
+        #___3lvl Parameter___
+        cstr: 'wbgyr'
+        crange: [0.0, 1.5, 0.75]
+    MLD2:
+        #___3lvl Parameter___
+        cstr: 'rygbw'
+        crange: [-3000, 0, -1500]
 
 #_______________________________________________________________________________
 # horizontal temp/salt climatology anomaly 
@@ -110,11 +113,11 @@ hslice_clim:
     #___Variables________        
     temp:
         #___3lvl Parameter___
-        cstr: 'cmocean.thermal'
+        cstr: 'blue2red'
         crange: [-4, 4, 0]
     salt:
         #___3lvl Parameter___
-        cstr: 'cmocean.haline'
+        cstr: 'blue2red'
         #crange: [-0.5, 0.5, 0]
 
 ##_______________________________________________________________________________
@@ -260,15 +263,15 @@ transect_clim:
     #___Variables________  
     temp:
         #___3lvl Parameter___
-        cstr: 'cmocean.thermal'
+        cstr: 'blue2red'
         crange: [-4, 4, 0]
     salt:
         #___3lvl Parameter___
-        cstr: 'cmocean.haline'
+        cstr: 'blue2red'
         crange: [-0.5, 0.5, 0]
     sigma2:
         #___3lvl Parameter___
-        cstr: 'cmocean.dense'    
+        cstr: 'blue2red'    
         
 #______________________________________________________________________________
 # plot vertical section of volume transport through transect
@@ -342,15 +345,15 @@ transect_zmean_clim:
     temp:
         #___3lvl Parameter___
         crange: [-2.0,2.0,0] 
-        cstr: 'cmocean.thermal'
+        cstr: 'blue2red'
     salt:
         #___3lvl Parameter___
         crange: [-0.75,0.75,0]    
-        cstr: 'cmocean.haline'
+        cstr: 'blue2red'
     sigma2:
         #___3lvl Parameter___
         crange: [-0.35,0.35,0]        
-        cstr: 'cmocean.dense'
+        cstr: 'blue2red'
 
 #_______________________________________________________________________________
 # plot meridional overturning streamfunction based on z-coordiante vertical 

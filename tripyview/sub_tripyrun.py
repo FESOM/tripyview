@@ -11,7 +11,7 @@ import numpy     as np
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
 #except: pkg_path='.'    
 #sys.path.append(os.path.join(pkg_path,"src/"))
-from .sub_tripydriver import *
+from .sub_tripyrundriver import *
 
 #_______________________________________________________________________________       
 # open htnl template file
@@ -39,6 +39,24 @@ class cd:
     def __exit__(self, etype, value, traceback):
         os.chdir(self.savedPath)
 
+
+
+#
+#
+#_______________________________________________________________________________
+# render webpage collection
+def render_experiment_html(webpages, yaml_settings):
+    fname_html     = f"{yaml_settings['tripyrun_name']}.html"
+    save_path_html = os.path.join(yaml_settings['save_path'], fname_html)
+    ofile          = open(save_path_html, "w")
+    template       = env.get_template("experiment.html")
+    output         = template.render(webpages)
+    ofile.write(output)
+    ofile.close()   
+    return
+    
+    
+    
 #
 #
 #_______________________________________________________________________________
@@ -63,13 +81,19 @@ def tripyrun():
                         nargs='+',
                         help='run only particular diagnostics from the yml file.',)
     
+    # re-render ,html based on saved json file
+    parser.add_argument('--render',
+                        '-r',
+                        action='store_true',  # This makes it a flag, no need for nargs=0
+                        help='run only rendering of .html based on saved jsonfile.',)
+    
     # input arguments from command line
     inargs = parser.parse_args()
     if inargs.diagnostics:
         print(f" --> selected diagnostics will be run: {inargs.diagnostics}")
         if inargs.variable:
             print(f"     --> selected variable will be run: {inargs.diagnostics}")
-        
+    
     #___________________________________________________________________________
     # open selected yaml files
     yaml_filename = inargs.workflow_file
@@ -177,6 +201,11 @@ def tripyrun():
             webpages = json.load(json_file)
             print(f"Jupyter Notebooks from previous runs exist in {save_path_json},")
             print(f"they will be used to generate output for diagnostics you do not run this time.")
+            #___________________________________________________________________
+            if inargs.render:
+                print(f"\n --> render experment .html:  {yaml_settings['tripyrun_name']}:")
+                render_experiment_html(webpages, yaml_settings)
+                return
     else:
         # json file doesnt exist, freshly initialise webpage
         webpages = {}
@@ -192,28 +221,17 @@ def tripyrun():
     # loop over available diagnostics and run the one selected in the yaml file
     # loop over all analyses
     for analysis_name in analyses_driver_list:
-        
         # check if analysis is in input yaml settings
         if analysis_name in yaml_settings:
             
             #___________________________________________________________________
-            # if no -d ... flag is setted perform full yml file diagnostic
-            if inargs.diagnostics is None:
-                print(f"\n --> compute {analysis_name}:")
-                # drive specific analysis from analyses_driver_list
-                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
-                webpages["analyses"][analysis_name] = webpage
-            
-            #___________________________________________________________________
             # if -d ... flag is setted perform specific yml file diagnostic    
-            else:
-                #_______________________________________________________________
-                # if -v vname1 vname2 ... flag is setted perform specific variable 
-                # in specific yml file diagnostic    
+            if inargs.diagnostics:
                 if analysis_name in inargs.diagnostics:
                     print(f"\n --> compute {analysis_name}:")
-                    # execute one specfic variable in  specfic driver section as 
-                    # it is defined in the yaml file
+                    #___________________________________________________________
+                    # if -v vname1 vname2 ... flag is setted perform specific 
+                    # variables in specific yml file diagnostic    
                     if inargs.variable:
                         for vname in inargs.variable:
                             cnt, cnt_max = -1, -1
@@ -230,14 +248,21 @@ def tripyrun():
                                 cnt=cnt_max+1
                             webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=webpages["analyses"][analysis_name], image_count=cnt, vname=vname)
                             webpages["analyses"][analysis_name] = webpage
-                
-                #_______________________________________________________________
-                # if no -v vname1 vname2 ... flag is setted
-                # execute entire specfic driver section as it is defined in the yaml file
-                else:    
-                    print(f"\n --> compute {analysis_name}:")
-                    webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
-                    webpages["analyses"][analysis_name] = webpage
+                    
+                    #___________________________________________________________
+                    # if no -v vname1 vname2 ... flag is setted
+                    # execute entire specfic driver section as it is defined in the yaml file
+                    else:    
+                        webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                        webpages["analyses"][analysis_name] = webpage
+            
+            #___________________________________________________________________
+            # if no -d ... flag is setted perform full yml file diagnostic
+            else:
+                print(f"\n --> compute {analysis_name}:")
+                # drive specific analysis from analyses_driver_list
+                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                webpages["analyses"][analysis_name] = webpage
             
             #___________________________________________________________________
             # write linked analysis to .json file
@@ -245,13 +270,7 @@ def tripyrun():
             
     #___________________________________________________________________________
     # save everything to .html and render it 
-    fname_html     = f"{yaml_settings['tripyrun_name']}.html"
-    save_path_html = os.path.join(yaml_settings['save_path'], fname_html)
-    ofile          = open(save_path_html, "w")
-    template       = env.get_template("experiment.html")
-    output         = template.render(webpages)
-    ofile.write(output)
-    ofile.close()   
+    render_experiment_html(webpages, yaml_settings) 
     
     #___________________________________________________________________________
     # save everything to .html
