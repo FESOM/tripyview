@@ -1148,7 +1148,7 @@ def do_interp_e2n(data, mesh, do_ie2n):
             #aux = grid_interp_e2n(mesh,data[vname].data)
             #with np.errstate(divide='ignore',invalid='ignore'):
             aux = grid_interp_e2n(mesh,data[vname].values)
-            #print(aux.shape)
+            
             # new variable name 
             vname_new = 'n_'+vname
             
@@ -1165,13 +1165,13 @@ def do_interp_e2n(data, mesh, do_ie2n):
             
             # delete elem variable from dataset
             data = data.drop_vars(vname)
-            
+
+            del(aux)
         #_______________________________________________________________________
         # kick out element related coordinates 
         for coordi in list(data.coords):
             if 'elem' in data[coordi].dims: data = data.drop_vars(coordi)
-                
-    
+        
     #___________________________________________________________________________
     return(data)
 

@@ -4869,10 +4869,19 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 if cref==0.0: 
                     cinfo['cref'] = cref
                 else:
+                    # chose cref as center between cmin and cmax and round as coarsely as possible without
+                    # 1. rounded value lying outside ]cmin, cmax[ (tolfac=1)
+                    # 2. rounded value lying too far away from the middle (tolfac < 1)
+                    # cref will be forced to lie in area maked with "+"
+                    # cmin -----------++++++++++++++ ccenter ++++++++++++++----------- cmax
+                    #                |------ tolfac * (cmax - cmin) -------|
+                    ccenter = (cinfo['cmax'] + cinfo['cmin'])/2
+                    tolfac = 0.5 # tolfac=1 --> accept every cref that is between cmax and cmin. tolfac<1 --> cref closer to center
+                    ctolerance = tolfac * (cinfo['cmax'] - cinfo['cmin'])/2
                     while True:
                         new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
                         #print(cref, new_cref, cinfo['cmin'], cinfo['cmax'])
-                        if new_cref>cinfo['cmin'] and new_cref<cinfo['cmax']:
+                        if new_cref>(ccenter - ctolerance) and new_cref<(ccenter + ctolerance):
                             break
                         else: 
                             dez=dez+1
