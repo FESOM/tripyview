@@ -137,6 +137,10 @@ template, graditues go to Nikolay.Koldunov@awi.de), creates html files with link
 * `tripyrun  <workflowfile.yml> -d <driver> -v <var1 var2 ...>` - re-run specific variable 
 subset of one specific driver driver from .yml file
 
+<p align="center" width="100%">
+  <img width=75% src="tripyview/tripyview_tripyrun.png">
+</p>
+
 ## Credits:
 If you use the package please give the package or the author some credit.
 
