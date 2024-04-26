@@ -22,11 +22,11 @@ env               = Environment(loader=file_loader)
 def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     #___________________________________________________________________________
     # create strings for fname and labels in the webpage
-    str_vname1, str_vname2, str_dep1, str_dep2, str_mon1, str_mon2, str_proj = '', '', '', '', '', '', ''
+    str_vname1, str_vname2, str_dep1, str_dep2, str_mon1, str_mon2, str_proj1, str_proj2 = '', '', '', '', '', '', '',''
     if 'vname' in params_vname:
         str_vname1, str_vname2 = f"_{params_vname['vname'].replace('/',':')}", f"{params_vname['vname'].replace('/',':')}"
     if 'proj' in params_vname:
-        str_proj = f"_{params_vname['proj']}" if 'proj' in params_vname else ''
+        str_proj1, str_proj2 = f"_{params_vname['proj']}",  f", proj:{params_vname['proj']}" 
     if 'depth' in params_vname: 
         str_dep1, str_dep2 = f"_z{params_vname['depth']}", f", @dep:{params_vname['depth']}"
     if 'mon'   in params_vname: 
@@ -36,14 +36,14 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     # assemble total strings
     str_all1 = f"{params_vname['tripyrun_name']}_{params_vname['tripyrun_analysis']}{str_vname1}"
     if exec_template in ['hslice', 'hslice_clim']:
-        str_all1 = f"{str_all1}{str_proj}{str_dep1}{str_mon1}"
-        str_all2 = f"{str_vname2}{str_dep2}{str_mon2}"
+        str_all1 = f"{str_all1}{str_proj1}{str_dep1}{str_mon1}"
+        str_all2 = f"{str_vname2}{str_proj2}{str_dep2}{str_mon2}"
         
     elif exec_template in ['hslice_isotdep']:
         str_isotd1, str_isotd2 = '', ''
         if 'which_isotherm' in params_vname: str_isotd1, str_isotd2 = f"_{params_vname['which_isotherm']}", f"depth of {params_vname['which_isotherm']}C isotherm"
-        str_all1 = f"{str_all1}{str_proj}{str_isotd1}{str_dep1}{str_mon1}"
-        str_all2 = f"{str_isotd2}{str_mon2}"
+        str_all1 = f"{str_all1}{str_proj1}{str_isotd1}{str_dep1}{str_mon1}"
+        str_all2 = f"{str_isotd2}{str_proj2}{str_mon2}"
         
     elif exec_template in ['hovm', 'hovm_clim', 'transect_zmean', 'transect_zmean_clim', 'var_t']:
         str_box1, str_box2 = '', ''
@@ -93,8 +93,8 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
             if 'which_isopyc' in params_vname: str_isop1, str_isop2 = f"_{params_vname['which_isopyc']}", f"W_diap @ sigma2= {params_vname['which_isopyc']} kg/m^3"
         elif exec_template in ['transp_dmoc_srfcbflx']:
             if 'which_isopyc' in params_vname: str_isop1, str_isop2 = f"_{params_vname['which_isopyc']}", f"Srf. buoyancy transf. @ sigma2= {params_vname['which_isopyc']} kg/m^3"
-        str_all1 = f"{str_all1}{str_proj}{str_isop1}{str_mon1}"
-        str_all2 = f"{str_isop2}{str_mon2}"
+        str_all1 = f"{str_all1}{str_proj1}{str_isop1}{str_mon1}"
+        str_all2 = f"{str_isop2}{str_proj1}{str_mon2}"
     
     elif exec_template in ['transp_hbstreamf']:
         str_all1 = f"{str_all1}{str_mon1}"
@@ -175,20 +175,25 @@ def loop_over_param(webpage, image_count, params_vname, target='box_region', sou
     if source_loop != None and source_loop in params_vname:
         var_loop = params_vname[source_loop]
         del params_vname[source_loop]
-        for var in var_loop:
-            if   isinstance(var,list) : params_vname[target] = [var]
-            elif isinstance(var,str)  : params_vname[target] = [var]
-            else                      : params_vname[target] =  var  
-            
-            #___________________________________________________________________
-            if isinstance(params_vname[target],list) and len(params_vname[target][0])==3:
-                print(f"          --> compute {target}: {params_vname[target][0][2]}")
-            else:
-                print(f"          --> compute {target}: {params_vname[target]}")
+        if var_loop is not None:
+            for var in var_loop:
+                if   isinstance(var,list) : params_vname[target] = [var]
+                elif isinstance(var,str)  : params_vname[target] = [var]
+                else                      : params_vname[target] =  var  
                 
-            #___________________________________________________________________
+                #___________________________________________________________________
+                if isinstance(params_vname[target],list) and len(params_vname[target][0])==3:
+                    print(f"          --> compute {target}: {params_vname[target][0][2]}")
+                else:
+                    print(f"          --> compute {target}: {params_vname[target]}")
+                    
+                #___________________________________________________________________
+                webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+        else:
+            var_single = params_vname[source_single]
+            del params_vname[source_single]
+            params_vname[target] = var_single
             webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
-    
     #___________________________________________________________________________
     # only single var is defined or use list as single input 
     elif source_single != None and source_single in params_vname:    
@@ -244,12 +249,16 @@ def drive_hslice(yaml_settings, analysis_name, webpage=dict(), image_count=0, vn
         if 'depths' in params_vname:
             depths = params_vname["depths"]
             del params_vname["depths"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
-            for depth in depths:
-                print(f'          --> depth: {depth}')
-                params_vname["depth"] = depth
-                # make loops over the months or not 
+            if depths is not None:
+                for depth in depths:
+                    print(f'          --> depth: {depth}')
+                    params_vname["depth"] = depth
+                    # make loops over the months or not 
+                    webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                        source_loop='months', exec_template='hslice')
+            else:
                 webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
-                                                       source_loop='months', exec_template='hslice')
+                                                   source_loop='months', exec_template='hslice')
         #_______________________________________________________________________
         # only single boxregion defined 
         elif 'depth' in params_vname:    

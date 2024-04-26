@@ -6,6 +6,7 @@ import shutil
 import sys
 import os
 import numpy     as np
+import time      as clock 
 #os.environ['PATH_TRIPYVIEW'] = '/home/ollie/pscholz/tripyview_github/'
 
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
@@ -62,7 +63,9 @@ def render_experiment_html(webpages, yaml_settings):
 #_______________________________________________________________________________
 # command line input --> diagrun() 
 def tripyrun():
-    
+    ts = clock.time()
+    print(" --> start time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
+
     # command line input arguments
     parser = argparse.ArgumentParser(prog='tripyrun', description='do FESOM tripyview diagnostics in command line')
     
@@ -73,19 +76,21 @@ def tripyrun():
     parser.add_argument('--diagnostics',
                         '-d',
                         nargs='+',
-                        help='run only particular diagnostics from the yml file.',)
+                        help='run only particular driver diagnostics from the yml file.',)
     
     # only run specific variable within diagnostic driver
     parser.add_argument('--variable',
                         '-v',
                         nargs='+',
-                        help='run only particular diagnostics from the yml file.',)
+                        help=('run only particular variable in a particular driver'  
+                        'diagnostic from the yml file. \n In that case only one driver'
+                        'diagnostic is possible but it can be several variables'))
     
     # re-render ,html based on saved json file
     parser.add_argument('--render',
                         '-r',
                         action='store_true',  # This makes it a flag, no need for nargs=0
-                        help='run only rendering of .html based on saved jsonfile.',)
+                        help='run only rendering of .html based on saved json file.',)
     
     # input arguments from command line
     inargs = parser.parse_args()
@@ -100,7 +105,7 @@ def tripyrun():
     with open(yaml_filename) as file:
         # load yaml file dictionaries
         yaml_settings = yaml.load(file, Loader=yaml.FullLoader)
-
+    
     #____DICTIONARY CONTENT_____________________________________________________
     # name of workflow runs --> also folder name 
     tripyrun_name = yaml_settings['tripyrun_name']
@@ -205,6 +210,8 @@ def tripyrun():
             if inargs.render:
                 print(f"\n --> render experment .html:  {yaml_settings['tripyrun_name']}:")
                 render_experiment_html(webpages, yaml_settings)
+                print(" --> end time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
+                print(" --> elapsed time:", (clock.time()-ts)/60, " min." )
                 return
     else:
         # json file doesnt exist, freshly initialise webpage
@@ -228,7 +235,7 @@ def tripyrun():
             # if -d ... flag is setted perform specific yml file diagnostic    
             if inargs.diagnostics:
                 if analysis_name in inargs.diagnostics:
-                    print(f"\n --> compute {analysis_name}:")
+                    print(f"\n\n --> compute {analysis_name}:")
                     #___________________________________________________________
                     # if -v vname1 vname2 ... flag is setted perform specific 
                     # variables in specific yml file diagnostic    
@@ -252,16 +259,16 @@ def tripyrun():
                     #___________________________________________________________
                     # if no -v vname1 vname2 ... flag is setted
                     # execute entire specfic driver section as it is defined in the yaml file
-                    else:    
-                        webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                    else:  
+                        webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None)
                         webpages["analyses"][analysis_name] = webpage
             
             #___________________________________________________________________
             # if no -d ... flag is setted perform full yml file diagnostic
             else:
-                print(f"\n --> compute {analysis_name}:")
+                print(f"\n\n --> compute {analysis_name}:")
                 # drive specific analysis from analyses_driver_list
-                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name)
+                webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None)
                 webpages["analyses"][analysis_name] = webpage
             
             #___________________________________________________________________
@@ -270,11 +277,13 @@ def tripyrun():
             
     #___________________________________________________________________________
     # save everything to .html and render it 
-    render_experiment_html(webpages, yaml_settings) 
+    render_experiment_html(webpages, yaml_settings)
     
     #___________________________________________________________________________
     # save everything to .html
     #render_main_page()
+    print(" --> end time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
+    print(" --> elapsed time:", (clock.time()-ts)/60, " min." )
     
 #
 #
