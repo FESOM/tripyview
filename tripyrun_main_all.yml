@@ -74,7 +74,7 @@ hslice_np:
     #___2lvl Parameter___
     months: [3, 9]
     proj: 'nps'
-    box: [-180,180,45,90]
+    box: [-180,180,40,90]
     #___Variables________
     a_ice:
         #___3lvl Parameter___
@@ -88,7 +88,7 @@ hslice_np:
         #___3lvl Parameter___
         months: [3, 9]
         cstr: 'rygbw'
-        crange: [-3000, 0, -1500]
+        crange: [-3500, 0, -1700]
          
 hslice_sp:        
     #___2lvl Parameter___
@@ -107,7 +107,7 @@ hslice_sp:
     MLD2:
         #___3lvl Parameter___
         cstr: 'rygbw'
-        crange: [-3000, 0, -1500]
+        crange: [-3500, 0, -1700]
 
 #_______________________________________________________________________________
 # horizontal temp/salt climatology anomaly 

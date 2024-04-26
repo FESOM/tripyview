@@ -56,10 +56,8 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     elif exec_template in ['vprofile', 'vprofile_clim', 'transp_zmoc', 'transp_zmoc_t']:
         if exec_template in ['transp_zmoc_t']: 
             str_all1 = f"{str_all1}{params_vname['which_lat']}"
-            if params_vname['which_lat'] == 'max':
-                str_all2 = f" max AMOC @ 30°N<lat<45°N"
-            else:
-                str_all2 = f" AMOC @ {params_vname['which_lat']}°N"
+            if params_vname['which_lat'] == 'max': str_all2 = f" max AMOC @ 30°N<lat<50°N"
+            else                                 : str_all2 = f" AMOC @ {params_vname['which_lat']}°N"
         else:
             str_all1 = f"{str_all1}"
             str_all2 = f"{str_vname2}"
@@ -77,12 +75,9 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
         if params_vname["which_transf"] != 'dmoc': str_moc1 = f"_{params_vname['which_transf']}"
         if params_vname["do_zcoord"]             : str_moc1 = f"{str_moc1}z"
         if exec_template in ['transp_dmoc_t']: 
-            if params_vname['which_lat'] == 'max':
-                str_all1 = f"{str_all1}{str_moc1}"
-                str_all2 = f" max Density-AMOC @ 30°N<lat<45°N"
-            else:
-                str_all1 = f"{str_all1}{str_moc1}"
-                str_all2 = f" Density-AMOC @ {params_vname['which_lat']}°N"
+            str_all1 = f"{str_all1}{str_moc1}{params_vname['which_lat']}" 
+            if params_vname['which_lat'] == 'max': str_all2 = f" max Density-AMOC @ 40°N<lat<60°N"
+            else                                 : str_all2 = f" Density-AMOC @ {params_vname['which_lat']}°N"
         else:
             str_all1 = f"{str_all1}{str_moc1}"
             str_all2 = f"Density-{str_vname2}{str_moc1}"
@@ -104,7 +99,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
         str_all1 = f"{str_all1}{str_mon1}"
         if   exec_template in ['transp_ghflx']:  str_all2 = f"Global. Merid. Heatflx. {str_mon2}"
         elif exec_template in ['transp_mhflx']:  str_all2 = f"Dyn. Merid. Heatflx. {str_mon2}"
-        
+    
     #___________________________________________________________________________
     # create filepaths for notebook and figures 
     save_fname    = f"{str_all1}.png"
@@ -189,11 +184,13 @@ def loop_over_param(webpage, image_count, params_vname, target='box_region', sou
                     
                 #___________________________________________________________________
                 webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+                
         else:
             var_single = params_vname[source_single]
             del params_vname[source_single]
             params_vname[target] = var_single
             webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+            
     #___________________________________________________________________________
     # only single var is defined or use list as single input 
     elif source_single != None and source_single in params_vname:    
@@ -207,6 +204,7 @@ def loop_over_param(webpage, image_count, params_vname, target='box_region', sou
     else:
         #warnings.warn(' -WARNING-> box_regions is not defined, use the default on defined in the notebook')
         webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+        
     return(webpage, image_count)   
 
 

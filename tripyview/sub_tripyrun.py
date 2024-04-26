@@ -283,7 +283,7 @@ def tripyrun():
     # save everything to .html
     #render_main_page()
     print(" --> end time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
-    print(" --> elapsed time: {:2.2d} min.".format((clock.time()-ts)/60))
+    print(" --> elapsed time: {:2.2f} min.".format((clock.time()-ts)/60))
     
 #
 #
