@@ -211,7 +211,7 @@ def tripyrun():
                 print(f"\n --> render experment .html:  {yaml_settings['tripyrun_name']}:")
                 render_experiment_html(webpages, yaml_settings)
                 print(" --> end time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
-                print(" --> elapsed time:", (clock.time()-ts)/60, " min." )
+                print(" --> elapsed time: {:2.2d} min.".format((clock.time()-ts)/60))
                 return
     else:
         # json file doesnt exist, freshly initialise webpage
@@ -283,7 +283,7 @@ def tripyrun():
     # save everything to .html
     #render_main_page()
     print(" --> end time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
-    print(" --> elapsed time:", (clock.time()-ts)/60, " min." )
+    print(" --> elapsed time: {:2.2d} min.".format((clock.time()-ts)/60))
     
 #
 #

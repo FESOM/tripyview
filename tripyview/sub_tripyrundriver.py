@@ -294,6 +294,10 @@ def drive_hslice_clim(yaml_settings, analysis_name, webpage=dict(), image_count=
     for key in params_2lvl.keys():
         del driver_vars[key]
     
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
     #___________________________________________________________________________
     # loop over variable name  
     for vname in driver_vars:
@@ -330,6 +334,10 @@ def drive_hslice_isotdep(yaml_settings, analysis_name, webpage=dict(), image_cou
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  
@@ -368,6 +376,10 @@ def drive_hovm(yaml_settings, analysis_name, webpage=dict(), image_count=0, vnam
     for key in params_2lvl.keys():
         del driver_vars[key]
     
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
     #___________________________________________________________________________
     # loop over variable name  
     for vname in driver_vars:
@@ -404,6 +416,10 @@ def drive_hovm_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0,
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  
@@ -442,6 +458,10 @@ def drive_zmoc(yaml_settings, analysis_name, webpage=dict(), image_count=0, vnam
     for key in params_2lvl.keys():
         del driver_vars[key]
     
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
     #___________________________________________________________________________
     # loop over variable name  
     for vname in driver_vars:
@@ -474,6 +494,10 @@ def drive_zmoc_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vn
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  
@@ -511,6 +535,10 @@ def drive_dmoc(yaml_settings, analysis_name, webpage=dict(), image_count=0, vnam
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  
@@ -554,7 +582,11 @@ def drive_dmoc_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vn
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
-        
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
     #___________________________________________________________________________
     # loop over variable name  
     for vname in driver_vars:
@@ -668,6 +700,10 @@ def drive_vprofile(yaml_settings, analysis_name, webpage=dict(), image_count=0, 
     for key in params_2lvl.keys():
         del driver_vars[key]
     
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
     #___________________________________________________________________________
     # loop over variable name  
     for vname in driver_vars:
@@ -704,6 +740,10 @@ def drive_vprofile_clim(yaml_settings, analysis_name, webpage=dict(), image_coun
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  
@@ -742,6 +782,10 @@ def drive_transect(yaml_settings, analysis_name, webpage=dict(), image_count=0, 
     for key in params_2lvl.keys():
         del driver_vars[key]
     
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
     #___________________________________________________________________________
     # loop over variable name  
     for vname in driver_vars:
@@ -778,6 +822,10 @@ def drive_transect_clim(yaml_settings, analysis_name, webpage=dict(), image_coun
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  
@@ -868,6 +916,10 @@ def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_cou
     for key in params_2lvl.keys():
         del driver_vars[key]
     
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
     #___________________________________________________________________________
     # loop over variable name  
     for vname in driver_vars:
@@ -904,6 +956,10 @@ def drive_transect_zmean_clim(yaml_settings, analysis_name, webpage=dict(), imag
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  
@@ -985,6 +1041,10 @@ def drive_var_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vna
     driver_vars = yaml_settings[analysis_name].copy()
     for key in params_2lvl.keys():
         del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
     
     #___________________________________________________________________________
     # loop over variable name  

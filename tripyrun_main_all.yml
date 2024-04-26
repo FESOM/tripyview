@@ -109,37 +109,58 @@ hslice_sp:
         cstr: 'rygbw'
         crange: [-3000, 0, -1500]
 
+#_______________________________________________________________________________
+# horizontal temp/salt climatology anomaly 
+hslice_clim:
+    #___2lvl Parameter___
+    depths: [100, 1000]
+    #___Variables________        
+    temp:
+        #___3lvl Parameter___
+        cstr: 'blue2red'
+        crange: [-4, 4, 0]
+    salt:
+        #___3lvl Parameter___
+        cstr: 'blue2red'
+        #crange: [-0.5, 0.5, 0]
+
 ##_______________________________________________________________________________
-## horizontal temp/salt climatology anomaly 
-#hslice_clim:
+## horizontal isotherm depth
+#hslice_isotdep:
     ##___2lvl Parameter___
-    #depths: [100, 1000]
+    #which_isotherms: [12.0, 6.0]
+    #cstr: 'wbgyr'
     ##___Variables________        
     #temp:
-        ##___3lvl Parameter___
-        #cstr: 'blue2red'
-        #crange: [-4, 4, 0]
-    #salt:
-        ##___3lvl Parameter___
-        #cstr: 'blue2red'
-        ##crange: [-0.5, 0.5, 0]
-
-###_______________________________________________________________________________
-### horizontal isotherm depth
-##hslice_isotdep:
-    ###___2lvl Parameter___
-    ##which_isotherms: [12.0, 6.0]
-    ##cstr: 'wbgyr'
-    ###___Variables________        
-    ##temp:
     
-##_______________________________________________________________________________
-## hovmöller plots absolute or with respect to reference run for different regions 
-#hovm:
-    ##___2lvl Parameter___
-    #box_regions:
-            #- mpas_region/North_Atlantic_Ocean.shp
-            #- mpas_region/Southern_Ocean.shp
+#_______________________________________________________________________________
+# hovmöller plots absolute or with respect to reference run for different regions 
+hovm:
+    #___2lvl Parameter___
+    box_regions:
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - ocean_basins/Arctic_Basin.shp
+            - mpas_region/Greenland_Sea.shp
+            - mpas_region/Irminger_Sea.shp
+            - mpas_region/Norwegian_Sea.shp
+            - mpas_region/Labrador_Sea.shp
+            - mpas_region/North_Pacific_Ocean.shp
+            - mpas_region/South_Pacific_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
+            - mpas_region/Western_Weddell_Sea.shp
+    year: [1958, 2019] 
+    #___Variables________
+    temp:
+    salt:
+    
+#_______________________________________________________________________________
+# hovmöller climatological anomaly for different regions 
+hovm_clim:
+    #___2lvl Parameter___
+    box_regions:
+            - mpas_region/North_Atlantic_Ocean.shp
+            - mpas_region/Southern_Ocean.shp
             #- ocean_basins/Arctic_Basin.shp
             #- mpas_region/Greenland_Sea.shp
             #- mpas_region/Irminger_Sea.shp
@@ -149,327 +170,306 @@ hslice_sp:
             #- mpas_region/South_Pacific_Ocean.shp
             #- mpas_region/Southern_Ocean.shp
             #- mpas_region/Western_Weddell_Sea.shp
-    #year: [1958, 2019] 
-    ##___Variables________
-    #temp:
-    #salt:
+    year: [1958, 2019] 
+    #___Variables________
+    temp:
+    salt:
     
-##_______________________________________________________________________________
-## hovmöller climatological anomaly for different regions 
-#hovm_clim:
-    ##___2lvl Parameter___
-    #box_regions:
-            #- mpas_region/North_Atlantic_Ocean.shp
-            #- mpas_region/Southern_Ocean.shp
-            ##- ocean_basins/Arctic_Basin.shp
-            ##- mpas_region/Greenland_Sea.shp
-            ##- mpas_region/Irminger_Sea.shp
-            ##- mpas_region/Norwegian_Sea.shp
-            ##- mpas_region/Labrador_Sea.shp
-            ##- mpas_region/North_Pacific_Ocean.shp
-            ##- mpas_region/South_Pacific_Ocean.shp
-            ##- mpas_region/Southern_Ocean.shp
-            ##- mpas_region/Western_Weddell_Sea.shp
-    #year: [1958, 2019] 
-    ##___Variables________
-    #temp:
-    #salt:
-    
-##_______________________________________________________________________________
-## plot vertical profile of 3d variables averaged over certain regions 
-#vprofile:
-    ##___2lvl Parameter___
-    #box_regions:
-        #- ocean_basins/Arctic_Basin.shp
-        #- ocean_basins/Eurasian_Basin.shp
-        #- mpas_region/Canada_Basin.shp
-        #- mpas_region/North_Atlantic_Ocean.shp
-        #- mpas_region/Greenland_Sea.shp
-        #- mpas_region/Irminger_Sea.shp
-        #- mpas_region/Norwegian_Sea.shp
-        #- mpas_region/Labrador_Sea.shp
-        #- mpas_region/North_Pacific_Ocean.shp
-        #- mpas_region/South_Pacific_Ocean.shp
-        #- mpas_region/Southern_Ocean.shp
-        #- mpas_region/Western_Weddell_Sea.shp
-    #ncol: 4
-    #do_clim: True    
-    ##___Variables________        
-    #temp:
-    #salt:
-    #Kv:
-        ##___3lvl Parameter___
-        #do_rescale: 'log10'
+#_______________________________________________________________________________
+# plot vertical profile of 3d variables averaged over certain regions 
+vprofile:
+    #___2lvl Parameter___
+    box_regions:
+        - ocean_basins/Arctic_Basin.shp
+        - ocean_basins/Eurasian_Basin.shp
+        - mpas_region/Canada_Basin.shp
+        - mpas_region/North_Atlantic_Ocean.shp
+        - mpas_region/Greenland_Sea.shp
+        - mpas_region/Irminger_Sea.shp
+        - mpas_region/Norwegian_Sea.shp
+        - mpas_region/Labrador_Sea.shp
+        - mpas_region/North_Pacific_Ocean.shp
+        - mpas_region/South_Pacific_Ocean.shp
+        - mpas_region/Southern_Ocean.shp
+        - mpas_region/Western_Weddell_Sea.shp
+    ncol: 4
+    do_clim: True    
+    #___Variables________        
+    temp:
+    salt:
+    Kv:
+        #___3lvl Parameter___
+        do_rescale: 'log10'
 
-##_______________________________________________________________________________
-## plot vertical profile of 3d temperature/salinity climatology anomaly averaged
-## over certain regions
-#vprofile_clim: 
-    ##___2lvl Parameter___
-    #box_regions:
-        #- ocean_basins/Arctic_Basin.shp
-        #- ocean_basins/Eurasian_Basin.shp
-        #- mpas_region/Canada_Basin.shp
-        #- mpas_region/North_Atlantic_Ocean.shp
-        #- mpas_region/Greenland_Sea.shp
-        #- mpas_region/Irminger_Sea.shp
-        #- mpas_region/Norwegian_Sea.shp
-        #- mpas_region/Labrador_Sea.shp
-        #- mpas_region/North_Pacific_Ocean.shp
-        #- mpas_region/South_Pacific_Ocean.shp
-        #- mpas_region/Southern_Ocean.shp
-        #- mpas_region/Western_Weddell_Sea.shp
-    #ncol: 4    
-    ##___Variables________      
-    #temp:
-    #salt:
+#_______________________________________________________________________________
+# plot vertical profile of 3d temperature/salinity climatology anomaly averaged
+# over certain regions
+vprofile_clim: 
+    #___2lvl Parameter___
+    box_regions:
+        - ocean_basins/Arctic_Basin.shp
+        - ocean_basins/Eurasian_Basin.shp
+        - mpas_region/Canada_Basin.shp
+        - mpas_region/North_Atlantic_Ocean.shp
+        - mpas_region/Greenland_Sea.shp
+        - mpas_region/Irminger_Sea.shp
+        - mpas_region/Norwegian_Sea.shp
+        - mpas_region/Labrador_Sea.shp
+        - mpas_region/North_Pacific_Ocean.shp
+        - mpas_region/South_Pacific_Ocean.shp
+        - mpas_region/Southern_Ocean.shp
+        - mpas_region/Western_Weddell_Sea.shp
+    ncol: 4    
+    #___Variables________      
+    temp:
+    salt:
 
-##_______________________________________________________________________________    
-##plot vertical mean cross sections, arbitrary oriented transect
-#transect:
-    ##___2lvl Parameter___
-    #transects:
-        #- [[ -66,  -66],[-67,-55], 'Drake Passage']
-        #- [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
-        #- [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
-        ##- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
-        ##- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
-        ##- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
-    ##___Variables________  
-    #temp:
-        ##___3lvl Parameter___
-        #cstr: 'cmocean.thermal'
-    #salt:
-        ##___3lvl Parameter___
-        #cstr: 'cmocean.haline'
-    #Kv:
-        ##___3lvl Parameter___
-        #cstr: 'wbgyr'
-        #do_rescale: 'log10'
-        #crange: [-1.0e-6, 1.0e-0, 1.0e-3]
-    ##KvN2:
-        ###___3lvl Parameter___
-        ##cstr: 'blue2red'
-        ##do_rescale: 'slog10'
-        ##crange: [-1.0e-8, 1.0e-8, 1.0e-12]
-    
-##_______________________________________________________________________________
-## plot vertical clim anomaly mean cross sections, arbitrary oriented transect
-#transect_clim:
-    ##___2lvl Parameter___
-    #transects:
-        #- [[ -66,  -66],[-67,-55], 'Drake Passage']
-        #- [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
-        #- [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
-        ##- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
-        ##- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
-        ##- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
-    ##___Variables________  
-    #temp:
+#_______________________________________________________________________________    
+#plot vertical mean cross sections, arbitrary oriented transect
+transect:
+    #___2lvl Parameter___
+    transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        - [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
+        - [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
+        #- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
+    #___Variables________  
+    temp:
+        #___3lvl Parameter___
+        cstr: 'cmocean.thermal'
+    salt:
+        #___3lvl Parameter___
+        cstr: 'cmocean.haline'
+    Kv:
+        #___3lvl Parameter___
+        cstr: 'wbgyr'
+        do_rescale: 'log10'
+        crange: [-1.0e-6, 1.0e-0, 1.0e-3]
+    #KvN2:
         ##___3lvl Parameter___
         #cstr: 'blue2red'
-        #crange: [-4, 4, 0]
-    #salt:
-        ##___3lvl Parameter___
-        #cstr: 'blue2red'
-        #crange: [-0.5, 0.5, 0]
-    #sigma2:
-        ##___3lvl Parameter___
-        #cstr: 'blue2red'    
+        #do_rescale: 'slog10'
+        #crange: [-1.0e-8, 1.0e-8, 1.0e-12]
+    
+#_______________________________________________________________________________
+# plot vertical clim anomaly mean cross sections, arbitrary oriented transect
+transect_clim:
+    #___2lvl Parameter___
+    transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        - [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
+        - [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
+        #- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
+    #___Variables________  
+    temp:
+        #___3lvl Parameter___
+        cstr: 'blue2red'
+        crange: [-4, 4, 0]
+    salt:
+        #___3lvl Parameter___
+        cstr: 'blue2red'
+        crange: [-0.5, 0.5, 0]
+    sigma2:
+        #___3lvl Parameter___
+        cstr: 'blue2red'    
         
-##______________________________________________________________________________
-## plot vertical section of volume transport through transect
-#transect_transp:
-    ##___2lvl Parameter___
-    #transects:
-        #- [[ -66,  -66],[-67,-55], 'Drake Passage']
-        ##- [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
-        ##- [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
-        ##- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
-        ##- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
-        ##- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
-    #plt_contb: False
-    #cstr: 'blue2red'
+#______________________________________________________________________________
+# plot vertical section of volume transport through transect
+transect_transp:
+    #___2lvl Parameter___
+    transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        #- [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
+        #- [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
+        #- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
+    plt_contb: False
+    cstr: 'blue2red'
 
-##______________________________________________________________________________
-## plot time series of volume transport through transect        
-#transect_transp_t:
-    ##___2lvl Parameter___
-    #transects:
-        #- [[ -66,  -66],[-67,-55], 'Drake Passage']
-        ##- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
-    #year: [1958, 2019]
-    #do_allcycl: False
-    #do_concat: False
+#______________________________________________________________________________
+# plot time series of volume transport through transect        
+transect_transp_t:
+    #___2lvl Parameter___
+    transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+    year: [1958, 2019]
+    do_allcycl: False
+    do_concat: False
     
-##_______________________________________________________________________________ 
-## plot zonally averaged section 
-#transect_zmean:
-    ##___2lvl Parameter___
-    #box_regions:
-        #- global
-        #- ocean_basins/Atlantic_Basin.shp
-        #- ocean_basins/Pacific_Basin.shp
-        #- ocean_basins/Indian_Basin.shp
+#_______________________________________________________________________________ 
+# plot zonally averaged section 
+transect_zmean:
+    #___2lvl Parameter___
+    box_regions:
+        - global
+        - ocean_basins/Atlantic_Basin.shp
+        - ocean_basins/Pacific_Basin.shp
+        - ocean_basins/Indian_Basin.shp
+    #___Variables________    
+    temp:
+        #___3lvl Parameter___
+        cstr: 'cmocean.thermal'  
+    salt:
+        #___3lvl Parameter___
+        cstr: 'cmocean.haline'
+    sigma2:
+        #___3lvl Parameter___
+        cstr: 'cmocean.dense'
+    Kv:
+        #___3lvl Parameter___
+        do_rescale: 'log10'
+        cstr: 'wbgyr'
+        #crange: [1.0e-6, 1.0e-0, 1.0e-4]
+    #N2:
+        ##___3lvl Parameter___
+        #do_rescale: 'log10'   
+        #cstr: 'wbgyr'
+        #crange: [1.0e-8, 1.0e-4, 1.0e-6]
+    #KvN2:
+        ##___3lvl Parameter___
+        #do_rescale: 'slog10'   
+        #cstr: 'blue2red'
+        #crange: [1.0e-8, 1.0e-8, 1.0e-12]
+        
+# plot climatology bias of zonally averaged section 
+transect_zmean_clim:
+    #___2lvl Parameter___
+    box_regions:
+        - global
+        - ocean_basins/Atlantic_Basin.shp
+        - ocean_basins/Pacific_Basin.shp
+        - ocean_basins/Indian_Basin.shp
     ##___Variables________    
-    #temp:
-        ##___3lvl Parameter___
-        #cstr: 'cmocean.thermal'  
-    #salt:
-        ##___3lvl Parameter___
-        #cstr: 'cmocean.haline'
-    #sigma2:
-        ##___3lvl Parameter___
-        #cstr: 'cmocean.dense'
-    #Kv:
-        ##___3lvl Parameter___
-        #do_rescale: 'log10'
-        #cstr: 'wbgyr'
-        ##crange: [1.0e-6, 1.0e-0, 1.0e-4]
-    ##N2:
-        ###___3lvl Parameter___
-        ##do_rescale: 'log10'   
-        ##cstr: 'wbgyr'
-        ##crange: [1.0e-8, 1.0e-4, 1.0e-6]
-    ##KvN2:
-        ###___3lvl Parameter___
-        ##do_rescale: 'slog10'   
-        ##cstr: 'blue2red'
-        ##crange: [1.0e-8, 1.0e-8, 1.0e-12]
-        
-## plot climatology bias of zonally averaged section 
-#transect_zmean_clim:
-    ##___2lvl Parameter___
-    #box_regions:
-        #- global
-        #- ocean_basins/Atlantic_Basin.shp
-        #- ocean_basins/Pacific_Basin.shp
-        #- ocean_basins/Indian_Basin.shp
-    ###___Variables________    
-    #temp:
-        ##___3lvl Parameter___
-        #crange: [-2.0,2.0,0] 
-        #cstr: 'blue2red'
-    #salt:
-        ##___3lvl Parameter___
-        #crange: [-0.75,0.75,0]    
-        #cstr: 'blue2red'
-    #sigma2:
-        ##___3lvl Parameter___
-        #crange: [-0.35,0.35,0]        
-        #cstr: 'blue2red'
+    temp:
+        #___3lvl Parameter___
+        crange: [-2.0,2.0,0] 
+        cstr: 'blue2red'
+    salt:
+        #___3lvl Parameter___
+        crange: [-0.75,0.75,0]    
+        cstr: 'blue2red'
+    sigma2:
+        #___3lvl Parameter___
+        crange: [-0.35,0.35,0]        
+        cstr: 'blue2red'
 
-##_______________________________________________________________________________
-## plot meridional overturning streamfunction based on z-coordiante vertical 
-## velocity for different basins
-#zmoc:
+#_______________________________________________________________________________
+# plot meridional overturning streamfunction based on z-coordiante vertical 
+# velocity for different basins
+zmoc:
+    #___2lvl Parameter___
+    
+    #___Variables________
+    gmoc:
+    amoc:
+    ipmoc:
+
+# plot time series of maximum AMOC upper circulation cell    
+zmoc_t:
+    #___2lvl Parameter___
+    which_lats: [26, 40, 'max']
+    year: [1958,2019]
+    do_allcycl: False 
+    #___Variables________
+    amoc:
+    
+#_______________________________________________________________________________
+# plot meridional overturning streamfunction based on density diagnostic, requires 
+# special FESOM2 output using namelist.io flag: diag_DMOC=.true.
+dmoc:
+    #___2lvl Parameter___
+    
+    #___Variables________
+    gmoc:
+    amoc:
+    ipmoc:
+    
+#dmoc_srf:
     ##___2lvl Parameter___
     
     ##___Variables________
     #gmoc:
     #amoc:
-    #ipmoc:
+    #ipmoc:    
 
-## plot time series of maximum AMOC upper circulation cell    
-#zmoc_t:
-    ##___2lvl Parameter___
-    #which_lats: [26, 40, 'max']
-    #year: [1958,2019]
-    #do_allcycl: False 
-    ##___Variables________
-    #amoc:
-    
-##_______________________________________________________________________________
-## plot meridional overturning streamfunction based on density diagnostic, requires 
-## special FESOM2 output using namelist.io flag: diag_DMOC=.true.
-#dmoc:
-    ##___2lvl Parameter___
-    
-    ##___Variables________
-    #gmoc:
-    #amoc:
-    #ipmoc:
-    
-##dmoc_srf:
-    ###___2lvl Parameter___
-    
-    ###___Variables________
-    ##gmoc:
-    ##amoc:
-    ##ipmoc:    
-
-##dmoc_inner:
-    ###___2lvl Parameter___
-    
-    ###___Variables________
-    ##gmoc:
-    ##amoc:
-    ##ipmoc:        
-    
-#dmoc_z:
+#dmoc_inner:
     ##___2lvl Parameter___
     
     ##___Variables________
     #gmoc:
     #amoc:
     #ipmoc:        
+    
+dmoc_z:
+    #___2lvl Parameter___
+    
+    #___Variables________
+    gmoc:
+    amoc:
+    ipmoc:        
 
-#dmoc_t:
+dmoc_t:
+    #___2lvl Parameter___
+    which_lats: [26, 55, 'max']
+    year: [1958,2019]
+    do_allcycl: False 
+    
+    #___Variables________
+    amoc:
+
+#dmoc_wdiap:
     ##___2lvl Parameter___
-    #which_lats: [26, 55, 'max']
-    #year: [1958,2019]
-    #do_allcycl: False 
+    #which_isopycs: [36.72, 37.00]
     
-    ##___Variables________
-    #amoc:
-
-##dmoc_wdiap:
-    ###___2lvl Parameter___
-    ##which_isopycs: [36.72, 37.00]
-    
-##dmoc_srfcbflx:
-    ###___2lvl Parameter___
-    ##which_isopycs: [36.72, 37.00]   
+#dmoc_srfcbflx:
+    ##___2lvl Parameter___
+    #which_isopycs: [36.72, 37.00]   
         
-##_______________________________________________________________________________     
-## plot horizontal barotropic streamfunction
-#hbarstreamf:
-    ##___Variables________
+#_______________________________________________________________________________     
+# plot horizontal barotropic streamfunction
+hbarstreamf:
+    #___Variables________
     
-##_______________________________________________________________________________     
-## plot global meridional heatflux based on surface heatflux and turbulent temp.
-## advection t*v, special FESOM2 output using namelist.io flag: diag_trflx=.true.
-##ghflx:
-    ###___2lvl Parameter___
-    ##ncol: 1
-    ##nrow: 1
-    ##do_allcycl: False
-    
-#mhflx:
+#_______________________________________________________________________________     
+# plot global meridional heatflux based on surface heatflux and turbulent temp.
+# advection t*v, special FESOM2 output using namelist.io flag: diag_trflx=.true.
+#ghflx:
     ##___2lvl Parameter___
     #ncol: 1
     #nrow: 1
     #do_allcycl: False
-    #use_advflx: True
-    #use_bolusv: True
     
-##_______________________________________________________________________________
-## plot time-series of 2d and 3d globally averaged (volume weighted) variables 
-#var_t:
-    ##___2lvl Parameter___
-    #box_regions: 
-        #- global
-    #input_paths:
-        #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/
-        #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_nycander_bin_ck0.1/
-        #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_stormtide_bin_ck0.1/
-        #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/
-    #n_cycl: 5
-    #depth: None
-    #year: [1958, 2019]
-    #do_allcycl: True
-    #do_concat: True
-    ##___Variables________
-    #temp:
-    #salt:
+mhflx:
+    #___2lvl Parameter___
+    ncol: 1
+    nrow: 1
+    do_allcycl: False
+    use_advflx: True
+    use_bolusv: True
+    
+#_______________________________________________________________________________
+# plot time-series of 2d and 3d globally averaged (volume weighted) variables 
+var_t:
+    #___2lvl Parameter___
+    box_regions: 
+        - global
+    input_paths:
+        - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/
+        - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_nycander_bin_ck0.1/
+        - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_stormtide_bin_ck0.1/
+        - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/
+    n_cycl: 5
+    depth: None
+    year: [1958, 2019]
+    do_allcycl: True
+    do_concat: True
+    #___Variables________
+    temp:
+    salt:
         
