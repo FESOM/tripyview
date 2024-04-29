@@ -59,7 +59,7 @@ pip install -e .
 * `quiver`         - plot horizontal arrow vector field in various projections
 
 <p align="center" width="100%">
-  <img width=40% src="tripyview/tripyview_quiver.png">
+  <img width=75% src="tripyview/tripyview_quiver.png">
 </p>
 
 * `hovm`         - plot hovmöller diagramms for 3d ocean varaible over depth and time averaged over
