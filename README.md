@@ -9,7 +9,7 @@ Data reading got updated to xarray, plotting got updated to cartopy, actually wo
 python=3.8. It is tested upto dart mesh size (3M surface vertices) where it allows for a decend 
 working speed (but only when used in parallel)
 <br />
-version: 0.2.0
+version: 0.3.0
 <br />
 
 ## Installation
@@ -121,6 +121,13 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 
 * `ghflx`        - plots global meridional heat flux computed from surface heatfluxes fh
 * `mhflx`        - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
+
+#### 2d automatic multipanel plotting: 
+* plot automatised multipanels depending on number of choosen datasets and number
+of panel columns ncol
+<p align="center" width="100%">
+  <img width=75% src="tripyview/tripyview_multipanel.png">
+</p>
 
 #### 3D plotting: 
 * `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface. Full functionality can be only achieved with jupyter-lab (<4.0)
