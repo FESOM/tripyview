@@ -25,6 +25,8 @@ import textwrap
 
 import warnings
 
+import copy                     as cp
+
 from .sub_mesh     import *
 from .sub_data     import *
 from .sub_colormap import *
@@ -1028,7 +1030,7 @@ def plot_hquiver(mesh                  ,
     
     #___________________________________________________________________________
     # --> create mesh triangulation, when input data are unstructured
-    tri =  do_triangulation(hax, mesh, proj_to, box, do_triorig=True)
+    tri =  do_triangulation(hax, mesh, proj_to, box, do_triorig=True, do_earea=True)
     
     #___________________________________________________________________________
     # --> set up color info
@@ -1059,7 +1061,7 @@ def plot_hquiver(mesh                  ,
         else:
             ii_valid=ii
             ts = clock.time()
-    
+            
             #___________________________________________________________________
             # prepare unstructured data for plotting, augment periodic 
             # boundaries, interpolate from elements to nodes, kick out nan 
@@ -1076,7 +1078,7 @@ def plot_hquiver(mesh                  ,
             
             #___________________________________________________________________
             # add grey topo
-            h0 = do_plt_topo(hax_ii, do_topo, abs(mesh.n_z), mesh, tri, 
+            h0 = do_plt_topo(hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri), 
                              plt_opt=topo_opt,
                              plt_contb=topo_cont , pltcb_opt=topoc_opt,
                              plt_contl=topo_contl, pltcl_opt=topocl_opt)
@@ -2679,7 +2681,8 @@ def do_projection(mesh, proj, box):
 #
 #_______________________________________________________________________________
 # --> do triangulation
-def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), do_triorig=False):
+def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), 
+                     do_triorig=False, do_narea=True, do_earea=False):
     """
     ---> plot FESOM2 horizontal data slice:
     ___INPUT:___________________________________________________________________
@@ -2739,11 +2742,23 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), do_t
     tri.mask_n_box     = n_box_mask
     del(e_box_mask, n_box_mask)
     tri.n2dn, tri.n2de = mesh.n2dn, mesh.n2de
-    tri.narea = np.hstack((mesh.n_area[0,:],mesh.n_area[0,mesh.n_pbnd_a]))
-    if tri.mask_n_box is not None: 
-        tri.narea = tri.narea[tri.mask_n_box]
-    else: 
-        tri.narea = mesh.n_area[0,:]
+    
+    #___________________________________________________________________________
+    if do_narea:
+        if tri.mask_n_box is not None: 
+            tri.narea = np.hstack((mesh.n_area[0,:],mesh.n_area[0,mesh.n_pbnd_a]))
+            tri.narea = tri.narea[tri.mask_n_box]
+        else: 
+            tri.narea = mesh.n_area[0,:]
+    
+    #___________________________________________________________________________
+    if do_earea:
+        if any(tri.mask_e_box==False): 
+            tri.earea = np.hstack((mesh.e_area[mesh.e_pbnd_0],mesh.e_area[mesh.e_pbnd_a]))
+            tri.earea = tri.earea[tri.mask_e_box]
+        else: 
+            tri.earea = mesh.e_area
+            
     #___________________________________________________________________________
     return(tri)
 
@@ -4008,13 +4023,26 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         
                 
         # convert into cartopy projection frame 
-        data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
-                                                            tri.xorig, tri.yorig, 
-                                                            data_plot_u, data_plot_v)
-                
+        if data_plot_u.size == tri.xorig.size: 
+            isonvert=True
+            tri0x, tri0y = tri.x, tri.y
+            data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
+                                                                tri.xorig, tri.yorig, 
+                                                                data_plot_u, data_plot_v)
+        else:
+            isonvert=False
+            triangles = tri.triangles[tri.mask_e_ok,:]
+            tri0x    , tri0y     = tri.x[    triangles].sum(axis=1)/3.0, tri.y[    triangles].sum(axis=1)/3.0
+            tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0,
+            data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
+                                                                tri0xorig, tri0yorig, 
+                                                                data_plot_u, data_plot_v)
+            del(triangles, tri0xorig, tri0yorig)
+            
+            
         # kick out nan values from quiver coordinates 
         mask_nan = np.isnan(data_plot_u) == False
-        tri0x, tri0y = tri.x[mask_nan], tri.y[mask_nan]
+        tri0x, tri0y = tri0x[mask_nan], tri0y[mask_nan]
         data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
         
         ## kick out to small arrows
@@ -4028,7 +4056,13 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         
         # kick out arrows based on density 
         if quiv_dens is not None and tri.narea is not None:
-            r0          = 1/(np.sqrt(tri.narea[mask_nan]))
+            if isonvert:
+                r0      = 1/(np.sqrt(tri.narea[mask_nan]))
+            else:
+                aux_earea = tri.earea[tri.mask_e_ok]
+                r0      = 1/(np.sqrt(aux_earea[mask_nan]))
+                del(aux_earea)
+                
             mask_quiv   = np.random.rand(tri0x.size)>r0/np.max(r0)*quiv_dens #1.5
             #mask_quiv = np.logical_and(isok,mask_quiv)
             tri0x       = tri0x[mask_quiv], 
@@ -4208,7 +4242,7 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
     """ 
     h0=None
     if do_topo in ['tpc', 'tcf']:
-        data_topo, tri   = do_data_prepare_unstruct(mesh, tri, data_topo, False)
+        data_topo, tri0   = do_data_prepare_unstruct(mesh, tri, data_topo, False)
                 
         levels = np.hstack((25, 50, 100, 150, 200, 250, np.arange(500,6000+1,500)))
         N = len(levels)
@@ -4220,12 +4254,13 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
         topocmp = ListedColormap(vals)
         cinfo_topo = dict({'clevel':levels, 'cmap':topocmp})
                 
-        h0 = do_plt_data(hax_ii, do_topo, tri, data_topo, 
+        h0 = do_plt_data(hax_ii, do_topo, tri0, data_topo, 
                          cinfo_topo, None,    plt_opt  =plt_opt, 
                          plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
                          plt_contf=False    , pltcf_opt=dict(),
                          plt_contr=False    , pltcr_opt=dict(),
                          plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+        del(tri0)
     return(h0)
 
 
@@ -4868,10 +4903,13 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                                 do_cweights = aux.copy()
                                 del(aux)
                                
-                    elif data_plot.size == mesh.e2dn:    
-                        if any(e_box_mask==False): 
+                    elif data_plot.size == mesh.n2de:    
+                        if any(tri.mask_e_box==False): 
+                            data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
                             data_plot[tri.mask_e_box==False] = np.nan
-                            if cinfo['chist']: do_cweightst[tri.mask_e_box==False] = 0
+                            if cinfo['chist']: 
+                                do_cweights = np.hstack((do_cweights[mesh.e_pbnd_0],do_cweights[mesh.e_pbnd_a]))
+                                do_cweights[tri.mask_e_box==False] = 0
                 
             # for logarythmic rescaling cmin or cmax can not be zero
             if isinstance(do_rescale, str):
@@ -4959,19 +4997,10 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 if cref==0.0: 
                     cinfo['cref'] = cref
                 else:
-                    # chose cref as center between cmin and cmax and round as coarsely as possible without
-                    # 1. rounded value lying outside ]cmin, cmax[ (tolfac=1)
-                    # 2. rounded value lying too far away from the middle (tolfac < 1)
-                    # cref will be forced to lie in area maked with "+"
-                    # cmin -----------++++++++++++++ ccenter ++++++++++++++----------- cmax
-                    #                |------ tolfac * (cmax - cmin) -------|
-                    ccenter = (cinfo['cmax'] + cinfo['cmin'])/2
-                    tolfac = 0.5 # tolfac=1 --> accept every cref that is between cmax and cmin. tolfac<1 --> cref closer to center
-                    ctolerance = tolfac * (cinfo['cmax'] - cinfo['cmin'])/2
                     while True:
                         new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
                         #print(cref, new_cref, cinfo['cmin'], cinfo['cmax'])
-                        if new_cref>(ccenter - ctolerance) and new_cref<(ccenter + ctolerance):
+                        if new_cref>cinfo['cmin'] and new_cref<cinfo['cmax']:
                             break
                         else: 
                             dez=dez+1
