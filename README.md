@@ -56,6 +56,12 @@ pip install -e .
   <img width=40% src="tripyview/tripyview_mov_channel.gif">
 </p>
 
+* `quiver`         - plot horizontal arrow vector field in various projections
+
+<p align="center" width="100%">
+  <img width=40% src="tripyview/tripyview_quiver.png">
+</p>
+
 * `hovm`         - plot hovmöller diagramms for 3d ocean varaible over depth and time averaged over
 specific region that defined by shapefile (see. tripyview/shapefiles/...)
 * `hovm_clim`    - plot hovmöller diagramms for  temperature, salinity and density climatology 

@@ -35,7 +35,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     #___________________________________________________________________________
     # assemble total strings
     str_all1 = f"{params_vname['tripyrun_name']}_{params_vname['tripyrun_analysis']}{str_vname1}"
-    if exec_template in ['hslice', 'hslice_clim']:
+    if exec_template in ['hslice', 'hslice_clim', 'hquiver']:
         str_all1 = f"{str_all1}{str_proj1}{str_dep1}{str_mon1}"
         str_all2 = f"{str_vname2}{str_proj2}{str_dep2}{str_mon2}"
         
@@ -352,6 +352,71 @@ def drive_hslice_isotdep(yaml_settings, analysis_name, webpage=dict(), image_cou
         # make loop over which_isotherms
         webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='which_isotherm', 
                                                source_loop='which_isotherms', exec_template='hslice_isotdep')
+    return webpage
+
+
+
+#
+#
+#_______________________________________________________________________________
+def drive_hquiver(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # create 1st-level parameter from yaml_settings
+    params_1lvl = extract_params(yaml_settings)
+    
+    # create 2nd-level parameter from yaml_settings[analysis_name]
+    params_2lvl = extract_params(yaml_settings[analysis_name])
+    
+    #___________________________________________________________________________
+    # kickout secondary parameters from yaml_settings[analysis_name] only leave 
+    # the dictionaries of the variables
+    driver_vars = yaml_settings[analysis_name].copy()
+    for key in params_2lvl.keys():
+        del driver_vars[key]
+    
+    # execute only specfic driver with a specific variable 
+    if vname != None: 
+        if vname in driver_vars: driver_vars = dict({vname: driver_vars[vname]})
+    
+    #___________________________________________________________________________
+    # loop over variable name  
+    for vname in driver_vars:
+        print(f'     --> compute: {vname}')
+        params_3lvl  = extract_params(driver_vars[vname])
+        params_vname = dict({'tripyrun_analysis':analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname.update(params_3lvl)
+        params_vname["vname"] = vname
+        
+        #_______________________________________________________________________
+        # make loop over depths
+        if 'depths' in params_vname:
+            depths = params_vname["depths"]
+            del params_vname["depths"] # --> delete depth list [0, 100, 1000,...] from current_param dict()
+            if depths is not None:
+                for depth in depths:
+                    print(f'          --> depth: {depth}')
+                    params_vname["depth"] = depth
+                    # make loops over the months or not 
+                    webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                        source_loop='months', exec_template='hquiver')
+            else:
+                webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                   source_loop='months', exec_template='hquiver')
+        #_______________________________________________________________________
+        # only single boxregion defined 
+        elif 'depth' in params_vname:    
+            # make loops over the months or not 
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                   source_loop='months', exec_template='hquiver')
+            
+        #_______________________________________________________________________    
+        # no depth defined use the one defined in the notebook 
+        else:
+            #warnings.warn(' -WARNING-> depths is not defined, use the default on defined in the notebook')
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+                                                   source_loop='months', exec_template='hslice')
     return webpage
 
 

@@ -357,6 +357,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     # write additional attribute info
     str_lsave = str_ltim+str_ldep
     str_lsave = str_lsave.replace(' ','_').replace(',','').replace(':','')
+    
     for vname in list(data.keys()):
         attr_dict=dict({'datapath':datapath, 'runid':runid, 'do_file':do_file, 'do_filename':do_filename, 
                         'year':year, 'mon':mon, 'day':day, 'record':record, 'depth':depth, 
@@ -512,7 +513,9 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     dimh = None
     if   ('nod2' in data.dims):
         dimh = 'nod2'
-        set_chunk = dict({dimh: data.chunksizes[dimh]})
+        if dimh in data.chunksizes: set_chunk = dict({dimh: data.chunksizes[dimh]})
+        else                      : set_chunk = dict({})
+        
         #_______________________________________________________________________
         # set coordinates
         data = data.assign_coords(lon  = xr.DataArray(mesh.n_x              , dims=dimh).chunk(set_chunk))
@@ -556,7 +559,9 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         
     elif ('elem' in data.dims):                          
         dimh = 'elem'
-        set_chunk = dict({dimh: data.chunksizes[dimh]})
+        if dimh in data.chunksizes: set_chunk = dict({dimh: data.chunksizes[dimh]})
+        else                      : set_chunk = dict({})
+        
         #_______________________________________________________________________
         # set coordinates
         data = data.assign_coords(lon  = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3.0, dims=dimh).chunk(set_chunk))
@@ -998,7 +1003,7 @@ def do_vector_rotation(data, mesh, do_vec, do_vecrot):
         
         # vector data are on vertices 
         if ('nod2' in data[vname[0]].dims) or ('node' in data[vname[0]].dims):
-            print(' > do vector rotation')
+            print(' > do nod2 vector rotation')
             data[vname[0] ].data,\
             data[vname[1]].data = vec_r2g(mesh.abg, mesh.n_x, mesh.n_y, 
                                         data[vname[0]].data, data[vname[1]].data, 
@@ -1006,7 +1011,7 @@ def do_vector_rotation(data, mesh, do_vec, do_vecrot):
         
         # vector data are on elements
         if ('elem' in data[vname[0]].dims):
-            print(' > do vector rotation')
+            print(' > do elem vector rotation')
             data[vname[0] ].data,\
             data[vname[1]].data = vec_r2g(mesh.abg, 
                                         mesh.n_x[mesh.e_i].sum(axis=1)/3, 
@@ -1170,8 +1175,11 @@ def do_interp_e2n(data, mesh, do_ie2n):
         # kick out element related coordinates 
         for coordi in list(data.coords):
             if 'elem' in data[coordi].dims: data = data.drop_vars(coordi)
-                
-    
+        
+        #_______________________________________________________________________
+        # enter area weights for nodes
+        data, _ , _ = do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False)
+
     #___________________________________________________________________________
     return(data)
 

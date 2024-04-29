@@ -132,6 +132,17 @@ hslice_clim:
     #cstr: 'wbgyr'
     ##___Variables________        
     #temp:
+
+#_______________________________________________________________________________
+# horizontal plots
+hquiver:
+    #___2lvl Parameter___
+    depths: [100, 1000]
+    proj: 'nears'
+    box: [-45, 60, 50]
+    quiv_hfac: 2
+    #___Variables________    
+    vec+u+v:
     
 #_______________________________________________________________________________
 # hovmöller plots absolute or with respect to reference run for different regions 

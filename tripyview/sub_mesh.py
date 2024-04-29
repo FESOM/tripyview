@@ -1710,6 +1710,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     #___________________________________________________________________________
     # rotation of one dimensional vector data
     if vrot.ndim==1 or urot.ndim==1: 
+        print('     > 1D')
         #_______________________________________________________________________
         # compute vector in rotated cartesian coordinates
         vxr = -vrot*np.sin(rlat)*np.cos(rlon) - urot*np.sin(rlon)
@@ -1732,6 +1733,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     #___________________________________________________________________________
     # rotation of two dimensional vector data    
     elif vrot.ndim==2 or urot.ndim==2: 
+        print('     > 2D')
         nd1,nd2=urot.shape
         ugeo, vgeo = urot.copy(), vrot.copy()
         if do_info: print('nlev:{:d}'.format(nd2))

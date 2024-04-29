@@ -72,7 +72,9 @@ def plot_hslice(mesh                   ,
                 grid_opt   = dict()    ,
                 #--- colorbar -------
                 cb_label   = None      ,
-                cb_unit    = None      ,
+                cb_lunit   = None      ,
+                cb_ltime   = None      ,
+                cb_ldep    = None      , 
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
@@ -183,7 +185,7 @@ def plot_hslice(mesh                   ,
     cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
                     information from data ('long_name, short_name) are used
     
-    cb_unit     :   str, (default: None) if string its used as colorbar unit label, 
+    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
@@ -399,7 +401,7 @@ def plot_hslice(mesh                   ,
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                             cb_label, cb_unit, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                             cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                              cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #___________________________________________________________________
@@ -468,7 +470,9 @@ def plot_hmesh( mesh                   ,
                 grid_opt   = dict()    ,
                 #--- colorbar -------
                 cb_label   = None      ,
-                cb_unit    = None      ,
+                cb_lunit   = None      ,
+                cb_ltime   = None      ,
+                cb_ldep    = None      , 
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
@@ -571,7 +575,7 @@ def plot_hmesh( mesh                   ,
     cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
                     information from data ('long_name, short_name) are used
     
-    cb_unit     :   str, (default: None) if string its used as colorbar unit label, 
+    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
@@ -683,25 +687,25 @@ def plot_hmesh( mesh                   ,
                 if  data in ['resolution', 'resol', 'n_resol', 'nresol']:
                     if len(mesh[ii].n_resol)==0: mesh[ii]=mesh[ii].compute_n_resol()
                     data_plot = mesh[ii].n_resol[0,:]/1000
-                    cb_label, cb_unit = 'vertice resolution', 'km'
+                    cb_label, cb_lunit = 'vertice resolution', 'km'
                 elif data in ['narea', 'n_area', 'clusterarea', 'scalararea']:    
                     if len(mesh[ii].n_area)==0: mesh[ii]=mesh[ii].compute_n_area()
                     data_plot = mesh[ii].n_area
-                    cb_label, cb_unit = 'vertice area', 'm^2'
+                    cb_label, cb_lunit = 'vertice area', 'm^2'
                 elif data in ['eresol', 'e_resol', 'triresolution', 'triresol']:
                     if len(mesh[ii].e_resol)==0: mesh[ii]=mesh[ii].compute_e_resol()
                     data_plot = mesh[ii].e_resol/1000
-                    cb_label, cb_unit = 'element resolution', 'km'
+                    cb_label, cb_lunit = 'element resolution', 'km'
                 elif data in ['earea', 'e_area', 'triarea']:
                     if len(mesh[ii].e_area)==0: mesh[ii]=mesh[ii].compute_e_area()
                     data_plot =  mesh[ii].e_area
-                    cb_label, cb_unit = 'element area', 'm^2'
+                    cb_label, cb_lunit = 'element area', 'm^2'
                 elif data in ['ndepth', 'ntopo', 'n_depth', 'n_topo', 'topography', 'zcoord']:
                     data_plot =  np.abs(mesh[ii].n_z)
-                    cb_label, cb_unit = 'vertice depth', 'm'
+                    cb_label, cb_lunit = 'vertice depth', 'm'
                 elif data in ['edepth', 'etopo', 'e_depth', 'e_topo' ]:
                     data_plot = np.abs(mesh[ii].zlev[mesh[ii].e_iz])
-                    cb_label, cb_unit = 'element depth', 'm'
+                    cb_label, cb_lunit = 'element depth', 'm'
                 
                 #_______________________________________________________________
                 cinfo_plot = do_setupcinfo(cinfo, [data_plot], do_rescale, mesh=mesh[ii], tri=tri)
@@ -749,7 +753,7 @@ def plot_hmesh( mesh                   ,
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None and (data is not None): 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, norm_plot, 
-                             cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
+                             cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -786,8 +790,12 @@ def plot_hquiver(mesh                  ,
                 #--- quiver ---------
                 do_quiv    = True      , # tpc:tripcolor, tcf:tricontourf
                 quiv_opt   = dict()    ,
-                quiv_hfac  = 1         , # smaller means larger arrows
-                quiv_excl  = 0.45      , # smaller means more excluded arrows 
+                quiv_scalfac  = 1      , # bigger means larger arrows  
+                quiv_arrwidth = 0.25   ,
+                quiv_dens  = 0.5       , # larger mean more excluded arrows
+                quiv_smax  = 10        , # small arrow are scaled strong with factor smax, its off when smax=1
+                quiv_shiftL= 2         , # shift smothing function to the left
+                quiv_smooth= 2         , # slope of transitions zone, smaller value steeper transition
                 #--- mesh __---------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    , 
@@ -810,7 +818,9 @@ def plot_hquiver(mesh                  ,
                 grid_opt   = dict()    ,
                 #--- colorbar -------
                 cb_label   = None      ,
-                cb_unit    = None      ,
+                cb_lunit   = None      ,
+                cb_ltime   = None      ,
+                cb_ldep    = None      , 
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
@@ -926,7 +936,7 @@ def plot_hquiver(mesh                  ,
     cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
                     information from data ('long_name, short_name) are used
     
-    cb_unit     :   str, (default: None) if string its used as colorbar unit label, 
+    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
@@ -979,7 +989,7 @@ def plot_hquiver(mesh                  ,
     #___________________________________________________________________________
     # --> create box
     if box is None or box=="None": box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
-    
+    ts=clock.time()
     #___________________________________________________________________________
     # --> check if input data is a list
     if not isinstance(data, list): data = [data]
@@ -1028,16 +1038,16 @@ def plot_hquiver(mesh                  ,
         idsel = np.where(cb_plt_idx==ii)[0]
         #_______________________________________________________________________
         if isinstance(cinfo, list):
-            cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale, mesh=mesh, tri=tri) )
+            cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale, mesh=mesh, tri=tri, do_vec=True) )
         else:    
-            cinfo_plot.append( do_setupcinfo(cinfo, [data[jj] for jj in idsel], do_rescale, mesh=mesh, tri=tri) )
+            cinfo_plot.append( do_setupcinfo(cinfo, [data[jj] for jj in idsel], do_rescale, mesh=mesh, tri=tri, do_vec=True) )
         
         #_______________________________________________________________________
         if isinstance(do_rescale, list):
             norm_plot.append(  do_data_norm(cinfo_plot[-1], do_rescale[ii-1]) )
         else:
             norm_plot.append(  do_data_norm(cinfo_plot[-1], do_rescale) )
-        
+    
     #___________________________________________________________________________
     # --> loop over axes
     hp, hbot, hmsh, hlsm, hgrd, htop = list(), list(), list(), list(), list(), list()
@@ -1048,6 +1058,8 @@ def plot_hquiver(mesh                  ,
         # axis is normally fillt with data    
         else:
             ii_valid=ii
+            ts = clock.time()
+    
             #___________________________________________________________________
             # prepare unstructured data for plotting, augment periodic 
             # boundaries, interpolate from elements to nodes, kick out nan 
@@ -1079,9 +1091,11 @@ def plot_hquiver(mesh                  ,
             # do quiver computations
             h0 = do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
-                               quiv_hfac, quiv_excl, quiv_opt=quiv_opt)
+                               quiv_scalfac=quiv_scalfac, quiv_arrwidth=quiv_arrwidth, quiv_dens=quiv_dens,
+                               quiv_smax=quiv_smax, quiv_shiftL=quiv_shiftL, 
+                               quiv_smooth=quiv_smooth, quiv_opt=quiv_opt)
             hp.append(h0)
-                
+            
             #___________________________________________________________________
             # add mesh land-sea mask
             h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
@@ -1106,13 +1120,13 @@ def plot_hquiver(mesh                  ,
                         hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
                 # is title list of string        
                 elif isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
-                
+            
         #_______________________________________________________________________
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                             cb_label, cb_unit, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
-        
+                             cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
+            
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
@@ -1176,7 +1190,9 @@ def plot_vslice(mesh                   ,
                 grid_opt   = dict({'yexp':True})    ,
                 #--- colorbar -------
                 cb_label   = None      ,
-                cb_unit    = None      ,
+                cb_lunit   = None      ,
+                cb_ltime   = None      ,
+                cb_ldep    = None      , 
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
@@ -1288,7 +1304,7 @@ def plot_vslice(mesh                   ,
     cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
                     information from data ('long_name, short_name) are used
     
-    cb_unit     :   str, (default: None) if string its used as colorbar unit label, 
+    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
                     otherwise units from data are used
 
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
@@ -1528,7 +1544,7 @@ def plot_vslice(mesh                   ,
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                             cb_label, cb_unit, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                             cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                              box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #_______________________________________________________________________
@@ -2688,10 +2704,16 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), do_t
     e_box_mask = np.ones(tri.triangles.shape[0], dtype=bool)
     if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
         e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
-    elif not isinstance(proj_to, (ccrs.Orthographic, ccrs.NearsidePerspective)):
+    
+    elif isinstance(proj_to, (ccrs.NearsidePerspective)):
+        xpts, ypts = proj_to.transform_points(proj_from, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
+        e_box_mask = (np.isnan(xpts)==False) & (np.isnan(ypts)==False)
+        del(xpts, ypts)
+    
+    elif not isinstance(proj_to, (ccrs.Orthographic)):    
         xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
-        fig_pts    = hax.transData.transform(list(zip(xpts,ypts)))
-        ax_pts     = hax.transAxes.inverted().transform(fig_pts)
+        fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
+        ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
         e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
         del(xpts, ypts, fig_pts, ax_pts)
         
@@ -2717,12 +2739,11 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), do_t
     tri.mask_n_box     = n_box_mask
     del(e_box_mask, n_box_mask)
     tri.n2dn, tri.n2de = mesh.n2dn, mesh.n2de
+    tri.narea = np.hstack((mesh.n_area[0,:],mesh.n_area[0,mesh.n_pbnd_a]))
     if tri.mask_n_box is not None: 
-        tri.narea = np.hstack((mesh.n_area[0,:],mesh.n_area[0,mesh.n_pbnd_a]))
         tri.narea = tri.narea[tri.mask_n_box]
     else: 
         tri.narea = mesh.n_area[0,:]
-    
     #___________________________________________________________________________
     return(tri)
 
@@ -3228,7 +3249,7 @@ def do_axes_arrange(nx, ny,
             hax[nn].fs_label=fs_label
             hax[nn].fs_ticks=fs_ticks
             hax[nn].fs_title=fs_title
-            
+            hax[nn].dpi     =hfig.dpi
             #___________________________________________________________________
             # colorbar
             if cb_plt[ii,jj] != 0 and projection[0]!='index+depth' and projection[0]!='index+time' and projection[0]!='index+xy':
@@ -3925,7 +3946,9 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
 #_______________________________________________________________________________
 # --> plot triangular data based on tripcolor or tricontourf
 def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
-                  cinfo_plot, norm_plot, quiv_hfac, quiv_excl, quiv_opt=dict()):
+                  cinfo_plot, norm_plot, quiv_scalfac=1, quiv_arrwidth=0.25, quiv_dens=0.4, 
+                  quiv_smax=10, quiv_shiftL=2, quiv_smooth=2, 
+                  quiv_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
     hax_ii      :   handle of one axes
@@ -3971,6 +3994,18 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         data_plot_n[data_plot_n<cinfo_plot['clevel'][0]]  = cinfo_plot['clevel'][0] #+np.finfo(np.float32).eps
         data_plot_n[data_plot_n>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]#-np.finfo(np.float32).eps
         data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
+        
+        nmax  = np.nanmax(data_plot_n)
+        data_plot_u, data_plot_v = data_plot_u/nmax, data_plot_v/nmax
+
+        # scale up weaker flow vectors stronger so that also weaker flows become more visible
+        # if quiv_scal=1 this scaling is switched off 
+        fac   = (1.0 - np.tanh(((data_plot_n/nmax*np.pi*4)-np.pi*2 + 2*np.pi/quiv_shiftL )/quiv_smooth) )/2.0
+        fac   = fac - np.nanmin(fac)
+        fac   = fac/np.nanmax(fac)
+        fac   = fac*(quiv_smax-1.0) + 1.0
+        data_plot_u, data_plot_v = data_plot_u*fac, data_plot_v*fac
+        
                 
         # convert into cartopy projection frame 
         data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
@@ -3979,41 +4014,75 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
                 
         # kick out nan values from quiver coordinates 
         mask_nan = np.isnan(data_plot_u) == False
-        tri.x, tri.y = tri.x[mask_nan], tri.y[mask_nan]
+        tri0x, tri0y = tri.x[mask_nan], tri.y[mask_nan]
         data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
-                
-        # kick out to small arrows
-        mean   = np.nanmean(data_plot_n)
-        std    = np.nanstd(data_plot_n)
-        mask_quiv = data_plot_n>mean-std*quiv_excl
         
-        ## kick out arrows based on density 
-        #if quiv_dens is not None and narea is not None:
-            #print(narea.shape)
-            #print(mask_nan.shape)
-            #r0        = 1/(np.sqrt(narea[mask_nan]))
-            #isp       = np.random.rand(tri.x.size)>r0/np.max(r0)*quiv_dens #1.5
+        ## kick out to small arrows
+        #mean, std   = np.nanmean(data_plot_n), np.nanstd(data_plot_n)
+        #mask_quiv   = data_plot_n>mean-std*quiv_excl
+        #tri0x       = tri0x[mask_quiv], 
+        #tri0y       = tri0y[mask_quiv],                         
+        #data_plot_u = data_plot_u[mask_quiv], 
+        #data_plot_v = data_plot_v[mask_quiv], 
+        #data_plot_n = data_plot_n[mask_quiv]
+        
+        # kick out arrows based on density 
+        if quiv_dens is not None and tri.narea is not None:
+            r0          = 1/(np.sqrt(tri.narea[mask_nan]))
+            mask_quiv   = np.random.rand(tri0x.size)>r0/np.max(r0)*quiv_dens #1.5
             #mask_quiv = np.logical_and(isok,mask_quiv)
+            tri0x       = tri0x[mask_quiv], 
+            tri0y       = tri0y[mask_quiv],                         
+            data_plot_u = data_plot_u[mask_quiv], 
+            data_plot_v = data_plot_v[mask_quiv], 
+            data_plot_n = data_plot_n[mask_quiv]
             
-                
-        #___________________________________________________________________________
+        #_______________________________________________________________________
+        # try to do scaling projection space dependent
+        # Define the geographic coordinates bounding the area of interest
+        min_x, max_x = hax_ii.get_xlim()
+        min_y, max_y = hax_ii.get_ylim()
+        ddx  , ddy   = max_x-min_x , max_y-min_y
+          
+        min_x += ddx*0.025  
+        min_y += ddy*0.025
+        max_x -= ddx*0.025  
+        max_y -= ddy*0.025
+        
+        # Transform the minimum and maximum points
+        min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+        max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+        dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
+        dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
+        
+        # Calculate the distance in kilometers using the scale factor
+        dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
+        dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
+        
+        dy   = dlat*np.pi*6371/180
+        dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
+        
+        #_______________________________________________________________________
         # add quiver plot 
-        if quiv_hfac is not None: quiv_hfac = mean+std*quiv_hfac
-        quiv_optdefault=dict({'edgecolor':'k', 'linewidth':0.15, 'units':'xy', \
-                                'angles':'xy', 'scale_units':'xy', 'scale': quiv_hfac})
+        max_dim = np.min([dx,dy])*10
+        if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
+        if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+        
+        quiv_optdefault=dict({'edgecolor':'k', 'linewidth':0.10, 'width': quiv_arrwidth , 'units':'xy', \
+                              'scale_units':'xy', 'angles':'xy', 'scale': quiv_scalfac}) 
         quiv_optdefault.update(quiv_opt)
-                
-        h0=hax_ii.quiver(tri.x[mask_quiv], tri.y[mask_quiv], 
-                        data_plot_u[mask_quiv], data_plot_v[mask_quiv], 
-                        data_plot_n[mask_quiv],
-                        cmap = cinfo_plot['cmap'],
+        
+        h0=hax_ii.quiver(tri0x, tri0y, 
+                        data_plot_u, data_plot_v, 
+                        data_plot_n,
+                        cmap = cinfo_plot['cmap'],                    
                         norm = norm_plot,
                         zorder=10,
                         **quiv_optdefault, 
                         )
         
         h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
-            
+        del(tri0x, tri0y)    
     return(h0)
 
 
@@ -4504,7 +4573,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
 #
 #
 #_______________________________________________________________________________
-def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit, 
+def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_ltime, cb_ldep,
             box_idx=None, norm=None, cb_opt=dict(), cbl_opt=dict(), cbtl_opt=dict()):
     """
     ___INPUT:___________________________________________________________________
@@ -4527,7 +4596,7 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
                     'slog10' do symetric logarithmic scaling
     cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
                     information from data ('long_name, short_name) are used
-    cb_unit     :   str, (default: None) if string its used as colorbar unit label, 
+    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
                     otherwise units from data are used
     cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
     cbl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
@@ -4567,18 +4636,22 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_unit,
         elif 'short_name' in loc_attrs:
             c_label = cb_label+loc_attrs['short_name'].capitalize()
         
-        if cb_unit  is None:
+        if cb_lunit  is None:
             if 'units' in loc_attrs: cb_label = cb_label+' / '+loc_attrs['units']
-        else:                cb_label = cb_label+' / '+cb_unit
+        else:                cb_label = cb_label+' / '+cb_lunit
             
         if 'str_ltim' in loc_attrs: cb_label = cb_label+'\n'+loc_attrs['str_ltim']
         if 'str_ldep' in loc_attrs: cb_label = cb_label+loc_attrs['str_ldep']
         
     else:
-        if cb_unit  is None: cb_label = cb_label+' / '+loc_attrs['units']
-        else:                cb_label = cb_label+' / '+cb_unit
-        if 'str_ltim' in loc_attrs: cb_label = cb_label+'\n'+loc_attrs['str_ltim']
-        if 'str_ldep' in loc_attrs: cb_label = cb_label+loc_attrs['str_ldep']
+        if cb_lunit  is None: cb_label = cb_label+' / '+loc_attrs['units']
+        else:                 cb_label = cb_label+' / '+cb_lunit
+        if cb_ltime is None:
+            if 'str_ltim' in loc_attrs: cb_label = cb_label+'\n'+loc_attrs['str_ltim']
+        else: cb_label = cb_label+'\n'+cb_ltime
+        if cb_ldep is None:    
+            if 'str_ldep' in loc_attrs: cb_label = cb_label+loc_attrs['str_ldep']
+        else: cb_label = cb_label+'\n'+cb_ldep
         
     if   which_orient=='vertical'  : fsize =  hcb_ii.ax.get_yticklabels()[0].get_fontsize()
     elif which_orient=='horizontal': fsize =  hcb_ii.ax.get_xticklabels()[0].get_fontsize()
@@ -4781,8 +4854,25 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 else:
                     # compute norm when vector data
                     data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
-                    cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
-            
+                    if cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
+                    
+                    if   data_plot.size == mesh.n2dn:
+                        if tri.mask_n_box is not None:
+                            aux = np.ones(data_plot.shape)*np.nan
+                            aux[tri.mask_n_box] = data_plot[tri.mask_n_box]
+                            data_plot = aux.copy()
+                            del(aux)
+                            if cinfo['chist']: 
+                                aux = np.zeros(do_cweights.shape)
+                                aux[tri.mask_n_box] = do_cweights[tri.mask_n_box]
+                                do_cweights = aux.copy()
+                                del(aux)
+                               
+                    elif data_plot.size == mesh.e2dn:    
+                        if any(e_box_mask==False): 
+                            data_plot[tri.mask_e_box==False] = np.nan
+                            if cinfo['chist']: do_cweightst[tri.mask_e_box==False] = 0
+                
             # for logarythmic rescaling cmin or cmax can not be zero
             if isinstance(do_rescale, str):
                 if do_rescale=='log10' or do_rescale=='slog10': 
@@ -4811,10 +4901,10 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     if do_cweights is not None: 
                         do_cweights_in = do_cweights.copy()
                         if do_cweights_in.size==mesh.n2dn: do_cweights_in = np.hstack((do_cweights_in,do_cweights_in[mesh.n_pbnd_a]))
-                        do_cweights_in = do_cweights_in[tri.triangles.flatten()]
                     else: 
                         do_cweights_in = do_cweights
-                    auxcmin,auxcmax = do_climit_hist(data_plot[tri.triangles.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in)
+                    #auxcmin,auxcmax = do_climit_hist(data_plot[tri.triangles.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in[tri.triangles.flatten()])
+                    auxcmin,auxcmax = do_climit_hist(data_plot[mesh.e_i.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in[mesh.e_i.flatten()])                    
                     cmin, cmax = np.min([cmin,auxcmin]), np.max([cmax,auxcmax])
                     print('--> histo: cmin, cmax = ', cmin, cmax)
                 else:    

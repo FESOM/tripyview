@@ -166,6 +166,8 @@ def tripyrun():
     analyses_driver_list["hslice_clim_sp"     ] = drive_hslice_clim
     analyses_driver_list["hslice_isotdep"     ] = drive_hslice_isotdep
     
+    analyses_driver_list["hquiver"            ] = drive_hquiver
+    
     analyses_driver_list["hovm"               ] = drive_hovm
     analyses_driver_list["hovm_clim"          ] = drive_hovm_clim
     
