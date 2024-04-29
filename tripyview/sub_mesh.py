@@ -1852,23 +1852,58 @@ def grid_interp_e2n(mesh,data_e):
         data_n=data_n/mesh.n_area[0,:]/3.0
         
     elif data_e.ndim==2:
-        # print('~~ >-)))°> .°oO B')
+        #print('~~ >-)))°> .°oO B')
         nd     = data_e.shape[1]
         data_n = np.zeros((mesh.n2dn, nd))
+        data_a = np.zeros((mesh.n2dn,   ))
         aux1   = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
-        for ndi in range(0,nd):
-            aux  = aux1 * np.vstack((data_e[:,ndi],data_e[:,ndi],data_e[:,ndi])).transpose().flatten()
-            #___________________________________________________________________________
+        
+        #_______________________________________________________________________
+        def e2n_di(di, data_e, area_e, e_i_flat, n_iz):
+            data_exa = area_e * np.vstack((data_e[:,di],data_e[:,di],data_e[:,di])).transpose().flatten()
+            suma     = np.zeros(n_iz.shape)
+            data_n   = np.zeros(n_iz.shape)
+            #___________________________________________________________________
             # single loop over self.e_i.flat is ~4 times faster than douple loop 
             # over for i in range(3): ,for j in range(self.n2de):
-            count = 0
-            for idx in mesh.e_i.flat:
-                data_n[idx, ndi]=data_n[idx, ndi] + aux[count]
-                count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-            del aux, count
-            #with np.errstate(divide='ignore',invalid='ignore'):
-            data_n[:, ndi]=data_n[:, ndi]/mesh.n_area[ndi, :]/3.0
+            for count, idx in enumerate(e_i_flat):
+                if n_iz[idx]<di: continue
+                data_n[idx]=data_n[idx] + data_exa[ count]
+                data_a[idx]=data_a[idx] + area_e[   count]
+            with np.errstate(divide='ignore',invalid='ignore'):    
+                data_n=data_n/data_a
+            return(data_n)
         
+        
+        #t1 = clock.time()
+        #for di in range(0,nd):
+            #data_n[:, di] = e2n_di(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) 
+        #print(clock.time()-t1)
+        
+        
+        t1 = clock.time()
+        from joblib import Parallel, delayed
+        results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
+        data_n = np.vstack(results).transpose()
+        print(' --> elapsed time:', clock.time()-t1)
+        
+        #t1 = clock.time()
+        ##_______________________________________________________________________
+        #for ndi in range(0,nd):
+            #aux  = aux1 * np.vstack((data_e[:,ndi],data_e[:,ndi],data_e[:,ndi])).transpose().flatten()
+            ##___________________________________________________________________
+            ## single loop over self.e_i.flat is ~4 times faster than douple loop 
+            ## over for i in range(3): ,for j in range(self.n2de):
+            #data_a[:] = 0
+            #for count, idx in enumerate(mesh.e_i.flatten()):
+                #if ndi<=mesh.n_iz[idx]:
+                    #data_n[idx, ndi]=data_n[idx, ndi] + aux[ count]
+                    #data_a[idx     ]=data_a[idx     ] + aux1[count]
+            #del aux
+            ##with np.errstate(divide='ignore',invalid='ignore'):
+            ##data_n[:, ndi]=data_n[:, ndi]/mesh.n_area[ndi, :]/3.0
+            #data_n[:, ndi]=data_n[:, ndi]/data_a
+        #print(clock.time()-t1)    
     #___________________________________________________________________________
     return(data_n)
 
