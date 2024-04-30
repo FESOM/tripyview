@@ -131,7 +131,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 
 #### 2D automatic multipanel plotting: 
 * plot automatised multipanels depending on number of choosen datasets and number
-of panel columns ncol
+of panel columns ncol (the panel arrangement uses ideas from Nils.Brueggemann@mpimet.mpg.de)
 <p align="center" width="100%">
   <img width=75% src="tripyview/tripyview_multipanel.png">
 </p>
