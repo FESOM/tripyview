@@ -45,7 +45,7 @@ pip install -e .
 #### General plotting: 
 * `hmesh`        - plot horizontal fesom2 mesh in various projections (plot only mesh, topographie, 
 vertice/element- resolution and area)
-<p align="left" width="100%">
+<p align="center" width="64%">
   <img width=32% src="tripyview/tripyview_hmesh1.png">
   <img width=32% src="tripyview/tripyview_hmesh2.png">
 </p>
