@@ -32,6 +32,22 @@ depth: None
 proj: 'rob'
 save_dpi: 150
 
+
+#_______________________________________________________________________________
+# mesh plots
+hmesh:
+    #___2lvl Parameter___
+    proj: 'ortho'
+    box: [-30,45]
+    do_mesh: True
+    do_plt: 'tpc'
+    do_lsm: 'bluemarble'
+    #___Variables________
+    None:
+        proj: 'nears'
+        box: [-30, 45, 25]
+    nresol:
+
 #_______________________________________________________________________________
 # horizontal plots
 hslice:

@@ -158,6 +158,8 @@ def tripyrun():
     #___________________________________________________________________________
     # define all the analyses drivers
     analyses_driver_list = {}
+    analyses_driver_list["hmesh"              ] = drive_hmesh
+    
     analyses_driver_list["hslice"             ] = drive_hslice
     analyses_driver_list["hslice_np"          ] = drive_hslice
     analyses_driver_list["hslice_sp"          ] = drive_hslice

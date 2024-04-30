@@ -685,10 +685,12 @@ def plot_hmesh( mesh                   ,
             tri = do_triangulation(hax, mesh[ii], proj_to, box)
             
             #___________________________________________________________________
-            if data is not None:
+            print(data)
+            if data is not None and data is not 'None':
                 if  data in ['resolution', 'resol', 'n_resol', 'nresol']:
                     if len(mesh[ii].n_resol)==0: mesh[ii]=mesh[ii].compute_n_resol()
-                    data_plot = mesh[ii].n_resol[0,:]/1000
+                    data_plot = mesh[ii].n_resol/1000
+                    #data_plot = mesh[ii].n_resol[0,:]/1000
                     cb_label, cb_lunit = 'vertice resolution', 'km'
                 elif data in ['narea', 'n_area', 'clusterarea', 'scalararea']:    
                     if len(mesh[ii].n_area)==0: mesh[ii]=mesh[ii].compute_n_area()
@@ -753,10 +755,12 @@ def plot_hmesh( mesh                   ,
                 
         #_______________________________________________________________________
         # add colorbar 
-        if hcb_ii != 0 and hp[-1] is not None and (data is not None): 
-            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, norm_plot, 
-                             cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
-        
+        if (data is not None and data is not 'None'):
+            if hcb_ii != 0 and hp[-1] is not None: 
+                hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, norm_plot, 
+                                cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
+        else:
+            hcb_ii.remove()
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
@@ -4939,10 +4943,11 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     if do_cweights is not None: 
                         do_cweights_in = do_cweights.copy()
                         if do_cweights_in.size==mesh.n2dn: do_cweights_in = np.hstack((do_cweights_in,do_cweights_in[mesh.n_pbnd_a]))
+                        do_cweights_in = do_cweights_in[mesh.e_i.flatten()]
                     else: 
                         do_cweights_in = do_cweights
                     #auxcmin,auxcmax = do_climit_hist(data_plot[tri.triangles.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in[tri.triangles.flatten()])
-                    auxcmin,auxcmax = do_climit_hist(data_plot[mesh.e_i.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in[mesh.e_i.flatten()])                    
+                    auxcmin,auxcmax = do_climit_hist(data_plot[mesh.e_i.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in)                    
                     cmin, cmax = np.min([cmin,auxcmin]), np.max([cmax,auxcmax])
                     print('--> histo: cmin, cmax = ', cmin, cmax)
                 else:    

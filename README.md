@@ -43,6 +43,13 @@ pip install -e .
 ### see ./template_notebook/:
 
 #### General plotting: 
+* `hmesh`        - plot horizontal fesom2 mesh in various projections (plot only mesh, topographie, 
+vertice/element- resolution and area)
+<p align="left" width="100%">
+  <img width=32% src="tripyview/tripyview_hmesh1.png">
+  <img width=32% src="tripyview/tripyview_hmesh2.png">
+</p>
+
 * `hslice`       - plot horizontal slices for ocean variable (compute depth and time averages)
 * `hslice_np`    - plot horizontal slices for ocean variable north polar stereographic projection
 * `hslice_sp`    - plot horizontal slices for ocean variable south polar stereographic projection

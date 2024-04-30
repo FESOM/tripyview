@@ -130,7 +130,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         # store vertice resolution in data               
         elif any(x in vname for x in ['nresol', 'n_resol', 'resolution', 'resol']):
             if len(mesh.n_resol)==0: mesh=mesh.compute_n_resol()
-            data['nresol'] = ("nod2", mesh.n_resol[0,:]/1000)
+            data['nresol'] = ("nod2", mesh.n_resol/1000)
             data['nresol'].attrs["description"]='Resolution'
             data['nresol'].attrs["descript"   ]='Resolution'
             data['nresol'].attrs["long_name"  ]='Resolution'
