@@ -129,7 +129,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `ghflx`        - plots global meridional heat flux computed from surface heatfluxes fh
 * `mhflx`        - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
 
-#### 2d automatic multipanel plotting: 
+#### 2D automatic multipanel plotting: 
 * plot automatised multipanels depending on number of choosen datasets and number
 of panel columns ncol
 <p align="center" width="100%">
