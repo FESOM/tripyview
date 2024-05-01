@@ -43,65 +43,72 @@ pip install -e .
 ### see ./template_notebook/:
 
 #### General plotting: 
-* `hmesh`        - plot horizontal fesom2 mesh in various projections (plot only mesh, topographie, 
+* `hmesh`          - plot horizontal fesom2 mesh in various projections (plot: mesh, topographie, 
 vertice/element- resolution and area)
-<p align="center" width="64%">
+<p align="center" width="68%">
   <img width=32% src="tripyview/tripyview_hmesh1.png">
-  <img width=37% src="tripyview/tripyview_hmesh2.png">
+  <img width=36% src="tripyview/tripyview_hmesh2.png">
 </p>
 
-* `hslice`       - plot horizontal slices for ocean variable (compute depth and time averages)
-* `hslice_np`    - plot horizontal slices for ocean variable north polar stereographic projection
-* `hslice_sp`    - plot horizontal slices for ocean variable south polar stereographic projection
-* `hslice_clim`  - plot horizontal slices of temperature, salinity and density climatology (compute depth and time averages)
-* `hslice_clim_np` - plot horizontal slices of temperature, salinity and density climatology in north polar stereographic projection
-* `hslice_clim_sp` - plot horizontal slices of temperature, salinity and density climatology in south polar stereographic projection
-* `hslice_isotdep` - plot horizontal slices of depth of distinct isotherm (e.g 12°C isotherm)
+* `hslice`           - plot horizontal slices for ocean variable (compute depth and time averages)
+* `hslice_np`        - plot horizontal slices for ocean variable north polar stereographic projection
+* `hslice_sp`        - plot horizontal slices for ocean variable south polar stereographic projection
+* `hslice_clim`      - plot horizontal slices of temperature, salinity and density climatology (compute depth and time averages)
+* `hslice_clim_np`   - plot horizontal slices of temperature, salinity and density climatology in north polar stereographic projection
+* `hslice_clim_sp`   - plot horizontal slices of temperature, salinity and density climatology in south polar stereographic projection
+* `hslice_isotdep`   - plot horizontal slices of depth of distinct isotherm (default: 12°C isotherm)
 
-* `hslice_channel` - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
+* `hslice_channel`   - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
 <p align="center" width="100%">
   <img width=40% src="tripyview/tripyview_mov_channel.gif">
 </p>
 
-* `quiver`         - plot horizontal arrow vector field in various projections
+* `hquiver`          - plot horizontal arrow vector field in various projections
 <p align="center" width="100%">
   <img width=50% src="tripyview/tripyview_quiver.png">
 </p>
 
-* `hovm`         - plot hovmöller diagramms for 3d ocean varaible over depth and time averaged over
-specific region that defined by shapefile (see. tripyview/shapefiles/...)
-* `hovm_clim`    - plot hovmöller diagramms for  temperature, salinity and density climatology 
-over depth and time averaged over specific region that defined by shapefile (see. tripyview/shapefiles/...)
+* `hovm`             - plot hovmöller diagramms for 3d ocean variable over depth and time averaged over
+specific region that is defined by shapefile (see. tripyview/shapefiles/...)
+* `hovm_clim`        - plot hovmöller diagramms for  temperature, salinity and density climatology 
+over depth and time averaged over specific region that is defined by shapefile (see. tripyview/shapefiles/...)
 
-* `transect`         - plot point wise transects of 3d ocean varíables
+* `transect`         - plot point wise transects of 3d ocean variables
 * `transect_clim`    - plot point wise transects of 3d temperature, salinity and density climatology
 * `transect_transp`  - plot volume transport through arbitrary transects (model accurate transport)
-* `transect_transp_t`- plot time-series of volume transport through arbitrary transects (model accurate transport)
-* `transect_zmean`   - plot zonally averaged transects of 3d ocean varíables
+* `transect_transp_t`- plot time-series of volume transport through arbitrary transects (fesom2 model accurate transport)
+* `transect_zmean`   - plot zonally averaged transects of 3d ocean variables
 * `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
+p align="left" width="100%">
+  <img width=32% src="tripyview/tripyview_transect_pos.png">
+  <img width=32% src="tripyview/tripyview_transect.png">
+  <img width=32% src="tripyview/tripyview_transect_zmean.png">
+</p>
 
-* `vprofile`     - plot lines for averaged vertical profile of 3d ocean varíables
-* `vprofile_clim`- plot lines for averaged vertical profile of 3d temperature, salinity and density climatology
+* `vprofile`         - plot lines for averaged vertical profile of 3d ocean variables
+* `vprofile_clim`    - plot lines for averaged vertical profile of 3d temperature, salinity and density climatology
+<p align="center" width="100%">
+  <img width=50% src="tripyview/tripyview_vprofile.png">
+</p>
 
-* `var_t`        - plots time series of of globally averaged 2d and 3d variables 
+* `var_t`            - plots time-series of globally or shapefile (see. tripyview/shapefiles/...) averaged 2d and 3d variables 
 
 #### Transports/Streamfunctions: 
-* `zmoc`         - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
+* `zmoc`             - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
-
 <p align="left" width="100%">
   <img width=32% src="tripyview/tripyview_zAMOC.png">
   <img width=32% src="tripyview/tripyview_zIPMOC.png">
   <img width=32% src="tripyview/tripyview_zGMOC.png">
 </p>
 
-* `zmoc_t`       - plot timeseries of atlantic meridional overturning circulation at specific latitudes 
+* `zmoc_t`           - plot time-series of atlantic meridional overturning circulation at specific latitudes 
 (default: which_lats: [26, 40, 'max'])
 
-* `dmoc`         - plot meridional overturning circulation in density  coordinates using FESOM2 density MOC diagnostics (graditues goes to **Dmitry.Sidorenko@awi.de**), Globally, 
+* `dmoc`             - plot meridional overturning circulation in density coordinates using FESOM2 density MOC diagnostics (graditues goes to **Dmitry.Sidorenko@awi.de**), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
-* `dmoc_srf`     - plot surface transformation of meridional overturning circulation in density coordinates
-* `dmoc_inner`   - plot inner transformation of meridional overturning circulation in density coordinates
+* `dmoc_srf`         - plot surface transformation of meridional overturning circulation in density coordinates
+* `dmoc_inner`       - plot inner transformation of meridional overturning circulation in density coordinates
 
 <p align="left" width="100%">
   <img width=32% src="tripyview/tripyview_dAMOC.png">
@@ -109,7 +116,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
   <img width=32% src="tripyview/tripyview_dAMOC_inner.png">
 </p>
 
-* `dmoc_z`, `dmoc_srf_z`, `dmoc_inner_z` - plot meridional overturning circulation in density coordinates back into z-coordinate space 
+* `dmoc_z`, `dmoc_srf_z`, `dmoc_inner_z` - plot meridional overturning circulation in density coordinates remapped into z-coordinate space 
 
 <p align="left" width="100%">
   <img width=32% src="tripyview/tripyview_dAMOC_z.png">
@@ -117,27 +124,27 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
   <img width=32% src="tripyview/tripyview_dGMOC_z.png">
 </p>
 
-* `dmoc_wdiap`   - plot diapycnal velocity for specific water-class
+* `dmoc_wdiap`       - plot diapycnal velocity for specific water-class
 
-* `dmoc_srfcbflx`- plot surface buoyancy flux transformation for specific water-class
+* `dmoc_srfcbflx`    - plot surface buoyancy flux transformation for specific water-class
 
-* `dmoc_t`       - plot timeseries of atlantic meridional overturning circulation in density coordinates at specific latitudes 
+* `dmoc_t`           - plot time-series of atlantic meridional overturning circulation in density coordinates at specific latitudes 
 (default: which_lats: [26, 55, 'max'])
 
-* `hbarstreamf`  - plot horizontal barotropic streamfunction 
+* `hbarstreamf`      - plot horizontal barotropic streamfunction 
 
-* `ghflx`        - plots global meridional heat flux computed from surface heatfluxes fh
-* `mhflx`        - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
+* `ghflx`            - plots global meridional heat flux computed from surface heatfluxes fh
+* `mhflx`            - plots global meridional heat flux computed from the the turbulent fluxes temp*v, temp*u
 
 #### 2D automatic multipanel plotting: 
-* plot automatised multipanels depending on number of choosen datasets and number
-of panel columns ncol (the panel arrangement uses ideas from Nils.Brueggemann@mpimet.mpg.de)
+* plot automatised figure multipanels depending on number of choosen datasets and number
+of panel columns ncol (the panel arrangement uses ideas from **Nils.Brueggemann@mpimet.mpg.de**)
 <p align="center" width="100%">
   <img width=75% src="tripyview/tripyview_multipanel.png">
 </p>
 
 #### 3D plotting: 
-* `3dsphere`     - plot 3d model of FESOM grid with variables using pyvista interface. Full functionality can be only achieved with jupyter-lab (<4.0)
+* `3dsphere`         - plot 3d model of FESOM grid with variables using pyvista interface. Full functionality can be only achieved with jupyter-lab (<4.0)
 <p align="center" width="100%">
   <img width=75% src="tripyview/tripyview_icon_NH.png">
 </p>
@@ -149,7 +156,7 @@ of panel columns ncol (the panel arrangement uses ideas from Nils.Brueggemann@mp
 
 ### command line batch diagnostics:
 * `tripyrun  <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
-template, graditues go to Nikolay.Koldunov@awi.de), creates html files with linked plots.
+template, graditues go to **Nikolay.Koldunov@awi.de**), creates html files with linked plots.
 
 * `tripyrun  <workflowfile.yml> -d <driver>` - re-run one specific driver from .yml file 
 
