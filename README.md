@@ -2,7 +2,6 @@
   <img width=100% src="tripyview/tripyview_logo2.png">
 </p>
 <br />
-<br />
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
 Data reading got updated to xarray, plotting got updated to cartopy, actually works well for 
