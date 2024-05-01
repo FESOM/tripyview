@@ -74,12 +74,6 @@ vertice/element- resolution and area)
 
 
 ### General vertical plots: 
-* `hovm`             - plot hovmöller diagramms for 3d ocean variable over depth and time averaged over
-specific region that is defined by shapefile (see. tripyview/shapefiles/...)
-* `hovm_clim`        - plot hovmöller diagramms for  temperature, salinity and density climatology 
-over depth and time averaged over specific region that is defined by shapefile (see. tripyview/shapefiles/...)
-
-
 * `transect`         - plot point wise transects of 3d ocean variables
 * `transect_clim`    - plot point wise transects of 3d temperature, salinity and density climatology
 * `transect_transp`  - plot volume transport through arbitrary transects (model accurate transport)
@@ -99,6 +93,11 @@ over depth and time averaged over specific region that is defined by shapefile (
   <img width=100% src="tripyview/tripyview_vprofile.png">
 </p>
 
+### General time plots: 
+* `hovm`             - plot hovmöller diagramms for 3d ocean variable over depth and time averaged over
+specific region that is defined by shapefile (see. tripyview/shapefiles/...)
+* `hovm_clim`        - plot hovmöller diagramms for  temperature, salinity and density climatology 
+over depth and time averaged over specific region that is defined by shapefile (see. tripyview/shapefiles/...)
 
 * `var_t`            - plots time-series of globally or shapefile (see. tripyview/shapefiles/...) averaged 2d and 3d variables 
 
