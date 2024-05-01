@@ -1,11 +1,7 @@
-# <img src="tripyview/tripyview_icon_NH.png" width=15% align="left" > ----------------- Tripyview ----------------- <img src="tripyview/tripyview_icon_SH.png" width=15% align="right" >
-<br />
-<br />
-
 <p align="center" width="100%">
-  <img width=20% src="tripyview/tripyview_icon_NH.png">
+  <img width=10% src="tripyview/tripyview_icon_NH.png">
   <img width=60% src="tripyview/tripyview_logo.png">
-  <img width=20% src="tripyview/tripyview_icon_SH.png">
+  <img width=10% src="tripyview/tripyview_icon_SH.png">
 </p>
 
 
