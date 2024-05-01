@@ -79,7 +79,7 @@ over depth and time averaged over specific region that is defined by shapefile (
 * `transect_transp_t`- plot time-series of volume transport through arbitrary transects (fesom2 model accurate transport)
 * `transect_zmean`   - plot zonally averaged transects of 3d ocean variables
 * `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
-p align="left" width="100%">
+<p align="center" width="100%">
   <img width=32% src="tripyview/tripyview_transect_pos.png">
   <img width=32% src="tripyview/tripyview_transect.png">
   <img width=32% src="tripyview/tripyview_transect_zmean.png">
@@ -88,7 +88,7 @@ p align="left" width="100%">
 * `vprofile`         - plot lines for averaged vertical profile of 3d ocean variables
 * `vprofile_clim`    - plot lines for averaged vertical profile of 3d temperature, salinity and density climatology
 <p align="center" width="100%">
-  <img width=50% src="tripyview/tripyview_vprofile.png">
+  <img width=100% src="tripyview/tripyview_vprofile.png">
 </p>
 
 * `var_t`            - plots time-series of globally or shapefile (see. tripyview/shapefiles/...) averaged 2d and 3d variables 
