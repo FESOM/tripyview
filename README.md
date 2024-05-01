@@ -50,6 +50,7 @@ vertice/element- resolution and area)
   <img height=200px src="tripyview/tripyview_hmesh2.png">
 </p>
 
+-----
 * `hslice`           - plot horizontal slices for ocean variable (compute depth and time averages)
 * `hslice_np`        - plot horizontal slices for ocean variable north polar stereographic projection
 * `hslice_sp`        - plot horizontal slices for ocean variable south polar stereographic projection
@@ -58,16 +59,19 @@ vertice/element- resolution and area)
 * `hslice_clim_sp`   - plot horizontal slices of temperature, salinity and density climatology in south polar stereographic projection
 * `hslice_isotdep`   - plot horizontal slices of depth of distinct isotherm (default: 12°C isotherm)
 
+-----
 * `hslice_channel`   - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
 <p align="center" width="100%">
   <img width=40% src="tripyview/tripyview_mov_channel.gif">
 </p>
 
+-----
 * `hquiver`          - plot horizontal arrow vector field in various projections
 <p align="center" width="100%">
   <img width=50% src="tripyview/tripyview_quiver.png">
 </p>
 
+-----
 * `hovm`             - plot hovmöller diagramms for 3d ocean variable over depth and time averaged over
 specific region that is defined by shapefile (see. tripyview/shapefiles/...)
 * `hovm_clim`        - plot hovmöller diagramms for  temperature, salinity and density climatology 
