@@ -1,7 +1,5 @@
 <p align="center" width="100%">
-  <img width=10% src="tripyview/tripyview_icon_NH.png">
-  <img width=60% src="tripyview/tripyview_logo.png">
-  <img width=10% src="tripyview/tripyview_icon_SH.png">
+  <img width=60% src="tripyview/tripyview_logo2.png">
 </p>
 
 
