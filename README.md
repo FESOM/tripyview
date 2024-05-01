@@ -1,10 +1,6 @@
 <p align="center" width="100%">
   <img width=100% src="tripyview/tripyview_logo2.png">
 </p>
-
-
-<br />
-<br />
 <br />
 <br />
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
