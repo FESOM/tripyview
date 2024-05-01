@@ -80,9 +80,9 @@ over depth and time averaged over specific region that is defined by shapefile (
 * `transect_zmean`   - plot zonally averaged transects of 3d ocean variables
 * `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
 <p align="center" width="100%">
-  <img height=200px src="tripyview/tripyview_transect_pos.png">
-  <img height=200px src="tripyview/tripyview_transect.png">
-  <img height=200px src="tripyview/tripyview_transect_zmean.png">
+  <img height=150px src="tripyview/tripyview_transect_pos.png">
+  <img height=150px src="tripyview/tripyview_transect.png">
+  <img height=150px src="tripyview/tripyview_transect_zmean.png">
 </p>
 
 * `vprofile`         - plot lines for averaged vertical profile of 3d ocean variables
