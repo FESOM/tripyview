@@ -43,7 +43,7 @@ pip install -e .
 #### see ./template_notebook/:
 
 
-### General plotting: 
+### General horizontal plots: 
 * `hmesh`          - plot horizontal fesom2 mesh in various projections (plot: mesh, topographie, 
 vertice/element- resolution and area)
 <p align="center" width="100%">
@@ -73,6 +73,7 @@ vertice/element- resolution and area)
 </p>
 
 
+### General vertical plots: 
 * `hovm`             - plot hovmöller diagramms for 3d ocean variable over depth and time averaged over
 specific region that is defined by shapefile (see. tripyview/shapefiles/...)
 * `hovm_clim`        - plot hovmöller diagramms for  temperature, salinity and density climatology 
