@@ -49,7 +49,7 @@ vertice/element- resolution and area)
   <img height=200px src="tripyview/tripyview_hmesh1.png">
   <img height=200px src="tripyview/tripyview_hmesh2.png">
 </p>
-
+<hr style="border:2px solid gray">
 -----
 * `hslice`           - plot horizontal slices for ocean variable (compute depth and time averages)
 * `hslice_np`        - plot horizontal slices for ocean variable north polar stereographic projection
