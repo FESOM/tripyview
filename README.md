@@ -1,5 +1,5 @@
 <p align="center" width="100%">
-  <img width=100% src="tripyview/tripyview_logo2.png">
+  <img width=100% src="tripyview/tripyview_logo_02.png">
 </p>
 <br />
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
