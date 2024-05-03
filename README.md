@@ -40,7 +40,9 @@ pip install -e .
 
 ## Different diagnostics
 #### see ./template_notebook/:
-
+It is recommented to leave the template_notebooks unaltered since they are needed by the tripyrun (papermill)
+batch diagnostic. If you want to work on them simply copy them to the ./notebook folder.
+<br />
 
 ### General horizontal plots: 
 * `hmesh`          - plot horizontal fesom2 mesh in various projections (plot: mesh, topographie, 
@@ -91,6 +93,7 @@ vertice/element- resolution and area)
 <p align="center" width="100%">
   <img width=100% src="tripyview/tripyview_vprofile.png">
 </p>
+
 
 ### General time plots: 
 * `hovm`             - plot hovmöller diagramms for 3d ocean variable over depth and time averaged over
