@@ -173,7 +173,7 @@ of panel columns ncol (the panel arrangement uses ideas from **Nils.Brueggemann@
 </p>
 
 
-## command line batch diagnostics:
+## Command line batch diagnostics:
 * `tripyrun  <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
 template, graditues go to **Nikolay.Koldunov@awi.de**), creates html files with linked plots.
 
@@ -181,6 +181,10 @@ template, graditues go to **Nikolay.Koldunov@awi.de**), creates html files with 
 
 * `tripyrun  <workflowfile.yml> -d <driver> -v <var1 var2 ...>` - re-run specific variable 
 subset of one specific driver driver from .yml file
+
+* `tripyrun  <workflowfile.yml> -r` - for the case the diagnostic did not fully finish you can 
+render the html file from hand based on hte saved json file. The json file is update after each finished
+driver section.
 
 <p align="center" width="100%">
   <img width=75% src="tripyview/tripyview_tripyrun.png">
