@@ -686,7 +686,7 @@ def plot_hmesh( mesh                   ,
             
             #___________________________________________________________________
             print(data)
-            if data is not None and data is not 'None':
+            if data != None and data != 'None':
                 if  data in ['resolution', 'resol', 'n_resol', 'nresol']:
                     if len(mesh[ii].n_resol)==0: mesh[ii]=mesh[ii].compute_n_resol()
                     data_plot = mesh[ii].n_resol/1000
@@ -747,7 +747,7 @@ def plot_hmesh( mesh                   ,
             
             #___________________________________________________________________
             # add title and axes labels
-            if ax_title is not None: 
+            if ax_title != None: 
                 # is title  string:
                 if   isinstance(ax_title,str) : hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
                 # is title list of string        
@@ -755,7 +755,7 @@ def plot_hmesh( mesh                   ,
                 
         #_______________________________________________________________________
         # add colorbar 
-        if (data is not None and data is not 'None'):
+        if (data != None and data != 'None'):
             if hcb_ii != 0 and hp[-1] is not None: 
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, norm_plot, 
                                 cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
