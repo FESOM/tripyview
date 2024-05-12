@@ -38,8 +38,9 @@ pip install -e .
 # tornad=6.1 --> its the only combination where this features works in moment!!!
 (pip install jupyter_server==1.23.6 jupyter_client==7.3.2 tornado==6.1)
 
-# the classic notebook support seems to end with jupyter_server==2.0.0 if you further
-# want to use the classical notebook 
+# On my laptop i had problems with the classic notebook support beyond jupyter_server==2.0.0
+# and had to downgrade it to jupyter_server<2.0.0. However on HPC albedo that didnt
+# seems to be the case.
 (pip install "jupyter_server<2.0.0")
 ```
 
