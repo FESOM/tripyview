@@ -5,7 +5,8 @@
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
 Data reading got updated to xarray, plotting got updated to cartopy, actually works well for 
-python=3.8. It is tested upto dart mesh size (3M surface vertices) where it allows for a decend 
+python=3.9 (python 3.8 made recently some problems to resolve all the cartopy dependencies). 
+It is tested upto dart mesh size (3M surface vertices) where it allows for a decend 
 working speed (but only when used in parallel)
 <br />
 version: 0.3.0
@@ -27,15 +28,19 @@ make sure your conda environment uses python=3.8 (conda create --name myenvpy38 
 # look like cartopy causes trouble when installed via pip so better preinstall via
 # conda also netcdf4>=1.6.1 causes occasionally netcdf4-->hdf5 error messages, therefor 
 # stick for the moment to netcdf4=1.6.0
-# If you want to use the interactive features in tools/do_topo@elem_or_node.ipynb
-# due to python issues you will need jupyter_server=1.23.6, jupyter_client=7.3.2, 
-# tornad=6.1 --> its the only combination where this features works in moment!!!
 conda install -c conda-forge cartopy netcdf4=1.6.0 libstdcxx-ng 
 (libstdcxx-ng is needed so that pyvista is able to plot interactively, python=3.8)
 cd tripyview
 pip install -e .
 
+# If you want to use the interactive features in tools/do_topo@elem_or_node.ipynb
+# due to python issues you will need jupyter_server=1.23.6, jupyter_client=7.3.2, 
+# tornad=6.1 --> its the only combination where this features works in moment!!!
 (pip install jupyter_server==1.23.6 jupyter_client==7.3.2 tornado==6.1)
+
+# the classic notebook support seems to end with jupyter_server==2.0.0 if you further
+# want to use the classical notebook 
+(pip install "jupyter_server<2.0.0")
 ```
 
 ## Different diagnostics
