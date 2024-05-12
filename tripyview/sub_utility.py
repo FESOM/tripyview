@@ -9,7 +9,7 @@ import shapefile as shp
 from   shapely.geometry   import Point, Polygon, MultiPolygon, shape
 from   shapely.vectorized import contains
 import shapefile as shp
-
+from   scipy.interpolate        import interp1d
 import json
 
 
@@ -839,15 +839,6 @@ def convert_box2shp(boxlist, boxnamelist, shppath):
     
     #___________________________________________________________________________
     return
-
-
-#
-#
-#+_____________________________________________________________________________+
-def forward(x):
-    return np.abs(x)**(1.0/2.5)
-def inverse(x):
-    return np.abs(x)**(2.5)
 
 
 

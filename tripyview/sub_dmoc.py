@@ -101,13 +101,18 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         wd, w     = np.diff(std_dens), np.zeros(dens.size)
         w[0], w[1:-1], w[-1] = wd[0]/2., (wd[0:-1]+wd[1:])/2., wd[-1]/2.  # drho @  std_dens level boundary
         w_dens    = xr.DataArray(w, dims=["ndens"]).astype('float32')
-        data_dMOC = data_dMOC.assign_coords({ 'dens'  :dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']}), \
-                                              'w_dens':w_dens.chunk({'ndens':data_dMOC.chunksizes['ndens']}) })
+        
+        # check if input data have been chunked
+        if any(data_dMOC.chunks.values()):
+            w_dens = w_dens.chunk({'ndens':data_dMOC.chunksizes['ndens']})
+            dens   = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
+        data_dMOC = data_dMOC.assign_coords({ 'dens'  :dens  , \
+                                              'w_dens':w_dens })
         del(w, wd, w_dens)
         
         #_______________________________________________________________________
         # rescue global attributes will get lost during multiplication
-        data_attrs= data_dMOC.attrs 
+        gattrs= data_dMOC.attrs 
         
         # multiply with weights
         data_dMOC = data_dMOC / data_dMOC.w_dens * 1024
@@ -115,8 +120,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             data_dMOC = data_dMOC / data_dMOC.w_A#--> element area
         
         # put back global attributes
-        data_dMOC = data_dMOC.assign_attrs(data_attrs)
-        del(data_attrs)
+        data_dMOC = data_dMOC.assign_attrs(gattrs)
+        del(gattrs)
         
     #___________________________________________________________________________
     # add volume trend  
@@ -136,6 +141,11 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         # Best option do compute the projection is via the densitz class layer
         # thickness H, second best option is via is via the sigma2 density on vertices
         # and the interpolation of the densitz bins to estimate the vertical coordinate
+        
+        # check if input data have been chunked
+        # if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+        if any(data_dMOC.chunks.values()) and dens.chunks is None:    
+            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         #_______________________________________________________________________
         if do_useZinfo=='std_dens_H':
             # add vertical density class thickness
@@ -143,7 +153,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_H':'ndens_h'})
-            data_h = data_h.assign_coords({'dens':dens.chunk({'ndens':data_h.chunksizes['ndens']})})
+            data_h = data_h.assign_coords({'dens':dens})
             data_h = data_h.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_h], combine_attrs="no_conflicts")
             if do_ndensz:
@@ -165,7 +175,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_Z':'ndens_z'})
-            data_z = data_z.assign_coords({'dens':dens.chunk({'ndens':data_z.chunksizes['ndens']})})
+            data_z = data_z.assign_coords({'dens':dens})
             data_z = data_z.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs="no_conflicts")
             del(data_z)
@@ -198,7 +208,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                 data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
             
             data_sigma2  = data_sigma2.drop_vars(['ndens','lon','lat', 'nodi', 'nodiz', 'w_A']) 
-            data_sigma2  = data_sigma2.assign_coords({'dens':dens.chunk({'ndens':data_sigma2.chunksizes['ndens']})})
+            data_sigma2  = data_sigma2.assign_coords({'dens':dens})
             
             # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
             # array an save the attributes in the same time
@@ -219,17 +229,26 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             
     #___________________________________________________________________________
     if (not do_dflx) and ( 'inner' in which_transf or 'dmoc' in which_transf ):
+        # check if input data have been chunked
+        # if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
+        if any(data_dMOC.chunks.values()) and dens.chunks is None:
+            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
+        
         # add divergence of density classes --> diapycnal velocity
         data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                         do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIV':'dmoc'})
         data_div  = data_div.drop_vars(['ndens', 'nodi']) 
-        data_div  = data_div.assign_coords({'dens':dens.chunk({'ndens':data_div.chunksizes['ndens']})})
+        data_div  = data_div.assign_coords({'dens':dens})
         
         # doing this step here so that the MOC amplitude is correct, setp 1 of 2
         # divide with verice area
-        data_div  = data_div/data_div['w_A']    # --> vertice area
+        gattrs   = data_div.attrs
+        data_div = data_div/data_div['w_A']    # --> vertice area
+        
+        # save global attributes
+        data_div = data_div.assign_attrs(gattrs)
         
         # skip this when doing diapycnal vertical velocity
         if not do_wdiap:
@@ -256,7 +275,11 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             
             # doing this step here so that the MOC amplitude is correct, setp 2 of 2
             # multiply with elemental area
-            data_div  = data_div*data_dMOC['w_A']# --> element area
+            gattrs   = data_div.attrs
+            data_div = data_div*data_dMOC['w_A']# --> element area
+            
+            # save global attributes
+            data_div = data_div.assign_attrs(gattrs)
             
         data_dMOC = xr.merge([data_dMOC, data_div], combine_attrs="no_conflicts")  
         del(data_div)
@@ -269,11 +292,15 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
                                     do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIVbolus':'dmoc_bolus'})
             data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi']) 
-            data_div_bolus  = data_div_bolus.assign_coords({'dens':dens.chunk({'ndens':data_div_bolus.chunksizes['ndens']})})
+            data_div_bolus  = data_div_bolus.assign_coords({'dens':dens})
             
             # doing this step here so that the MOC amplitude is correct, setp 1 of 2
             # divide with verice area
+            gattrs          = data_div_bolus.attrs
             data_div_bolus  = data_div_bolus/data_div_bolus['w_A'] # --> vertice area
+            
+            # save global attributes
+            data_div_bolus  = data_div_bolus.assign_attrs(gattrs)
             
             # skip this when doing diapycnal vertical velocity
             if not do_wdiap:
@@ -310,6 +337,11 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     if 'nodi'  in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['nodi'])
     if 'nzi'   in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['nzi'])
     
+    str_proj = 'dmoc'
+    if do_zcoord: str_proj = str_proj + '+depth'
+    else        : str_proj = str_proj + '+dens'
+    data_dMOC.attrs['proj'] = str_proj
+    
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
     warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
@@ -326,10 +358,14 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
 #|                                                                             |
 #+_____________________________________________________________________________+
-def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_checkbasin=False,
+def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', which_transf=None, do_info=True, do_checkbasin=False,
               exclude_meditoce=True, do_bolus=True, do_parallel=False, n_workers=10, 
-              do_compute=False, do_load=True, do_persist=False, 
+              do_compute=False, do_load=True, do_persist=False, do_dropvar=True, 
               **kwargs):
+    
+    # rescue global dataset attributes
+    gattr = data_dMOC.attrs
+    
     #___________________________________________________________________________
     # compute index for basin domain limitation
     ts1 = clock.time()
@@ -448,20 +484,22 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
         
         #_______________________________________________________________________
         # add more variable attributes
+        strmoc = 'd'+which_moc.upper()
         vattr = data_dMOC[vari].attrs
-        if   vari=='dmoc_fh'   : vattr.update({'long_name':'Transformation from heat flux'                 , 'units':'Sv'   })
-        elif vari=='dmoc_fw'   : vattr.update({'long_name':'Transformation from freshwater flux'           , 'units':'Sv'   })
-        elif vari=='dmoc_fr'   : vattr.update({'long_name':'Transformation from surface salinity restoring', 'units':'Sv'   })
-        elif vari=='dmoc_fd'   : vattr.update({'long_name':'Transformation from total density flu'         , 'units':'Sv'   })
-        elif vari=='dmoc_dvdt' : vattr.update({'long_name':'Transformation from volume change'             , 'units':'Sv'   })
-        elif vari=='dmoc'      : vattr.update({'long_name':'Density MOC'                                   , 'units':'Sv'   })
-        elif vari=='dmoc_bolus': vattr.update({'long_name':'Density MOC bolus vel.'                        , 'units':'Sv'   })
-        elif vari=='ndens_h'   : vattr.update({'long_name':'Density class thickness'                       , 'units':'m'    })
-        elif vari=='ndens_zfh' : vattr.update({'long_name':'Density class z position'                      , 'units':'m'    })
-        elif vari=='ndens_z'   : vattr.update({'long_name':'Density class z position'                      , 'units':'m'    })
-        elif vari=='nz_rho'    : vattr.update({'long_name':'sigma2 density in zcoord'                      , 'units':'kg/m³'})
+        if   vari=='dmoc_fh'   : vattr.update({'long_name':'Transformation from heat flux'                 , 'short_name':strmoc+'_fh'   , 'units':'Sv'   })
+        elif vari=='dmoc_fw'   : vattr.update({'long_name':'Transformation from freshwater flux'           , 'short_name':strmoc+'_fw'   , 'units':'Sv'   })
+        elif vari=='dmoc_fr'   : vattr.update({'long_name':'Transformation from surface salinity restoring', 'short_name':strmoc+'_fr'   , 'units':'Sv'   })
+        elif vari=='dmoc_fd'   : vattr.update({'long_name':'Transformation from total density flu'         , 'short_name':strmoc+'_fd'   , 'units':'Sv'   })
+        elif vari=='dmoc_dvdt' : vattr.update({'long_name':'Transformation from volume change'             , 'short_name':strmoc+'_dv'   , 'units':'Sv'   })
+        elif vari=='dmoc'      : vattr.update({'long_name':'Density MOC'                                   , 'short_name':strmoc         , 'units':'Sv'   })
+        elif vari=='dmoc_bolus': vattr.update({'long_name':'Density MOC bolus vel.'                        , 'short_name':strmoc+'_bolus', 'units':'Sv'   })
+        elif vari=='ndens_h'   : vattr.update({'long_name':'Density class thickness'                       , 'short_name':'ndens_h'      , 'units':'m'    })
+        elif vari=='ndens_zfh' : vattr.update({'long_name':'Density class z position'                      , 'short_name':'ndens_zfh'    , 'units':'m'    })
+        elif vari=='ndens_z'   : vattr.update({'long_name':'Density class z position'                      , 'short_name':'ndens_z'      , 'units':'m'    })
+        elif vari=='nz_rho'    : vattr.update({'long_name':'sigma2 density in zcoord'                      , 'short_name':'nz_rho'       , 'units':'kg/m³'})
         dmoc[vari]=dmoc[vari].assign_attrs(vattr)
     del(data_dMOC)
+    dmoc=dmoc.assign_attrs(gattr)
     
     #___________________________________________________________________________
     # exclude variables that should not be cumulatively integrated --> than do
@@ -496,10 +534,36 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
         dmoc[ 'ndens_zfh'  ].loc[dict(ndens=dmoc['ndens'][0])]=0.0
     
     #___________________________________________________________________________
-    # Add bolus MOC to normal MOC
-    if 'dmoc_bolus'in list(dmoc.keys()) and do_bolus:  
-        dmoc['dmoc'].data = dmoc['dmoc'].data + dmoc['dmoc_bolus'].data 
+    # Move grid related variables into coordinate section of the xarray dataset
+    if 'ndens_h'   in list(dmoc.keys()): dmoc = dmoc.set_coords('ndens_h')
+    if 'ndens_zfh' in list(dmoc.keys()): dmoc = dmoc.set_coords('ndens_zfh')
+    if 'nz_rho'    in list(dmoc.keys()): dmoc = dmoc.set_coords('nz_rho')
     
+    #___________________________________________________________________________
+    # Add bolus MOC to normal MOC
+    if 'dmoc' in list(dmoc.keys()) and 'dmoc_bolus' in list(dmoc.keys()) and do_bolus:  
+        dmoc['dmoc'].data = dmoc['dmoc'].data + dmoc['dmoc_bolus'].data
+        if do_dropvar: dmoc = dmoc.drop_vars('dmoc_bolus')
+        
+    if which_transf is not None:    
+        if 'srf' in which_transf: 
+            if 'dmoc_fh' in dmoc.data_vars and 'dmoc_fw' in dmoc.data_vars and 'dmoc_fr' in dmoc.data_vars:
+                dmoc['dmoc_srf'] =  -(dmoc['dmoc_fh']+dmoc['dmoc_fw']+dmoc['dmoc_fr'])
+                
+                vattr = dmoc['dmoc_fh'].attrs
+                vattr.update({'long_name':'Surface Transformation'                 , 'short_name':strmoc+'_srf'   , 'units':'Sv'   })
+                dmoc['dmoc_srf'] = dmoc['dmoc_srf'].assign_attrs(vattr)
+                if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr'])
+
+        elif 'inner' in which_transf:
+            if 'dmoc_fh' in dmoc.data_vars and 'dmoc_fw' in dmoc.data_vars and 'dmoc_fr' in dmoc.data_vars and 'dmoc' in dmoc.data_vars:
+                dmoc['dmoc_inner'] =  dmoc['dmoc']+(dmoc['dmoc_fh']+dmoc['dmoc_fw']+dmoc['dmoc_fr'])
+                
+                vattr = dmoc['dmoc'].attrs
+                vattr.update({'long_name':'Inner Transformation'                 , 'short_name':strmoc+'_inner'   , 'units':'Sv'   })
+                dmoc['dmoc_inner'] = dmoc['dmoc_inner'].assign_attrs(vattr)
+                if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr', 'dmoc'])
+                
     #___________________________________________________________________________
     # compute depth of max and mean bottom topography
     elemz     = xr.DataArray(np.abs(mesh.zlev[mesh.e_iz]), dims=['elem'])
@@ -526,542 +590,6 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', do_info=True, do_chec
     
     #___________________________________________________________________________
     return(dmoc)
-
-
-
-#+___PLOT MERIDIONAL OVERTRUNING CIRCULATION  _________________________________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def plot_dmoc(mesh, data, which_moc='gmoc', which_transf='dmoc', figsize=[12, 6], 
-              n_rc=[1, 1], do_grid=True, cinfo=None, do_rescale=None,
-              do_reffig=False, ref_cinfo=None, ref_rescale=None,
-              cbar_nl=8, cbar_orient='vertical', cbar_label=None, cbar_unit=None,
-              do_bottom=True, color_bot=[0.6, 0.6, 0.6], 
-              pos_fac=1.0, pos_gap=[0.01, 0.02], do_save=None, save_dpi=600, 
-              do_contour=True, do_clabel=True, title='descript', 
-              do_yrescale=True, do_zcoord=False, do_check=True, 
-              pos_extend=[0.075, 0.075, 0.90, 0.95] ):
-    #___________________________________________________________________________
-    fontsize = 12
-    
-    #___________________________________________________________________________
-    # make matrix with row colum index to know where to put labels
-    rowlist = np.zeros((n_rc[0], n_rc[1]))
-    collist = np.zeros((n_rc[0], n_rc[1]))       
-    for ii in range(0,n_rc[0]): rowlist[ii,:]=ii
-    for ii in range(0,n_rc[1]): collist[:,ii]=ii
-    rowlist = rowlist.flatten()
-    collist = collist.flatten()
-    
-    #___________________________________________________________________________    
-    # create figure and axes
-    fig, ax = plt.subplots( n_rc[0],n_rc[1],
-                                figsize=figsize, 
-                                gridspec_kw=dict(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05,),
-                                constrained_layout=False, sharex=True, sharey=True)
-    
-    #___________________________________________________________________________    
-    # flatt axes if there are more than 1
-    if isinstance(ax, np.ndarray): ax = ax.flatten()
-    else:                          ax = [ax] 
-    nax = len(ax)
-     
-    #___________________________________________________________________________
-    # data must be list filled with xarray data
-    if not isinstance(data  , list): data  = [data]
-    ndata = len(data) 
-    
-    #___________________________________________________________________________
-    # set up color info 
-    if do_reffig:
-        ref_cinfo = do_setupcinfo(ref_cinfo, [data[0]], ref_rescale, do_dmoc=which_transf)
-        cinfo     = do_setupcinfo(cinfo    , data[1:] , do_rescale , do_dmoc=which_transf)
-    else:
-        cinfo     = do_setupcinfo(cinfo    , data     , do_rescale , do_dmoc=which_transf)
-    
-    #___________________________________________________________________________
-    # compute remapping zcoord-->dens --> compute interpolants !!!
-    if do_yrescale: 
-        # compute remapping dens-->reg and reg-->dens  --> compute interpolants !!!
-        #remap_d2r=np.array([ 0.00, 29.70, 30.50,
-                            ## 0.00, 28.10, 28.90, 29.70, 30.50, 
-                            #30.95, 31.50, 32.05, 32.60, 33.15, 
-                            #33.70, 34.25, 34.75, 35.15, 35.50, 
-                            #35.80, 36.04, 36.20, 36.38, 36.52, 
-                            #36.62, 36.70, 36.77, 36.83, 36.89, 
-                            #36.97, 36.98, 36.99, 37.00, 37.01, 
-                            #37.02, 37.03, 37.04, 37.05, 37.06, 37.09, 37.11, 
-                            #37.13, 37.15, 37.20, 37.30, 37.40, 40.])
-        remap_d2r=np.hstack([0.00, 
-                             np.arange(30.00, 35.99, 1.00),
-                             np.arange(36.00, 36.64, 0.20),# 0.15
-                             np.arange(36.65, 36.91, 0.05),
-                             np.arange(36.92, 37.04, 0.02),
-                             np.arange(37.05, 38.50, 0.25),
-                             40.00])
-        remap_d2r = np.sort(np.unique(remap_d2r))
-        ramap_d2r_major = np.array([30.00, 36.00, 36.65, 36.92, 37.05])
-        reg      = np.linspace(0, len(remap_d2r), len(remap_d2r))
-        reg      = reg[::-1]
-        dens2reg = interp1d(remap_d2r, reg      , kind='linear')
-        reg2dens = interp1d(reg      , remap_d2r, kind='linear')
-
-    #___________________________________________________________________________
-    # loop over axes
-    ndi, nli, nbi =0, 0, 0
-    hpall=list()
-    for ii in range(0,ndata):
-        
-        #_______________________________________________________________________
-        # plot dmoc in z-coordinates
-        if do_zcoord:
-            # use depth information of depth of density classes at latitude
-            if   'ndens_zfh'    in list(data[ii].keys()): 
-                data_y      = -data[ii]['ndens_zfh'].values
-                data_x      = np.ones(data_y.shape)*data[ii]['lat'].values
-            
-            elif 'nz_rho'    in list(data[ii].keys()): 
-                #data_x, data_y, data_v, dum = do_ztransform_martin(mesh, data[ii])
-                #data_x, data_y, data_v = do_ztransform_mom6(mesh, data[ii])
-                data_x, data_y, data_v = do_ztransform_hydrography(mesh, data[ii])
-                data_y = -data_y
-            
-            elif 'ndens_z'    in list(data[ii].keys()): 
-                data_x, data_y = do_ztransform(data[ii])
-                data_v = data[ii]['dmoc'].values.copy()
-                data_v = data_v[1:-1,:]
-            else:
-                raise ValueError(' --> could not find any vertical position of the density class, no zlevel prokection possible!')
-            
-        #_______________________________________________________________________
-        # plot dmoc in density-coordinates  
-        else:
-            data_x, data_y = data[ii]['lat'].values.copy(), data[ii]['dens'].values.copy()
-            
-        #_______________________________________________________________________
-        # What  should be plotted: density MOC, Surface Transformation or Inner
-        # Transformation
-        if   which_transf == 'dmoc':
-            if   'ndens_zfh'    in list(data[ii].keys()) and do_zcoord:
-                data_plot = data[ii]['dmoc'].values.copy()
-                do_check=True
-            elif 'nz_rho' in list(data[ii].keys())       and do_zcoord: 
-                data_plot = data_v
-                do_check=False
-            elif 'ndens_z'in list(data[ii].keys())       and do_zcoord: 
-                data_plot = data_v
-                do_check=False
-            else:    
-                data_plot = data[ii]['dmoc'].values.copy()
-            
-            #___________________________________________________________________
-            # PLOT DMOC INFO: maximum/minimum dmoc sigma2 and depth
-            if do_check:
-                idxmax = data[ii]['dmoc'].argmax(dim=["ndens", "lat"])
-                idxmin = data[ii]['dmoc'].argmin(dim=["ndens", "lat"])
-                dmoc_max, dmoc_min = data[ii]['dmoc'].isel(idxmax).data, data[ii]['dmoc'].isel(idxmin).data
-                if not do_zcoord:
-                    s_max, l_max,  = data_y[idxmax['ndens'].data], data_x[idxmax['lat'].data], 
-                    s_min, l_min,  = data_y[idxmin['ndens'].data], data_x[idxmin['lat'].data]
-                    
-                    d_max, d_min = np.nan, np.nan
-                    if   'ndens_zfh'    in list(data[ii].keys()): 
-                        d_max = data[ii]['ndens_zfh'].isel(idxmax).data
-                        d_min = data[ii]['ndens_zfh'].isel(idxmin).data
-                else:     
-                    s_max = data[ii]['dens'].isel(ndens=idxmax['ndens']).data
-                    l_max = data_x[idxmax['ndens'].data, idxmax['lat'].data]
-                    d_max = data_y[idxmax['ndens'].data, idxmax['lat'].data]
-                    s_min = data[ii]['dens'].isel(ndens=idxmin['ndens']).data
-                    l_min = data_x[idxmin['ndens'].data, idxmin['lat'].data]
-                    d_min = data_y[idxmin['ndens'].data, idxmin['lat'].data]
-                print('DMOC_max={:5.1f} (sigma2={:5.2f}kg/m^3, depth={:5.0f}m, lat={:5.1f}°N)'.format(dmoc_max, s_max, d_max, l_max))
-                print('DMOC_min={:5.1f} (sigma2={:5.2f}kg/m^3, depth={:5.0f}m, lat={:5.1f}°N)'.format(dmoc_min, s_min, d_min, l_min))                    
-        
-        elif which_transf == 'srf' : 
-            data_plot = -(data[ii]['dmoc_fh'].values.copy()+ \
-                          data[ii]['dmoc_fw'].values.copy()+ \
-                          data[ii]['dmoc_fr'].values.copy())
-            
-        elif which_transf == 'inner':
-            data_plot = data[ii]['dmoc'].values.copy()    + \
-                        (data[ii]['dmoc_fh'].values.copy()+ \
-                         data[ii]['dmoc_fw'].values.copy()+ \
-                         data[ii]['dmoc_fr'].values.copy())
-        
-        #_______________________________________________________________________
-        if do_reffig: 
-            if ii==0: cinfo_plot = ref_cinfo
-            else    : cinfo_plot = cinfo
-        else: cinfo_plot = cinfo
-        
-        #_______________________________________________________________________
-        data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]+np.finfo(np.float32).eps
-        data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]-np.finfo(np.float32).eps
-        
-        #_______________________________________________________________________
-        # if plot in density-coordinates first scale to regular y-axes, and flip  
-        # the  y-axes of data_y and data_plot since ax.invert_yaxis() is not working 
-        # with share plt.subplot(..., sharey=True)
-        if not do_zcoord: 
-            if do_yrescale: data_y = dens2reg(data_y)
-            data_plot, data_y = data_plot[1:-1,:], data_y[1:-1]
-            data_plot, data_y = data_plot[::-1,:], data_y[::-1]
-        
-        #if 'ndens_z'    in list(data[ii].keys()) and do_zcoord:
-            #data_plot = data_plot[1:-1,:]
-            
-        #_______________________________________________________________________
-        # plot DATA
-        hp=ax[ii].contourf(data_x, data_y, data_plot, levels=cinfo_plot['clevel'], 
-                           extend='both', cmap=cinfo_plot['cmap'])
-        hpall.append(hp)
-        
-        if do_contour: 
-            tickl    = cinfo_plot['clevel']
-            ncbar_l  = len(tickl)
-            idx_cref = np.where(cinfo_plot['clevel']==cinfo_plot['cref'])[0]
-            #idx_cref = np.asscalar(idx_cref) --> asscalar replaced in numppy>1.16
-            idx_cref = idx_cref.item()
-            nstep    = ncbar_l/(cbar_nl)
-            nstep    = np.max([np.int32(np.floor(nstep)),1])
-            
-            idx = np.arange(0, ncbar_l, 1)
-            idxb = np.ones((ncbar_l,), dtype=bool)                
-            idxb[idx_cref::nstep]  = False
-            idxb[idx_cref::-nstep] = False
-            idx_yes = idx[idxb==False]
-            
-            aux_clvl = cinfo_plot['clevel'][idx_yes]
-            aux_clvl = aux_clvl[aux_clvl!=cinfo_plot['cref']]
-            cont=ax[ii].contour(data_x, data_y, data_plot, 
-                                levels=aux_clvl, colors='k', linewidths=[0.5]) #linewidths=[0.5,0.25])
-            if do_clabel: 
-                ax[ii].clabel(cont, cont.levels[np.where(cont.levels!=cinfo_plot['cref'])], 
-                            inline=1, inline_spacing=1, fontsize=6, fmt='%1.1f Sv')
-            ax[ii].contour(data_x, data_y, data_plot, 
-                                levels=[0.0], colors='k', linewidths=[1.25]) #linewidths=[0.5,0.25])
-        
-        #_______________________________________________________________________
-        # plot bottom representation in case of z-coordinates
-        if do_zcoord: 
-            #data_bot = np.nanmin(data_y, axis=0)
-            data_bot = mesh.zlev[data[ii]['botmaxi'].max()+1]
-            ax[ii].plot(data[ii]['lat'], -data[ii]['botmax'], color='k')
-            ax[ii].fill_between(data[ii]['lat'], -data[ii]['botmax'], data_bot, color=color_bot, zorder=2)#,alpha=0.95)
-            ax[ii].set_ylim([data_bot,0])
-        
-        #_______________________________________________________________________
-        # set latitude limits
-        xlim = list(ax[ii].get_xlim())  
-        if   which_moc=='amoc' : xlim[1]=75
-        elif which_moc=='ipmoc': xlim[1]=60
-        elif which_moc=='pmoc' : xlim[1]=60
-        ax[ii].set_xlim(xlim)
-            
-        #_______________________________________________________________________
-        # in case y-axes should be rescaled (do_yrescale=true) and plot is density
-        # coordinates give the now regular ticks new ticklabels with the proper
-        # density values. Make the difference between major and minor ticks
-        if do_yrescale and not do_zcoord: 
-            xy, x_ind, y_ind = np.intersect1d(remap_d2r, ramap_d2r_major, return_indices=True)
-            # --> this will become major tick marks (larger fontsize)
-            ymajorticks = reg[x_ind] 
-            ax[ii].set_yticks( ymajorticks, minor=False ) 
-            
-            ymajorlabel_list = np.around(reg2dens(ymajorticks), 3).tolist()
-            ylabelmayjor_list_fmt=list()
-            for num in ymajorlabel_list: ylabelmayjor_list_fmt.append('{:2.2f}'.format(num))
-            ax[ii].set_yticklabels(ylabelmayjor_list_fmt, minor=False, size = 10)
-            
-            # --> this will become minor tick marks (smaller fontsize)
-            yminorticks = np.setdiff1d(reg[1:-1], ymajorticks)
-            ax[ii].set_yticks( yminorticks, minor=True )
-            
-            yminorlabel_list = np.around(reg2dens(yminorticks), 3).tolist()
-            ylabelminor_list_fmt=list()
-            for num in yminorlabel_list: ylabelminor_list_fmt.append('{:2.2f}'.format(num))
-            ax[ii].set_yticklabels(ylabelminor_list_fmt, minor=True, size = 6)
-            
-        elif not do_yrescale:
-            # only do invert axis for one single axis in the list --> if you do 
-            # it for all the axis ax[ii].invert_yaxis() it wont't work !!!
-            if ii==0: ax[0].invert_yaxis()
-        
-        #_______________________________________________________________________
-        # fix color range
-        for im in ax[ii].get_images(): im.set_clim(cinfo_plot['clevel'][ 0], cinfo_plot['clevel'][-1])
-        
-        #_______________________________________________________________________
-        # plot grid lines 
-        if do_grid: ax[ii].grid(color='k', linestyle='-', linewidth=0.25,alpha=1.0)
-        
-        #_______________________________________________________________________
-        # set description string
-        if title != None: 
-            if not do_zcoord: 
-                txtx = data_x[0]+(data_x[-1]-data_x[0])*0.025
-                txty = data_y[0]+(data_y[-1]-data_y[0])*0.025    
-            else:
-                txtx = data_x.min()+(data_x.max()-data_x.min())*0.025
-                #txty = data_y.min()+(data_y.max()-data_y.min())*0.025
-                txty = data_bot+(0-data_bot)*0.025    
-                data_bot
-            if   isinstance(title,str) : 
-                # if title string is 'descript' than use descript attribute from 
-                # data to set plot title 
-                dum_vname=list(data[ii].keys())[0]
-                if title=='descript' and ('descript' in data[ii][dum_vname].attrs.keys() ):
-                    txts = data[ii][dum_vname].attrs['descript']
-                else:
-                    txts = title
-            # is title list of string        
-            elif isinstance(title,list):   
-                txts = title[ii]
-            ax[ii].text(txtx, txty, txts, fontsize=12, fontweight='bold', horizontalalignment='left')
-        
-        #_______________________________________________________________________
-        # set x and y labels for z-coordinates and density-coordinates
-        if do_zcoord: 
-            if collist[ii]==0: ax[ii].set_ylabel('Depth [m]',fontsize=12)
-        else:
-            if collist[ii]==0: ax[ii].set_ylabel('${\\sigma}_{2}$ potential density [kg/m${^3}$]',fontsize=12)
-        if rowlist[ii]==n_rc[0]-1: ax[ii].set_xlabel('Latitude [deg]',fontsize=12)
-        #_______________________________________________________________________    
-        
-    nax_fin = ii+1
-    
-    #___________________________________________________________________________
-    # delete axes that are not needed
-    #for jj in range(nax_fin, nax): fig.delaxes(ax[jj])
-    for jj in range(ndata, nax): fig.delaxes(ax[jj])
-    if nax != nax_fin-1: ax = ax[0:nax_fin]
-    
-    #___________________________________________________________________________
-    # initialise colorbar
-    if do_reffig==False:
-        cbar = fig.colorbar(hp, orientation=cbar_orient, ax=ax, ticks=cinfo_plot['clevel'], 
-                        extendrect=False, extendfrac=None,
-                        drawedges=True, pad=0.025, shrink=1.0)
-        
-        # do formatting of colorbar 
-        cbar = do_cbar_formatting(cbar, do_rescale, cbar_nl, fontsize, cinfo_plot['clevel'])
-        
-        # do labeling of colorbar
-        #if n_rc[0]==1:
-            #if   which_moc=='gmoc' : cbar_label = 'Global Meridional \n Overturning Circulation [Sv]'
-            #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional \n Overturning Circulation [Sv]'
-            #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional \n Overturning Circulation [Sv]'
-            #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional \n Overturning Circulation [Sv]'
-            #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional \n Overturning Circulation [Sv]'
-            #elif which_moc=='imoc' : cbar_label = 'Indo Meridional \n Overturning Circulation [Sv]'
-        #else:
-            #if   which_moc=='gmoc' : cbar_label = 'Global Meridional Overturning Circulation [Sv]'
-            #elif which_moc=='amoc' : cbar_label = 'Atlantic Meridional Overturning Circulation [Sv]'
-            #elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic Meridional Overturning Circulation [Sv]'
-            #elif which_moc=='pmoc' : cbar_label = 'Pacific Meridional Overturning Circulation [Sv]'
-            #elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific Meridional Overturning Circulation [Sv]'
-            #elif which_moc=='imoc' : cbar_label = 'Indo Meridional Overturning Circulation [Sv]'
-        if   which_moc=='gmoc' : cbar_label = 'Global MOC [Sv]'
-        elif which_moc=='amoc' : cbar_label = 'Atlantic MOC [Sv]'
-        elif which_moc=='aamoc': cbar_label = 'Arctic-Atlantic MOC [Sv]'
-        elif which_moc=='pmoc' : cbar_label = 'Pacific MOC [Sv]'
-        elif which_moc=='ipmoc': cbar_label = 'Indo-Pacific MOC [Sv]'
-        elif which_moc=='imoc' : cbar_label = 'Indo MOC [Sv]' 
-        
-        dum_vname=list(data[ii].keys())[0]
-        if 'str_ltim' in data[0][dum_vname].attrs.keys():
-            cbar_label = cbar_label+'\n'+data[0][dum_vname].attrs['str_ltim']
-            
-        if   which_transf=='dmoc' : cbar.set_label('Density - '       +cbar_label, size=fontsize+2)
-        elif which_transf=='srf'  : cbar.set_label('Srf. Transf. - '  +cbar_label, size=fontsize+2)
-        elif which_transf=='inner': cbar.set_label('Inner. Transf. - '+cbar_label, size=fontsize+2)
-    else:
-        cbar=list()
-        for ii, aux_ax in enumerate(ax): 
-            cbar_label = ''
-            if ii==0:
-                aux_cbar = fig.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=ref_cinfo['clevel'], 
-                                        extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0)
-                aux_cbar = do_cbar_formatting(aux_cbar, ref_rescale, cbar_nl, fontsize, ref_cinfo['clevel'])
-            else:
-                aux_cbar = fig.colorbar(hpall[ii], orientation=cbar_orient, ax=aux_ax, ticks=cinfo['clevel'], 
-                                        extendrect=False, extendfrac=None, drawedges=True, pad=0.025, shrink=1.0)
-                aux_cbar = do_cbar_formatting(aux_cbar, do_rescale, cbar_nl, fontsize, cinfo['clevel'])
-                cbar_label = 'anom. '
-            if   which_moc=='gmoc' : cbar_label = cbar_label+'Global MOC [Sv]'
-            elif which_moc=='amoc' : cbar_label = cbar_label+'Atlantic MOC [Sv]'
-            elif which_moc=='aamoc': cbar_label = cbar_label+'Arctic-Atlantic MOC [Sv]'
-            elif which_moc=='pmoc' : cbar_label = cbar_label+'Pacific MOC [Sv]'
-            elif which_moc=='ipmoc': cbar_label = cbar_label+'Indo-Pacific MOC [Sv]'
-            elif which_moc=='imoc' : cbar_label = cbar_label+'Indo MOC [Sv]'    
-            
-            if 'str_ltim' in data[0]['dmoc'].attrs.keys():
-                cbar_label = cbar_label+'\n'+data[0]['dmoc'].attrs['str_ltim']
-            if   which_transf=='dmoc' : aux_cbar.set_label('Density - '+cbar_label, size=fontsize+2)
-            elif which_transf=='srf'  : aux_cbar.set_label('Srf. Transf. - '+cbar_label, size=fontsize+2)
-            elif which_transf=='inner': aux_cbar.set_label('Inner. Transf. - '+cbar_label, size=fontsize+2) 
-            cbar.append(aux_cbar)
-            
-    #___________________________________________________________________________
-    # repositioning of axes and colorbar
-    if do_reffig==False:
-        ax, cbar = do_reposition_ax_cbar(ax, cbar, rowlist, collist, pos_fac, pos_gap, 
-                                        title=None, extend=pos_extend)
-    fig.canvas.draw()
-    
-    #___________________________________________________________________________
-    # save figure based on do_save contains either None or pathname
-    do_savefigure(do_save, fig, dpi=save_dpi)
-    plt.show()
-    
-    #___________________________________________________________________________
-    return(fig, ax, cbar)
-
-
-
-#+___PLOT MERIDIONAL OVERTRUNING CIRCULATION TIME-SERIES_______________________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def plot_dmoc_tseries(moct_list, input_names, which_cycl=None, which_lat=['max'], 
-                       which_moc='amoc', do_allcycl=False, do_concat=False, ymaxstep=1, xmaxstep=5,
-                       str_descript='', str_time='', figsize=[], do_rapid=None, 
-                       do_save=None, save_dpi=600, do_pltmean=True, do_pltstd=False ):    
-    
-    import matplotlib.patheffects as path_effects
-    from matplotlib.ticker import AutoMinorLocator, MultipleLocator
-
-    if len(figsize)==0: figsize=[13,6.5]
-    if do_concat: figsize[0] = figsize[0]*2
-    
-    #___________________________________________________________________________
-    # loop over which_lat list, either with single latitude entry 45.0 or 
-    # string 'max'
-    for lat in which_lat: 
-        
-        #_______________________________________________________________________
-        # loop over vars dmoc_nadw or dmoc_aabw
-        for var in list(moct_list[0].keys()):
-            fig,ax= plt.figure(figsize=figsize),plt.gca()
-        
-            #___________________________________________________________________
-            # setup colormap
-            if do_allcycl: 
-                if which_cycl != None:
-                    cmap = categorical_cmap(np.int32(len(moct_list)/which_cycl), which_cycl, cmap="tab10")
-                else: cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
-            else: cmap = categorical_cmap(len(moct_list), 1, cmap="tab10")
-            
-            #___________________________________________________________________
-            ii, ii_cycle = 0, 1
-            if which_cycl is None: aux_which_cycl = 1
-            else                 : aux_which_cycl = which_cycl
-            
-            #___________________________________________________________________
-            # loop over time series in moct_list
-            for ii_ts, (tseries, tname) in enumerate(zip(moct_list, input_names)):
-                data = tseries[var]
-                #_______________________________________________________________
-                # select moc values from single latitude or latidude range
-                if lat=='max':
-                    if var=='dmoc_aabw': data = data.isel(lat=(data.lat>40) & (data.lat<60)).min(dim='lat') 
-                    if var=='dmoc_nadw': data = data.isel(lat=(data.lat>40) & (data.lat<60)).max(dim='lat') 
-                    str_label= f'{40}°N<lat<{60}°N'
-                elif isinstance(lat, list):    
-                    if var=='dmoc_aabw': data = data.isel(lat=(data.lat>lat[0]) & (data.lat<lat[1])).min(dim='lat') 
-                    if var=='dmoc_nadw': data = data.isel(lat=(data.lat>lat[0]) & (data.lat<lat[1])).max(dim='lat') 
-                    str_label= f'{lat[0]}°N<lat<{lat[1]}°N'
-                else:     
-                    #data = data.sel(lat=lat)
-                    data = data.isel(lat=np.argmin(np.abs(data['lat'].data-lat)))
-                    if lat>=0: str_label= f'{lat}°N'
-                    else     : str_label= f'{lat}°S'   
-                    
-                #_______________________________________________________________
-                # set time axes in units of years
-                time = data['time']
-                year = np.unique(data['time.year'])
-                totdayperyear = np.where(time.dt.is_leap_year, 366, 365)
-                time = auxtime = time.dt.year + (time.dt.dayofyear-time.dt.day[0])/totdayperyear            
-                tlim, tdel = [time[0], time[-1]], time[-1]-time[0]
-                if do_concat: auxtime = auxtime + (tdel+1)*(ii_cycle-1)
-                
-                #_______________________________________________________________
-                hp=ax.plot(auxtime, data, linewidth=1.5, label=tname, color=cmap.colors[ii_ts,:], marker='o', markerfacecolor='w', markersize=5, zorder=2)
-                if np.mod(ii_ts+1,aux_which_cycl)==0 or do_allcycl==False:
-                    dict_plt = {'markeredgecolor':'k', 'markeredgewidth':0.5, 'color':hp[0].get_color(), 'clip_box':False, 'clip_on':False, 'zorder':3}
-                    if do_pltmean: 
-                        plt.plot(time[0]-(tdel)*0.0120, data.mean(), marker='<', **dict_plt)
-                    if do_pltstd:
-                        plt.plot(time[0]-(tdel)*0.015, data.mean()+data.std(), marker='^', markersize=6, **dict_plt)
-                        plt.plot(time[0]-(tdel)*0.015, data.mean()-data.std(), marker='v', markersize=6, **dict_plt)
-                #_______________________________________________________________
-                ii_cycle=ii_cycle+1
-                if ii_cycle>aux_which_cycl: ii_cycle=1
-                
-            #___________________________________________________________________
-            # add Rapid moc data @26.5°
-            if do_rapid != None and var == 'dmoc_nadw': 
-                path = do_rapid
-                rapid26 = xr.open_dataset(path)['moc_mar_hc10']
-                rapid26_ym = rapid26.groupby('time.year').mean('time', skipna=True)
-                time_rapid = rapid26_ym.year
-                if do_allcycl: 
-                    time_rapid = time_rapid + (aux_which_cycl-1)*(time[-1]-time[0]+1)
-                    
-                hpr=plt.plot(time_rapid,rapid26_ym.data,
-                        linewidth=2, label='Rapid @ 26.5°N', color='k', marker='o', markerfacecolor='w', 
-                        markersize=5, zorder=2)
-                
-                dict_plt = {'markeredgecolor':'k', 'markeredgewidth':0.5, 'color':'k', 'clip_box':False, 'clip_on':False, 'zorder':3}
-                if do_pltmean: 
-                    plt.plot(time[0]-(tdel)*0.0120, rapid26_ym.data.mean(), marker='<', markersize=8, **dict_plt)
-                if do_pltstd:
-                    plt.plot(time[0]-(tdel)*0.015, rapid26_ym.data.mean()+rapid26_ym.data.std(), marker='^', markersize=6, **dict_plt)                        
-                    plt.plot(time[0]-(tdel)*0.015, rapid26_ym.data.mean()-rapid26_ym.data.std(), marker='v', markersize=6, **dict_plt)    
-                del(rapid26)
-            
-            #___________________________________________________________________
-            ax.legend(shadow=True, fancybox=True, frameon=True, #mode='None', 
-                    bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
-                    #bbox_to_anchor=(1.04, 1.0), ncol=1) #loc='lower right', 
-            ax.set_xlabel('Time [years]',fontsize=12)
-            ax.set_ylabel('Density {:s} in [Sv]'.format(which_moc.upper()),fontsize=12)
-            
-            if   var=='dmoc_nadw': str_cell, str_cells = 'upper cell strength', 'nadw'
-            elif var=='dmoc_aabw': str_cell, str_cells = 'lower cell strength', 'aabw'
-            ax.set_title(f'{str_cell} @ {str_label}', fontsize=12, fontweight='bold')
-            
-            #___________________________________________________________________
-            xmajor_locator = MultipleLocator(base=xmaxstep) # this locator puts ticks at regular intervals
-            ymajor_locator = MultipleLocator(base=ymaxstep) # this locator puts ticks at regular intervals
-            ax.xaxis.set_major_locator(xmajor_locator)
-            ax.yaxis.set_major_locator(ymajor_locator)
-            
-            xminor_locator = AutoMinorLocator(5)
-            yminor_locator = AutoMinorLocator(4)
-            ax.yaxis.set_minor_locator(yminor_locator)
-            ax.xaxis.set_minor_locator(xminor_locator)
-            
-            plt.grid(which='major')
-            if not do_concat:
-                plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0])*0.015)    
-            else:    
-                plt.xlim(time[0]-(time[-1]-time[0])*0.015,time[-1]+(time[-1]-time[0]+1)*(aux_which_cycl-1)+(time[-1]-time[0])*0.015)    
-                
-            #___________________________________________________________________
-            plt.show()
-            fig.canvas.draw()
-            
-            #___________________________________________________________________
-            # save figure based on do_save contains either None or pathname
-            aux_do_save = do_save
-            if do_save != None:
-                aux_do_save = '{:s}_{:s}_{:s}{:s}'.format(do_save[:-4], str_cells, str_label.replace('°','').replace(' ','_'), do_save[-4:])
-            do_savefigure(aux_do_save, fig, dpi=save_dpi)
-    
-    #___________________________________________________________________________
-    return(fig,ax)
 
 
 

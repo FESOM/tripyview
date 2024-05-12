@@ -130,7 +130,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         # store vertice resolution in data               
         elif any(x in vname for x in ['nresol', 'n_resol', 'resolution', 'resol']):
             if len(mesh.n_resol)==0: mesh=mesh.compute_n_resol()
-            data['nresol'] = ("nod2", mesh.n_resol[0,:]/1000)
+            data['nresol'] = ("nod2", mesh.n_resol/1000)
             data['nresol'].attrs["description"]='Resolution'
             data['nresol'].attrs["descript"   ]='Resolution'
             data['nresol'].attrs["long_name"  ]='Resolution'
@@ -191,6 +191,7 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
         
     #___________________________________________________________________________
     # create path name list that needs to be loaded
+    if '~/' in datapath: datapath = os.path.abspath(os.path.expanduser(datapath))
     pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
     if len(pathlist)==0: 
         data = None
@@ -512,7 +513,9 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     dimh = None
     if   ('nod2' in data.dims):
         dimh = 'nod2'
-        set_chunk = dict({dimh: data.chunksizes[dimh]})
+        if dimh in data.chunksizes: set_chunk = dict({dimh: data.chunksizes[dimh]})
+        else                      : set_chunk = dict({})
+        
         #_______________________________________________________________________
         # set coordinates
         data = data.assign_coords(lon  = xr.DataArray(mesh.n_x              , dims=dimh).chunk(set_chunk))
@@ -556,7 +559,9 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         
     elif ('elem' in data.dims):                          
         dimh = 'elem'
-        set_chunk = dict({dimh: data.chunksizes[dimh]})
+        if dimh in data.chunksizes: set_chunk = dict({dimh: data.chunksizes[dimh]})
+        else                      : set_chunk = dict({})
+        
         #_______________________________________________________________________
         # set coordinates
         data = data.assign_coords(lon  = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3.0, dims=dimh).chunk(set_chunk))
@@ -998,7 +1003,7 @@ def do_vector_rotation(data, mesh, do_vec, do_vecrot):
         
         # vector data are on vertices 
         if ('nod2' in data[vname[0]].dims) or ('node' in data[vname[0]].dims):
-            print(' > do vector rotation')
+            print(' > do nod2 vector rotation')
             data[vname[0] ].data,\
             data[vname[1]].data = vec_r2g(mesh.abg, mesh.n_x, mesh.n_y, 
                                         data[vname[0]].data, data[vname[1]].data, 
@@ -1006,7 +1011,7 @@ def do_vector_rotation(data, mesh, do_vec, do_vecrot):
         
         # vector data are on elements
         if ('elem' in data[vname[0]].dims):
-            print(' > do vector rotation')
+            print(' > do elem vector rotation')
             data[vname[0] ].data,\
             data[vname[1]].data = vec_r2g(mesh.abg, 
                                         mesh.n_x[mesh.e_i].sum(axis=1)/3, 
@@ -1053,8 +1058,7 @@ def do_vector_norm(data, do_norm):
         
         # delet variable vname2 from Dataset
         data = data.drop_vars(vname[1])
-        
-        
+ 
     #___________________________________________________________________________    
     return(data)  
 
@@ -1166,7 +1170,16 @@ def do_interp_e2n(data, mesh, do_ie2n):
             
             # delete elem variable from dataset
             data = data.drop_vars(vname)
+
             del(aux)
+        #_______________________________________________________________________
+        # kick out element related coordinates 
+        for coordi in list(data.coords):
+            if 'elem' in data[coordi].dims: data = data.drop_vars(coordi)
+        
+        #_______________________________________________________________________
+        # enter area weights for nodes
+        data, _ , _ = do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False)
     #___________________________________________________________________________
     return(data)
 
@@ -1228,7 +1241,7 @@ def do_anomaly(data1,data2):
             if (key in attrs_data1.keys()) and (key in attrs_data2.keys()):
                 if key in ['long_name']:
                    # anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key]
-                   anom[vname].attrs[key] = 'anom. '+anom[vname].attrs[key]
+                   anom[vname].attrs[key] = 'anom. '+anom[vname].attrs[key].capitalize()
                    
                 elif key in ['short_name']:
                    # anom[vname].attrs[key] = 'anomalous '+anom[vname].attrs[key]
@@ -1238,7 +1251,8 @@ def do_anomaly(data1,data2):
                     continue
                 
                 elif key in ['descript']: 
-                    if len(data1[vname].attrs[key])+len(data2[vname2].attrs[key])>30:
+                    # print(len(data1[vname].attrs[key])+len(data2[vname2].attrs[key]))
+                    if len(data1[vname].attrs[key])+len(data2[vname2].attrs[key])>75:
                         anom[vname].attrs[key]  = data1[vname].attrs[key]+'\n - '+data2[vname2].attrs[key]
                     else:     
                         anom[vname].attrs[key]  = data1[vname].attrs[key]+' - '+data2[vname2].attrs[key]

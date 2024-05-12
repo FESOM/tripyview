@@ -1,2 +1,2 @@
 #!/bin/bash -e
-diagrun $@
+tripyrun $@

@@ -39,7 +39,7 @@ requirements = [
     'black',
     'jinja2',
     'pyyaml',
-    'pyvista[all,jupyter,trame]',
+    'pyvista[all]', #,jupyter,trame]',
     'vtk',
     'ipyvtklink',
     'imageio[ffmpeg]', 
@@ -64,7 +64,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'diagrun=tripyview.sub_diagrun:diagrun',  # command=package.module:function
+            'tripyrun=tripyview.sub_tripyrun:tripyrun',  # command=package.module:function
         ]
     },
     description='FESOM2 tools',
@@ -81,7 +81,7 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/patrickscholz/tripyview',
-    version='0.2.0',
+    version='0.3.0',
     zip_safe=False,
 )
 
