@@ -29,7 +29,7 @@ make sure your conda environment uses python=3.8 (conda create --name myenvpy38 
 # conda also netcdf4>=1.6.1 causes occasionally netcdf4-->hdf5 error messages, therefor 
 # stick for the moment to netcdf4=1.6.0
 conda install -c conda-forge cartopy netcdf4=1.6.0 libstdcxx-ng 
-(libstdcxx-ng is needed so that pyvista is able to plot interactively, python=3.8)
+(libstdcxx-ng is needed so that pyvista is able to plot interactively)
 cd tripyview
 pip install -e .
 
