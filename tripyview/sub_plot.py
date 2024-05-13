@@ -71,6 +71,7 @@ def plot_hslice(mesh                   ,
                 lsm_res    = 'low'     ,
                 #--- gridlines ------
                 do_grid    = True      , 
+                do_boundbox= True      , 
                 grid_opt   = dict()    ,
                 #--- colorbar -------
                 cb_label   = None      ,
@@ -468,7 +469,8 @@ def plot_hmesh( mesh                   ,
                 lsm_opt    = dict()    , 
                 lsm_res    = 'low'     ,
                 #--- gridlines ------
-                do_grid    = True      , 
+                do_grid    = True      ,
+                do_boundbox= True      , 
                 grid_opt   = dict()    ,
                 #--- colorbar -------
                 cb_label   = None      ,
@@ -694,7 +696,7 @@ def plot_hmesh( mesh                   ,
                     cb_label, cb_lunit = 'vertice resolution', 'km'
                 elif data in ['narea', 'n_area', 'clusterarea', 'scalararea']:    
                     if len(mesh[ii].n_area)==0: mesh[ii]=mesh[ii].compute_n_area()
-                    data_plot = mesh[ii].n_area
+                    data_plot = mesh[ii].n_area[0,:]
                     cb_label, cb_lunit = 'vertice area', 'm^2'
                 elif data in ['eresol', 'e_resol', 'triresolution', 'triresol']:
                     if len(mesh[ii].e_resol)==0: mesh[ii]=mesh[ii].compute_e_resol()
@@ -711,6 +713,7 @@ def plot_hmesh( mesh                   ,
                     data_plot = np.abs(mesh[ii].zlev[mesh[ii].e_iz])
                     cb_label, cb_lunit = 'element depth', 'm'
                 
+                print(data_plot.shape)
                 #_______________________________________________________________
                 cinfo_plot = do_setupcinfo(cinfo, [data_plot], do_rescale, mesh=mesh[ii], tri=tri)
                 norm_plot  = do_data_norm(cinfo_plot, do_rescale)
@@ -752,7 +755,11 @@ def plot_hmesh( mesh                   ,
                 if   isinstance(ax_title,str) : hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
                 # is title list of string        
                 elif isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
-                
+            
+            #___________________________________________________________________
+            # remove platecaree bounding box when used as image alpha map or texture
+            if not do_boundbox: hax_ii.spines['geo'].set_visible(False)
+            
         #_______________________________________________________________________
         # add colorbar 
         if (data != None and data != 'None'):
@@ -821,6 +828,7 @@ def plot_hquiver(mesh                  ,
                 lsm_res    = 'low'     ,
                 #--- gridlines ------
                 do_grid    = True      , 
+                do_boundbox= True      , 
                 grid_opt   = dict()    ,
                 #--- colorbar -------
                 cb_label   = None      ,
@@ -1126,6 +1134,10 @@ def plot_hquiver(mesh                  ,
                         hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
                 # is title list of string        
                 elif isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
+            
+            #___________________________________________________________________
+            # remove platecaree bounding box when used as image alpha map or texture
+            if not do_boundbox: hax_ii.spines['geo'].set_visible(False)
             
         #_______________________________________________________________________
         # add colorbar 
@@ -4338,7 +4350,7 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
     #___________________________________________________________________________
     # add mesh land-sea mask
     h0 = None
-    if   do_lsm is None: 
+    if   do_lsm is None or do_lsm==False: 
         return()
 
     elif do_lsm=='fesom':
