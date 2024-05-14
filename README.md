@@ -22,7 +22,7 @@ git clone https://github.com/patrickscholz/tripyview
 ```
 
 ### 2nd. install using conda & pip : 
-make sure your conda environment uses python=3.8 (conda create --name myenvpy38 python=3.8; conda activate myenvpy38)
+make sure your conda environment uses python=3.9 (conda create --name py39 python=3.9; conda activate py39)
 
 ```bash
 # look like cartopy causes trouble when installed via pip so better preinstall via
