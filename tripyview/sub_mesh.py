@@ -1072,7 +1072,7 @@ ___________________________________________""".format(
                     count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
                 del aux, count
                 warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
-                self.n_resol=self.n_resol/self.n_area/3.0
+                self.n_resol=self.n_resol/self.n_area[0,:]/3.0
                 warnings.resetwarnings()
             #___________________________________________________________________    
             else:
