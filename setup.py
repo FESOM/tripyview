@@ -13,6 +13,7 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'cartopy',
+    'bokeh!=3.0.*,>=2.4.2',
     'cmocean',
     'dask',
     'distributed',
@@ -21,8 +22,9 @@ requirements = [
     'jupyter',
     'jupyterlab<4.0',
     'matplotlib',
-    #'pickle5',
     "pickle5; python_version<'3.9'",
+    'libnetcdf',
+    'hdf5plugin', 
     'netCDF4',
     'numba',
     'numpy',
@@ -44,7 +46,7 @@ requirements = [
     'ipyvtklink',
     'imageio[ffmpeg]', 
     'ipympl',
-    'ffmpeg-python'
+    'ffmpeg-python',
 ]
 
 setup_requirements = ['pytest-runner']
@@ -59,8 +61,8 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
     ],
     entry_points={
         'console_scripts': [
