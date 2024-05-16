@@ -2205,16 +2205,16 @@ def plot_vline(data                   ,
                 if not allinone: xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
                 for jj in range(0,ndat):
                     #_______________________________________________________________
-                    vname = list(data[jj][ii].data_vars)[0]
-                    data_x = data[jj][ii][vname].data.copy()
+                    vname = list(data[jj][bi].data_vars)[0]
+                    data_x = data[jj][bi][vname].data.copy()
                     xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
                     
                     #_______________________________________________________________
-                    data_y, str_ylabel = np.abs(data[jj][ii]['depth'].values) , 'Depth / m'
+                    data_y, str_ylabel = np.abs(data[jj][bi]['depth'].values) , 'Depth / m'
                     ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
                     
                     #_______________________________________________________________
-                    loc_attrs= data[jj][ii][vname].attrs
+                    loc_attrs= data[jj][bi][vname].attrs
                     str_xlabel, str_llabel, str_blabel = '', '', ''
                     if ax_xlabel is None:
                         if   'long_name'     in loc_attrs: str_xlabel = str_xlabel + loc_attrs['long_name'].capitalize()
@@ -2242,7 +2242,6 @@ def plot_vline(data                   ,
                         optline2 = optline.copy()
                         optline2.update({'color':'k', 'linewidth':optline['linewidth']*1.2, 'zorder':1})
                         hax_ii.plot(data_x, data_y, **optline2)
-                        
                         
                     h0 = hax_ii.plot(data_x, data_y, label=str_llabel, **optline)
                     hp.append(h0)
@@ -2344,6 +2343,9 @@ def plot_vline(data                   ,
 # --> do plot timeseries
 def plot_tline(data, 
                 box, 
+                box_idx    = None      ,
+                box_label  = None      , 
+                boxl_opt   = dict()    , # option for box label string 
                 nrow       = 1         , # number of row in figures panel
                 ncol       = 1         , # number of column in figure panel
                 proj       = 'index+time',
@@ -2363,6 +2365,8 @@ def plot_tline(data,
                 ax_title   = 'descript',
                 ax_xlabel  = None      ,
                 ax_ylabel  = None      ,
+                ax_xunit   = None      ,
+                ax_yunit   = None      , 
                 ax_opt     = dict()    ,
                 axl_opt    = dict()    ,
                 ax_xlim    = None      ,
@@ -2422,7 +2426,7 @@ def plot_tline(data,
 
     #___________________________________________________________________________
     # --> pre-arange axes
-    ax_optdefault=dict({'projection': proj_to})
+    ax_optdefault=dict({'projection': proj_to, 'ax_sharey':False,})
     ax_optdefault.update(ax_opt)
     hfig, hax, hcb, cb_plt_idx = do_axes_arrange(ncol, nrow, **ax_optdefault)
     cb_plt_idx=cb_plt_idx[:ndat]
@@ -2447,6 +2451,7 @@ def plot_tline(data,
     # --> loop over axes
     hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
     cnt, xmin, xmax, ymin, ymax = 0, np.inf, -np.inf, np.inf, -np.inf
+    list_strdatalabel,list_strboxlabel = list(), list()
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=nbox: 
@@ -2459,94 +2464,143 @@ def plot_tline(data,
             optline = dict({'linewidth':1.5, 'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
             optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
                             'clip_box':False, 'clip_on':False, 'zorder':3})
-        
-            cnt_cycl=0
-            xmax_list=list()
-            for jj in range(0,ndat):
-                #_______________________________________________________________
-                vname  = list(data[jj][ii].data_vars)[0]
-                data_y = data[jj][ii][vname].data.copy()
-                ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
-                
-                #_______________________________________________________________
-                data_x = data[jj][ii]['time'].copy()
-                # total number of days per year considers leap years
-                if len(np.unique(data_x.dt.month))==1:
-                    data_x = data_x.dt.year
-                else:    
-                    dperyr = np.where(data_x.dt.is_leap_year, 366, 365)
-                    # time vector in units of years
-                    data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/dperyr   
-                if cnt_cycl>0 and do_concat: 
-                    data_x = data_x + (data_x[-1]-data_x[0]+1)*cnt_cycl# + (data_x[1]-data_x[0])
-                    data_x = np.hstack((data_x0[-1], data_x))
-                    data_y = np.hstack((data_y0[-1], data_y))
-                    
-                xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
-                data_x0, data_y0 = data_x, data_y
-                xmax_list.append(xmax)
-                
-                #_______________________________________________________________
-                # set labels
-                loc_attrs= data[jj][ii][vname].attrs
-                str_xlabel, str_ylabel, str_llabel, str_blabel = '', '', '', ''
-                
-                if ax_xlabel is None:
-                    str_xlabel = 'Time'
-                    if   'add2xlabel' in loc_attrs: str_xlabel = str_xlabel+' '+loc_attrs['add2xlabel']
-                    str_xlabel = str_xlabel + ' / years'
-                else:
-                    str_xlabel = ax_xlabel
-                
-                if ax_ylabel is None:
-                    if   'long_name'  in loc_attrs: str_ylabel = str_ylabel+loc_attrs['long_name']
-                    elif 'short_name' in loc_attrs: str_ylabel = str_ylabel+loc_attrs['short_name']
-                    if   'add2ylabel' in loc_attrs: str_ylabel = str_ylabel+' '  +loc_attrs['add2ylabel']
-                    if   'units'      in loc_attrs: str_ylabel = str_ylabel+' / '+loc_attrs['units']
-                else:
-                    str_ylabel = ax_ylabel
-                
-                if   'descript'       in loc_attrs: str_llabel = str_llabel +loc_attrs['descript']
-                if   'boxname'        in loc_attrs: str_blabel = str_blabel +loc_attrs['boxname']
-                if   'transect_name'  in loc_attrs: str_blabel = str_blabel +loc_attrs['transect_name']
-                
-                #_______________________________________________________________
-                # plot lines 
-                optline.update({'color':cmap.colors[cnt,:]})
-                optline.update(plt_opt)
-                optmark.update({'color':cmap.colors[cnt,:]})
-                optmark.update(mark_opt)
-                
-                # plot black underlying shadow slightly wider than line on top 
-                if do_shdw:
-                    optline2 = optline.copy()
-                    optline2.update({'color':'k', 'linewidth':optline['linewidth']*1.2, 'zorder':1})
-                    hax_ii.plot(data_x, data_y, **optline2)
-                
-                # plot actual time series with color 
-                h0 = hax_ii.plot(data_x, data_y, label=str_llabel, **optline)
-                
-                # plot mean value with left triangle 
-                if do_mean: 
-                    hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<', **optmark)
-                
-                # plot std. range with up/dwn triangle 
-                if do_std:
-                    warnings.filterwarnings("ignore", category=RuntimeWarning, message="overflow encountered in multiply")
-                    hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.0, data_y.mean()+data_y.std(), marker='^', **optmark)
-                    hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.0, data_y.mean()-data_y.std(), marker='v', **optmark)
-                    warnings.resetwarnings()
-                    
-                hp.append(h0)
-                
-                #_______________________________________________________________
-                cnt      = cnt+1
-                cnt_cycl = cnt_cycl+1
-                if n_cycl is not None:
-                    if cnt_cycl>= n_cycl: cnt_cycl=0
+            list_lstyle=['solid', 'dashed', 'dotted', 'dashdot', 'dashdotdotted']
+            
             #___________________________________________________________________
-            if hax_ii.do_xlabel: hax_ii.set_xlabel(str_xlabel)
-            if hax_ii.do_ylabel: hax_ii.set_ylabel(str_ylabel)
+            allinone = False
+            if   nrow*ncol == 1:
+                if   nbox == 1: box_idx = [0]
+                elif nbox >  1: 
+                    box_idx, allinone = list(range(0,nbox)), True
+                    
+            elif nrow*ncol > 1 and nrow*ncol >= nbox:   
+                box_idx, allinone = [ii], False
+            xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
+            
+            #___________________________________________________________________
+            # If nrow*ncol=1    && nbox > 1: plot all box lines in one figure panel
+            #    nrow*ncol=nbox && nbox > 1: plot each box lines in separate figure panel
+            for bi in box_idx:
+                #___________________________________________________________________
+                # prepare regular gridded data for plotting
+                cnt, cnt_cycl = 0, 0
+                xmax_list=list()
+                if not allinone: xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
+                for jj in range(0,ndat):
+                    #_______________________________________________________________
+                    vname  = list(data[jj][bi].data_vars)[0]
+                    data_y = data[jj][bi][vname].data.copy()
+                    ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
+                    
+                    #_______________________________________________________________
+                    data_x = data[jj][bi]['time'].copy()
+                    # total number of days per year considers leap years
+                    if len(np.unique(data_x.dt.month))==1:
+                        data_x = data_x.dt.year
+                    else:
+                        # data contain only mean seasonal cycle 
+                        if len(np.unique(data_x.dt.year))==1:
+                            data_x = data_x.dt.month
+                        else:    
+                            dperyr = np.where(data_x.dt.is_leap_year, 366, 365)
+                            # time vector in units of years
+                            data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/dperyr   
+                    if cnt_cycl>0 and do_concat: 
+                        data_x = data_x + (data_x[-1]-data_x[0]+1)*cnt_cycl# + (data_x[1]-data_x[0])
+                        data_x = np.hstack((data_x0[-1], data_x))
+                        data_y = np.hstack((data_y0[-1], data_y))
+                        
+                    xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                    data_x0, data_y0 = data_x, data_y
+                    xmax_list.append(xmax)
+                    
+                    #_______________________________________________________________
+                    # set labels
+                    loc_attrs= data[jj][bi][vname].attrs
+                    str_xlabel, str_ylabel, str_llabel, str_blabel = '', '', '', ''
+                    
+                    if ax_xlabel is None:
+                        str_xlabel = 'Time'
+                        if   'add2xlabel' in loc_attrs: str_xlabel = str_xlabel+' '+loc_attrs['add2xlabel']
+                        if ax_xunit is None:
+                            str_xlabel = str_xlabel + ' / years'
+                        else:    
+                            str_xlabel = str_xlabel + ' / ' + ax_xunit 
+                    else:
+                        str_xlabel = ax_xlabel
+                    
+                    if ax_ylabel is None:
+                        if   'long_name'  in loc_attrs: str_ylabel = str_ylabel+loc_attrs['long_name']
+                        elif 'short_name' in loc_attrs: str_ylabel = str_ylabel+loc_attrs['short_name']
+                        if   'add2ylabel' in loc_attrs: str_ylabel = str_ylabel+' '  +loc_attrs['add2ylabel']
+                        
+                        if ax_yunit is None:
+                            if   'units'      in loc_attrs: str_ylabel = str_ylabel+' / '+loc_attrs['units']
+                        else:
+                            str_ylabel = str_ylabel+' / '+ ax_yunit
+                    else:
+                        str_ylabel = ax_ylabel
+                    
+                    if   'descript'       in loc_attrs: str_llabel = str_llabel +loc_attrs['descript']
+                    if   'boxname'        in loc_attrs: str_blabel = str_blabel +loc_attrs['boxname']
+                    if   'transect_name'  in loc_attrs: str_blabel = str_blabel +loc_attrs['transect_name']
+                    str_blabel = str_blabel.replace('MOC','').replace('_','')
+                    if bi==0: list_strdatalabel.append(str_llabel)
+                    if jj==0: list_strboxlabel.append(str_blabel)
+                    
+                    #_______________________________________________________________
+                    # plot lines 
+                    optline.update({'color':cmap.colors[cnt,:]})
+                    optline.update(plt_opt)
+                    if allinone and nrow*ncol==1: optline.update({'linestyle':list_lstyle[bi]})
+                    optmark.update({'color':cmap.colors[cnt,:]})
+                    optmark.update(mark_opt)
+                    
+                    # plot black underlying shadow slightly wider than line on top 
+                    if do_shdw:
+                        optline2 = optline.copy()
+                        optline2.update({'color':'k', 'linewidth':optline['linewidth']*1.2, 'zorder':1})
+                        hax_ii.plot(data_x, data_y, **optline2)
+                    
+                    # plot actual time series with color 
+                    h0 = hax_ii.plot(data_x, data_y, label=str_llabel, **optline)
+                    
+                    # plot mean value with left triangle 
+                    if do_mean: 
+                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<', **optmark)
+                    
+                    # plot std. range with up/dwn triangle 
+                    if do_std:
+                        warnings.filterwarnings("ignore", category=RuntimeWarning, message="overflow encountered in multiply")
+                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.0, data_y.mean()+data_y.std(), marker='^', **optmark)
+                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.0, data_y.mean()-data_y.std(), marker='v', **optmark)
+                        warnings.resetwarnings()
+                        
+                    hp.append(h0)
+                    
+                    #___________________________________________________________
+                    cnt      = cnt+1
+                    cnt_cycl = cnt_cycl+1
+                    if n_cycl is not None:
+                        if cnt_cycl>= n_cycl: cnt_cycl=0
+                        
+                #_______________________________________________________________
+                if hax_ii.do_xlabel: 
+                    hax_ii.set_xlabel(str_xlabel)
+                    
+                if hax_ii.do_ylabel:
+                     # wrap xlabel string when they are to long
+                    # Estimate the width of the axes dynamically
+                    fig_width, fig_height = hfig.get_size_inches()
+                    fig_dpi = hfig.get_dpi()
+                    axes_width_px = hax_ii.get_position().width * fig_width * fig_dpi
+                    
+                    # Estimate the width of the axes in terms of characters
+                    # font_size = plt.rcParams['font.size']
+                    font_size = hax_ii.xaxis.get_label().get_size()
+                    max_chars_per_line = int(axes_width_px / (font_size*0.6))  # Empirical factor for font size to character width ratio
+                    str_ylabel = '\n'.join(textwrap.wrap(str_ylabel, width=max_chars_per_line))
+                    hax_ii.set_ylabel(str_ylabel)
             
             #___________________________________________________________________
             # add grids lines 
@@ -2569,15 +2623,34 @@ def plot_tline(data,
             # -->bbox_to_anchor=(1.0, 1.0), loc='upper left' this should make sure 
             #    that the legend is always outside in the upper right corner 
             if hax_ii.coli==ncol-1 and hax_ii.rowi==0 : 
-                hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                              labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
-            
-            #___________________________________________________________________
+                if allinone and nbox>1:
+                    # make data legend:
+                    legend1 = plt.legend([hp[i][0] for i in range(0,ndat,1)], list_strdatalabel, 
+                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                         labelspacing=0.5, bbox_to_anchor=(1.0, 0.0), loc='lower right')
+                    hax_ii.add_artist(legend1)
+                    
+                    # make box list legend:
+                    import copy as cp
+                    lines = [cp.copy(hp[i][0]) for i in range(0,ndat*nbox, ndat)]
+                    # make legend box lines always black, just show linestyle 
+                    for li in range(0,len(lines)): lines[li].set(color='k')
+                    legend2 = plt.legend(lines, list_strboxlabel, 
+                                         frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                         labelspacing=0.5, bbox_to_anchor=(0.0, 1.0), loc='upper left')
+                    hax_ii.add_artist(legend2)
+                else:
+                    # make data legend:
+                    hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
+                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
+                    # box label becomes here axes title
+             #___________________________________________________________________
             # add title and axes labels
             if ax_title is not None: 
                 if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
-                else                        : hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
-                
+                else                        : 
+                    if not allinone and nbox>1: hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
+           
          
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
