@@ -370,6 +370,8 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     # loop over intersected edges 
     nced = transect['edge_cut_i'][-1].size
     for edi in range(0,nced):
+        #print(' --> ', edi)
+        
         #_______________________________________________________________________
         # --> rotate edge with bearing angle -alpha
         # determine if edge shows to the left or to the right with 
@@ -380,7 +382,6 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
         auxx = transect['edge_cut_evec'][-1][edi,0]*np.cos(alpha)-transect['edge_cut_evec'][-1][edi,1]*np.sin(alpha)
         auxy = transect['edge_cut_evec'][-1][edi,0]*np.sin(alpha)+transect['edge_cut_evec'][-1][edi,1]*np.cos(alpha)
         theta= np.arctan2(auxy,auxx)
-        # print(theta*180/np.pi)
         del(auxx, auxy)
                 
         # indices of [L]eft and [R]ight triangle with respect to the edge
@@ -392,10 +393,10 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
         path_xy, path_ei, path_ni, path_dx, path_dy = __add_upsection_elem2path(mesh, transect, edi, nced, theta, 
                                                   edge_elem, edge_dxdy_l, edge_dxdy_r,
                                                   path_xy, path_ei, path_ni, path_dx, path_dy)
-            
+        
         # add edge mid point of cutted edge
         path_xy.append(transect['edge_cut_midP'][-1][edi])
-            
+        
         # add downsection element to path if it exist
         path_xy, path_ei, path_ni, path_dx, path_dy = __add_downsection_elem2path(mesh, transect, edi, nced, theta, 
                                                   edge_elem, edge_dxdy_l, edge_dxdy_r,
@@ -447,9 +448,15 @@ def __add_downsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edg
     if (theta>=0):
         # right triangle
         if edge_elem[1]>=0:
-            e_xR, e_yR = np.sum(mesh.n_x[mesh.e_i[edge_elem[1],:]])/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[1],:]])/3.0
+            # take care if there are periodic boundaries
+            e_xR = mesh.n_x[mesh.e_i[edge_elem[1],:]]
+            if np.max(e_xR)-np.min(e_xR)>180:
+                if np.sum(e_xR>0) > np.sum(e_xR<0): e_xR[e_xL<0] = e_xR[e_xL<0]+360.0
+                else                              : e_xR[e_xL>0] = e_xR[e_xL>0]-360.0
+            e_xR, e_yR = np.sum(e_xR)/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[1],:]])/3.0
             path_xy.append(np.array([e_xR, e_yR]))
             del(e_xR, e_yR)
+            
             path_ei.append(edge_elem[1])
             path_ni.append(mesh.e_i[edge_elem[1], :])
             path_dx.append(edge_dxdy_r[0, transect['edge_cut_i'][-1][edi]])
@@ -475,13 +482,20 @@ def __add_downsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edg
     #                 [R]right | Triangle 
     else:
         # left triangle
-        e_xL, e_yL = np.sum(mesh.n_x[mesh.e_i[edge_elem[0],:]])/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[0],:]])/3.0
+        e_xL = mesh.n_x[mesh.e_i[edge_elem[0],:]]
+        if np.max(e_xL)-np.min(e_xL)>180:
+            if np.sum(e_xL>0) > np.sum(e_xL<0): e_xL[e_xL<0] = e_xL[e_xL<0]+360.0
+            else                              : e_xL[e_xL>0] = e_xL[e_xL>0]-360.0
+        e_xL, e_yL = np.sum(e_xL)/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[0],:]])/3.0
         path_xy.append(np.array([e_xL, e_yL]))
         del(e_xL, e_yL)
+        
         path_ei.append(edge_elem[0])
         path_ni.append(mesh.e_i[edge_elem[0], :])
         path_dx.append(edge_dxdy_l[0, transect['edge_cut_i'][-1][edi]])
         path_dy.append(edge_dxdy_l[1, transect['edge_cut_i'][-1][edi]])
+        
+        
         
     #___________________________________________________________________________
     return(path_xy, path_ei, path_ni, path_dx, path_dy)
@@ -499,6 +513,16 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
     #                          | 
     #                   [L]eft | Triangle upsection triangle
     if (theta>=0):
+        if edi==0:
+            # take care if there are periodic boundaries
+            e_xL = mesh.n_x[mesh.e_i[edge_elem[0],:]]
+            if np.max(e_xL)-np.min(e_xL)>180:
+                if np.sum(e_xL>0) > np.sum(e_xL<0): e_xL[e_xL<0] = e_xL[e_xL<0]+360.0
+                else                              : e_xL[e_xL>0] = e_xL[e_xL>0]-360.0
+            e_xL, e_yL = np.sum(e_xL)/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[0],:]])/3.0
+            path_xy.append(np.array([e_xL, e_yL]))
+            del(e_xL, e_yL)
+            
         # left triangle 
         path_ei.append(edge_elem[0])
         path_ni.append(mesh.e_i[edge_elem[0], :])
@@ -519,6 +543,16 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
     else:
         # right triangle
         if edge_elem[1]>=0:
+            if edi==0:
+                # take care if there are periodic boundaries
+                e_xR = mesh.n_x[mesh.e_i[edge_elem[1],:]]
+                if np.max(e_xR)-np.min(e_xR)>180:
+                    if np.sum(e_xR>0) > np.sum(e_xR<0): e_xR[e_xL<0] = e_xR[e_xL<0]+360.0
+                    else                              : e_xR[e_xL>0] = e_xR[e_xL>0]-360.0
+                e_xR, e_yR = np.sum(e_xR)/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[1],:]])/3.0
+                path_xy.append(np.array([e_xR, e_yR]))
+                del(e_xR, e_yR)
+                
             path_ei.append(edge_elem[1])
             path_ni.append(mesh.e_i[edge_elem[1], :])
             
@@ -751,7 +785,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         # define coordinates
         if 'time' in data.dims:
             coords = {
-                      'time ' : (list_dimname['time' ], list_dimval['time']),
+                      'time'  : (list_dimname['time' ], list_dimval['time']),
                       'depth' : (list_dimname['depth'], list_dimval['depth']),
                       'lon'   : (list_dimname['horiz'], lon),
                       'lat'   : (list_dimname['horiz'], lat),
@@ -1009,31 +1043,35 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
 #+___PLOT TRANSECT POSITION____________________________________________________+
 #|                                                                             |
 #+_____________________________________________________________________________+ 
-def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figsize=[10,10],
+def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figsize=[10,10], 
+                           proj='nears', box = [-180, 180,-90, 90], 
                            resolution='low', do_path=True, do_labels=True, do_title=True,
                            do_grid=False, ax_pos=[0.90, 0.05, 0.45, 0.45]):
     #___________________________________________________________________________
     # compute zoom factor based on the length of the transect
-    if zoom is None: 
-        Rearth = 6367.5  # [km]
-        x,y,z  = grid_cart3d(transect['path_xy'][[0,-1],0], transect['path_xy'][[0,-1],1], is_deg=True)
-        dist   = np.arccos(x[0]*x[1] + y[0]*y[1] + z[0]*z[1])*Rearth
-        #zoom = (np.pi*6367.5)/transect['edge_cut_dist'].max()
-        zoom = (np.pi*Rearth)/dist
-        del(dist, x, y, z)
+    if zoom is None:
+        if np.abs(np.diff(transect['path_xy'][[0,-1],0]))<=180: 
+            Rearth = 6367.5  # [km]
+            x,y,z  = grid_cart3d(transect['path_xy'][[0,-1],0], transect['path_xy'][[0,-1],1], is_deg=True)
+            dist   = np.arccos(x[0]*x[1] + y[0]*y[1] + z[0]*z[1])*Rearth
+            print(dist)
+            #zoom = (np.pi*6367.5)/transect['edge_cut_dist'].max()
+            zoom = (np.pi*Rearth)/dist
+            del(dist, x, y, z)
+        else:
+            if proj == 'nears': proj = 'rob'
     
     #___________________________________________________________________________
     orig = ccrs.PlateCarree()
-    proj = ccrs.NearsidePerspective(central_longitude=transect['edge_cut_P'][:,0].mean(), 
-                                    central_latitude =transect['edge_cut_P'][:,1].mean(), 
-                                    satellite_height =35785831/zoom)
+    if proj == 'nears': box = [transect['edge_cut_P'][:,0].mean(), transect['edge_cut_P'][:,1].mean(), zoom]
+    proj_to, box = do_projection(mesh, proj, box)
     
     #___________________________________________________________________________
     if fig is None: 
         fig = plt.figure(figsize=figsize)
-        ax  = plt.axes(projection=proj)
+        ax  = plt.axes(projection=proj_to)
     else:
-        ax = fig.add_axes(ax_pos, projection=proj)
+        ax = fig.add_axes(ax_pos, projection=proj_to)
         
     pkg_path = os.path.dirname(__file__)
     bckgrndir = os.path.normpath(pkg_path+'/backgrounds/')

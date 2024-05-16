@@ -8,6 +8,8 @@ import netCDF4 as nc
 import seawater as sw
 from .sub_mesh import *
 import warnings
+
+
 #xr.set_options(enable_cftimeindex=False)
 # ___LOAD FESOM2 DATA INTO XARRAY DATASET CLASS________________________________
 #|                                                                             |
@@ -84,6 +86,17 @@ def load_data_fesom2(mesh, datapath, vname=None, year=None, mon=None, day=None,
     str_ldep, str_ltim = '', '' # string for labels
     str_lsave = ''    
     xr.set_options(keep_attrs=True)
+    
+    #___________________________________________________________________________
+    # Related to bug especially on albedo netcdf-c not being threat save since netcdf1.6.1: 
+    # https://github.com/pydata/xarray/issues/7079
+    # https://github.com/xCDAT/xcdat/issues/561
+    # https://forum.access-hive.org.au/t/netcdf-not-a-valid-id-errors/389/24
+    import dask
+    import distributed
+    if distributed.worker_client() is None:
+        dask.config.set(scheduler="single-threaded")
+
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
     if vname in ['topography','zcoord', 
@@ -498,14 +511,16 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         dimv = 'nz1'
         if   ('nz1'  in data.coords): data = data.drop_vars('nz1' ) 
         elif ('nz_1' in data.coords): data = data.drop_vars('nz_1') 
-        data = data.assign_coords(nz1  = xr.DataArray(-mesh.zmid,                  dims=dimv).astype('float32').chunk(data.chunksizes[dimv]) )
-        data = data.assign_coords(nzi  = xr.DataArray(np.arange(0,mesh.zmid.size), dims=dimv).astype('uint8'  ).chunk(data.chunksizes[dimv]) )
+        set_chunk = dict({dimv:data.chunksizes[dimv]}) 
+        data = data.assign_coords({'nz1': xr.DataArray(-mesh.zmid,                  dims=dimv).astype('float32').chunk(set_chunk) })
+        data = data.assign_coords({'nzi': xr.DataArray(np.arange(0,mesh.zmid.size), dims=dimv).astype('uint8'  ).chunk(set_chunk) })
         
     elif ('nz'   in data.dims): 
         dimv = 'nz'
         if ('nz1'  in data.coords): data = data.drop_vars('nz1' ) 
-        data = data.assign_coords(nz   = xr.DataArray(-mesh.zlev,                  dims=dimv).astype('float32').chunk(data.chunksizes[dimv]) )
-        data = data.assign_coords(nzi  = xr.DataArray(np.arange(0,mesh.zlev.size), dims=dimv).astype('uint8').chunk(data.chunksizes[dimv]) )
+        set_chunk = dict({dimv:data.chunksizes[dimv]}) 
+        data = data.assign_coords(nz   = xr.DataArray(-mesh.zlev,                  dims=dimv).astype('float32').chunk(set_chunk) )
+        data = data.assign_coords(nzi  = xr.DataArray(np.arange(0,mesh.zlev.size), dims=dimv).astype('uint8').chunk(set_chunk) )
         
     elif ('ndens'   in data.dims): 
         dimv = 'ndens'
@@ -871,7 +886,9 @@ def do_time_arithmetic(data, do_tarithm):
             data = data.min(   dim="time", keep_attrs=True)  
         elif do_tarithm=='sum':
             data = data.sum(   dim="time", keep_attrs=True)    
-        elif do_tarithm=='ymean':
+        #_______________________________________________________________________
+        # yearly means 
+        elif do_tarithm in ['ymean','annual']:
             import datetime
             data = data.groupby('time.year').mean('time')
             # recreate time axes based on year
@@ -879,8 +896,38 @@ def do_time_arithmetic(data, do_tarithm):
             
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
-            data = data.assign_coords(time=('time', [datetime.datetime(np.int16(yr), 1, 1) for yr in data.year] )).drop_vars('year')
+            
+            data = data.assign_coords(time=xr.cftime_range(start='{:d}-01-01'.format(data.year[1]), periods=len(data['time']), freq='YS')).drop_vars('year')
             warnings.resetwarnings()
+        
+        #_______________________________________________________________________
+        # monthly means --> seasonal cycle 
+        elif do_tarithm in ['mmean','monthly']:
+            import datetime
+            data = data.groupby('time.month').mean('time')
+            # recreate time axes based on year
+            data = data.rename_dims({'month':'time'})
+            
+            warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+            warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+            
+            data = data.assign_coords(time=xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='MS')).drop_vars('month')
+            warnings.resetwarnings()
+        
+        #_______________________________________________________________________
+        # daily means --> 1...365
+        elif do_tarithm in ['dmean','daily']:
+            import datetime
+            data = data.groupby('time.day').mean('time')
+            # recreate time axes based on year
+            data = data.rename_dims({'day':'time'})
+            
+            warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+            warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+            
+            data = data.assign_coords(time=xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='DS')).drop_vars('day')
+            warnings.resetwarnings()
+        
         elif do_tarithm=='None':
             ...
         else:

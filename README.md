@@ -25,11 +25,13 @@ git clone https://github.com/patrickscholz/tripyview
 make sure your conda environment uses python=3.9 (conda create --name py39 python=3.9; conda activate py39)
 
 ```bash
-# look like cartopy causes trouble when installed via pip so better preinstall via
-# conda also netcdf4>=1.6.1 causes occasionally netcdf4-->hdf5 error messages, therefor 
-# stick for the moment to netcdf4=1.6.0
-conda install -c conda-forge cartopy netcdf4=1.6.0 libstdcxx-ng 
-(libstdcxx-ng is needed so that pyvista is able to plot interactively)
+# -netcdf4>=1.6.1 can be used now, there were problems with the thread safety of 
+#  netcdf4 (occured especially on albedo), there was a workaround with
+#  dask.config.set(scheduler="single-threaded") to ensure that each worker only 
+#  gets one thread
+# -install libstdcxx-ng with conda since there is no pip package for it is needed
+#  so that pyvista is able to plot interactively
+conda install -c conda-forge libstdcxx-ng
 cd tripyview
 pip install -e .
 

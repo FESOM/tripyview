@@ -41,11 +41,15 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         # compute  mask index
         if   'nod2' in data.dims: 
             idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2')
-            if any(data.chunks.values()): idx_IN = idx_IN.chunk({'nod2':data.chunksizes['nod2']})
+            # --> seems to be not allowed anymore in newer version of xarray + dask
+            #     indexing array cant be chunked anymore
+            #if any(data.chunks.values()): idx_IN = idx_IN.chunk({'nod2':data.chunksizes['nod2']})
             
         elif 'elem' in data.dims: 
             idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem')
-            if any(data.chunks.values()): idx_IN = idx_IN.chunk({'elem':data.chunksizes['elem']})
+            # --> seems to be not allowed anymore in newer version of xarray + dask
+            #     indexing array cant be chunked anymore
+            #if any(data.chunks.values()): idx_IN = idx_IN.chunk({'elem':data.chunksizes['elem']})
             
         #_______________________________________________________________________
         # check basin selection
