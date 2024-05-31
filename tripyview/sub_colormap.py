@@ -3,7 +3,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[], do_slog=False, do_res
 
     import numpy                as np
     from   matplotlib.colors    import ListedColormap
-    from   matplotlib.cm        import get_cmap
+    from   matplotlib.pyplot    import get_cmap # for python ver>=3.11
     from   scipy                import interpolate
     import cmocean 
     #import cmocean
