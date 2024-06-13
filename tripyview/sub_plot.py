@@ -380,6 +380,7 @@ def plot_hslice(mesh                   ,
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
+                                plt_opt  = plt_opt,
                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt,
                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -406,6 +407,7 @@ def plot_hslice(mesh                   ,
                 h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ],
                                 which_transf=ccrs.PlateCarree(), 
+                                plt_opt  = plt_opt,
                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt,
                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -828,7 +830,7 @@ def plot_hmesh( mesh                   ,
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, norm_plot, 
-                                 plt_opt=plt_opt, 
+                                 plt_opt  =plt_opt, 
                                  plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
                                  plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                  plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -1664,6 +1666,7 @@ def plot_vslice(mesh                   ,
             # add tripcolor or tricontourf plot 
             h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
+                                plt_opt  =plt_opt,
                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt,
                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -3178,8 +3181,12 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
     
     elif not isinstance(proj_to, (ccrs.Orthographic)):    
         xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
-        fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
-        ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
+        if isinstance(hax, list):
+            fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
+            ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
+        else:    
+            fig_pts    = hax.transData.transform(list(zip(xpts,ypts)))
+            ax_pts     = hax.transAxes.inverted().transform(fig_pts)
         e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
         del(xpts, ypts, fig_pts, ax_pts)
         
