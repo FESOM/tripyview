@@ -16,10 +16,74 @@ from   .sub_utility        import *
 from   .sub_plot           import *
 from   .sub_colormap       import *
 
+#
+#
+#___COMPUTE INDEX OVER REGION 2D AND 3D_________________________________________
+def load_index_fesom2(mesh                  , 
+                      data                  , 
+                      box_list              , 
+                      boxname       = None  , 
+                      do_harithm    ='wmean', 
+                      do_zarithm    = None  ,
+                      do_checkbasin = False , 
+                      do_compute    = False , 
+                      do_load       = True  , 
+                      do_persist    = False ,
+                      ):
+    """
+    --> compute index over region from 2d and 3d vertice data
+    
+    Parameters:
+        
+        :mesh:          fesom2 mesh object, with all mesh information
 
-def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean', 
-                      do_zarithm=None, do_outputidx=False, 
-                      do_compute=False, do_load=True, do_persist=False, do_checkbasin=False):
+        :data:          xarray dataset object, or list of xarray dataset object with 3d vertice
+                        data
+
+        :box_list:      None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                        - ['global']   ... compute global index 
+                        - [shp.Reader] ... index region defined by shapefile 
+                        - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                        - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                        - [ np.array(2 x npts), boxname] index region defined by polygon
+
+        :do_harithm:    str, (default='wmean') which horizontal arithmetic should be applied 
+                        over the index definition region
+                        
+                        - 'wmean' ... area weighted mean 
+                        - 'wint'  ... area weighted integral
+        
+        :do_zarithm:    str, (default=None) which arithmetic should be applied in the vertical
+                        
+                        - 'wmean' ... depth weighted mean 
+                        - 'wint'  ... depth weighted integral
+                    
+        :do_checkbasin: bool, (default=False) additional plot with selected region/
+                        basin information
+        
+        :do_compute:    bool (default=False), do xarray dataset compute() at the end
+                        data = data.compute(), creates a new dataobject the original
+                        data object seems to persist
+        
+        :do_load:       bool (default=True), do xarray dataset load() at the end
+                        data = data.load(), applies all operations to the original
+                        dataset
+                        
+        :do_persist:    bool (default=False), do xarray dataset persist() at the end
+                        data = data.persist(), keeps the dataset as dask array, keeps
+                        the chunking    
+                      
+        :do_info:       bool (defalt=False), print variable info at the end 
+                       
+                    
+    Returns:
+    
+    
+    ____________________________________________________________________________
+    """
+    
+    
     xr.set_options(keep_attrs=True)
     #___________________________________________________________________________
     # str_anod    = ''
@@ -150,10 +214,7 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
         cnt = cnt + 1
         
     #___________________________________________________________________________
-    if do_outputidx:
-        return(index_list, idxin_list)
-    else:
-        return(index_list)
+    return(index_list)
 
 
     
@@ -162,6 +223,34 @@ def load_index_fesom2(mesh, data, box_list, boxname=None, do_harithm='wmean',
 #_______________________________________________________________________________
 def plot_index_region(mesh, idx_IN, box_list, which='hard'):
     from matplotlib.tri import Triangulation
+    """
+    --> plot index definition region 
+    
+    Parameters:
+        
+        :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :idx_IN:        list with bool np.array which vertices are within index defintion 
+                        region
+    
+        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts), boxname] index region defined by polygon
+
+        :which:     str, (default=hard)
+                    - 'soft' plot triangles that at least one selected vertice in them
+                    - 'hard' plot triangles that at all three selected vertice in them 
+                    - 'mid'  plot triangles that have more than one selected vertice in them
+                    
+    Returns:
+        
+        :None:
+    
+    """
     
     #___________________________________________________________________________
     # make triangulation
@@ -228,19 +317,26 @@ def plot_index_region(mesh, idx_IN, box_list, which='hard'):
     return
 
 
-
-# ___DO ANOMALY________________________________________________________________
-#| compute anomaly between two xarray Datasets                                 |
-#| ___INPUT_________________________________________________________________   |
-#| data1        :   xarray dataset object                                      |
-#| data2        :   xarray dataset object                                      |
-#| ___RETURNS_______________________________________________________________   |
-#| anom         :   xarray dataset object, data1-data2                         |
-#|_____________________________________________________________________________|
+#
+#
+#___DO INDEX ANOMALY____________________________________________________________
 def do_indexanomaly(index1,index2):
+    """
+    --> compute anomaly between two index xarray Datasets
     
+    Parameters:
+    
+        :data1:   index xarray dataset object
+
+        :data2:   index xarray dataset object
+
+    Returns:
+    
+        :anom:   index xarray dataset object, data1-data2
+
+    ____________________________________________________________________________
+    """
     anom_index = list()
-    
     #___________________________________________________________________________
     for idx1,idx2 in zip(index1, index2):
     
