@@ -5121,7 +5121,9 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             # neighboring plots
             if isinstance(hax_ii.projection, (ccrs.PlateCarree) ) and ndat>1 and hax_ii.ncol>1:
                 h0.xlabel_style = {'rotation': 25}    
-            
+                
+            h0.xlabel_style = {'fontsize': hax_ii.fs_ticks}       
+            h0.ylabel_style = {'fontsize': hax_ii.fs_ticks} 
         #_______________________________________________________________________
         # grid options for index vs. depth vs. xy plot
         elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 
