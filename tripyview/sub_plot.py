@@ -17,16 +17,11 @@ import matplotlib.path          as mpath
 import matplotlib.colors        as mcolors
 from   matplotlib.colors        import ListedColormap
 from   matplotlib.ticker        import MultipleLocator, AutoMinorLocator, ScalarFormatter, LogLocator, LogFormatter
-
 from   scipy.signal             import convolve2d
 from   scipy.interpolate        import interp1d
-
 import textwrap
-
 import warnings
-
 import copy                     as cp
-
 from .sub_mesh     import *
 from .sub_data     import *
 from .sub_colormap import *
@@ -45,7 +40,6 @@ def plot_hslice(mesh                   ,
                 nrow       = 1         , # number of row in figures panel
                 ncol       = 1         , # number of column in figure panel
                 proj       = 'pc'      ,
-                do_reffig  = False     , 
                 do_ie2n    = False     , # interpolate element data to vertices
                 do_rescale = False     ,
                 #--- data -----------
@@ -97,145 +91,194 @@ def plot_hslice(mesh                   ,
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
                 #--- set output -----
-                nargout=['hfig', 'hax', 'hcb'],
+                nargout    =['hfig', 'hax', 'hcb'],
                 ):
     """
-    ---> plot FESOM2 horizontal data slice:
-    ___INPUT:___________________________________________________________________
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    data        :   xarray dataset object, or list of xarray dataset object
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-                    
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
-    
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
-    
-    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
-    
-    do_refig    :   bool, (default: False) do absolute reference figure, with 
-                    own colormap. Data for reference figure is data[0]
-                    
-    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
-                    towards nodes
-    
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    
-    --- plot data parameters ------------
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    
-    --- plot mesh -----------------------
-    do_mesh     :   bool, (default: True), overlay FESOM grid over dataplot
-    mesh_opt    :   dict, (default: dict()) additional options that are given to 
-                    the mesh plotting via **kwarg
-    
-    --- plot bottom mask ----------------
-    do_bot      :   bool, (default: True), overlay topographic bottom mask
-    bot_opt     :   dict, (default: dict()) additional options that are given to 
-                    the bottom mask plotting via **kwarg
-    
-    --- plot landsea mask ---------------
-    do_lsm      :   str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
-                    option are here:
-                    fesom       :   grey fesom landsea mask
-                    stock       :   uses cartopy stock image
-                    bluemarble  :   uses bluemarble image in folder tripyview/background/
-                    etopo       :   uses etopo image in folder tripyview/background/
-    lsm_opt     :   dict, (default: dict()) additional options that are given to 
-                    the landsea mask plotting via **kwarg
-    
-    #--- plot cartopy gridlines ---------
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
-    
-    #--- colorbar -----------------------
-    cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
-                    information from data ('long_name, short_name) are used
-    
-    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
-                    otherwise units from data are used
+    --> plot FESOM2 horizontal data slice:
 
-    cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
-                    (fontsize, fontweight, ...) via **kwarg
-    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
-                    (fontsize, fontweight, ...) via **kwarg
-                    
-    #--- axes ---------------------------
-    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
+    __________________________________________________
+
+    Parameters: 
+    
+        :mesh:      fesom2 mesh object, with all mesh information
+
+        :data:      xarray dataset object, or list of xarray dataset object
+
+        :box:       None, list (default: None) regional limitation of plot. For ortho...
+                    box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = 
+                    [lonmin, lonmax, latmin, latmax]
+
+        :cinfo:     None, dict() (default: None), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
+                
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+
+        :nrow:      int, (default: 1) number of columns when plotting multiple data panels
+
+        :ncol:      int, (default: 1) number of rows when plotting multiple data panels
+
+        :proj:      str, (default: 'pc') which projection should be used, 
+                    - pc     ... PlateCarree         (box=[lonmin, lonmax, latmin, latmax])
+                    - merc   ... Mercator            (box=[lonmin, lonmax, latmin, latmax])
+                    - rob    ... Robinson            (box=[lonmin, lonmax, latmin, latmax])
+                    - eqearth... EqualEarth          (box=[lonmin, lonmax, latmin, latmax])
+                    - mol    ... Mollweide           (box=[lonmin, lonmax, latmin, latmax])
+                    - nps    ... NorthPolarStereo    (box=[-180, 180, >0, latmax])
+                    - sps    ... SouthPolarStereo    (box=[-180, 180, latmin, <0])
+                    - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
+                    - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
+                    - channel... PlateCaree
+
+        :do_ie2n:   bool, (default: False) do interpolation of data on elements towards nodes
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+
+        ___plot data parameters_____________________________
+
+        :do_plt:    str, (default: tpc)
+                    - tpc ... make pseudocolor plot (tripcolor)
+                    - tcf ... make contourf color plot (tricontourf)
+
+        :plt_opt:   dict, (default: dict()) additional options that are given to tripcolor 
+                    or tricontourf via the kwarg argument
+
+        :plt_contb: bool, (default: False) overlay thin contour lines of all colorbar steps (background)
+
+        :pltcb_opt: dict, (default: dict()) background contour line option
+
+        :plt_contf: bool, (default: False) overlay thicker contour lines of the main colorbar steps (foreground)
+
+        :pltcf_opt: dict, (default: dict()) foreground contour line option
+
+        :plt_contr: bool, (default: False) overlay thick contour lines of reference color steps (reference)
+
+        :pltcr_opt: dict, (default: dict()) reference contour line option
+
+        :plt_contl: bool, (default: False) label overlayed  contour linec plot
+
+        :pltcl_opt: dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+        ___plot mesh________________________________________
+
+        :do_mesh:   bool, (default: True), overlay FESOM grid over dataplot
+
+        :mesh_opt:  dict, (default: dict()) additional options that are given to the mesh plotting via kwarg
+
+        ___plot bottom mask_________________________________
+
+        :do_bot:    bool, (default: True), overlay topographic bottom mask
+
+        :bot_opt:   dict, (default: dict()) additional options that are given to the bottom mask plotting via kwarg
+
+        ___plot lsmask______________________________________
+
+        :do_lsm:    str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
+                    option are here:
+                
+                    - fesom      ... grey fesom landsea mask
+                    - stock      ... uses cartopy stock image
+                    - bluemarble ... uses bluemarble image in folder tripyview/background/
+                    - etopo      ... uses etopo image in folder tripyview/background/
+
+        :lsm_opt:   dict, (default: dict()) additional options that are given to 
+                    the landsea mask plotting via kwarg
+
+        :lsm_res:   str, (default='low') resolution of bluemarble texture file either 'low' or 'high'
+
+        ___plot cartopy gridlines____________________________
+
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+        
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
+
+        :do_boundbox: bool, (default: True) plot cartopy black bounding box. If you 
+                    make plots as a texture to use in blender, unity or pyvista the bounding box 
+                    has to be removed with do_boundbox=False
+
+        ___colorbar_________________________________________
+
+        :cb_label:  str, (default: None) if string its used as colorbar label, otherwise 
+                    information from data ('long_name, short_name) are used
+
+        :cb_lunit:  str, (default: None) if string its used as colorbar unit label, 
+                    otherwise info from data are used
+
+        :cb_ltime:  str, (default: None) if string its used as colorbar time label, 
+                    otherwise info from data are used
+
+        :cb_ldep:   str, (default: None) if string its used as colorbar depth label, 
+                    otherwise info from data are used                
+
+        :cb_opt:    dict, (default: dict()) direct option for colorbar via kwarg
+
+        :cbl_opt:   dict, (default: dict()) direct option for colorbar labels (fontsize, fontweight, ...) via kwarg
+
+        :cbtl_opt:  dict, (default: dict()) direct option for colorbar tick labels (fontsize, fontweight, ...) via kwarg
+
+        ___axes______________________________________
+
+        :ax_title:  str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
-    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
+
+        :ax_opt:    dict, (default: dict()) set option for axes arangement see subroutine 
                     do_axes_arrange
-    
-    #--- enumerate axes -----------------
-    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
-    
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    
-    #--- save figure ---------------------
-    do_save     :   str, (default: None) if None figure will by not saved, if 
-                    string figure will be saved, strings must give directory and 
-                    filename  where to save.     , 
-    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
-    
-    #--- set output ----------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
-                    are given out from the routine. 
+
+        :axl_opt:   dict, (default: dict()) set option for axes labels (fontsize, ...)
+
+        ___enumerate_________________________________
+
+        :do_enum:   bool, (default: False) do enumeration of axes with a), b), c) ...
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings        , 
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in axes coordinates
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to right, 'ud' from up to down
+
+        ___save figure________________________________
+
+        :do_save:   str, (default: None) if None figure will by not saved, if string figure 
+                    will be saved, strings must give directory and filename  where to save.
+
+        :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
+
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+
+        ___set output_________________________________
+
+        :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
+                    out from the routine. 
                     Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
                     
-    ___RETURNS:_________________________________________________________________
-    hfig        :    returns figure handle 
-    hax         :    returns list with axes handle 
-    hcb         :    returns colorbar handle
+                    - hfig ... figure handle
+                    - hax  ... list of axes handle 
+                    - hcb  ... list of colorbar handles (every variable that is defined in this subroutine can become output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        :hfig: returns figure handle 
+
+        :hax: returns list with axes handle 
+
+        :hcb: returns colorbar handle
+    
     ____________________________________________________________________________
     """
     #___________________________________________________________________________
@@ -337,6 +380,7 @@ def plot_hslice(mesh                   ,
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
+                                plt_opt  = plt_opt,
                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt,
                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -363,6 +407,7 @@ def plot_hslice(mesh                   ,
                 h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ],
                                 which_transf=ccrs.PlateCarree(), 
+                                plt_opt  = plt_opt,
                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt,
                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -436,11 +481,7 @@ def plot_hslice(mesh                   ,
 #
 #
 #_______________________________________________________________________________
-# --> do plotting of meshes
-#
-#
-#_______________________________________________________________________________
-# --> do plotting of horizontal slices
+# --> do plotting of horizontal meshes
 def plot_hmesh( mesh                   , 
                 data       = None      , # None, resolution, depth
                 box        = None      , 
@@ -498,134 +539,198 @@ def plot_hmesh( mesh                   ,
                 nargout=['hfig', 'hax', 'hcb'],
                 ):
     """
-    ___INPUT:___________________________________________________________________
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    data        :   str, (default: None) string can be:
+    --> plot horizontal mesh and mesh paramters on vertices and elements
+    
+    __________________________________________________
+    
+    Parameters:
+    
+        :mesh:      fesom2 mesh object, with all mesh information
+
+        :data:      str, (default: None) string can be:
+
                     - 'resolution', 'resol', 'n_resol', 'nresol'
                     - 'narea', 'n_area', 'clusterarea', 'scalararea'
                     - 'eresol', 'e_resol', 'triresolution', 'triresol'
                     - 'earea', 'e_area', 'triarea'
                     - 'ndepth', 'ntopo', 'n_depth', 'n_topo', 'topography', 'zcoord'
                     - 'edepth', 'etopo', 'e_depth', 'e_topo' 
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-                    
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
-    
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
-    
-    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
-    
-    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
-                    towards nodes
-    
-    --- plot data parameters ------------
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    
-    --- plot mesh -----------------------
-    do_mesh     :   bool, (default: True), overlay FESOM grid over dataplot
-    mesh_opt    :   dict, (default: dict()) additional options that are given to 
-                    the mesh plotting via **kwarg
-    
-    --- plot landsea mask ---------------
-    do_lsm      :   str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
-                    option are here:
-                    fesom       :   grey fesom landsea mask
-                    stock       :   uses cartopy stock image
-                    bluemarble  :   uses bluemarble image in folder tripyview/background/
-                    etopo       :   uses etopo image in folder tripyview/background/
-    lsm_opt     :   dict, (default: dict()) additional options that are given to 
-                    the landsea mask plotting via **kwarg
-    
-    #--- plot cartopy gridlines ---------
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
-    
-    #--- colorbar -----------------------
-    cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
-                    information from data ('long_name, short_name) are used
-    
-    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
-                    otherwise units from data are used
 
-    cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
-                    (fontsize, fontweight, ...) via **kwarg
-    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
-                    (fontsize, fontweight, ...) via **kwarg
-    #--- axes ---------------------------
-    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
-                    in data to title label axes, If 'str' use this string to label axes
-    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
-                    do_axes_arrange
-    
-    #--- enumerate axes -----------------
-    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
-    
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    
-    #--- save figure ---------------------
-    do_save     :   str, (default: None) if None figure will by not saved, if 
-                    string figure will be saved, strings must give directory and 
-                    filename  where to save.     , 
-    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
-    
-    #--- set output ----------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
-                    are given out from the routine. 
-                    Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
+        :box:       None, list (default: None) regional limitation of plot. For ortho...
+                    box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = 
+                    [lonmin, lonmax, latmin, latmax]
+
+        :cinfo:     None, dict() (default: None), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
                     
-    ___RETURNS:_________________________________________________________________
-    hfig        :    returns figure handle 
-    hax         :    returns list with axes handle 
-    hcb         :    returns colorbar handle
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+
+        :nrow:      int, (default: 1) number of columns when plotting multiple data panels
+
+        :ncol:      int, (default: 1) number of rows when plotting multiple data panels
+
+        :proj:      str, (default: 'pc') which projection should be used, 
+                    - pc     ... PlateCarree         (box=[lonmin, lonmax, latmin, latmax])
+                    - merc   ... Mercator            (box=[lonmin, lonmax, latmin, latmax])
+                    - rob    ... Robinson            (box=[lonmin, lonmax, latmin, latmax])
+                    - eqearth... EqualEarth          (box=[lonmin, lonmax, latmin, latmax])
+                    - mol    ... Mollweide           (box=[lonmin, lonmax, latmin, latmax])
+                    - nps    ... NorthPolarStereo    (box=[-180, 180, >0, latmax])
+                    - sps    ... SouthPolarStereo    (box=[-180, 180, latmin, <0])
+                    - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
+                    - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
+                    - channel... PlateCaree
+
+        :do_ie2n:   bool, (default: False) do interpolation of data on elements towards nodes
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+
+        ___plot data parameters_____________________________
+
+        :do_plt:    str, (default: tpc)
+                    - tpc ... make pseudocolor plot (tripcolor)
+                    - tcf ... make contourf color plot (tricontourf)
+
+        :plt_opt:   dict, (default: dict()) additional options that are given to tripcolor 
+                    or tricontourf via the kwarg argument
+
+        :plt_contb: bool, (default: False) overlay thin contour lines of all colorbar steps (background)
+
+        :pltcb_opt: dict, (default: dict()) background contour line option
+
+        :plt_contf: bool, (default: False) overlay thicker contour lines of the main colorbar steps (foreground)
+
+        :pltcf_opt: dict, (default: dict()) foreground contour line option
+
+        :plt_contr: bool, (default: False) overlay thick contour lines of reference color steps (reference)
+
+        :pltcr_opt: dict, (default: dict()) reference contour line option
+
+        :plt_contl: bool, (default: False) label overlayed  contour linec plot
+
+        :pltcl_opt: dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+        ___plot mesh________________________________________
+
+        :do_mesh:   bool, (default: True), overlay FESOM grid over dataplot
+
+        :mesh_opt:  dict, (default: dict()) additional options that are given to the mesh plotting via kwarg
+
+        ___plot bottom mask_________________________________
+
+        :do_bot:    bool, (default: True), overlay topographic bottom mask
+
+        :bot_opt:   dict, (default: dict()) additional options that are given to the bottom mask plotting via kwarg
+
+        ___plot lsmask______________________________________
+
+        :do_lsm:    str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
+                    option are here:
+                    
+                    - fesom      ... grey fesom landsea mask
+                    - stock      ... uses cartopy stock image
+                    - bluemarble ... uses bluemarble image in folder tripyview/background/
+                    - etopo      ... uses etopo image in folder tripyview/background/
+
+        :lsm_opt:   dict, (default: dict()) additional options that are given to 
+                    the landsea mask plotting via kwarg
+
+        :lsm_res:   str, (default='low') resolution of bluemarble texture file either 'low' or 'high'
+
+        ___plot cartopy gridlines____________________________
+
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
+
+        :do_boundbox: bool, (default: True) plot cartopy black bounding box. If you 
+                    make plots as a texture to use in blender, unity or pyvista the bounding box 
+                    has to be removed with do_boundbox=False
+
+        ___colorbar_________________________________________
+
+        :cb_label:  str, (default: None) if string its used as colorbar label, otherwise 
+                    information from data ('long_name, short_name) are used
+
+        :cb_lunit:  str, (default: None) if string its used as colorbar unit label, 
+                    otherwise info from data are used
+
+        :cb_ltime:  str, (default: None) if string its used as colorbar time label, 
+                    otherwise info from data are used
+
+        :cb_ldep:   str, (default: None) if string its used as colorbar depth label, 
+                    otherwise info from data are used                
+
+        :cb_opt:    dict, (default: dict()) direct option for colorbar via kwarg
+
+        :cbl_opt:   dict, (default: dict()) direct option for colorbar labels (fontsize, fontweight, ...) via kwarg
+
+        :cbtl_opt:  dict, (default: dict()) direct option for colorbar tick labels (fontsize, fontweight, ...) via kwarg
+
+        ___axes______________________________________
+
+        :ax_title:  str, (default: 'descript') If 'descript' use descript attribute 
+                    in data to title label axes, If 'str' use this string to label axes
+
+        :ax_opt:    dict, (default: dict()) set option for axes arangement see subroutine 
+                    do_axes_arrange
+
+        :axl_opt:   dict, (default: dict()) set option for axes labels (fontsize, ...)
+
+        ___enumerate_________________________________
+
+        :do_enum:   bool, (default: False) do enumeration of axes with a), b), c) ...
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings        , 
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in axes coordinates
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to right, 'ud' from up to down
+
+        ___save figure________________________________
+
+        :do_save:   str, (default: None) if None figure will by not saved, if string figure 
+                    will be saved, strings must give directory and filename  where to save.
+
+        :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
+
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+
+        ___set output_________________________________
+
+        :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
+                    out from the routine. 
+                    Default: 
+                    
+                    - hfig ... figure handle
+                    - hax  ... list of axes handle 
+                    - hcb  ... list of colorbar handles (every variable that is defined in this subroutine can become output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        :hfig: returns figure handle 
+
+        :hax: returns list with axes handle 
+
+        :hcb: returns colorbar handle
+    
     ____________________________________________________________________________
     """    
     #___________________________________________________________________________
@@ -725,7 +830,7 @@ def plot_hmesh( mesh                   ,
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, norm_plot, 
-                                 plt_opt=plt_opt, 
+                                 plt_opt  =plt_opt, 
                                  plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
                                  plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                  plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -787,6 +892,7 @@ def plot_hmesh( mesh                   ,
         return
 
 
+
 #
 #
 #_______________________________________________________________________________
@@ -809,7 +915,7 @@ def plot_hquiver(mesh                  ,
                 quiv_smax  = 10        , # small arrow are scaled strong with factor smax, its off when smax=1
                 quiv_shiftL= 2         , # shift smothing function to the left
                 quiv_smooth= 2         , # slope of transitions zone, smaller value steeper transition
-                #--- mesh __---------
+                #--- mesh -----------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    , 
                 #--- bottom mask ----
@@ -856,148 +962,203 @@ def plot_hquiver(mesh                  ,
                 nargout=['hfig', 'hax', 'hcb'],
                 ):
     """
-    ---> plot FESOM2 horizontal data slice:
-    ___INPUT:___________________________________________________________________
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    data        :   xarray dataset object, or list of xarray dataset object
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-                    
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
+    --> plot FESOM2 horizontal data slice as quiver plot:
     
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
+    __________________________________________________
     
-    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
-    
-    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
-                    towards nodes
-    
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    
-    --- plot quiver ---------------------
-    do_quiv     :   bool, (default: True), do cartopy quiver plot
-    
-    quiv_opt    :   dict, (default: dict()) additional options that are given to 
-                    quiver plot routine
-    quiv_hfac   :   float, (default: 1.0)  smaller means larger arrows, if None
-                    autoscaling of quiver cartopy is active
-    quiv_excl   :   float, (default: 0.45) smaller means more excluded arrows 
-    
-    --- plot topo -----------------------
-    do_topo     :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    topo_opt    :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    
-    topo_cont   :   bool, (default: False) overlay contour line plot of data
-    topoc_opt   :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    
-    topo_contl  :   bool, (default: False) label overlayed  contour linec plot
-    topocl_opt  :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    
-    --- plot mesh -----------------------
-    do_mesh     :   bool, (default: True), overlay FESOM grid over dataplot
-    mesh_opt    :   dict, (default: dict()) additional options that are given to 
-                    the mesh plotting via **kwarg
-    
-    --- plot bottom mask ----------------
-    do_bot      :   bool, (default: True), overlay topographic bottom mask
-    bot_opt     :   dict, (default: dict()) additional options that are given to 
-                    the bottom mask plotting via **kwarg
-    
-    --- plot landsea mask ---------------
-    do_lsm      :   str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
-                    option are here:
-                    fesom       :   grey fesom landsea mask
-                    stock       :   uses cartopy stock image
-                    bluemarble  :   uses bluemarble image in folder tripyview/background/
-                    etopo       :   uses etopo image in folder tripyview/background/
-    lsm_opt     :   dict, (default: dict()) additional options that are given to 
-                    the landsea mask plotting via **kwarg
-    
-    #--- plot cartopy gridlines ---------
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
-    
-    #--- colorbar -----------------------
-    cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
-                    information from data ('long_name, short_name) are used
-    
-    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
-                    otherwise units from data are used
+    Parameters:
+        
+        :mesh:      fesom2 mesh object, with all mesh information
 
-    cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
-                    (fontsize, fontweight, ...) via **kwarg
-    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
-                    (fontsize, fontweight, ...) via **kwarg
+        :data:      xarray dataset object, or list of xarray dataset object
+
+        :box:       None, list (default: None) regional limitation of plot. For ortho...
+                    box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = 
+                    [lonmin, lonmax, latmin, latmax]
+
+        :cinfo:     None, dict() (default: None), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
                     
-    #--- axes ---------------------------
-    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+ 
+        :nrow:      int, (default: 1) number of columns when plotting multiple data panels
+
+        :ncol:      int, (default: 1) number of rows when plotting multiple data panels
+
+        :proj:      str, (default: 'pc') which projection should be used, 
+                    - pc     ... PlateCarree         (box=[lonmin, lonmax, latmin, latmax])
+                    - merc   ... Mercator            (box=[lonmin, lonmax, latmin, latmax])
+                    - rob    ... Robinson            (box=[lonmin, lonmax, latmin, latmax])
+                    - eqearth... EqualEarth          (box=[lonmin, lonmax, latmin, latmax])
+                    - mol    ... Mollweide           (box=[lonmin, lonmax, latmin, latmax])
+                    - nps    ... NorthPolarStereo    (box=[-180, 180, >0, latmax])
+                    - sps    ... SouthPolarStereo    (box=[-180, 180, latmin, <0])
+                    - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
+                    - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
+                    - channel... PlateCaree
+
+        :do_ie2n:    bool, (default: False) do interpolation of data on elements towards nodes
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+
+        ___plot quiver parameters___________________________
+
+        :do_quiv:   bool, (default: True), do cartopy quiver plot
+
+        :quiv_opt:  dict, (default: dict()) additional options that are given to quiver plot routine
+
+        :quiv_scalfac:  float, (default: 1.0)  bigger means larger arrows
+
+        :quiv_arrwidth: float, (default: 0.25) scale arrow width
+
+        :quiv_dens: float, (default: 0.5)  larger mean more excluded arrows
+
+        :quiv_smax: float, (default: 10) small arrow are scaled strong with factor smax, its off when smax=1
+
+        :quiv_shiftL: float, (default: 2) shift smothing function to the left
+
+        :quiv_smooth: float, (default: 2) slope of transitions zone, smaller value steeper transition
+
+        ___plot mesh________________________________________
+
+        :do_mesh:   bool, (default: True), overlay FESOM grid over dataplot
+
+        :mesh_opt:  dict, (default: dict()) additional options that are given to the mesh plotting via kwarg
+
+        ___plot bottom mask_________________________________
+
+        :do_bot:    bool, (default: True), overlay topographic bottom mask
+
+        :bot_opt:   dict, (default: dict()) additional options that are given to the bottom mask plotting via kwarg
+
+        ___plot topo________________________________________
+
+        :do_topo:   str, (default: tpc) = 
+                    - tpc ... make pseudocolor plot (tripcolor)
+                    - tcf ... make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
+
+        :topo_opt:  dict, (default: dict()) additional options that are given to 
+                    tripcolor or tricontourf via the kwarg argument
+
+        :topo_cont: bool, (default: False) overlay contour line plot of data
+
+        :topoc_opt: dict, (default: dict()) additional options that are given to 
+                    tricontour via the kwarg argument
+
+        :topo_contl: bool, (default: False) label overlayed  contour linec plot
+
+        :topocl_opt: dict, (default: dict()) additional options that are given to 
+                    clabel via the kwarg argument
+
+         ___plot lsmask______________________________________
+
+        :do_lsm:    str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
+                    option are here:
+                    
+                    - fesom      ... grey fesom landsea mask
+                    - stock      ... uses cartopy stock image
+                    - bluemarble ... uses bluemarble image in folder tripyview/background/
+                    - etopo      ... uses etopo image in folder tripyview/background/
+
+        :lsm_opt:   dict, (default: dict()) additional options that are given to 
+                    the landsea mask plotting via kwarg
+
+        :lsm_res:   str, (default='low') resolution of bluemarble texture file either 'low' or 'high'
+
+        ___plot cartopy gridlines____________________________
+
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
+
+        :do_boundbox: bool, (default: True) plot cartopy black bounding box. If you 
+                    make plots as a texture to use in blender, unity or pyvista the bounding box 
+                    has to be removed with do_boundbox=False
+
+        ___colorbar_________________________________________
+
+        :cb_label:  str, (default: None) if string its used as colorbar label, otherwise 
+                    information from data ('long_name, short_name) are used
+
+        :cb_lunit:  str, (default: None) if string its used as colorbar unit label, 
+                    otherwise info from data are used
+
+        :cb_ltime:  str, (default: None) if string its used as colorbar time label, 
+                    otherwise info from data are used
+
+        :cb_ldep:   str, (default: None) if string its used as colorbar depth label, 
+                    otherwise info from data are used                
+
+        :cb_opt:    dict, (default: dict()) direct option for colorbar via kwarg
+
+        :cbl_opt:   dict, (default: dict()) direct option for colorbar labels (fontsize, fontweight, ...) via kwarg
+
+        :cbtl_opt:  dict, (default: dict()) direct option for colorbar tick labels (fontsize, fontweight, ...) via kwarg
+
+        ___axes______________________________________
+
+        :ax_title:  str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
-    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
+
+        :ax_opt:    dict, (default: dict()) set option for axes arangement see subroutine 
                     do_axes_arrange
-    
-    #--- enumerate axes -----------------
-    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
-    
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    
-    #--- save figure ---------------------
-    do_save     :   str, (default: None) if None figure will by not saved, if 
-                    string figure will be saved, strings must give directory and 
-                    filename  where to save.     , 
-    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
-    
-    #--- set output ----------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
-                    are given out from the routine. 
+
+        :axl_opt:   dict, (default: dict()) set option for axes labels (fontsize, ...)
+
+        ___enumerate_________________________________
+
+        :do_enum:   bool, (default: False) do enumeration of axes with a), b), c) ...
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings        , 
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in axes coordinates
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to right, 'ud' from up to down
+
+        ___save figure________________________________
+
+        :do_save:   str, (default: None) if None figure will by not saved, if string figure 
+                    will be saved, strings must give directory and filename  where to save.
+
+        :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
+
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+
+        ___set output_________________________________
+
+        :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
+                    out from the routine. 
                     Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
                     
-    ___RETURNS:_________________________________________________________________
-    hfig        :    returns figure handle 
-    hax         :    returns list with axes handle 
-    hcb         :    returns colorbar handle
+                    - hfig ... figure handle
+                    - hax  ... list of axes handle 
+                    - hcb  ... list of colorbar handles (every variable that is defined in this subroutine can become output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        hfig: returns figure handle 
+
+        hax: returns list with axes handle 
+
+        hcb: returns colorbar handle
+    
     ____________________________________________________________________________
     """
     #___________________________________________________________________________
@@ -1163,7 +1324,7 @@ def plot_hquiver(mesh                  ,
     else:
         return
     
-        
+
     
 #
 #
@@ -1179,7 +1340,6 @@ def plot_vslice(mesh                   ,
                 nrow       = 1         , # number of row in figures panel
                 ncol       = 1         , # number of column in figure panel
                 proj       = None      ,
-                do_reffig  = False     , 
                 do_ie2n    = False     , # interpolate element data to vertices
                 do_rescale = False     ,
                 #--- data -----------
@@ -1234,144 +1394,180 @@ def plot_vslice(mesh                   ,
                 nargout=['hfig', 'hax', 'hcb'],
                 ):
     """
-    ---> plot FESOM2 horizontal data slice:
-    ___INPUT:___________________________________________________________________
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    data        :   xarray dataset object, or list of xarray dataset object
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-                    
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
+    --> plot FESOM2 horizontal data slice:
     
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
+    __________________________________________________
     
-    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
+    Parameters: 
     
-    do_refig    :   bool, (default: False) do absolute reference figure, with 
-                    own colormap. Data for reference figure is data[0]
-                    
-    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
-                    towards nodes
-    
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    
-    --- plot data parameters ------------
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    
-    --- plot mesh -----------------------
-    do_mesh     :   bool, (default: True), overlay FESOM grid over dataplot
-    mesh_opt    :   dict, (default: dict()) additional options that are given to 
-                    the mesh plotting via **kwarg
-    
-    --- plot bottom mask ----------------
-    do_bot      :   bool, (default: True), overlay topographic bottom mask
-    bot_opt     :   dict, (default: dict()) additional options that are given to 
-                    the bottom mask plotting via **kwarg
-    
-    --- plot landsea mask ---------------
-    do_lsm      :   str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
-                    option are here:
-                    fesom       :   grey fesom landsea mask
-                    stock       :   uses cartopy stock image
-                    bluemarble  :   uses bluemarble image in folder tripyview/background/
-                    etopo       :   uses etopo image in folder tripyview/background/
-    lsm_opt     :   dict, (default: dict()) additional options that are given to 
-                    the landsea mask plotting via **kwarg
-    
-    #--- plot cartopy gridlines ---------
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
-    
-    #--- colorbar -----------------------
-    cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
-                    information from data ('long_name, short_name) are used
-    
-    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
-                    otherwise units from data are used
+        :mesh:      fesom2 mesh object,  with all mesh information 
 
-    cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar labels 
-                    (fontsize, fontweight, ...) via **kwarg
-    cbtl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
-                    (fontsize, fontweight, ...) via **kwarg
+        :data:      xarray dataset object, or list of xarray dataset object
+
+        :box:       None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts), boxname] index region defined by polygon
+
+        :box_idx:   int, (default: None) index in boxlist 
+
+        :box_label: str  (default: None) overwrites boxname string 
+
+        :boxl_opt:  dict (default: dict() additional options for boxlabel string (fontsize...)
+
+        :cinfo:     None, dict() (default: None), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
                     
-    #--- axes ---------------------------
-    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+
+        :nrow:      int, (default: 1) number of columns when plotting multiple data panels
+
+        :ncol:      int, (default: 1) number of rows when plotting multiple data panels
+
+        :proj:      str, (default: None) is choosen here autometically by data attribute
+                    proj, can be setted also from hand to ...
+                    - index+depth+xy    
+                    - index+depth+time  
+                    - zmoc   
+                    - dmoc
+                    - dmoc+depth
+                    - dmoc+dens
+
+        :do_ie2n:   bool, (default: False) do interpolation of data on elements towards nodes
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+
+        ___plot data parameters_____________________________
+
+        :do_plt:    str, (default: tpc)
+                    - tpc ... make pseudocolor plot (tripcolor)
+                    - tcf ... make contourf color plot (tricontourf)
+
+        :plt_opt:   dict, (default: dict()) additional options that are given to tripcolor 
+                    or tricontourf via the kwarg argument
+
+        :plt_contb: bool, (default: False) overlay thin contour lines of all colorbar steps (background)
+
+        :pltcb_opt: dict, (default: dict()) background contour line option
+
+        :plt_contf: bool, (default: False) overlay thicker contour lines of the main colorbar steps (foreground)
+
+        :pltcf_opt: dict, (default: dict()) foreground contour line option
+
+        :plt_contr: bool, (default: False) overlay thick contour lines of reference color steps (reference)
+
+        :pltcr_opt: dict, (default: dict()) reference contour line option
+
+        :plt_contl: bool, (default: False) label overlayed  contour linec plot
+
+        :pltcl_opt: dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+        ___plot mesh________________________________________
+
+        :do_mesh:   bool, (default: True), overlay FESOM grid over dataplot
+
+        :mesh_opt:  dict, (default: dict()) additional options that are given to the mesh plotting via kwarg
+
+        ___plot bottom mask_________________________________
+        
+        :do_bot:    bool, (default: True), overlay topographic bottom mask
+
+        :bot_opt:   dict, (default: dict()) additional options that are given to the bottom mask plotting via kwarg
+ 
+        ___plot cartopy gridlines____________________________
+
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
+
+        ___colorbar_________________________________________
+
+        :cb_label:  str, (default: None) if string its used as colorbar label, otherwise 
+                    information from data ('long_name, short_name) are used
+
+        :cb_lunit:  str, (default: None) if string its used as colorbar unit label, 
+                    otherwise info from data are used
+
+        :cb_ltime:  str, (default: None) if string its used as colorbar time label, 
+                    otherwise info from data are used
+
+        :cb_ldep:   str, (default: None) if string its used as colorbar depth label, 
+                    otherwise info from data are used                
+
+        :cb_opt:    dict, (default: dict()) direct option for colorbar via kwarg
+
+        :cbl_opt:   dict, (default: dict()) direct option for colorbar labels (fontsize, fontweight, ...) via kwarg
+
+        :cbtl_opt:  dict, (default: dict()) direct option for colorbar tick labels (fontsize, fontweight, ...) via kwarg
+
+        ___axes______________________________________
+
+        :ax_title:  str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
-    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
+
+        :ax_opt:    dict, (default: dict()) set option for axes arangement see subroutine 
                     do_axes_arrange
-    ax_xlim     :   list (default: None) overright xlimits of vslice
-    ax_ylim     :   list (default: None) overright ylimits of vslice       
+
+        :axl_opt:   dict, (default: dict()) set option for axes labels (fontsize, ...)
+
+        ___enumerate_________________________________
+
+        :do_enum:   bool, (default: False) do enumeration of axes with a), b), c) ...
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings        , 
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in axes coordinates
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to right, 'ud' from up to down
+
+        ___save figure________________________________
+
+        :do_save:   str, (default: None) if None figure will by not saved, if string figure 
+                    will be saved, strings must give directory and filename  where to save.
+
+        :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
+
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+
     
-    #--- enumerate axes -----------------
-    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
-    
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    
-    #--- save figure ---------------------
-    do_save     :   str, (default: None) if None figure will by not saved, if 
-                    string figure will be saved, strings must give directory and 
-                    filename  where to save.     , 
-    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
-    
-    #--- set output ----------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
-                    are given out from the routine. 
+        ___set output_________________________________
+
+        :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
+                    out from the routine. 
                     Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
                     
-    ___RETURNS:_________________________________________________________________
-    hfig        :    returns figure handle 
-    hax         :    returns list with axes handle 
-    hcb         :    returns colorbar handle
+                    - hfig ... figure handle
+                    - hax  ... list of axes handle 
+                    - hcb  ... list of colorbar handles (every variable that is defined in this subroutine can become output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        :hfig: returns figure handle 
+        
+        :hax: returns list with axes handle 
+        
+        :hcb: returns colorbar handle
+    
     ____________________________________________________________________________
     """
     #___________________________________________________________________________
@@ -1470,6 +1666,7 @@ def plot_vslice(mesh                   ,
             # add tripcolor or tricontourf plot 
             h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
+                                plt_opt  =plt_opt,
                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt,
                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
@@ -1589,7 +1786,7 @@ def plot_vslice(mesh                   ,
 #
 #
 #_______________________________________________________________________________
-# --> do plotting of horizontal slices
+# --> do plotting of horizontal lines over index region (e.g. heatflux vs lon, lat)
 def plot_hline(data                   , 
                 box        = None      , 
                 box_idx    = None      ,
@@ -1602,6 +1799,7 @@ def plot_hline(data                   ,
                 do_allcycl = False     , 
                 do_shdw    = True      ,
                 do_mean    = False     ,
+                do_rescale = False     ,
                 #--- data -----------
                 plt_opt    = dict()    ,
                 mark_opt   = dict()    ,
@@ -1612,6 +1810,8 @@ def plot_hline(data                   ,
                 ax_title   = 'descript',
                 ax_xlabel  = None      ,
                 ax_ylabel  = None      ,
+                ax_xunit   = None      ,
+                ax_yunit   = None      ,
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
                 ax_xlim    = None      ,
                 ax_ylim    = None      ,
@@ -1630,110 +1830,125 @@ def plot_hline(data                   ,
                 nargout=['hfig', 'hax'],
                 ):
     """
-    ---> plot FESOM2 horizontal data slice:
-    ___INPUT:___________________________________________________________________
-    data        :   xarray dataset object, or list of xarray dataset object
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
+    --> do plotting of horizontal lines over index region (e.g. heatflux vs lon, lat)
+    
+    __________________________________________________
+    
+    Parameters:
+
+        :data:      xarray dataset object, or list of xarray dataset object
+
+        :box:       None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts) boxname] index region defined by polygon
+
+        :box_idx:   int, (default: None) index in boxlist 
+
+        :box_label: str  (default: None) overwrites boxname string 
+
+        :boxl_opt:  dict (default: dict() additional options for boxlabel string (fontsize...)
+        
+        :nrow:      int, (default: 1) number of columns when plotting multiple data panels
+
+        :ncol:      int, (default: 1) number of rows when plotting multiple data panels
+
+        :proj:      str, (default: 'index+xy')
+                        
+        :n_cycl:    int, (default: None) How many spinup cycles are contained
+                    in the data_list. Info is needed when do_allcycl=True,
+
+        :do_allcycl: bool, (default: False) plot all spinupcycles based on colormap value 
+
+        :do_shdw:   bool, (default: True) give lines a black outline
+
+        :do_mean:   bool, (default: False) plot triangle on the left side that indicates 
+                    the mean value
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+
+        ___plot data parameters_____________________________
+
+        :plt_opt:   dict, (default: dict()) additional options that are given to 
+                    line plot routine via the kwarg argument
+
+        :mark_opt:  dict, (default: dict()) additional options that are given to 
+                    control the line markers via the kwarg argument
+
+        ___plot gridlines___________________________________
+
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
                     
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
-    
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
-    
-    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
-    
-    do_refig    :   bool, (default: False) do absolute reference figure, with 
-                    own colormap. Data for reference figure is data[0]
-                    
-    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
-                    towards nodes
-    
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    
-    --- plot data parameters ------------
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    
-    #--- plot gridlines -----------------
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
-                    
-    #--- axes ---------------------------
-    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
+
+        ___axes______________________________________
+
+        :ax_title:  str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
-    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
-                    do_axes_arrange
-    ax_xlim     :   list (default: None) overright xlimits of vslice
-    ax_ylim     :   list (default: None) overright ylimits of vslice       
-    
-    #--- enumerate axes -----------------
-    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
-    
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    
-    #--- save figure ---------------------
-    do_save     :   str, (default: None) if None figure will by not saved, if 
-                    string figure will be saved, strings must give directory and 
-                    filename  where to save.     , 
-    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
-    
-    #--- set output ----------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
-                    are given out from the routine. 
+
+        :ax_xlabel: str, (default: None) overwrites default xlabel
+
+        :ax_ylabel: str, (default: None) overwrites default ylabel
+
+        :ax_xunit:  str, (default: None) overwrites default xlabel unit
+
+        :ax_yunit:  str, (default: None) overwrites default ylabel unit
+
+        :ax_opt:    dict, (default: dict()) set option for axes arangement see subroutine do_axes_arrange
+
+        :ax_xlim:   list (default: None) overright data related xlimits
+
+        :ax_ylim:   list (default: None) overright data related ylimits  
+
+        ___enumerate_________________________________
+
+        :do_enum:   bool, (default: False) do enumeration of axes with a), b), c) ...
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in axes coordinates
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to right, 'ud' from up to down
+
+        ___save figure________________________________
+
+        :do_save:   str, (default: None) if None figure will by not saved, if string figure 
+                    will be saved, strings must give directory and filename  where to save.
+
+        :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
+
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+
+        ___set output_________________________________
+
+        :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
+                    out from the routine. 
                     Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
                     
-    ___RETURNS:_________________________________________________________________
-    hfig        :    returns figure handle 
-    hax         :    returns list with axes handle 
-    hcb         :    returns colorbar handle
+                    - hfig ... figure handle
+                    - hax  ... list of axes handle 
+                    - (every variable that is defined in this subroutine can become output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        :hfig: returns figure handle 
+
+        :hax: returns list with axes handle 
+    
     ____________________________________________________________________________
     """
     #___________________________________________________________________________
@@ -1840,10 +2055,12 @@ def plot_hline(data                   ,
                     #_______________________________________________________________
                     if   'lat' in data[jj][bi]: 
                         data_x     =  data[jj][bi]['lat'].values 
-                        str_xlabel = 'Latitude / deg' if ax_xlabel is None else ax_xlabel
+                        str_xlabel = 'Latitude' if ax_xlabel is None else ax_xlabel
                     elif 'lon' in data[jj][bi]: 
                         data_x     = data[jj][bi]['lon'].values 
-                        str_xlabel = 'Longitude / deg' if ax_xlabel is None else ax_xlabel 
+                        str_xlabel = 'Longitude' if ax_xlabel is None else ax_xlabel 
+                    if ax_xunit is None: str_xlabel = str_xlabel + ' / deg'
+                    else               : str_xlabel = str_xlabel + ' / ' + ax_xunit
                     xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
                     
                     #_______________________________________________________________
@@ -1852,9 +2069,11 @@ def plot_hline(data                   ,
                     if ax_ylabel is None:
                         if   'long_name'     in loc_attrs: str_ylabel = str_ylabel + loc_attrs['long_name']
                         elif 'short_name'    in loc_attrs: str_ylabel = str_ylabel + loc_attrs['short_name']
-                        if   'units'         in loc_attrs: str_ylabel = str_ylabel + ' / ' + loc_attrs['units']
-                    else: 
-                        str_ylabel = ax_ylabel
+                    else: str_ylabel = ax_ylabel
+                    if ax_yunit is None:
+                            if 'units' in loc_attrs: str_ylabel = str_ylabel+' / '+loc_attrs['units']
+                    else: str_ylabel = str_ylabel+' / '+ ax_yunit
+                        
                     if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
                     if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
                     if   'transect_name' in loc_attrs: str_blabel = str_blabel + loc_attrs['transect_name']    
@@ -1901,7 +2120,7 @@ def plot_hline(data                   ,
             if ax_ylim is None: ax_ylim0=[ymin,ymax]
             h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
                                   data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim0, 
-                                  grid_opt=grid_opt)
+                                  grid_opt=grid_opt, do_rescale=do_rescale)
             hgrd.append(h0)
             
             #_______________________________________________________________________
@@ -1958,7 +2177,7 @@ def plot_hline(data                   ,
 #
 #
 #_______________________________________________________________________________
-# --> do plotting of horizontal slices
+# --> do plotting of mean indices over depth (e.g. vertical profiles)
 def plot_vline(data                   , 
                 box        = None      , 
                 box_idx    = None      ,
@@ -1983,6 +2202,8 @@ def plot_vline(data                   ,
                 ax_title   = 'descript',
                 ax_xlabel  = None      ,
                 ax_ylabel  = None      ,
+                ax_xunit   = None      ,
+                ax_yunit   = None      ,
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
                 ax_xlim    = None      ,
                 ax_ylim    = None      ,
@@ -2001,110 +2222,126 @@ def plot_vline(data                   ,
                 nargout=['hfig', 'hax'],
                 ):
     """
-    ---> plot FESOM2 horizontal data slice:
-    ___INPUT:___________________________________________________________________
-    data        :   xarray dataset object, or list of xarray dataset object
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
+    --> do plotting of mean indices over depth (e.g. vertical profiles)
+    
+    __________________________________________________
+    
+    Parameters:
+
+        :data:      xarray dataset object, or list of xarray dataset object
+
+        :box:       None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts) boxname] index region defined by polygon
+
+        :box_idx:   int, (default: None) index in boxlist 
+
+        :box_label: str, (default: None) overwrites boxname string 
+
+        :boxl_opt:  dict, (default: dict() additional options for boxlabel string (fontsize...)
+        
+        :nrow:      int, (default: 1) number of columns when plotting multiple data panels
+
+        :ncol:      int, (default: 1) number of rows when plotting multiple data panels
+
+        :proj:      str, (default: 'index+xy')
+
+        :n_cycl:    int, (default: None) How many spinup cycles are contained
+                    in the data_list. Info is needed when do_allcycl=True,
+
+        :do_allcycl: bool, (default: False) plot all spinupcycles based on colormap value 
+
+        :do_shdw:   bool, (default: True) give lines a black outline
+
+        :do_mean:   bool, (default: False) plot triangle on the left side that indicates 
+                    the mean value
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+
+         ___plot data parameters_____________________________
+
+        :plt_opt:   dict, (default: dict()) additional options that are given to 
+                    line plot routine via the kwarg argument
+
+        :mark_opt:  dict, (default: dict()) additional options that are given to 
+                    control the line markers via the kwarg argument
+
+        ___plot gridlines___________________________________
+    
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
                     
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
-    
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    nrow        :   int, (default: 1) number of columns when plotting multiple data panels
-    
-    ncol        :   int, (default: 1) number of rows when plotting multiple data panels
-    
-    do_refig    :   bool, (default: False) do absolute reference figure, with 
-                    own colormap. Data for reference figure is data[0]
-                    
-    do_ie2n     :   bool, (default: False) do interpolation of data on elements 
-                    towards nodes
-    
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    
-    --- plot data parameters ------------
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    
-    #--- plot gridlines -----------------
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
-                    
-    #--- axes ---------------------------
-    ax_title    :   str, (default: 'descript') If 'descript' use descript attribute 
+
+        ___axes______________________________________
+
+        :ax_title:  str, (default: 'descript') If 'descript' use descript attribute 
                     in data to title label axes, If 'str' use this string to label axes
-    ax_opt      :   dict, (default: dict()) set option for axes arangement see subroutine 
-                    do_axes_arrange
-    ax_xlim     :   list (default: None) overright xlimits of vslice
-    ax_ylim     :   list (default: None) overright ylimits of vslice       
+
+        :ax_xlabel: str, (default: None) overwrites default xlabel
+
+        :ax_ylabel: str, (default: None) overwrites default ylabel
+
+        :ax_xunit:  str, (default: None) overwrites default xlabel unit
+
+        :ax_yunit:  str, (default: None) overwrites default ylabel unit
+
+        :ax_opt:    dict, (default: dict()) set option for axes arangement see subroutine do_axes_arrange
+
+        :ax_xlim:   list (default: None) overright data related xlimits
+
+        :ax_ylim:   list (default: None) overright data related ylimits  
+
+        ___enumerate_________________________________
+
+        :do_enum:   bool, (default: False) do enumeration of axes with a), b), c) ...
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in axes coordinates
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to right, 'ud' from up to down
+
+        ___save figure________________________________
+
+        :do_save:   str, (default: None) if None figure will by not saved, if string figure 
+                    will be saved, strings must give directory and filename  where to save.
+
+        :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
+
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+
     
-    #--- enumerate axes -----------------
-    do_enum     :   bool, (default: False) do enumeration of axes with a), b), c) ...
-    
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    
-    #--- save figure ---------------------
-    do_save     :   str, (default: None) if None figure will by not saved, if 
-                    string figure will be saved, strings must give directory and 
-                    filename  where to save.     , 
-    save_dpi    :   int, (default: 300) dpi resolution at which the figure is saved
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
-    
-    #--- set output ----------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb']) list of variables that
-                    are given out from the routine. 
+        ___set output_________________________________
+
+        nargout:    list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
+                    out from the routine. 
                     Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
                     
-    ___RETURNS:_________________________________________________________________
-    hfig        :    returns figure handle 
-    hax         :    returns list with axes handle 
-    hcb         :    returns colorbar handle
+                    - hfig ... figure handle
+                    - hax  ... list of axes handle 
+                    - (every variable that is defined in this subroutine can become output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        :hfig: returns figure handle 
+
+        :hax: returns list with axes handle 
+    
     ____________________________________________________________________________
     """
     #___________________________________________________________________________
@@ -2219,9 +2456,11 @@ def plot_vline(data                   ,
                     if ax_xlabel is None:
                         if   'long_name'     in loc_attrs: str_xlabel = str_xlabel + loc_attrs['long_name'].capitalize()
                         elif 'short_name'    in loc_attrs: str_xlabel = str_xlabel + loc_attrs['short_name']
-                        if   'units'         in loc_attrs: str_xlabel = str_xlabel + ' / ' + loc_attrs['units']
-                    else:
-                        str_xlabel = ax_xlabel
+                    else: str_xlabel = ax_xlabel
+                    if ax_xunit is None:
+                        if 'units' in loc_attrs: str_xlabel = str_xlabel+' / '+loc_attrs['units']
+                    else: str_xlabel = str_xlabel+' / '+ ax_xunit
+                        
                     if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
                     if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
                     if   'transect_name' in loc_attrs: str_blabel = str_blabel + loc_attrs['transect_name']
@@ -2340,7 +2579,7 @@ def plot_vline(data                   ,
 #
 #
 #_______________________________________________________________________________
-# --> do plot timeseries
+# --> do plot timeseries of mean index
 def plot_tline(data, 
                 box, 
                 box_idx    = None      ,
@@ -2385,7 +2624,131 @@ def plot_tline(data,
                 #--- set output -----
                 nargout=['hfig', 'hax'],
                 ):    
+    """
+    --> do plotting of mean indices over time (e.g. time-series)
     
+    __________________________________________________
+    
+    Parameters:
+
+        :data:      xarray dataset object, or list of xarray dataset object
+
+        :box:       None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts) boxname] index region defined by polygon
+
+        :box_idx:   int, (default: None) index in boxlist 
+
+        :box_label: str  (default: None) overwrites boxname string 
+
+        :boxl_opt:  dict (default: dict() additional options for boxlabel string (fontsize...)
+        
+        :nrow:      int, (default: 1) number of columns when plotting multiple data panels
+
+        :ncol:      int, (default: 1) number of rows when plotting multiple data panels
+
+        :proj:      str, (default: 'index+xy')
+                        
+        :n_cycl:    int, (default: None) How many spinup cycles are contained
+                    in the data_list. Info is needed when do_allcycl=True,
+
+        :do_allcycl: bool, (default: False) plot all spinupcycles based on colormap value 
+
+        :do_concat: bool, (default: False) attache time-series of the the same spinup
+                    cycle behind each other. Create one long spinup time-series
+
+        :do_shdw:   bool, (default: True) give lines a black outline
+
+        :do_mean:   bool, (default: False) plot triangle on the left side that indicates 
+                    the mean value
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+        
+        ___plot data parameters_____________________________
+
+        :plt_opt:   dict, (default: dict()) additional options that are given to 
+                    line plot routine via the kwarg argument
+
+        :mark_opt:  dict, (default: dict()) additional options that are given to 
+                    control the line markers via the kwarg argument
+
+        ___plot gridlines___________________________________
+
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
+                    
+
+        ___axes______________________________________
+
+        :ax_title:  str, (default: 'descript') If 'descript' use descript attribute 
+                    in data to title label axes, If 'str' use this string to label axes
+
+        :ax_xlabel: str, (default: None) overwrites default xlabel
+
+        :ax_ylabel: str, (default: None) overwrites default ylabel
+
+        :ax_xunit:  str, (default: None) overwrites default xlabel unit
+
+        :ax_yunit:  str, (default: None) overwrites default ylabel unit
+
+        :ax_opt:    dict, (default: dict()) set option for axes arangement see subroutine do_axes_arrange
+
+        :ax_xlim:   list (default: None) overright data related xlimits
+
+        :ax_ylim:   list (default: None) overright data related ylimits  
+
+        ___enumerate_________________________________
+
+        :do_enum:   bool, (default: False) do enumeration of axes with a), b), c) ...
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in axes coordinates
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to right, 'ud' from up to down
+
+        ___save figure________________________________
+
+        :do_save:   str, (default: None) if None figure will by not saved, if string figure 
+                    will be saved, strings must give directory and filename  where to save.
+
+        :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
+
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+
+        ___set output_________________________________
+
+        :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
+                    out from the routine. 
+                    Default: 
+                    
+                    - hfig ... figure handle
+                    - hax  ... list of axes handle 
+                    - (every variable that is defined in this subroutine can become output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        :hfig: returns figure handle 
+
+        :hax: returns list with axes handle 
+    
+    ____________________________________________________________________________
+    """
     import matplotlib.patheffects as path_effects
     from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 
@@ -2522,10 +2885,8 @@ def plot_tline(data,
                     if ax_xlabel is None:
                         str_xlabel = 'Time'
                         if   'add2xlabel' in loc_attrs: str_xlabel = str_xlabel+' '+loc_attrs['add2xlabel']
-                        if ax_xunit is None:
-                            str_xlabel = str_xlabel + ' / years'
-                        else:    
-                            str_xlabel = str_xlabel + ' / ' + ax_xunit 
+                        if ax_xunit is None: str_xlabel = str_xlabel + ' / years'
+                        else               : str_xlabel = str_xlabel + ' / ' + ax_xunit 
                     else:
                         str_xlabel = ax_xlabel
                     
@@ -2536,8 +2897,7 @@ def plot_tline(data,
                         
                         if ax_yunit is None:
                             if   'units'      in loc_attrs: str_ylabel = str_ylabel+' / '+loc_attrs['units']
-                        else:
-                            str_ylabel = str_ylabel+' / '+ ax_yunit
+                        else: str_ylabel = str_ylabel+' / '+ ax_yunit
                     else:
                         str_ylabel = ax_ylabel
                     
@@ -2675,27 +3035,34 @@ def plot_tline(data,
 # --> setup cartopy projections     
 def do_projection(mesh, proj, box):
     """
-    ___INPUT:___________________________________________________________________
-    mesh        :   fesom2 mesh object,  with all mesh information 
+    --> set cartopy target projection 
     
-    proj        :   str, (default: 'pc') which projection should be used, 
-                    pc     = PlateCarree
-                    merc   = Mercator
-                    rob    = Robinson
-                    eqearth= EqualEarth
-                    nps    = NorthPolarStereo
-                    sps    = SouthPolarStereo
-                    ortho  = Orthographic
-                    nears  = NearsidePerspective
-                    channel= PlateCaree
-                    
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
+    Parameters:
+    
+        :mesh:      fesom2 mesh object,  with all mesh information 
+
+        :proj:      str, (default: 'pc') which projection should be used, 
+                    - pc     ... PlateCarree         (box=[lonmin, lonmax, latmin, latmax])
+                    - merc   ... Mercator            (box=[lonmin, lonmax, latmin, latmax])
+                    - rob    ... Robinson            (box=[lonmin, lonmax, latmin, latmax])
+                    - eqearth... EqualEarth          (box=[lonmin, lonmax, latmin, latmax])
+                    - mol    ... Mollweide           (box=[lonmin, lonmax, latmin, latmax])
+                    - nps    ... NorthPolarStereo    (box=[-180, 180, >0, latmax])
+                    - sps    ... SouthPolarStereo    (box=[-180, 180, latmin, <0])
+                    - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
+                    - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
+                    - channel... PlateCaree
+
+        :box:       None, list (default: None) regional limitation of plot. For 
+                    ortho box = [lonc, latc], nears [lonc, latc, zoom], for all
                     others box = [lonmin, lonmax, latmin, latmax]
     
-    ___RETURNS:_________________________________________________________________
-    proj_to     :   cartopy projection object 
-    box         :   return projection adapted box list
+    Returns:
+    
+        :proj_to:   cartopy projection object 
+
+        :box:       return projection adapted box list
+
     ____________________________________________________________________________
     """ 
     
@@ -2773,17 +3140,27 @@ def do_projection(mesh, proj, box):
 def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), 
                      do_triorig=False, do_narea=True, do_earea=False):
     """
-    ---> plot FESOM2 horizontal data slice:
-    ___INPUT:___________________________________________________________________
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    proj_from   :   cartopy source projection object                   
-    proj_to     :   cartopy destination projection object   
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
-                    
-    ___RETURNS:_________________________________________________________________
-    tri         :    tri         :   matplotlib.tri triangulation object
+    --> create matplotlib triangulation object
+    
+    Parameters:
+    
+        :hax:       handle of current axes
+
+        :mesh:      fesom2 mesh object,  with all mesh information 
+
+        :proj_to:   cartopy destination projection object   
+
+        :proj_from: cartopy source projection object (default: ccrs.PlateCarree())                  
+
+        :do_triorig: bool, (default=False) save original vertices coordinate in lon,lat space 
+
+        :do_narea:  bool (default=True), drag vertices area with you is needed for normalisation
+
+        :do_earea:  bool (default=True), drag element area with you is needed for normalisation
+    
+    Returns:
+    
+        :tri:       matplotlib.tri triangulation object
     
     ____________________________________________________________________________
     """
@@ -2804,8 +3181,12 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
     
     elif not isinstance(proj_to, (ccrs.Orthographic)):    
         xpts, ypts = proj_from.transform_points(proj_to, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
-        fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
-        ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
+        if isinstance(hax, list):
+            fig_pts    = hax[0].transData.transform(list(zip(xpts,ypts)))
+            ax_pts     = hax[0].transAxes.inverted().transform(fig_pts)
+        else:    
+            fig_pts    = hax.transData.transform(list(zip(xpts,ypts)))
+            ax_pts     = hax.transAxes.inverted().transform(fig_pts)
         e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
         del(xpts, ypts, fig_pts, ax_pts)
         
@@ -2856,18 +3237,24 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
 #
 #
 #_______________________________________________________________________________
-# reindex element index in case of exluded triangles and unused vertices
 def do_reindex_vert_and_elem(tri, e_box_mask):
     """
-    ___INPUT:___________________________________________________________________
-    tri         :   matplotlib.tri triangulation object
-    e_box_mask  :   bool np.array with element masking from regional box definition
-                    
-    ___RETURNS:_________________________________________________________________
-    tri         :   matplotlib.tri triangulation object where unreferenced trinagles 
+    --> reindex element index in case of exluded triangles and unused vertices
+    
+    Parameters:
+    
+        :tri:       matplotlib.tri triangulation object
+        
+        :e_box_mask: bool np.array with element masking from regional box definition
+
+    Returns:
+    
+        :tri:       matplotlib.tri triangulation object where unreferenced triangles 
                     are kickout and the indices of the remaining vertices are 
                     adapted accordingly in the element list
-    n_box_mask  :   bool np.array with vertices masking from regional box selection
+
+        :n_box_mask: bool np.array with vertices masking from regional box selection
+    
     ____________________________________________________________________________
     """     
     # Identify used vertices
@@ -2943,105 +3330,164 @@ def do_axes_arrange(nx, ny,
                     **kwargs,
                 ):
     """
-    ___INPUT:___________________________________________________________________
-    #---LABEL OPTION--------------------
-    xlabel      :   str (default: '') provide prescribed xlabel string 
-    ylabel      :   str (default: '') provide prescribed ylabel string 
-    tlabel      :   str (default: '') provide prescribed title string 
-    fs_label    :   int (default: 10) prescribed fontsize for labels
-    fs_title    :   int (default: 10) prescribed fontsize for title
-    fs_ticks    :   int (default: 10) prescribed fontsize for ticklabels
-    fs_fac      :   int (default: 1)  factor to generally increase fontsize
-                    
-    #---AXES OPTIONS--------------------
-    ax_sharex   :   bool (default: True) all subplot share x-axes
-    ax_sharey   :   bool (default: True) all subplot share y-axes
-    ax_optdict  :   dict (default: dict()) additional axes option: fontssize, ...
-    ax_asp      :   float (default: 1.) aspect ratio of axes
+    --> do multipanel axes arangement 
+
+    __________________________________________________
     
-    ax_w        :   float, int (default: 'auto') if 'auto' width is defined based on
-                    aspect ration ax_asp and height ax_h in cm, if float value is 
-                    used to define width in cm
-    ax_h        :   float, int (default: 4) if 'auto' height is defined based on
-                    aspect ration ax_asp and width ax_w in cm, if float value is 
-                    used to define height in cm
-    ax_fw       :   float (default: 1.0 factor to increase width spacing
-    ax_fh       :   float (default: 1.0 factor to increase height spacing
-    
-    ax_dl       :   float (default: 0.6) left spacing around axes in cm
-    ax_dr       :   float (default: 0.6) right spacing around axes in cm
-    ax_dt       :   float (default: 0.6) top spacing around axes in cm
-    ax_db       :   float (default: 0.6) bottom spacing around axes in cm
-    ax_fdl      :   float (default: 1.0) factor to increase left axes spacing
-    ax_fdr      :   float (default: 1.0) factor to increase right axes spacing
-    ax_fdt      :   float (default: 1.0) factor to increase top axes spacing
-    ax_fdb      :   float (default: 1.0) factor to increase bottom axes spacing
-                    
-    #---FIGURE OPTION-------------------
-    fig_optdict :   dict (default: dict()) additional figure option: fontssize, ...
-    fig_sizefac :   float (default: 1.) factor to resize figures
-                    
-    fig_dl      :   float (default: 0.6) left spacing around figure in cm
-    fig_dr      :   float (default: 0.6) right spacing around figure in cm
-    fig_dt      :   float (default: 0.6) top spacing around figure in cm
-    fig_db      :   float (default: 0.6) bottom spacing around figure in cm
-    fig_fdl     :   float (default: 1.0) factor to increase left figure spacing
-    fig_fdr     :   float (default: 1.0) factor to increase right figure spacing
-    fig_fdt     :   float (default: 1.0) factor to increase top figure spacing
-    fig_fdb     :   float (default: 1.0) factor to increase bottom figure spacing
-                
-    #---COLORBAR OPTION-----------------
-    cb_plt      :   bool, list (default: True) If True colorbar is plotted to all 
-                    axes (cb_plt_single=False) or just one colorbar is plotted for 
-                    all axes (cb_plt_single=False), If list with 0 and 1 [0,1,0,1...], 
-                    which axes should have colorbar, if number higher than 1 in 
-                    list it is assumed there is more than one independed colorbar
-    cb_plt_single:  bool (default: False) true/false if there is just one colorbar 
-                    for all the axes or if each axes should get a colorbar
-    cb_pos      :   str (default: 'vertical') orientation of colorbar, either 
-                    vertical or horizontal
-                    
-    cb_dl       :   float (default: 0.6) left spacing around colorbar in cm
-    cb_dr       :   float (default: 3.0) right spacing around colorbar in cm
-    cb_dt       :   float (default: 1.0) top spacing around colorbar in cm
-    cb_db       :   float (default: 0.6) bottom spacing around colorbar in cm
-    cb_fdl      :   float (default: 1.0) factor to increase left colorbar spacing
-    cb_fdr      :   float (default: 1.0) factor to increase right colorbar spacing
-    cb_fdt      :   float (default: 1.0) factor to increase top colorbar spacing
-    cb_fdb      :   float (default: 1.0) factor to increase bottom colorbar spacing
-    
-    cb_w        :   float, str (default: 0.5) if float it is used as width in cm,
-                    if 'auto' width is defined automatically based on width of axes
-                    in case of horizontal colorbar
-    cb_h        :   float, str (default: 0.5) if float it is used as height in cm,
-                    if 'auto' height is defined automatically based on height of axes
-                    in case of vertical colorbar
-    cb_fw       :   float (default: 1.0) factor to increase width of colorbar
-    cb_fh       :   float (default: 1.0) factor to increase height colorbar
-                 
-    #-----------------------------------
-    projection  :   (default: None) provide single cartopy projection object to use 
-                    for all axes, or provide list of cartopy projection objects
-    box         :   None, list (default: None) regional limitation of plot. For 
-                    ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
-                    others box = [lonmin, lonmax, latmin, latmax]
-    #-----------------------------------
-    nargout     :   list, (default: ['hfig', 'hax', 'hcb', 'cb_plt_idx']) list of variables that
-                    are given out from the routine. 
-                    Default: 
-                    hfig  - figure handle
-                    hax   - list of axes handle 
-                    hcb   - list of colorbar handles
-                    cb_plt_idx - list that contains index of independent
-                    colorbars
-                    (every variable that is defined in this subroutine can become 
-                    output parameter)
+    Parameters:
         
-    ___RETURNS:_________________________________________________________________
-    hfig        :   returns figure handle 
-    hax         :   returns list with axes handle 
-    hcb         :   returns colorbar handle
-    cb_plt_idx  :   list that contains index of independent colorbars
+        ___LABEL OPTION____________________
+        
+        :xlabel:        str (default: '') provide prescribed xlabel string 
+
+        :ylabel:        str (default: '') provide prescribed ylabel string 
+
+        :tlabel:        str (default: '') provide prescribed title string 
+
+        :fs_label:      int (default: 10) prescribed fontsize for labels
+
+        :fs_title:      int (default: 10) prescribed fontsize for title
+
+        :fs_ticks:      int (default: 10) prescribed fontsize for ticklabels
+
+        :fs_fac:        int (default: 1)  factor to generally increase fontsize
+
+        ___AXES OPTIONS____________________
+
+        :ax_sharex:     bool (default: True) all subplot share x-axes
+
+        :ax_sharey:     bool (default: True) all subplot share y-axes
+
+        :ax_optdict:    dict (default: dict()) additional axes option: fontssize, ...
+
+        :ax_asp:        float (default: 1.) aspect ratio of axes
+        
+        :ax_w:          float, int (default: 'auto') if 'auto' width is defined based on
+                        aspect ration ax_asp and height ax_h in cm, if float value is 
+                        used to define width in cm
+
+        :ax_h:          float, int (default: 4) if 'auto' height is defined based on
+                        aspect ration ax_asp and width ax_w in cm, if float value is 
+                        used to define height in cm
+
+        :ax_fw:         float (default: 1.0 factor to increase width spacing
+
+        :ax_fh:         float (default: 1.0 factor to increase height spacing
+
+        :ax_dl:         float (default: 0.6) left spacing around axes in cm
+
+        :ax_dr:         float (default: 0.6) right spacing around axes in cm
+
+        :ax_dt:         float (default: 0.6) top spacing around axes in cm
+
+        :ax_db:         float (default: 0.6) bottom spacing around axes in cm
+
+        :ax_fdl:        float (default: 1.0) factor to increase left axes spacing
+
+        :ax_fdr:        float (default: 1.0) factor to increase right axes spacing
+
+        :ax_fdt:        float (default: 1.0) factor to increase top axes spacing
+
+        :ax_fdb:        float (default: 1.0) factor to increase bottom axes spacing
+
+        ___FIGURE OPTION___________________
+
+        :fig_optdict:   dict (default: dict()) additional figure option: fontssize, ...
+
+        :fig_sizefac:   float (default: 1.) factor to resize figures
+                        
+        :fig_dl:        float (default: 0.6) left spacing around figure in cm
+
+        :fig_dr:        float (default: 0.6) right spacing around figure in cm
+
+        :fig_dt:        float (default: 0.6) top spacing around figure in cm
+
+        :fig_db:        float (default: 0.6) bottom spacing around figure in cm
+
+        :fig_fdl:       float (default: 1.0) factor to increase left figure spacing
+
+        :fig_fdr:       float (default: 1.0) factor to increase right figure spacing
+
+        :fig_fdt:       float (default: 1.0) factor to increase top figure spacing
+
+        :fig_fdb:       float (default: 1.0) factor to increase bottom figure spacing
+
+        ___COLORBAR OPTION_________________
+
+        :cb_plt:        bool, list (default: True) If True colorbar is plotted to all 
+                        axes (cb_plt_single=False) or just one colorbar is plotted for 
+                        all axes (cb_plt_single=False), If list with 0 and 1 [0,1,0,1...], 
+                        which axes should have colorbar, if number higher than 1 in 
+                        list it is assumed there is more than one independed colorbar
+
+        :cb_plt_single: bool (default: False) true/false if there is just one colorbar 
+                        for all the axes or if each axes should get a colorbar
+
+        :cb_pos:        str (default: 'vertical') orientation of colorbar, either 
+                        vertical or horizontal
+                        
+        :cb_dl:         float (default: 0.6) left spacing around colorbar in cm
+
+        :cb_dr:         float (default: 3.0) right spacing around colorbar in cm
+
+        :cb_dt:         float (default: 1.0) top spacing around colorbar in cm
+
+        :cb_db:         float (default: 0.6) bottom spacing around colorbar in cm
+
+        :cb_fdl:        float (default: 1.0) factor to increase left colorbar spacing
+
+        :cb_fdr:        float (default: 1.0) factor to increase right colorbar spacing
+
+        :cb_fdt:        float (default: 1.0) factor to increase top colorbar spacing
+
+        :cb_fdb:        float (default: 1.0) factor to increase bottom colorbar spacing
+        
+        :cb_w:          float, str (default: 0.5) if float it is used as width in cm,
+                        if 'auto' width is defined automatically based on width of axes
+                        in case of horizontal colorbar
+
+        :cb_h:          float, str (default: 0.5) if float it is used as height in cm,
+                        if 'auto' height is defined automatically based on height of axes
+                        in case of vertical colorbar
+
+        :cb_fw:         float (default: 1.0) factor to increase width of colorbar
+
+        :cb_fh:         float (default: 1.0) factor to increase height colorbar
+
+        ___PROJECTION_______________________
+
+        :projection:    (default: None) provide single cartopy projection object to use 
+                        for all axes, or provide list of cartopy projection objects
+
+        :box:           None, list (default: None) regional limitation of plot. For 
+                        ortho: box = [lonc, latc], nears: [lonc, latc, zoom], for all
+                        others box = [lonmin, lonmax, latmin, latmax]
+
+        ___OUTPUT___________________________
+
+        :nargout:       list, (default: ['hfig', 'hax', 'hcb', 'cb_plt_idx']) list of variables that
+                        are given out from the routine. 
+                        Default: 
+                        - hfig      ... figure handle
+                        - hax       ... list of axes handle 
+                        - hcb       ... list of colorbar handles
+                        - cb_plt_idx... list that contains index of independent
+                        - colorbars
+                        (every variable that is defined in this subroutine can become 
+                        output parameter)
+    
+    __________________________________________________
+    
+    Returns:
+    
+        :hfig:          returns figure handle 
+
+        :hax:           returns list with axes handle 
+
+        :hcb:           returns colorbar handle
+
+        :cb_plt_idx:    list that contains index of independent colorbars
+    
     ____________________________________________________________________________
     """        
     #___________________________________________________________________________
@@ -3501,22 +3947,32 @@ def do_axes_arrange(nx, ny,
 #_______________________________________________________________________________
 def do_axes_enum(hax, do_enum, nrow, ncol, enum_dir='lr', enum_str=[], enum_x=[0.005], enum_y=[1.00], enum_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hax         :   list, list of all axes handles
-    do_enum     :   bool, switch for using enumeration 
-    nrow        :   int, number of rows in multi panel plot
-    ncol        :   int, number of column in multi panel plot
-    enum_dir    :   str, (default: 'lr')  direction of numbering, 'lr' from left to 
-                    right, 'ud' from up to down
-    enum_str    :   list, (default: []) overwrite default enumeration strings        , 
-    enum_x      :   float, (default: 0.005)  x position of enumeration string in 
-                    axes coordinates
-    enum_y      :   float, (default: 1.000)  y position of enumeration string in 
-                    axes coordinates
-    enum_opt    :   dict, (default: dict()) direct option for enumeration strings via **kwarg 
+    --> do enumeration of axes
     
-    ___RETURNS:_________________________________________________________________
-    hax         :   returns list of axes handles
+    Parameters: 
+    
+        :hax:       list, list of all axes handles
+
+        :do_enum:   bool, switch for using enumeration 
+
+        :nrow:      int, number of rows in multi panel plot
+
+        :ncol :     int, number of column in multi panel plot
+
+        :enum_dir:  str, (default: 'lr')  direction of numbering, 'lr' from left to 
+                    right, 'ud' from up to down
+
+        :enum_str:  list, (default: []) overwrite default enumeration strings        , 
+
+        :enum_x:    float, (default: 0.005)  x position of enumeration string in 
+                    axes coordinates
+
+        :enum_y:    float, (default: 1.000)  y position of enumeration string in 
+                    axes coordinates
+
+        :enum_opt:  dict, (default: dict()) direct option for enumeration strings via kwarg 
+    
+    Returns:     
     
     ____________________________________________________________________________
     """
@@ -3562,21 +4018,27 @@ def do_axes_enum(hax, do_enum, nrow, ncol, enum_dir='lr', enum_str=[], enum_x=[0
 #
 #
 #_______________________________________________________________________________
-# prepare data for plotting, augment periodic boundaries, interpolate from elements
-# to nodes, kick out nan values from plotting 
 def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
     """
-    ___INPUT:___________________________________________________________________
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    data_plot   :   np.array of unstructured data 
-    tri         :   matplotlib.tri triangulation object
-    tri.mask_e_box:   bool np.array with element masking from regional box definition
-    tri.mask_n_box:   bool np.array with vertices masking from regional box selection
+    --> prepare data for plotting, augment periodic boundaries, interpolate from elements
+        to nodes, kick out nan values from plotting 
     
-    ___RETURNS:_________________________________________________________________
-    data_plot   :   np.array of unstructured data, augmented with periodic boundary,
+    Parameters: 
+    
+        :mesh:      fesom2 mesh object,  with all mesh information 
+        
+        :data_plot: np.array of unstructured data 
+        
+        :tri:       matplotlib.tri triangulation object
+                    - tri.mask_e_box ... bool np.array with element masking from regional box definition
+                    - tri.mask_n_box ... bool np.array with vertices masking from regional box selection
+    
+    Returns:
+    
+        :data_plot: np.array of unstructured data, augmented with periodic boundary,
                     limited to regional box
-    e_ok_mask   :   provide mask with nan values, that describe the bottom 
+                    
+        :tri:       matplotlib.tri triangulation object
     
     ____________________________________________________________________________
     """  
@@ -3629,16 +4091,32 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
 #
 #
 #_______________________________________________________________________________
-# prepare data for plotting, augment periodic boundaries, interpolate from elements
-# to nodes, kick out nan values from plotting 
 def do_data_prepare_vslice(hax_ii, data_ii, box_idx):
     """
-    ___INPUT:___________________________________________________________________
+    --> prepare data for plotting, augment periodic boundaries, interpolate from elements
+        to nodes, kick out nan values from plotting 
+
+    Parameters:
     
-    ___RETURNS:_________________________________________________________________
+        :hax:       handle of current axes
+    
+        :data_ii:   xarray dataset object of axes ii, can contains the info 
+                    data_ii[box_idx] of several defined boxes which can be selected
+                    via box_idx index 
+
+        :box_idx:   index of box selection in data_ii[box_idx]
+    
+    Returns:
+    
+        :data_x:    np.array, data for x-axis  
+
+        :data_y:    np.array, data fox y-axes
+
+        :data_plot: np.array, data to plot on regular vertical grid 
     
     ____________________________________________________________________________
     """  
+    #___________________________________________________________________________
     # prepare vertical regular gridded data for plotting --> here data are index 
     # list --> defined by box index box_idx
     if box_idx is not None:
@@ -3742,26 +4220,31 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx):
 #
 #
 #_______________________________________________________________________________
-# --> prepare renormation object, for log10 or slog10  
 def do_data_norm(cinfo, do_rescale):
     """
-    ___INPUT:___________________________________________________________________
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
+    --> prepare renormation object, for log10 or slog10  
     
-    ___RETURNS:_________________________________________________________________
-    which_norm  :   renormation object
+    Parameters:
+    
+        :cinfo:     None, dict() (default: None), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
+                    
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+    
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling (mcolors.LogNorm)
+                    - slog10     ... do symetric logarithmic scaling (mcolors.SymLogNorm)
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps (mcolors.BoundaryNorm)
+    
+    Returns:
+        :which_norm:  None or renormation object
     
     ____________________________________________________________________________
     """      
@@ -3791,7 +4274,6 @@ def do_data_norm(cinfo, do_rescale):
 #
 #
 #_______________________________________________________________________________
-# --> plot triangular data based on tripcolor or tricontourf
 def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
                 plt_opt  =dict(), 
                 plt_contb=False, pltcb_opt=dict(), 
@@ -3799,37 +4281,56 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
                 plt_contr=False, pltcr_opt=dict(),
                 plt_contl=False, pltcl_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    tri         :   matplotlib.tri triangulation object
-    tri.mask_e_ok:   provide mask with nan values, that describe the bottom 
-                    limited to regional box
-    data_plot   :   np.array of unstructured data, augmented with periodic boundary,
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-    which_norm  :   renormation object
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
+    --> plot triangular data based on tripcolor or tricontourf
     
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot
+    Parameters: 
+    
+        :hax_ii:        handle of axes ii
+
+        :do_plt:        str, (default: tpc)
+                        - tpc ... make pseudocolor plot (tripcolor)
+                        - tcf ... make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
+
+        :tri:           matplotlib.tri triangulation object
+                        - tri.mask_e_ok...provide mask with nan values, that describe the bottom limited to regional box
+
+        :data_plot:     np.array of unstructured data, augmented with periodic boundary,
+
+        :cinfo_plot:    None, dict() (default: None), dictionary with colorbar information. 
+                        Information that are given are used, others are computed. cinfo dictionary 
+                        entries can be,
+                        
+                        - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                        - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                        - cinfo['cnum']   ... minimum number of colors
+                        - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                        - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                        - cinfo['clevel'] ... color level array
+    
+        :which_norm_plot:     None or renormation object
+
+        :plt_opt:       dict, (default: dict()) additional options that are given to tripcolor 
+                        or tricontourf via the kwarg argument
+
+        :plt_contb:     bool, (default: False) overlay thin contour lines of all colorbar steps (background)
+
+        :pltcb_opt:     dict, (default: dict()) background contour line option
+
+        :plt_contf:     bool, (default: False) overlay thicker contour lines of the main colorbar steps (foreground)
+
+        :pltcf_opt:     dict, (default: dict()) foreground contour line option
+
+        :plt_contr:     bool, (default: False) overlay thick contour lines of reference color steps (reference)
+
+        :pltcr_opt:     dict, (default: dict()) reference contour line option
+
+        :plt_contl:     bool, (default: False) label overlayed  contour linec plot
+
+        :pltcl_opt:     dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+    Returns:
+    
+        :h0:            return matplotlib handle of plot
     
     ____________________________________________________________________________
     """      
@@ -3917,7 +4418,6 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
 #
 #
 #_______________________________________________________________________________
-# --> plot triangular data based on tripcolor or tricontourf
 def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_norm_plot, 
                 plt_opt=dict(), which_transf=None, 
                 plt_contb=False, pltcb_opt=dict(), 
@@ -3925,36 +4425,57 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
                 plt_contr=False, pltcr_opt=dict(),
                 plt_contl=False, pltcl_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    data_x      :   regular longitude array
-    data_y      :   regular latitude array
-    data_plot   :   np.array of unstructured data, augmented with periodic boundary,
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-    which_norm  :   renormation object
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
+    --> plot regular gridded data (binned, coarse grained data) via pcolormesh and contourf
+
+    Parameters: 
     
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot
+        :hax_ii:        handle of axes ii
+
+        :do_plt:        str, (default: tpc)
+                        - tpc ... make pseudocolor plot (tripcolor)
+                        - tcf ... make contourf coor plot (tricontourf)
+
+        :data_x:        regular longitude array
+        
+        :data_y:        regular latitude array
+        
+        :data_plot:     np.array of regular gridded data
+
+        :cinfo_plot:    None, dict() (default: None), dictionary with colorbar information. 
+                        Information that are given are used, others are computed. cinfo dictionary 
+                        entries can be,
+                        
+                        - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                        - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                        - cinfo['cnum']   ... minimum number of colors
+                        - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                        - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                        - cinfo['clevel'] ... color level array
+    
+        :which_norm:    None or renormation object
+
+        :plt_opt:       dict, (default: dict()) additional options that are given to tripcolor 
+                        or tricontourf via the kwarg argument
+
+        :plt_contb:     bool, (default: False) overlay thin contour lines of all colorbar steps (background)
+
+        :pltcb_opt:     dict, (default: dict()) background contour line option
+
+        :plt_contf:     bool, (default: False) overlay thicker contour lines of the main colorbar steps (foreground)
+
+        :pltcf_opt:     dict, (default: dict()) foreground contour line option
+
+        :plt_contr:     bool, (default: False) overlay thick contour lines of reference color steps (reference)
+
+        :pltcr_opt:     dict, (default: dict()) reference contour line option
+
+        :plt_contl:     bool, (default: False) label overlayed  contour linec plot
+
+        :pltcl_opt:     dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+    Returns:
+    
+        h0:             return matplotlib handle of plot
     
     ____________________________________________________________________________
     """      
@@ -4048,44 +4569,57 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
 #
 #
 #_______________________________________________________________________________
-# --> plot triangular data based on tripcolor or tricontourf
+
 def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
                   cinfo_plot, norm_plot, quiv_scalfac=1, quiv_arrwidth=0.25, quiv_dens=0.4, 
                   quiv_smax=10, quiv_shiftL=2, quiv_smooth=2, 
                   quiv_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes
-    do_plt      :   str, (default: tpc) = 
-                    tpc   = make pseudocolor plot (tripcolor)
-                    tcf   = make contourf coor plot (tricontourf)  , # tpc:tripcolor, tcf:tricontourf    
-    tri         :   matplotlib.tri triangulation object
-    tri.mask_e_ok:  provide mask with nan values, that describe the bottom 
-                    limited to regional box
-    data_plot_u :   np.array of unstructured data, augmented with periodic boundary,
-    data_plot_v :   np.array of unstructured data, augmented with periodic boundary,
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-    which_norm  :   renormation object
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
+    --> plot triangular data as quiver plot 
     
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot
+    Parameters:
+    
+        :hax_ii:        handle of axes ii
+
+        :do_quiv:       bool, do cartopy quiver plot
+        
+        :tri:           matplotlib.tri triangulation object
+                        - tri.mask_e_ok...provide mask with nan values, that describe the bottom limited to regional box
+
+        :data_plot_u:   np.array of unstructured zonal vector component
+
+        :data_plot_v:   np.array of unstructured meridional vector component
+
+        :cinfo_plot:    None, dict() (default: None), dictionary with colorbar information. 
+                        Information that are given are used, others are computed. cinfo dictionary 
+                        entries can be,
+                        
+                        - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                        - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                        - cinfo['cnum']   ... minimum number of colors
+                        - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                        - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                        - cinfo['clevel'] ... color level array
+
+        :norm_plot:     None or renormation object
+        
+        :quiv_scalfac:  float, (default: 1.0)  bigger means larger arrows
+
+        :quiv_arrwidth: float, (default: 0.25) scale arrow width
+
+        :quiv_dens:     float, (default: 0.5)  larger mean more excluded arrows
+
+        :quiv_smax:     float, (default: 10) small arrow are scaled strong with factor smax, its off when smax=1
+
+        :quiv_shiftL:   float, (default: 2) shift smothing function to the left
+
+        :quiv_smooth:   float, (default: 2) slope of transitions zone, smaller value steeper transition
+
+        :quiv_opt:      dict, (default: dict()) additional options that are given to quiver plot routine
+
+    Returns:
+
+        :h0:   return handle of quiver plot
     
     ____________________________________________________________________________
     """      
@@ -4213,20 +4747,33 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
 #
 #
 #_______________________________________________________________________________
-# --> plot bottom mask
 def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, ylim=None, bot_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes
-    do_bot      :   bool, (default: True), overlay topographic bottom mask
-    tri         :   matplotlib.tri triangulation object
-    tri.mask_e_ok:   provide mask with nan values, that describe the bottom 
-                    limited to regional box
-    bot_opt     :   dict, (default: dict()) additional options that are given to 
-                    the bottom mask plotting via **kwarg
+    --> plot bottom mask
+
+    Parameters: 
     
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot
+        :hax_ii:        handle of axes ii
+
+        :do_bot:        bool, (default: True), overlay topographic bottom mask
+    
+        :tri:           matplotlib.tri triangulation object (default=None)
+                        - tri.mask_e_ok...provide mask with nan values, that describe the bottom limited to regional box
+
+        :data_x:        regular longitude array (default=None)
+
+        :data_y:        regular latitude array (default=None)
+
+        :data_plot:     np.array of regular gridded data (default=None)
+
+        :ylim:          list, (default=None), overwrite limit of yaxis
+
+        :bot_opt:       dict, (default: dict()) additional options that are given to 
+                        the bottom mask plotting via kwarg
+    
+    Returns: 
+    
+        :h0:            return handle of bottom plot
     
     ____________________________________________________________________________
     """      
@@ -4300,32 +4847,41 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
 #
 #
 #_______________________________________________________________________________
-# --> plot topography contour or pcolor
 def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, 
                 plt_opt=dict(), 
                 plt_contb=True,  pltcb_opt=dict(), 
                 plt_contl=False, pltcl_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes 
-    do_topo     :   bool, (default: True), overlay FESOM topography in greyscale
-    data_topo   :   np.array topography data
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    tri         :   matplotlib.tri triangulation object
-    tri.mask_e_box:   provide mask with with box limited values for elements
-    tri.mask_n_box:   provide mask with with box limited values for vertices 
-    mesh_opt    :   dict, (default: dict()) additional options that are given to 
-                    the mesh plotting via **kwarg
-    plt_cont    :   bool, (default: False) overlay contour line plot of data
-    plt_contl   :   bool, (default: False) label overlayed  contour linec plot
-    plt_opt     :   dict, (default: dict()) additional options that are given to 
-                    tripcolor or tricontourf via the **kwarg argument
-    pltc_opt    :   dict, (default: dict()) additional options that are given to 
-                    tricontour via the **kwarg argument
-    pltcl_opt   :   dict, (default: dict()) additional options that are given to 
-                    clabel via the **kwarg argument
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot
+    --> plot topography contour or pcolor
+
+    Parameters: 
+    
+        :hax_ii:    handle of axes ii
+
+        :do_topo:   bool, (default: True), overlay model topography in quiver plots
+
+        :data_topo: np.array with unstructured data of model topogrpahy 
+
+        :mesh:      fesom2 mesh object,  with all mesh information 
+
+        :tri:       matplotlib.tri triangulation object
+                    - tri.mask_e_box ... bool np.array with element masking from regional box definition
+                    - tri.mask_n_box ... bool np.array with vertices masking from regional box selection
+    
+        :plt_opt:   dict, (default: dict()) additional options that are given to tripcolor 
+                    or tricontourf via the kwarg argument
+
+        :plt_contb: bool, (default: False) overlay thin contour lines of all colorbar steps (background)
+
+        :pltcb_opt: dict, (default: dict()) background contour line option
+
+        :plt_contl: bool, (default: False) label overlayed  contour linec plot
+
+        :pltcl_opt: dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+    Returns:
+    
+        :h0:        return handle of plot
     
     ____________________________________________________________________________
     """ 
@@ -4357,20 +4913,25 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
 #
 #
 #_______________________________________________________________________________
-# --> plot overlaying triangular mesh
 def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes 
-    do_mesh     :   bool, (default: True), overlay FESOM grid over dataplot
-    tri         :   matplotlib.tri triangulation object
-    e_ok_mask   :   provide mask with nan values, that describe the bottom 
-                    limited to regional box
-    mesh_opt    :   dict, (default: dict()) additional options that are given to 
-                    the mesh plotting via **kwarg
+    --> plot overlaying triangular mesh
+
+    Parameters: 
     
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot
+        :hax_ii:    handle of axes ii
+
+        :do_mesh:   bool, (default: True), overlay FESOM grid over dataplot
+    
+        :tri:       matplotlib.tri triangulation object
+                    - tri.mask_e_ok...provide mask with nan values, that describe the bottom limited to regional box
+  
+        :mesh_opt:  dict, (default: dict()) additional options that are given to 
+                    the mesh plotting via kwarg
+    
+    Returns:
+    
+        :h0:        return handle of plot
     
     ____________________________________________________________________________
     """      
@@ -4387,25 +4948,33 @@ def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
 #
 #
 #_______________________________________________________________________________
-# --> plot fesom mesh inverted land sea mask
 def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes 
-    do_lsm      :   str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
-                    option are here:
-                    fesom       :   grey fesom landsea mask
-                    stock       :   uses cartopy stock image
-                    bluemarble  :   uses bluemarble image in folder tripyview/background/
-                    etopo       :   uses etopo image in folder tripyview/background/
-    mesh        :   fesom2 mesh object,  with all mesh information 
-    lsm_opt     :   dict, (default: dict()) additional options that are given to 
-                    the landsea mask plotting via **kwarg
-    resolution  :   str, (default: 'low') switch resolution of background image 
-                    for bluemarble and etopo between 'high' and 'low'
+    --> plot fesom mesh inverted land sea mask
+
+    Parameters: 
     
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot·
+        :hax_ii:        handle of axes ii
+        
+        :do_lsm:        str, (default: 'fesom'), overlay FESOM grid inverted land sea mask
+                        option are here:
+                    
+                        - fesom      ... grey fesom landsea mask
+                        - stock      ... uses cartopy stock image
+                        - bluemarble ... uses bluemarble image in folder tripyview/background/
+                        - etopo      ... uses etopo image in folder tripyview/background/
+
+        :mesh:          fesom2 mesh object,  with all mesh information 
+        
+        :lsm_opt:       dict, (default: dict()) additional options that are given to 
+                        the landsea mask plotting via kwarg
+                    
+        :resolution:    str, (default: 'low') switch resolution of background image 
+                        for bluemarble and etopo between 'high' and 'low'
+    
+    Returns:
+    
+        :h0:            return handle of plot·
     
     ____________________________________________________________________________
     """  
@@ -4468,16 +5037,41 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                      data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict(), 
                      proj=None, do_rescale=None):
     """
-    ___INPUT:___________________________________________________________________
-    hax_ii      :   handle of one axes
-    do_grid     :   bool, (default: True) plot cartopy grid lines
-    ndat        :   int, total length of data list
-    nrow        :   int, number of rows in multi panel plot
-    grid_opt    :   dict, (default: dict()) additional options that are given to 
-                    the cartopy gridline plotting via **kwarg
+    --> do plot cartopy gridline and general gridlines together with the limit
+        scaling of the axis (see non-linear option of x and y axis)
+        
+    Parameters:
     
-    ___RETURNS:_________________________________________________________________
-    h0          :   return handle of plot·
+        :hax_ii:    handle of one axes
+        
+        :do_grid:   bool, (default: True) plot cartopy grid lines
+        
+        :box:       None, or list with box definitions 
+    
+        :ndat:      int, total length of data list
+        
+        :data_x:    regular longitude array
+        
+        :data_y:    regular latitude array
+    
+        :xlim:      list, (default=None), overwrite limit of xaxis
+
+        :ylim:      list, (default=None), overwrite limit of yaxis
+
+        :grid_opt:  dict, (default: dict()) additional options that are given to 
+                    the cartopy gridline plotting via kwarg
+                    
+        :proj:      None, cartopy projection object or string (e.g. index+depth+time...)
+        
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+    
+    Returns:
+    
+        :h0:        None or handle
     
     ____________________________________________________________________________
     """  
@@ -4527,7 +5121,9 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             # neighboring plots
             if isinstance(hax_ii.projection, (ccrs.PlateCarree) ) and ndat>1 and hax_ii.ncol>1:
                 h0.xlabel_style = {'rotation': 25}    
-            
+                
+            h0.xlabel_style = {'fontsize': hax_ii.fs_ticks}       
+            h0.ylabel_style = {'fontsize': hax_ii.fs_ticks} 
         #_______________________________________________________________________
         # grid options for index vs. depth vs. xy plot
         elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 
@@ -4700,34 +5296,62 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
 def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_ltime, cb_ldep,
             box_idx=None, norm=None, cb_opt=dict(), cbl_opt=dict(), cbtl_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    hcb_ii      :   actual colorbar handle 
-    hax_ii      :   actual axes handle 
-    hp          :   actual plot handle 
-    data        :   xarray dataset object with all attributes
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    cb_label    :   str, (default: None) if string its used as colorbar label, otherwise 
-                    information from data ('long_name, short_name) are used
-    cb_lunit     :   str, (default: None) if string its used as colorbar unit label, 
-                    otherwise units from data are used
-    cb_opt      :   dict, (default: dict()) direct option for colorbar via **kwarg
-    cbl_opt     :   dict, (default: dict()) direct option for colorbar tick labels 
-                    (fontsize, fontweight, ...) via **kwarg
+    --> plot colorbars (tripyview allows also to have more than one colorbar within the 
+        multipanel plot)
+    
+    Parameters:
+    
+        :hcb_ii:    actual colorbar handle 
+
+        :hax_ii:    actual axes handle 
+
+        :hp:        actual plot handle 
+
+        :data:      xarray dataset object with all attributes (needed for the default colorbar labels)
+
+        :cinfo:     None, dict() (default: None), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
                     
-    ___RETURNS:_________________________________________________________________
-    hcb_ii      :   actual colorbar handle 
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+
+
+        :cb_label:  str, (default: None) if string its used as colorbar label, otherwise 
+                    information from data ('long_name, short_name) are used
+
+        :cb_lunit:  str, (default: None) if string its used as colorbar unit label, 
+                    otherwise info from data are used
+
+        :cb_ltime:  str, (default: None) if string its used as colorbar time label, 
+                    otherwise info from data are used
+
+        :cb_ldep:   str, (default: None) if string its used as colorbar depth label, 
+                    otherwise info from data are used                
+
+        :box_idx:   None or index of box selection in data_ii[box_idx]
+        
+        :norm:      None or renormation object
+        
+        :cb_opt:    dict, (default: dict()) direct option for colorbar via kwarg
+
+        :cbl_opt:   dict, (default: dict()) direct option for colorbar labels (fontsize, fontweight, ...) via kwarg
+
+        :cbtl_opt:  dict, (default: dict()) direct option for colorbar tick labels (fontsize, fontweight, ...) via kwarg
+
+    Returns:
+    
+        :hcb_ii:    actual colorbar handle 
     
     ____________________________________________________________________________
     """  
@@ -4791,29 +5415,38 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
 #
 # 
 #_______________________________________________________________________________
-# --> dor formating of colorbar for logarithmic data and exponential data
-
 def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4], cbtl_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    cbar        :   actual colorbar handle  
-    do_rescale  :   if True: scale exponential data divide by 10^x, provide also 
-                    string for colorbar. If 'log10' to logaritmic scaling, If 
-                    'slog10' do symetric logarithmic scaling
-    cinfo       :   None, dict() (default: None), dictionary with colorbar 
-                    information. Information that are given are used, others are 
-                    computed. cinfo dictionary entries can be: 
-                    cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, 
-                    max, reference value
-                    cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
-                    cinfo['cnum']   ... minimum number of colors
-                    cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
-                    cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
-                    cinfo['clevel'] ... color level array
-    pw_lim      :   in which decimal limits matplot will rescale the colorbar with 
-                    *10^x
-    ___RETURNS:_________________________________________________________________
-    cbar        :   actual colorbar handle  
+    --> do formating of colorbar for logarithmic data and exponential data
+
+    Parameters: 
+    
+        :cbar:      actual colorbar handle  
+    
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+
+        :cinfo:     dict(), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
+                    
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+
+        :pw_lim:    list, in which decimal limits matplot will rescale the colorbar with 10^x
+
+        :cbtl_opt:  dict, (default: dict()) direct option for colorbar tick labels (fontsize, fontweight, ...) via kwarg
+
+    Returns:
+    
+        :cbar:      actual colorbar handle  
     
     ____________________________________________________________________________
     """
@@ -4867,71 +5500,57 @@ def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4], cbtl_opt=dict()):
 
 
 
+#
+#
 # ___DO COLORMAP INFO__________________________________________________________
-#| build up colormap dictionary                                                |
-#| ___INPUT_________________________________________________________________   |
-#| cinfo        :   None, dict() (default: None), dictionary with colorbar     |
-#|                  formation. Information that are given are used others are  |
-#|                  computed. cinfo dictionary entries can me:                 |
-#|                  > cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar   |
-#|                    min, max, reference value                                |
-#|                  > cinfo['crange'] ...  list with [cmin, cmax, cref]        |
-#|                    overrides scalar values                                  |
-#|                  > cinfo['cnum'] ... minimum number of colors               |
-#|                  > cinfo['cstr'] ... name of colormap see in                |
-#|                    sub_colormap_c2c.py                                      |
-#|                  > cinfo['cmap'] ... colormap object ('wbgyr', 'blue2red,   |
-#|                    'jet' ...)                                               |
-#|                  > cinfo['clevel'] ... color level array                    |
-#| data         :   xarray dataset object                                      |
-#| tri          :   mesh triangulation object                                  |
-#| mesh         :   fesom2 mesh object,                                        |
-#| do_rescale   :   None, bool, str (default:True) rescale data and writes     |
-#|                  rescaling string into colorbar labels                      |
-#|                  If: None    ... no rescaling is applied                    |
-#|                      True    ... rescale to multiple of 10 or 1/10          |
-#|                      'log10' ... rescale towards log10                      |
-#| ___RETURNS_______________________________________________________________   |
-#| cinfo        :   color info dictionary                                      |
-#|_____________________________________________________________________________|
-#
-#
-#_______________________________________________________________________________
-# --> build up colormap dictionary  
 def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False, 
                   do_index=False, do_moc=False, do_dmoc=None, do_hbstf=False, box_idx=0):
     """
-    ___INPUT:___________________________________________________________________
-    cinfo       :   None, dict() (default: None), dictionary with colorbar     
-                    formation. Information that are given are used others are  
-                    computed. cinfo dictionary entries can me:                 
-                    > cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar   
-                      min, max, reference value                                
-                    > cinfo['crange'] ...  list with [cmin, cmax, cref]        
-                      overrides scalar values                                  
-                    > cinfo['cnum'] ... minimum number of colors               
-                    > cinfo['cstr'] ... name of colormap see in                
-                      sub_colormap_c2c.py                                      
-                    > cinfo['cmap'] ... colormap object ('wbgyr', 'blue2red,   
-                      'jet' ...)                                               
-                    > cinfo['clevel'] ... color level array                    
-    data        :   xarray dataset object                                      
-    tri         :   mesh triangulation object                                  
-    mesh        :   fesom2 mesh object,                                        
-    do_rescale  :   None, bool, str (default:True) rescale data and writes     
-                    rescaling string into colorbar labels                      
-                    If: None    ... no rescaling is applied                    
-                        'log10' ... rescale towards log10 
-    do_vec      :   bool (default: False) flag,input data are vector data
-    do_index    :   bool (default: False) flag,input data are index data
-    do_moc      :   bool (default: False) flag,input data are zmoc data
-    do_dmoc     :   str  (default: None ) str, input data are dmoc data 
+    --> build up colormap dictionary  
+
+    Parameters:
+        
+        :cinfo:     dict(), dictionary with colorbar information. 
+                    Information that are given are used, others are computed. cinfo dictionary 
+                    entries can be,
+                    
+                    - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                    - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values 
+                    - cinfo['cnum']   ... minimum number of colors
+                    - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                    - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                    - cinfo['clevel'] ... color level array
+
+        :data:      xarray dataset object                                      
+
+        :do_rescale: bool, str, np.array (defaul: False) do scaling of colorbar
+                    - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
+                    - log10      ... do logaritmic scaling
+                    - slog10     ... do symetric logarithmic scaling
+                    - np.array() ... scale colorbar stepwise according to values in np.array allows also for non-linear colortick steps
+
+
+        :mesh:      None or fesom2 mesh object,                                        
+
+        :tri:       None or matplotlib.tri triangulation object
+
+        :do_vec:    bool (default: False) flag,input data are vector data
+
+        :do_index:  bool (default: False) flag,input data are index data
+
+        :do_moc:    bool (default: False) flag,input data are zmoc data
+
+        :do_dmoc:   str  (default: None ) str, input data are dmoc data 
                     ('inner', 'dmoc', 'srf')
-    do_hbstf    :   bool (default: False)
-    box_idx      :   in case input data are list of regional shapefile boxes, 
+                    
+        :do_hbstf:  bool (default: False)
+
+        :box_idx:   in case input data are list of regional shapefile boxes, 
                     this is the index of a specific box
-    ___RETURNS:_________________________________________________________________
-    cinfo       :   None, dict() (default: None), dictionary with colorbar info
+    
+    Returns:
+    
+        :cinfo:     None, dict() (default: None), dictionary with colorbar info
     
     ____________________________________________________________________________
     """  
@@ -5189,19 +5808,27 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
 #
 #
 #_______________________________________________________________________________
-# --> compute min/max value range by histogram, computation of cumulativ distribution
-#     function at certain cutoff treshold
 def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
     """
-    ___INPUT:___________________________________________________________________
-    data_in     :   np.array with data to plot 
-    ctresh      :   cover 99% of value range, means that extreme outliers are cutted of
-    cbin        :   number of bin that are used for the value range histogram
-    cweight     :   provide are weights for the histogramm
+    --> compute min/max value range by histogram, computation of cumulativ distribution
+    function at certain cutoff treshold
     
-    ___RETURNS:_________________________________________________________________
-    cmin        :   return minimum value of value range
-    cmax        :   return minimum value of value range
+    Parameters:
+
+        :data_in:   np.array with data to plot 
+
+        :ctresh:    cover 99% of value range, means that extreme outliers are cutted of
+
+        :cbin:      number of bin that are used for the value range histogram
+
+        :cweight:   provide are weights for the histogramm
+    
+    Returns:
+    
+        :cmin:      return minimum value of value range
+
+        :cmax:      return minimum value of value range
+    
     ____________________________________________________________________________
     """      
     if cweights is None:
@@ -5222,28 +5849,40 @@ def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
 #
 #
 #_______________________________________________________________________________
-# --> initialise cinfo dictionary
 def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh):
     """
-    ___INPUT:___________________________________________________________________
-    cstr        :   provide colormap string, can be either own defined colormap 
+    --> initialise cinfo dictionary
+    
+    Parameters: 
+    
+        :cstr:      provide colormap string, can be either own defined colormap 
                     see sub_colormap.py ('blue2red', 'wbgyr',...), it can be also 
                     a matplotlib colormap ('matplotlib.viridis', 'matplotlib.coolwarm', 
                     ...), or a cmocean colormap ('cmocean.dens', 'cmocean.thermal'....)
-    cnum        :   minimum number of colors to use 
-    crange      :   list of min/max/ref colorrange [cmin, cmax, cref]
-    cmin        :   set min value of colorrange
-    cmax        :   set max value of colorrange
-    cref        :   set reference value (center value of colorrange)
-    cfac        :   factor to multiply cmin and cmax
-    climit      :   provide list with cmin cmax value [cmin, cmax], reference value 
+
+        :cnum:      minimum number of colors to use 
+
+        :crange:    list of min/max/ref colorrange [cmin, cmax, cref]
+
+        :cmin:      set min value of colorrange
+
+        :cmax:      set max value of colorrange
+
+        :cref:      set reference value (center value of colorrange)
+
+        :cfac:      factor to multiply cmin and cmax
+
+        :climit:    provide list with cmin cmax value [cmin, cmax], reference value 
                     is determined autonom    
-    chist       :   True/Fals if colorrange should be limited by histogram to exclude
+
+        :chist:     True/Fals if colorrange should be limited by histogram to exclude
                     extreme outliers
-    ctresh      :   how much percent of the colorrange should be covered, default is 99%
+
+        :ctresh:    how much percent of the colorrange should be covered, default is 99%
     
-    ___RETURNS:_________________________________________________________________
-    cinfo       :   None, dict() (default: None), dictionary with colorbar info
+    Returns:
+
+        :cinfo:     None, dict() (default: None), dictionary with colorbar info
     
     ____________________________________________________________________________
     """  
@@ -5265,19 +5904,23 @@ def set_cinfo(cstr, cnum, crange, cmin, cmax, cref, cfac, climit, chist, ctresh)
 #
 #
 #_______________________________________________________________________________
-# --> save figure to file
 def do_savefigure(do_save, hfig, dpi=300, do_info=True, save_opt=dict()):
     """
-    ___INPUT:___________________________________________________________________
-    do_save     :   None, str (default:None) if None figure will by not saved, |
-                    if string figure will be saved, strings must give          |
-                    directory and filename  where to save.                     |
-    hfig        :   figure handle                     
-    dpi         :   int, (default:600), resolution of image    
-    save_opt    :   dict, (default: dict()) direct option for saving via **kwarg
+    --> save figure to file
     
-    ___RETURNS:_________________________________________________________________
-    nothing
+    Parameters: 
+    
+        :do_save:   None, str (default:None) if None figure will by not saved,
+                    if string figure will be saved, strings must give         
+                    directory and filename  where to save.                    
+        
+        :hfig:      figure handle                     
+        
+        :dpi:       int, (default:600), resolution of image    
+        
+        :save_opt:  dict, (default: dict()) direct option for saving via kwarg
+    
+    Returns: 
     
     ____________________________________________________________________________
     """  
@@ -5326,367 +5969,367 @@ def do_savefigure(do_save, hfig, dpi=300, do_info=True, save_opt=dict()):
 
 
 
-#
-#
-#_______________________________________________________________________________
-# --> this based on work of Nils Bruegemann see 
-# https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
-# i needed this to unify the ploting between icon and fesom for model comparison
-# paper
-def arrange_axes(nx, ny,
-                 sharex = True, sharey = False,
-                 xlabel = '', ylabel = '',
-                 # labeling axes with e.g. (a), (b), (c)
-                 do_axes_labels = True,
-                 axlab_kw = dict(),
-                 # colorbar
-                 plot_cb = True,
-                 # projection (e.g. for cartopy)
-                 projection = None,
-                 # aspect ratio of axes
-                 asp = 1.,
-                 sasp = 0.,  # for compability with older version of arrange_axes
-                 # width and height of axes
-                 wax = 'auto', hax = 4.,
-                 # extra figure spaces (left, right, top, bottom)
-                 dfigl= 0.0, dfigr=0.0, dfigt=0.0, dfigb=0.0,
-                 # space aroung axes (left, right, top, bottom) 
-                 daxl = 1.8, daxr =0.8, daxt =0.8, daxb =1.2, 
-                 # space around colorbars (left, right, top, bottom) 
-                 dcbl =-0.5, dcbr =1.4, dcbt =0.0, dcbb =0.5,
-                 # width and height of colorbars
-                 wcb = 0.5, hcb = 'auto',
-                 # factors to increase widths and heights of axes and colorbars
-                 fig_size_fac = 1.,
-                 f_wax  =1., f_hax  =1., f_wcb  =1., f_hcb  =1.,
-                 # factors to increase spaces (figure)
-                 f_dfigl=1., f_dfigr=1., f_dfigt=1., f_dfigb=1.,
-                 # factors to increase spaces (axes)
-                 f_daxl =1., f_daxr =1., f_daxt =1., f_daxb =1.,
-                 # factors to increase spaces (colorbars)
-                 f_dcbl =1., f_dcbr =1., f_dcbt =1., f_dcbb =1.,
-                 # font sizes of labels, titles, ticks
-                 fs_label = 10., fs_title = 12., fs_ticks = 10.,
-                 # font size increasing factor
-                 f_fs = 1,
-                 reverse_order = False,
-                 nargout=['fig', 'hca', 'hcb'],
-                ):
+##
+##
+##_______________________________________________________________________________
+## --> this based on work of Nils Bruegemann see 
+## https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
+## i needed this to unify the ploting between icon and fesom for model comparison
+## paper
+#def arrange_axes(nx, ny,
+                 #sharex = True, sharey = False,
+                 #xlabel = '', ylabel = '',
+                 ## labeling axes with e.g. (a), (b), (c)
+                 #do_axes_labels = True,
+                 #axlab_kw = dict(),
+                 ## colorbar
+                 #plot_cb = True,
+                 ## projection (e.g. for cartopy)
+                 #projection = None,
+                 ## aspect ratio of axes
+                 #asp = 1.,
+                 #sasp = 0.,  # for compability with older version of arrange_axes
+                 ## width and height of axes
+                 #wax = 'auto', hax = 4.,
+                 ## extra figure spaces (left, right, top, bottom)
+                 #dfigl= 0.0, dfigr=0.0, dfigt=0.0, dfigb=0.0,
+                 ## space aroung axes (left, right, top, bottom) 
+                 #daxl = 1.8, daxr =0.8, daxt =0.8, daxb =1.2, 
+                 ## space around colorbars (left, right, top, bottom) 
+                 #dcbl =-0.5, dcbr =1.4, dcbt =0.0, dcbb =0.5,
+                 ## width and height of colorbars
+                 #wcb = 0.5, hcb = 'auto',
+                 ## factors to increase widths and heights of axes and colorbars
+                 #fig_size_fac = 1.,
+                 #f_wax  =1., f_hax  =1., f_wcb  =1., f_hcb  =1.,
+                 ## factors to increase spaces (figure)
+                 #f_dfigl=1., f_dfigr=1., f_dfigt=1., f_dfigb=1.,
+                 ## factors to increase spaces (axes)
+                 #f_daxl =1., f_daxr =1., f_daxt =1., f_daxb =1.,
+                 ## factors to increase spaces (colorbars)
+                 #f_dcbl =1., f_dcbr =1., f_dcbt =1., f_dcbb =1.,
+                 ## font sizes of labels, titles, ticks
+                 #fs_label = 10., fs_title = 12., fs_ticks = 10.,
+                 ## font size increasing factor
+                 #f_fs = 1,
+                 #reverse_order = False,
+                 #nargout=['fig', 'hca', 'hcb'],
+                #):
 
-    # factor to convert cm into inch
-    cm2inch = 0.3937
+    ## factor to convert cm into inch
+    #cm2inch = 0.3937
 
-    if sasp!=0:
-        print('::: Warning: You are using keyword ``sasp`` for setting the aspect ratio but you should switch to use ``asp`` instead.:::')
-        asp = 1.*sasp
+    #if sasp!=0:
+        #print('::: Warning: You are using keyword ``sasp`` for setting the aspect ratio but you should switch to use ``asp`` instead.:::')
+        #asp = 1.*sasp
 
-    # --- set hcb in case it is auto
-    if isinstance(wax, str) and wax=='auto': wax = hax/asp
+    ## --- set hcb in case it is auto
+    #if isinstance(wax, str) and wax=='auto': wax = hax/asp
 
-    # --- set hcb in case it is auto
-    if isinstance(hcb, str) and hcb=='auto': hcb = hax
+    ## --- set hcb in case it is auto
+    #if isinstance(hcb, str) and hcb=='auto': hcb = hax
 
-    # --- rename horizontal->bottom and vertical->right
-    if isinstance(plot_cb, str) and plot_cb=='horizontal': plot_cb = 'bottom'
-    if isinstance(plot_cb, str) and plot_cb=='vertical'  : plot_cb = 'right'
+    ## --- rename horizontal->bottom and vertical->right
+    #if isinstance(plot_cb, str) and plot_cb=='horizontal': plot_cb = 'bottom'
+    #if isinstance(plot_cb, str) and plot_cb=='vertical'  : plot_cb = 'right'
   
-    # --- apply fig_size_fac
-    # font sizes
-    #f_fs *= fig_size_fac
-    # factors to increase widths and heights of axes and colorbars
-    f_wax *= fig_size_fac
-    f_hax *= fig_size_fac
-    #f_wcb *= fig_size_fac
-    f_hcb *= fig_size_fac
-    ## factors to increase spaces (figure)
-    #f_dfigl *= fig_size_fac
-    #f_dfigr *= fig_size_fac
-    #f_dfigt *= fig_size_fac
-    #f_dfigb *= fig_size_fac
-    ## factors to increase spaces (axes)
-    #f_daxl *= fig_size_fac
-    #f_daxr *= fig_size_fac
-    #f_daxt *= fig_size_fac
-    #f_daxb *= fig_size_fac
-    ## factors to increase spaces (colorbars)
-    #f_dcbl *= fig_size_fac
-    #f_dcbr *= fig_size_fac
-    #f_dcbt *= fig_size_fac
-    #f_dcbb *= fig_size_fac
+    ## --- apply fig_size_fac
+    ## font sizes
+    ##f_fs *= fig_size_fac
+    ## factors to increase widths and heights of axes and colorbars
+    #f_wax *= fig_size_fac
+    #f_hax *= fig_size_fac
+    ##f_wcb *= fig_size_fac
+    #f_hcb *= fig_size_fac
+    ### factors to increase spaces (figure)
+    ##f_dfigl *= fig_size_fac
+    ##f_dfigr *= fig_size_fac
+    ##f_dfigt *= fig_size_fac
+    ##f_dfigb *= fig_size_fac
+    ### factors to increase spaces (axes)
+    ##f_daxl *= fig_size_fac
+    ##f_daxr *= fig_size_fac
+    ##f_daxt *= fig_size_fac
+    ##f_daxb *= fig_size_fac
+    ### factors to increase spaces (colorbars)
+    ##f_dcbl *= fig_size_fac
+    ##f_dcbr *= fig_size_fac
+    ##f_dcbt *= fig_size_fac
+    ##f_dcbb *= fig_size_fac
   
-    # --- apply font size factor
-    fs_label *= f_fs
-    fs_title *= f_fs
-    fs_ticks *= f_fs
+    ## --- apply font size factor
+    #fs_label *= f_fs
+    #fs_title *= f_fs
+    #fs_ticks *= f_fs
 
-    # make vector of plot_cb if it has been true or false before
-    # plot_cb can have values [{1}, 0] 
-    # with meanings:
-    #   1: plot cb; 
-    #   0: do not plot cb
-    plot_cb_right  = False
-    plot_cb_bottom = False
-    if isinstance(plot_cb, bool) and (plot_cb==True):
-        plot_cb = np.ones((nx,ny))  
-    elif isinstance(plot_cb, bool) and (plot_cb==False):
-        plot_cb = np.zeros((nx,ny))
-    elif isinstance(plot_cb, str) and plot_cb=='right':
-        plot_cb = np.zeros((nx,ny))
-        plot_cb_right = True
-    elif isinstance(plot_cb, str) and plot_cb=='bottom':
-        plot_cb = np.zeros((nx,ny))
-        plot_cb_bottom = True
-    else:
-        plot_cb = np.array(plot_cb)
-        if plot_cb.size!=nx*ny    : raise ValueError('Vector plot_cb has wrong length!')
-        if plot_cb.shape[0]==nx*ny: plot_cb = plot_cb.reshape(ny,nx).transpose()
-        elif plot_cb.shape[0]==ny : plot_cb = plot_cb.transpose()
+    ## make vector of plot_cb if it has been true or false before
+    ## plot_cb can have values [{1}, 0] 
+    ## with meanings:
+    ##   1: plot cb; 
+    ##   0: do not plot cb
+    #plot_cb_right  = False
+    #plot_cb_bottom = False
+    #if isinstance(plot_cb, bool) and (plot_cb==True):
+        #plot_cb = np.ones((nx,ny))  
+    #elif isinstance(plot_cb, bool) and (plot_cb==False):
+        #plot_cb = np.zeros((nx,ny))
+    #elif isinstance(plot_cb, str) and plot_cb=='right':
+        #plot_cb = np.zeros((nx,ny))
+        #plot_cb_right = True
+    #elif isinstance(plot_cb, str) and plot_cb=='bottom':
+        #plot_cb = np.zeros((nx,ny))
+        #plot_cb_bottom = True
+    #else:
+        #plot_cb = np.array(plot_cb)
+        #if plot_cb.size!=nx*ny    : raise ValueError('Vector plot_cb has wrong length!')
+        #if plot_cb.shape[0]==nx*ny: plot_cb = plot_cb.reshape(ny,nx).transpose()
+        #elif plot_cb.shape[0]==ny : plot_cb = plot_cb.transpose()
   
-    # --- make list of projections if it is not a list
-    if not isinstance(projection, list): projection = [projection]*nx*ny
+    ## --- make list of projections if it is not a list
+    #if not isinstance(projection, list): projection = [projection]*nx*ny
     
-    # --- make arrays and multiply by f_*
-    daxl = np.array([daxl]*nx)*f_daxl
-    daxr = np.array([daxr]*nx)*f_daxr
-    dcbl = np.array([dcbl]*nx)*f_dcbl
-    dcbr = np.array([dcbr]*nx)*f_dcbr
+    ## --- make arrays and multiply by f_*
+    #daxl = np.array([daxl]*nx)*f_daxl
+    #daxr = np.array([daxr]*nx)*f_daxr
+    #dcbl = np.array([dcbl]*nx)*f_dcbl
+    #dcbr = np.array([dcbr]*nx)*f_dcbr
     
-    wax  = np.array([wax]*nx)*f_wax
-    wcb  = np.array([wcb]*nx)*f_wcb
+    #wax  = np.array([wax]*nx)*f_wax
+    #wcb  = np.array([wcb]*nx)*f_wcb
     
-    daxt = np.array([daxt]*ny)*f_daxt
-    daxb = np.array([daxb]*ny)*f_daxb
-    dcbt = np.array([dcbt]*ny)*f_dcbt
-    dcbb = np.array([dcbb]*ny)*f_dcbb
+    #daxt = np.array([daxt]*ny)*f_daxt
+    #daxb = np.array([daxb]*ny)*f_daxb
+    #dcbt = np.array([dcbt]*ny)*f_dcbt
+    #dcbb = np.array([dcbb]*ny)*f_dcbb
     
-    hax  = np.array([hax]*ny)*f_hax
-    hcb  = np.array([hcb]*ny)*f_hcb
+    #hax  = np.array([hax]*ny)*f_hax
+    #hcb  = np.array([hcb]*ny)*f_hcb
   
-    # --- adjust for shared axes
-    if sharex: daxb[:-1] = 0.
+    ## --- adjust for shared axes
+    #if sharex: daxb[:-1] = 0.
     
-    if sharey: daxl[1:] = 0.
+    #if sharey: daxl[1:] = 0.
 
-    # --- adjust for one colorbar at the right or bottom
-    if plot_cb_right:
-        daxr_s = daxr[0]
-        dcbl_s = dcbl[0]
-        dcbr_s = dcbr[0]
-        wcb_s  = wcb[0]
-        hcb_s  = hcb[0]
-        dfigr += dcbl_s+wcb_s+0.*dcbr_s+daxl[0]
-    if plot_cb_bottom:
-        hcb_s  = wcb[0]
-        wcb_s  = wax[0]
-        dcbb_s = dcbb[0]+daxb[-1]
-        dcbt_s = dcbt[0]
+    ## --- adjust for one colorbar at the right or bottom
+    #if plot_cb_right:
+        #daxr_s = daxr[0]
+        #dcbl_s = dcbl[0]
+        #dcbr_s = dcbr[0]
+        #wcb_s  = wcb[0]
         #hcb_s  = hcb[0]
-        dfigb += dcbb_s+hcb_s+dcbt_s
+        #dfigr += dcbl_s+wcb_s+0.*dcbr_s+daxl[0]
+    #if plot_cb_bottom:
+        #hcb_s  = wcb[0]
+        #wcb_s  = wax[0]
+        #dcbb_s = dcbb[0]+daxb[-1]
+        #dcbt_s = dcbt[0]
+        ##hcb_s  = hcb[0]
+        #dfigb += dcbb_s+hcb_s+dcbt_s
   
-    # --- adjust for columns without colorbar
-    delete_cb_space = plot_cb.sum(axis=1)==0
-    dcbl[delete_cb_space] = 0.0
-    dcbr[delete_cb_space] = 0.0
-    wcb[delete_cb_space]  = 0.0
+    ## --- adjust for columns without colorbar
+    #delete_cb_space = plot_cb.sum(axis=1)==0
+    #dcbl[delete_cb_space] = 0.0
+    #dcbr[delete_cb_space] = 0.0
+    #wcb[delete_cb_space]  = 0.0
     
-    # --- determine ax position and fig dimensions
-    x0 =   dfigl
-    y0 = -(dfigt)
+    ## --- determine ax position and fig dimensions
+    #x0 =   dfigl
+    #y0 = -(dfigt)
     
-    pos_axcm = np.zeros((nx*ny,4))
-    pos_cbcm = np.zeros((nx*ny,4))
-    nn = -1
-    y00 = y0
-    x00 = x0
-    for jj in range(ny):
-        y0 += -(daxt[jj]+hax[jj])
-        x0 = x00
-        for ii in range(nx):
-            nn += 1
-            x0   += daxl[ii]
-            pos_axcm[nn,:] = [x0, y0, wax[ii], hax[jj]]
-            pos_cbcm[nn,:] = [x0+wax[ii]+daxr[ii]+dcbl[ii], y0, wcb[ii], hcb[jj]]
-            x0   += wax[ii]+daxr[ii]+dcbl[ii]+wcb[ii]+dcbr[ii]
-        y0   += -(daxb[jj])
-    wfig = x0+dfigr
-    hfig = y0-dfigb
+    #pos_axcm = np.zeros((nx*ny,4))
+    #pos_cbcm = np.zeros((nx*ny,4))
+    #nn = -1
+    #y00 = y0
+    #x00 = x0
+    #for jj in range(ny):
+        #y0 += -(daxt[jj]+hax[jj])
+        #x0 = x00
+        #for ii in range(nx):
+            #nn += 1
+            #x0   += daxl[ii]
+            #pos_axcm[nn,:] = [x0, y0, wax[ii], hax[jj]]
+            #pos_cbcm[nn,:] = [x0+wax[ii]+daxr[ii]+dcbl[ii], y0, wcb[ii], hcb[jj]]
+            #x0   += wax[ii]+daxr[ii]+dcbl[ii]+wcb[ii]+dcbr[ii]
+        #y0   += -(daxb[jj])
+    #wfig = x0+dfigr
+    #hfig = y0-dfigb
   
-    # --- transform from negative y axis to positive y axis
-    hfig = -hfig
-    pos_axcm[:,1] += hfig
-    pos_cbcm[:,1] += hfig
+    ## --- transform from negative y axis to positive y axis
+    #hfig = -hfig
+    #pos_axcm[:,1] += hfig
+    #pos_cbcm[:,1] += hfig
     
-    # --- convert to fig coords
-    cm2fig_x = 1./wfig
-    cm2fig_y = 1./hfig
+    ## --- convert to fig coords
+    #cm2fig_x = 1./wfig
+    #cm2fig_y = 1./hfig
     
-    pos_ax = 1.*pos_axcm
-    pos_cb = 1.*pos_cbcm
+    #pos_ax = 1.*pos_axcm
+    #pos_cb = 1.*pos_cbcm
     
-    pos_ax[:,0] = pos_axcm[:,0]*cm2fig_x
-    pos_ax[:,2] = pos_axcm[:,2]*cm2fig_x
-    pos_ax[:,1] = pos_axcm[:,1]*cm2fig_y
-    pos_ax[:,3] = pos_axcm[:,3]*cm2fig_y
+    #pos_ax[:,0] = pos_axcm[:,0]*cm2fig_x
+    #pos_ax[:,2] = pos_axcm[:,2]*cm2fig_x
+    #pos_ax[:,1] = pos_axcm[:,1]*cm2fig_y
+    #pos_ax[:,3] = pos_axcm[:,3]*cm2fig_y
     
-    pos_cb[:,0] = pos_cbcm[:,0]*cm2fig_x
-    pos_cb[:,2] = pos_cbcm[:,2]*cm2fig_x
-    pos_cb[:,1] = pos_cbcm[:,1]*cm2fig_y
-    pos_cb[:,3] = pos_cbcm[:,3]*cm2fig_y
+    #pos_cb[:,0] = pos_cbcm[:,0]*cm2fig_x
+    #pos_cb[:,2] = pos_cbcm[:,2]*cm2fig_x
+    #pos_cb[:,1] = pos_cbcm[:,1]*cm2fig_y
+    #pos_cb[:,3] = pos_cbcm[:,3]*cm2fig_y
 
-    # --- find axes center (!= figure center)
-    x_ax_cent = pos_axcm[0,0] +0.5*(pos_axcm[-1,0]+pos_axcm[-1,2]-pos_axcm[0,0])
-    y_ax_cent = pos_axcm[-1,1]+0.5*(pos_axcm[0,1] +pos_axcm[0,3] -pos_axcm[-1,1])
+    ## --- find axes center (!= figure center)
+    #x_ax_cent = pos_axcm[0,0] +0.5*(pos_axcm[-1,0]+pos_axcm[-1,2]-pos_axcm[0,0])
+    #y_ax_cent = pos_axcm[-1,1]+0.5*(pos_axcm[0,1] +pos_axcm[0,3] -pos_axcm[-1,1])
     
-    # --- make figure and axes
-    fig = plt.figure(figsize=(wfig*cm2inch, hfig*cm2inch), facecolor='white')
+    ## --- make figure and axes
+    #fig = plt.figure(figsize=(wfig*cm2inch, hfig*cm2inch), facecolor='white')
   
-    hca = [0]*(nx*ny)
-    hcb = [0]*(nx*ny)
-    nn = -1
-    for jj in range(ny):
-        for ii in range(nx):
-            nn+=1
+    #hca = [0]*(nx*ny)
+    #hcb = [0]*(nx*ny)
+    #nn = -1
+    #for jj in range(ny):
+        #for ii in range(nx):
+            #nn+=1
             
-            # --- axes
-            hca[nn] = fig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])
-            hca[nn].set_position(pos_ax[nn,:])
+            ## --- axes
+            #hca[nn] = fig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])
+            #hca[nn].set_position(pos_ax[nn,:])
             
-            # --- colorbar
-            if plot_cb[ii,jj] == 1:
-                hcb[nn] = fig.add_subplot(position=pos_cb[nn,:])
-                hcb[nn].set_position(pos_cb[nn,:])
-            ax  = hca[nn]
-            cax = hcb[nn] 
+            ## --- colorbar
+            #if plot_cb[ii,jj] == 1:
+                #hcb[nn] = fig.add_subplot(position=pos_cb[nn,:])
+                #hcb[nn].set_position(pos_cb[nn,:])
+            #ax  = hca[nn]
+            #cax = hcb[nn] 
             
-            # --- label
-            ax.set_xlabel(xlabel, fontsize=fs_label)
-            ax.set_ylabel(ylabel, fontsize=fs_label)
-            #ax.set_title('', fontsize=fs_title)
-            matplotlib.rcParams['axes.titlesize'] = fs_title
-            ax.tick_params(labelsize=fs_ticks)
-            if plot_cb[ii,jj] == 1:
-                hcb[nn].tick_params(labelsize=fs_ticks)
+            ## --- label
+            #ax.set_xlabel(xlabel, fontsize=fs_label)
+            #ax.set_ylabel(ylabel, fontsize=fs_label)
+            ##ax.set_title('', fontsize=fs_title)
+            #matplotlib.rcParams['axes.titlesize'] = fs_title
+            #ax.tick_params(labelsize=fs_ticks)
+            #if plot_cb[ii,jj] == 1:
+                #hcb[nn].tick_params(labelsize=fs_ticks)
             
-            #ax.tick_params(pad=-10.0)
-            #ax.xaxis.labelpad = 0
-            #ax._set_title_offset_trans(float(-20))
+            ##ax.tick_params(pad=-10.0)
+            ##ax.xaxis.labelpad = 0
+            ##ax._set_title_offset_trans(float(-20))
             
-            # --- axes ticks
-            # delete labels for shared axes
-            if sharex and jj!=ny-1:
-                hca[nn].ticklabel_format(axis='x',style='plain',useOffset=False)
-                hca[nn].tick_params(labelbottom=False)
-                hca[nn].set_xlabel('')
+            ## --- axes ticks
+            ## delete labels for shared axes
+            #if sharex and jj!=ny-1:
+                #hca[nn].ticklabel_format(axis='x',style='plain',useOffset=False)
+                #hca[nn].tick_params(labelbottom=False)
+                #hca[nn].set_xlabel('')
             
-            if sharey and ii!=0:
-                hca[nn].ticklabel_format(axis='y',style='plain',useOffset=False)
-                hca[nn].tick_params(labelleft=False)
-                hca[nn].set_ylabel('')
+            #if sharey and ii!=0:
+                #hca[nn].ticklabel_format(axis='y',style='plain',useOffset=False)
+                #hca[nn].tick_params(labelleft=False)
+                #hca[nn].set_ylabel('')
             
-            # ticks for colorbar 
-            if plot_cb[ii,jj] == 1:
-                hcb[nn].set_xticks([])
-                hcb[nn].yaxis.tick_right()
-                hcb[nn].yaxis.set_label_position("right")
+            ## ticks for colorbar 
+            #if plot_cb[ii,jj] == 1:
+                #hcb[nn].set_xticks([])
+                #hcb[nn].yaxis.tick_right()
+                #hcb[nn].yaxis.set_label_position("right")
 
-    #--- needs to converted to fig coords (not cm)
-    if plot_cb_right:
-        nn = -1
-        #pos_cb = np.array([(wfig-(dfigr+dcbr_s+wcb_s))*cm2fig_x, (y_ax_cent-0.5*hcb_s)*cm2fig_y, wcb_s*cm2fig_x, hcb_s*cm2fig_y])
-        pos_cb = np.array([ (pos_axcm[-1,0]+pos_axcm[-1,2]+daxr_s+dcbl_s)*cm2fig_x, 
-                            (y_ax_cent-0.5*hcb_s)*cm2fig_y, 
-                            (wcb_s)*cm2fig_x, 
-                            (hcb_s)*cm2fig_y 
-                        ])
-        hcb[nn] = fig.add_subplot(position=pos_cb)
-        hcb[nn].tick_params(labelsize=fs_ticks)
-        hcb[nn].set_position(pos_cb)
-        hcb[nn].set_xticks([])
-        hcb[nn].yaxis.tick_right()
-        hcb[nn].yaxis.set_label_position("right")
+    ##--- needs to converted to fig coords (not cm)
+    #if plot_cb_right:
+        #nn = -1
+        ##pos_cb = np.array([(wfig-(dfigr+dcbr_s+wcb_s))*cm2fig_x, (y_ax_cent-0.5*hcb_s)*cm2fig_y, wcb_s*cm2fig_x, hcb_s*cm2fig_y])
+        #pos_cb = np.array([ (pos_axcm[-1,0]+pos_axcm[-1,2]+daxr_s+dcbl_s)*cm2fig_x, 
+                            #(y_ax_cent-0.5*hcb_s)*cm2fig_y, 
+                            #(wcb_s)*cm2fig_x, 
+                            #(hcb_s)*cm2fig_y 
+                        #])
+        #hcb[nn] = fig.add_subplot(position=pos_cb)
+        #hcb[nn].tick_params(labelsize=fs_ticks)
+        #hcb[nn].set_position(pos_cb)
+        #hcb[nn].set_xticks([])
+        #hcb[nn].yaxis.tick_right()
+        #hcb[nn].yaxis.set_label_position("right")
 
-    if plot_cb_bottom:
-        nn = -1
-        pos_cb = np.array([ (x_ax_cent-0.5*wcb_s)*cm2fig_x, 
-                            (dcbb_s)*cm2fig_y, 
-                            (wcb_s)*cm2fig_x, 
-                            (hcb_s)*cm2fig_y
-                        ])
-        hcb[nn] = fig.add_subplot(position=pos_cb)
-        hcb[nn].set_position(pos_cb)
-        hcb[nn].tick_params(labelsize=fs_ticks)
-        hcb[nn].set_yticks([])
+    #if plot_cb_bottom:
+        #nn = -1
+        #pos_cb = np.array([ (x_ax_cent-0.5*wcb_s)*cm2fig_x, 
+                            #(dcbb_s)*cm2fig_y, 
+                            #(wcb_s)*cm2fig_x, 
+                            #(hcb_s)*cm2fig_y
+                        #])
+        #hcb[nn] = fig.add_subplot(position=pos_cb)
+        #hcb[nn].set_position(pos_cb)
+        #hcb[nn].tick_params(labelsize=fs_ticks)
+        #hcb[nn].set_yticks([])
 
-    if reverse_order:
-        isort = np.arange(nx*ny, dtype=int).reshape((ny,nx)).transpose().flatten()
-        hca = list(np.array(hca)[isort]) 
-        hcb = list(np.array(hcb)[isort])
+    #if reverse_order:
+        #isort = np.arange(nx*ny, dtype=int).reshape((ny,nx)).transpose().flatten()
+        #hca = list(np.array(hca)[isort]) 
+        #hcb = list(np.array(hcb)[isort])
 
-    # add letters for subplots
-    if (do_axes_labels) and (axlab_kw is not None):
-        hca = axlab(hca, fontdict=axlab_kw)
+    ## add letters for subplots
+    #if (do_axes_labels) and (axlab_kw is not None):
+        #hca = axlab(hca, fontdict=axlab_kw)
 
-    #___________________________________________________________________________
-    list_argout=[]
-    if len(nargout)>0:
-        for stri in nargout:
-            try:
-                list_argout.append(eval(stri))
-            except:
-                print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
+    ##___________________________________________________________________________
+    #list_argout=[]
+    #if len(nargout)>0:
+        #for stri in nargout:
+            #try:
+                #list_argout.append(eval(stri))
+            #except:
+                #print(f" -warning-> variable {stri} was not found, could not be added as output argument") 
             
-        return(list_argout)
-    else:
-        return
-    #return fig, hca, hcb
+        #return(list_argout)
+    #else:
+        #return
+    ##return fig, hca, hcb
 
 
 
-#
-#
-#_______________________________________________________________________________
-# --> this based on work of Nils Bruegemann see 
-# https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
-# i needed this to unify the ploting between icon and fesom for model comparison
-# paper    
-def axlab(hca, figstr=[], posx=[-0.00], posy=[1.05], fontdict=None):
-  """
-input:
-----------
-  hca:      list with axes handles
-  figstr:   list with strings that label the subplots
-  posx:     list with length 1 or len(hca) that gives the x-coordinate in ax-space
-  posy:     list with length 1 or len(hca) that gives the y-coordinate in ax-space
-last change:
-----------
-2015-07-21
-  """
+##
+##
+##_______________________________________________________________________________
+## --> this based on work of Nils Bruegemann see 
+## https://gitlab.dkrz.de/m300602/pyicon/-/blob/master/pyicon/pyicon_plotting.py
+## i needed this to unify the ploting between icon and fesom for model comparison
+## paper    
+#def axlab(hca, figstr=[], posx=[-0.00], posy=[1.05], fontdict=None):
+  #"""
+#input:
+#----------
+  #hca:      list with axes handles
+  #figstr:   list with strings that label the subplots
+  #posx:     list with length 1 or len(hca) that gives the x-coordinate in ax-space
+  #posy:     list with length 1 or len(hca) that gives the y-coordinate in ax-space
+#last change:
+#----------
+#2015-07-21
+  #"""
 
-  # make list that looks like [ '(a)', '(b)', '(c)', ... ]
-  if len(figstr)==0:
-    #lett = "abcdefghijklmnopqrstuvwxyz"
-    lett  = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
-    lett += ["a2","b2","c2","d2","e2","f2","g2","h2","i2","j2","k2","l2","m2","n2","o2","p2","q2","r2","s2","t2","u2","v2","w2","x2","y2","z2"]
-    lett = lett[0:len(hca)]
-    figstr = ["z"]*len(hca)
-    for nn, ax in enumerate(hca):
-      figstr[nn] = "(%s)" % (lett[nn])
+  ## make list that looks like [ '(a)', '(b)', '(c)', ... ]
+  #if len(figstr)==0:
+    ##lett = "abcdefghijklmnopqrstuvwxyz"
+    #lett  = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
+    #lett += ["a2","b2","c2","d2","e2","f2","g2","h2","i2","j2","k2","l2","m2","n2","o2","p2","q2","r2","s2","t2","u2","v2","w2","x2","y2","z2"]
+    #lett = lett[0:len(hca)]
+    #figstr = ["z"]*len(hca)
+    #for nn, ax in enumerate(hca):
+      #figstr[nn] = "(%s)" % (lett[nn])
   
-  if len(posx)==1:
-    posx = posx*len(hca)
-  if len(posy)==1:
-    posy = posy*len(hca)
+  #if len(posx)==1:
+    #posx = posx*len(hca)
+  #if len(posy)==1:
+    #posy = posy*len(hca)
   
-  # draw text
-  for nn, ax in enumerate(hca):
-    ht = hca[nn].text(posx[nn], posy[nn], figstr[nn], 
-                      transform = hca[nn].transAxes, 
-                      horizontalalignment = 'right',
-                      fontdict=fontdict)
-    # add text handle to axes to give possibility of changing text properties later
-    # e.g. by hca[nn].axlab.set_fontsize(8)
-    hca[nn].axlab = ht
-#  for nn, ax in enumerate(hca):
-#    #ax.set_title(figstr[nn]+'\n', loc='left', fontsize=10)
-#    ax.set_title(figstr[nn], loc='left', fontsize=10)
-  return hca
+  ## draw text
+  #for nn, ax in enumerate(hca):
+    #ht = hca[nn].text(posx[nn], posy[nn], figstr[nn], 
+                      #transform = hca[nn].transAxes, 
+                      #horizontalalignment = 'right',
+                      #fontdict=fontdict)
+    ## add text handle to axes to give possibility of changing text properties later
+    ## e.g. by hca[nn].axlab.set_fontsize(8)
+    #hca[nn].axlab = ht
+##  for nn, ax in enumerate(hca):
+##    #ax.set_title(figstr[nn]+'\n', loc='left', fontsize=10)
+##    ax.set_title(figstr[nn], loc='left', fontsize=10)
+  #return hca

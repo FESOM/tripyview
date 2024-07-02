@@ -23,48 +23,88 @@ from .sub_mesh import *
 #| and not to load it again !!!                                                |
 #|_____________________________________________________________________________|
 def load_mesh_fesom2(
-                    meshpath, abg=[50,15,-90], focus=0, cyclic=360, do_rot='None', 
-                    do_augmpbnd=True, do_cavity=False, do_info=True, 
-                    do_lsmask=True, do_lsmshp=True, do_pickle=True, do_joblib=False, 
-                    do_earea=True, do_narea=True, do_loadraw=False, 
-                    do_eresol=[False,'mean'], do_nresol=[False,'e_resol'],
-                    do_f14cmip6=False
+                    meshpath, 
+                    abg         = [50 , 15, -90]        , 
+                    focus       = 0                     , 
+                    cyclic      = 360                   , 
+                    do_rot      = 'None'                , 
+                    do_augmpbnd = True                  , 
+                    do_cavity   = False                 , 
+                    do_lsmask   = True                  , 
+                    do_lsmshp   = True                  , 
+                    do_earea    = True                  , 
+                    do_narea    = True                  , 
+                    do_eresol   = [False,'mean']        , 
+                    do_nresol   = [False,'e_resol']     ,
+                    do_loadraw  = False                 , 
+                    do_pickle   = True                  , 
+                    do_joblib   = False                 , 
+                    do_f14cmip6 = False                 ,
+                    do_info     = True                  , 
                     ):
-    
-    
     """
-    ---> load FESOM2 mesh:
-    ___INPUT:___________________________________________________________________
-    mespath     :   str, path that leads to FESOM2.0 mesh files (*.out)
-    abg         :   list, [alpha,beta,gamma] euler angles used to rotate the grids
-                    within the model, default: [50,15,-90]
-    focus       :   float, sets longitude center of the mesh, default: focus=0 
-                    lon=[-180...180], focus=180 lon=[0...360]
-    do_rot      :   str, should the grid be rotated, default: 'None' 
-                    None, 'None' : no rotation is applied 
-                    'r2g'        : loaded grid is rotated and transformed to geo
-                    'g2r'        : loaded grid is geo and transformed to rotated
-    do_augmpbnd :   bool, augment periodic boundary triangles, default: True
-    do_cavity   :   bool, load also cavity files cavity_nlvls.out and 
-                    cavity_elvls.out, default: False
-    do_info     :   bool, print progress and mesh information, default: True
-    do_lsmask   :   bool, compute land-sea mask polygon for FESOM2 mesh, 
-                    see mesh.lsmask, augments its periodic boundaries see 
-                    mesh.lasmask_a and computes land sea mask patch see mesh.lsmask_p,
-                    default: True
-    do_pickle   :   bool, store and load mesh from *.pckl binary file, default: True
-    do_earea    :   bool, compute or load from fesom.mesh.diag.nc the area of elements
-    do_eresol   :   list([bool,str]), compute resolution based on elements, 
-                    str can be "mean": resolution based on mean element edge 
-                    length, "max": resolution based on maximum edge length, 
-                    "min" resolution based on minimum edge length, 
-                    default: [False,'area']
-    do_narea    :   bool, compute or load from fesom.mesh.diag.nc the clusterarea 
-                    of vertices, default: False
-    do_nresol   :   bool, compute resolution at nodes from interpolation of 
-                    resolution at elements, default: False
-    ___RETURNS:_________________________________________________________________
-    mesh        :   object, returns fesom_mesh object
+    --> load FESOM2 mesh
+    
+    Parameters:
+
+        :mespath:       str, path that leads to FESOM2.0 mesh files (.out)
+
+        :abg:           list, [alpha,beta,gamma], (default=[50,15,-90]) euler angles used to rotate the grids within the model
+
+        :focus:         float, (default=0) sets longitude center of the mesh, lon=[-180...180], focus=180 lon=[0...360]
+
+        :cyclic:        float, (default=360.0), length of cyclic domain in lon degree can be different channel configuration
+
+        :do_rot:        str, (default='None') should the grid be rotated, default: 'None' 
+                        - None, 'None' ... no rotation is applied 
+                        - 'r2g'        ... loaded grid is rotated and transformed to geo
+                        - 'g2r'        ... loaded grid is geo and transformed to rotated
+
+        :do_augmpbnd:   bool, (default=True) augment periodic boundary triangles, default: True
+
+        :do_cavity:     bool, (default=False) load also cavity files cavity_nlvls.out and cavity_elvls.out
+
+        :do_lsmask:     bool, (default=True) 
+                        Compute land-sea mask polygon for FESOM2 mesh see mesh.lsmask, augments 
+                        its periodic boundaries see mesh.lasmask_a and computes land sea mask 
+                        patch see mesh.lsmask_p
+
+        :do_lsmshp:     bool, (default=True) save land-sea mask with periodic boundnaries to shapefile         
+
+        :do_earea:      bool, (default=True) compute or load from fesom.mesh.diag.nc the area of elements
+
+        :do_narea:      bool, (default=True) compute or load from fesom.mesh.diag.nc the clusterarea 
+                        of vertices
+
+        :do_eresol:     list([bool,str]), (default: [False,'mean']) compute 
+                        resolution based on elements, str can be...
+                        - "mean": resolution based on mean element edge length, 
+                        - "max": resolution based on maximum edge length, 
+                        - "min" resolution based on minimum edge length, 
+
+        :do_nresol:     list([bool,str]), (default: [False,'e_resol']), compute resolution at nodes from interpolation of 
+                        resolution at elements
+
+        :do_loadraw:    bool, (default=False) also load the raw vertical level information
+                        for elements. Its the vertical level information before the exclusion
+                        of elements that have three boundary nodes in the topography
+
+        :do_pickle:     bool, (default=True) store and load mesh from .pckl binary file, 
+                        pickle5 is just supported until < python3.9. If pickel library 
+                        cant be  found it switches automatic to joblib
+
+        :do_joblib:     bool, (default=False) store and load mesh from .joblib binary file
+
+        :do_f14cmip6:   bool, (default=False) load FESOM1.4 mesh information and squeeze it into
+                        the framework of FESOM2. Needed here to compute AMOC on fesom1.4 
+                        cmorized CMIP6 data.
+
+        :do_info:       bool, (default=True) print progress and mesh information
+
+    Returns:
+    
+        :mesh:          object, returns fesom_mesh object
+
     """
     
     pickleprotocol=4
@@ -323,60 +363,124 @@ def load_mesh_fesom2(
 #|_____________________________________________________________________________|
 class mesh_fesom2(object):
     """
-    ---> Class that creates object that contains all information about FESOM2
-         mesh. As minimum requirement the mesh path to the files nod2d.out,
-         elem2d.out and aux3d.out has to be given, 
-    ___PARAMETERS:______________________________________________________________
-    see help(load_fesom_mesh)
-     
-    ___VARIABLES:_______________________________________________________________
-    path          : str, path that leads to FESOM2.0 mesh files (*.out)
-    id            : str, identifies mesh 
-    n2dn          : int, number of 2d nodes 
-    n_x,n_y       : array, lon lat position of surface nodes 
-    n2de          : int, number of 2d elements
-    e_i           : array, elemental array with 2d vertice indices, shape=[n2de,3] 
-    nlev          : int, number of vertical full cell level
-    zlev, zmid    : array, with full and mid depth levels
-    n_iz,e_iz     : array, number of full depth levels at vertices and elem
-    n_z           : array, bottom depth based on zlev[n_iz], 
-    ___if do_cavity==True:______________________________________________________
-    n_ic,e_ic     : array, full depth level index of cavity-ocean interface at 
-                    vertices and elem
-    n_c           : array, cavity-ocean interface depth at vertices zlev[n_ic]
-    ___if do_narea, do_nresol, do_earea, do_eresol == True:_____________________
-    n_area,n_resol: array, vertices area and resolution
-    e_area,e_resol: array, element area and resolution
+    --> Class that creates object that contains all information about FESOM2
+        mesh. As minimum requirement the mesh path to the files nod2d.out,
+        elem2d.out and aux3d.out has to be given, 
+    
+    __________________________________________________
+    
+    Parameters:    
         
-    e_pbnd_1      : array, elem indices of pbnd elements
-    e_pbnd_0      : array, elem indices of not pbnd elements
-    ___if do_augmpbnd == True:__________________________________________________
-    n_xa,n_ya,n_za: array, with augmented paramters  
-    n_iza,n_ca    :
-    n_ica         :
-    e_ia          : array, element array with augmented trinagles
-    e_pbnd_a      : array, elem indices of periodic augmented elements
-    n_pbnd_a      : array, vertice indices to augment pbnd
-    n2dna,n2dea   : int, number of elements and nodes with periodic boundary 
-                    augmentation
-                    
-                    --> create matplotlib triangulation with augmented periodic 
-                        boundary:
-                        tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)),
-                                            np.hstack((mesh.n_y,mesh.n_ya)),
-                                            np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
-    ___if do_lsmask == True:____________________________________________________
-    lsmask        : list(array1[npts,2], array2[npts,2], ...), contains all 
-                    land-sea mask polygons for FESOM2 mesh, with periodic boundary
-    lsmask_a      : list(array1[npts,2], array2[npts,2], ...)contains all 
-                    land-sea mask polygons for FESOM2 mesh, with augmented 
-                    periodic boundary
-    lsmask_p      : polygon, contains polygon collection that can be plotted as 
-                    closed polygon patches with ax.add_collection(PatchCollection
-                    (mesh.lsmask_p,facecolor=[0.7,0.7,0.7], edgecolor='k',
-                    linewidth=0.5))
-    ___RETURNS:_________________________________________________________________
-    mesh          : object, returns fesom_mesh object
+        see help(load_fesom_mesh)
+    
+    __________________________________________________
+    
+    Variables:    
+    
+        path:           str, path that leads to FESOM2.0 mesh files (.out)
+        
+        id:             str, identifies mesh 
+        
+        n2dn:           int, number of 2d nodes 
+        
+        n2de:           int, number of 2d elements
+        
+        n_x:            array, lon position of surface nodes 
+        
+        n_y:            array, lat position of surface nodes 
+        
+        e_i:            array, elemental array with 2d vertice indices, shape=[n2de,3] 
+        
+        ___vertical info____________________________________
+        
+        nlev:           int, number of vertical full cell level
+        
+        zlev:           array, with full depth levels
+        
+        zmid:           array, with mid depth levels
+        
+        n_z:            array, bottom depth based on zlev[n_iz], 
+        
+        n_iz:           array, number of full depth levels at vertices
+        
+        e_iz:           array, number of full depth levels at elem
+        
+        ___cavity info (if do_cavity==True)_________________
+        
+        n_ic:           array, full depth level index of cavity-ocean interface at vertices
+                        
+        e_ic:           array, full depth level index of cavity-ocean interface at elem
+                        
+        n_c:            array, cavity-ocean interface depth at vertices zlev[n_ic]
+        
+        ___area and resoltion info___________________________
+        
+        n_area:         array, area at vertices
+        
+        n_resol:        array, resolutionat vertices
+        
+        e_area:         array, area at elements
+        
+        e_resol:        array, resolution at elements
+        
+        ___periodic boundary augmentation____________________
+        
+        n_xa:           array, with augmented vertice paramters
+        
+        n_ya:           ...
+        
+        n_za:           ...
+        
+        n_iza:          ...
+        
+        n_ca:           ... 
+        
+        n_ica:          ...
+        
+        e_ia:           array, element array with augmented triangles --> np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia))
+        
+        e_pbnd_1:       array, elem indices of pbnd elements
+        
+        e_pbnd_0:       array, elem indices of not pbnd elements
+        
+        e_pbnd_a:       array, elem indices of periodic augmented elements --> data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
+        
+        n_pbnd_a:       array, vertice indices to augment pbnd --> data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
+        
+        n2dna:          int, number of vertices with periodic boundary augmentation
+        
+        n2dea:          int, number of elements with periodic boundary augmentation
+                        
+                        
+        ___land sea mask (if do_lsmask == True)______________
+        
+        lsmask: list(array1[npts,2], array2[npts,2], ...), contains all land-sea mask polygons for FESOM2 mesh, with periodic boundary
+
+        lsmask_a: list(array1[npts,2], array2[npts,2], ...)contains all land-sea mask polygons for FESOM2 mesh, with augmented 
+        periodic boundary
+
+        lsmask_p: polygon, contains polygon collection that can be plotted as 
+        closed polygon patches with ax.add_collection(PatchCollection
+        (mesh.lsmask_p,facecolor=[0.7,0.7,0.7], edgecolor='k', linewidth=0.5))
+    
+    __________________________________________________
+    
+    Returns:
+
+        mesh:       object, returns fesom_mesh object
+
+    __________________________________________________
+    
+    Info:
+    
+    create matplotlib triangulation with augmented periodic boundary
+    
+    ::
+        
+        tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), 
+                            np.hstack((mesh.n_y,mesh.n_ya)),
+                            np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+
     """
     
     #___INIT FESOM2.0 MESH OBJECT_______________________________________________
@@ -556,6 +660,11 @@ class mesh_fesom2(object):
     #| read files: nod2d.out, elem2d.out, aux3d.out, nlvls.out, elvls.out      |                                                         
     #|_________________________________________________________________________|
     def read_mesh(self):
+        """
+        --> part of fesom mesh class, read mesh files nod2d.out, elem2d.out, 
+        aux3d.out, nlvls.out and elvls.out   
+        
+        """
         #____load 2d node matrix________________________________________________
         file_content = pa.read_csv(self.fname_nod2d, delim_whitespace=True, skiprows=1, \
                                       names=['node_number','x','y','flag'] )
@@ -648,12 +757,8 @@ class mesh_fesom2(object):
         #_______________________________________________________________________
         # vertical level information of fesom1.4 mesh
         #if self.do_f14cmip6:
-            
-        
-        
+
         #_______________________________________________________________________
-        
-        
         return(self)    
     
     
@@ -662,6 +767,11 @@ class mesh_fesom2(object):
     #| read files: cavity_nlvls.out, cavity_elvls.out                          |                                     
     #|_________________________________________________________________________|
     def read_cavity(self):
+        """
+        --> part of fesom mesh class, read cavity mesh files, cavity_nlvls.out
+        cavity_elvls.out and cavity_elvls_raw.out (if do_loadraw=True)
+        
+        """
         
         #____load number of cavity levels at each node__________________________
         self.fname_cnlvls = os.path.join(self.path,'cavity_nlvls.out')
@@ -737,6 +847,11 @@ ___________________________________________""".format(
     #| participate in periodic boundary (e_pbnd_0)                             |
     #|_________________________________________________________________________|
     def pbnd_find(self):
+        """
+        --> part of fesom mesh class, find elements that cross over the periodic
+        boundary
+        
+        """
         #_______________________________________________________________________
         # find out 1st which element contribute to periodic boundary and 2nd
         # which nodes are involed in periodic boundary
@@ -754,6 +869,12 @@ ___________________________________________""".format(
     #| right side for an even non_periodic boundary                            |
     #|_________________________________________________________________________|
     def pbnd_augment(self):
+        """
+        --> part of fesom mesh class, adds additional elements to augment the 
+        periodic boundary on the left and right side for an even non_periodic 
+        boundary is created left and right [-180, 180] of the domain         
+
+        """
         self.do_augmpbnd = True
         #_______________________________________________________________________
         # find which nodes are involed in periodic boundary
@@ -843,6 +964,12 @@ ___________________________________________""".format(
     #| meshpath or recompute it from scratch, [m^2]                            |
     #|_________________________________________________________________________|
     def compute_e_area(self):
+        """
+        --> part of fesom mesh class, either load area of elements from 
+        fesom.mesh.diag.nc if its found in meshpath or recompute it from 
+        scratch, [m^2]             
+
+        """
         # just compute e_area if mesh.area is empty 
         if len(self.e_area)==0:
             self.do_earea=True
@@ -891,6 +1018,17 @@ ___________________________________________""".format(
     #|           "min" : resolution based on minimum element edge length       |
     #|_________________________________________________________________________|
     def compute_e_resol(self, which='mean'):
+        """
+        --> part of fesom mesh class, compute area of elements in [m], options:
+
+            Parameter:
+
+                which: str,
+                        - "mean" ... resolution based on mean element edge legth
+                        - "max"  ... resolution based on maximum element edge length
+                        - "min"  ... resolution based on minimum element edge length
+
+        """
         if len(self.e_resol) == 0 :
             self.do_eresol[0]=True
             self.do_eresol[1]=which
@@ -957,6 +1095,12 @@ ___________________________________________""".format(
     #| in meshpath or recompute it from scratch by using e_area, [m^2]         |
     #|_________________________________________________________________________|
     def compute_n_area(self):
+        """
+        --> part of fesom mesh class, either load clusterarea of vertices from 
+        fesom.mesh.diag.nc if its found in meshpath or recompute it from scratch 
+        by using e_area, [m^2]     
+        
+        """
         # just compute e_area if mesh.area is empty 
         if len(self.n_area)==0:
             self.do_narea=True
@@ -1030,6 +1174,16 @@ ___________________________________________""".format(
     #|                      resolution to vertices, default                    |
     #|_________________________________________________________________________|
     def compute_n_resol(self,which='n_area'):
+        """
+        --> part of fesom mesh class, compute resolution at vertices in m, options:
+
+            Parameter:
+
+                which: str,
+                        - "n_area" ... compute resolution based on vertice cluster area
+                        - "e_resol"  ... compute vertice resolution by interpolating elem resolution to vertices, default      
+
+        """
         # just compute e_area if mesh.area is empty 
         if len(self.n_resol)==0:
             self.do_nresol[0]=True
@@ -1088,6 +1242,11 @@ ___________________________________________""".format(
     #| consequtive connected                                                   |                   
     #|_________________________________________________________________________|
     def compute_lsmask(self):
+        """
+        --> part of fesom mesh class, compute land-sea mask contourline with 
+        periodic boundary based on boundary edges that contribute only to one triangle 
+        and then checking which edges can be consequtive connected                                                   |
+        """
         print(' > compute lsmask')
         self.do_lsmask = True
         #_______________________________________________________________________
@@ -1187,6 +1346,11 @@ ___________________________________________""".format(
     #| boundaries                                                              |
     #|_________________________________________________________________________|
     def augment_lsmask(self):
+        """
+        --> part of fesom mesh class, split contourlines that span over the 
+        periodic boundary into two separated countourlines for the left and 
+        right side of the periodic boundaries
+        """
         print(' > augment lsmask')
         #self.lsmask_a = self.lsmask.copy()
         self.lsmask_a = []
@@ -1342,30 +1506,40 @@ ___________________________________________""".format(
         return(self)
 
 
-    
-# ___COMPUTE POLYGON PATCH FROM LAND-SEA MASK CONTOUR__________________________
-#| computes polygon collection that can be plotted as closed polygon patches   |
-#| with ax.add_collection(PatchCollection(mesh.lsmask_p,                       |
-#| facecolor=[0.7,0.7,0.7], edgecolor='k',linewidth=0.5))                      |
-#| ___INPUT_________________________________________________________________   |
-#| lsmask   :   list([array1[npts,2], array2[npts,2]], ...)                    |
-#|                    array1=np.array([ [x1,y1];                               |
-#|                                      [x2,y2];                               |
-#|                                        ...  ])                              |
-#| ___RETURNS_______________________________________________________________   |
-#| lsmask_p :   shapely Multipolygon object                                    |
-#| ___INFO__________________________________________________________________   |
-#| how to plot in matplotlib:                                                  |
-#|          from descartes import PolygonPatch                                 |
-#|          ax.add_patch(PolygonPatch(mesh.lsmask_p,facecolor=[0.7,0.7,0.7],   |
-#|                                    edgecolor='k',linewidth=0.5))            |
-#| how to plot in cartopy:                                                     |
-#|          import cartopy.crs as ccrs                                         |
-#|          ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(),           |
-#|                            facecolor=[0.6,0.6,0.6], edgecolor='k',          |
-#|                            linewidth=0.5)                                   |
-#|_____________________________________________________________________________|
+
+#
+#
+#____COMPUTE POLYGON PATCH FROM LAND-SEA MASK CONTOUR___________________________
 def lsmask_patch(lsmask):
+    """    
+    --> computes polygon collection that can be plotted as closed polygon patches
+    with ax.add_collection(PatchCollection(mesh.lsmask_p,
+    facecolor=[0.7,0.7,0.7], edgecolor='k',linewidth=0.5))
+
+    Parameters:
+    
+        lsmask: list()
+            list([array1[npts,2], array2[npts,2]], ...) \n
+            array1=np.array([ [x1,y1]; [x2,y2]; ...  ])
+    
+
+    
+    Returns:
+    
+        :lsmask_p: shapely Multipolygon object
+        
+    Info:
+    
+        - how to plot in matplotlib:
+          from descartes import PolygonPatch
+          ax.add_patch(PolygonPatch(mesh.lsmask_p,facecolor=[0.7,0.7,0.7],
+        
+        - how to plot in cartopy:
+          import cartopy.crs as ccrs
+          ax.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), facecolor=[0.6,0.6,0.6], edgecolor='k',
+          linewidth=0.5)
+
+    """
     from shapely.geometry import Polygon, MultiPolygon
     #___________________________________________________________________________
     polygonlist=[]
@@ -1377,48 +1551,63 @@ def lsmask_patch(lsmask):
 
 
 
-# ___SAVE POLYGON LAND-SEA MASK CONTOUR TO SHAPEFILE___________________________
-#| save FESOM2 grid land-sea mask polygons to shapefile                        |
-#| ___INPUT_________________________________________________________________   |
-#| mesh     :   fesom2 mesh object, contains periodic augmented land-sea mask  |
-#|              polygonss in mesh.lsmask_a                                     |
-#| lsmask   :   list, if empty mesh.lsmask_a is stored in shapefile, if not    |
-#|              empty lsmask=lsmaskin than lsmaskin will be stored in          |
-#|              shapefile                                                      |
-#| path     :   str if empty mesh.path (or cache path depending on writing     |
-#|              permission) is used as location to store the shapefile, if     |
-#|              path=pathin than this string serves as location to store       |
-#|              .shp file                                                      |
-#| fname    :   str if empty fixed filename is used mypymesh_fesom2_ID_        |
-#|              focus=X.shp, if not empty than fname=fnamein is used as        |
-#|              filename for shape file                                        |
-#| do_info  :   bool, print info where .shp file is saved, default = True      |       
-#| ___RETURNS_______________________________________________________________   |
-#| nothing                                                                     |
-#| ___INFO__________________________________________________________________   |
-#| --> to load and plot shapefile patches                                      |
-#|      import shapefile as shp                                                |
-#|      from matplotlib.patches import Polygon                                 |
-#|      from matplotlib.collections import PatchCollection                     |
-#|                                                                             |
-#|      shpfname = 'tripyview_fesom2'+'_'+mesh.id+'_'+                          |
-#|                  '{}={}'.format('focus',mesh.focus)+'.shp'                  |
-#|      shppath  = os.path.join(mesh.cachepath,shpfname)                       |
-#|                                                                             |
-#|      sf = shp.Reader(shppath)                                               |
-#|      patches = []                                                           |
-#|      for shape in sf.shapes(): patches.append(Polygon(shape.points))        |
-#|                                                                             |
-#|      plt.figure()                                                           |
-#|      ax = plt.gca()                                                         |
-#|      ax.add_collection(PatchCollection(patches,                             |
-#|                        facecolor=[0.7,0.7,0.7],                             |
-#|                        edgecolor='k', linewidths=1.))                       |
-#|      ax.set_xlim([-180,180])                                                |
-#|      ax.set_ylim([-90,90])                                                  |
-#|      plt.show()                                                             |
-#|_____________________________________________________________________________|
+#
+#
+#___SAVE POLYGON LAND-SEA MASK CONTOUR TO SHAPEFILE_____________________________
 def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
+    """
+    --> save FESOM2 grid land-sea mask polygons to shapefile
+
+    Parameters:
+    
+        :mesh:      fesom2 mesh object, contains periodic augmented land-sea mask
+                    polygonss in mesh.lsmask_a
+                    
+        :lsmask:    list, if empty mesh.lsmask_a is stored in shapefile, if not
+                    empty lsmask=lsmaskin than lsmaskin will be stored in
+                    
+        :path:      strm, if empty mesh.path (or cache path depending on writing
+                    permission) is used as location to store the shapefile, if
+                    path=pathin than this string serves as location to store
+                    .shp file
+                    
+        :fname:     str, if empty fixed filename is used mypymesh_fesom2_ID_focus=X.shp, 
+                    if not empty than fname=fnamein is used as filename for shape file
+                    
+        :do_info:   bool, print info where .shp file is saved, default = True
+    
+    Returns:
+    
+        :return: nothing
+        
+    Info:
+    
+    --> to load and plot shapefile patches
+    
+    ::
+    
+        import shapefile as shp
+        from matplotlib.patches import Polygon
+        from matplotlib.collections import PatchCollection
+        
+        shpfname = 'tripyview_fesom2'+'_'+mesh.id+'_'+
+                '{}={}'.format('focus',mesh.focus)+'.shp'
+        shppath  = os.path.join(mesh.cachepath,shpfname)
+        
+        sf = shp.Reader(shppath)
+        patches = []
+        for shape in sf.shapes(): patches.append(Polygon(shape.points))
+        
+        plt.figure()
+        ax = plt.gca()
+        ax.add_collection(PatchCollection(patches,
+                        facecolor=[0.7,0.7,0.7],
+                        edgecolor='k', linewidths=1.))
+        ax.set_xlim([-180,180]) 
+        ax.set_ylim([-90,90])
+        plt.show()
+        
+    """
     import geopandas as gpd
     from shapely.geometry import Polygon
     
@@ -1489,14 +1678,22 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
 
 
 
+#
+#
 # ___COMPUTE EULER ROTATION MATRIX_____________________________________________
-#| compute euler rotation matrix based on alpha, beta and gamma angle          |
-#| ___INPUT_________________________________________________________________   |
-#| abg      :   list, with euler angles [alpha, beta, gamma]                   |
-#| ___RETURNS_______________________________________________________________   |
-#| rmat     :   array, [3 x 3] rotation matrix to transform from geo to rot    |
-#|_____________________________________________________________________________|
 def grid_rotmat(abg):
+    """
+    --> compute euler rotation matrix based on alpha, beta and gamma angle
+
+    Parameters: 
+    
+        :abg:   list, with euler angles [alpha, beta, gamma]
+
+    Returns: 
+
+        :rmat:  array, [3 x 3] rotation matrix to transform from geo to rot
+
+    """
     #___________________________________________________________________________
     rad = np.pi/180
     al  = abg[0] * rad 
@@ -1522,15 +1719,33 @@ def grid_rotmat(abg):
 
 
 
+#
+#
 # ___COMPUTE3D CARTESIAN COORDINAT_____________________________________________
-#| compute 3d cartesian coordinates from spherical geo coordinates             |
-#| (lon, lat, R=1.0)                                                           |
-#| ___INPUT_________________________________________________________________   |
-#| lon, lat :   array, longitude and latitude coordinates in radians           |
-#| ___RETURNS_______________________________________________________________   |
-#| x, y, z  :   array, x y z cartesian coordinates                             |
-#|_____________________________________________________________________________|    
 def grid_cart3d(lon,lat,R=1.0, is_deg=False):
+    """
+    --> compute 3d cartesian coordinates from spherical geo coordinates (lon, lat, R=1.0)                                                           |
+        
+    Parameters: 
+    
+        :lon:       array, longitude coordinates in radians
+        
+        :lat:       array, latitude coordinates in radians
+        
+        :R:         float, (default=1.0), Radius of sphere
+        
+        :is_deg:    bool, (default=False) is lon,lat in degree (True) otherwise 
+                    otherwise (False) assumed its in radians
+    
+    Returns:
+
+        :x:         array, x y z cartesian coordinates 
+        
+        :y:         ...
+        
+        :z:         ...
+
+    """
     if is_deg: 
         rad = np.pi/180
         lat = lat * rad
@@ -1544,19 +1759,29 @@ def grid_cart3d(lon,lat,R=1.0, is_deg=False):
 
 
 
+#
+#
 # ___ROTATE GRID FROM: ROT-->GEO_______________________________________________
-#| compute grid rotation from sperical rotated frame back towards normal geo   |
-#| frame using the euler angles alpha, beta, gamma                             | 
-#| ___INPUT_________________________________________________________________   |
-#| abg      :   list, with euler angles [alpha, beta, gamma]                   |
-#| rlon,rlat:   array, longitude and latitude coordinates of sperical rotated  |
-#|              frame in degree                                                |
-#| ___RETURNS_______________________________________________________________   |
-#| lon,lat  :   array, longitude and latitude coordinates in normal geo        |
-#|              frame in degree                                                |
-#|_____________________________________________________________________________|    
 def grid_r2g(abg, rlon, rlat):
+    """
+    --> compute grid rotation from sperical rotated frame back towards normal geo
+    frame using the euler angles alpha, beta, gamma
     
+    Parameters:
+    
+        :abg:    list, with euler angles [alpha, beta, gamma]    
+
+        :rlon:   array, longitude coordinates of sperical rotated frame in degree
+
+        :rlat:   array,  latitude coordinates of sperical rotated frame in degree
+
+    Returns: 
+
+        :lon:    array, longitude coordinates in normal geo frame in degree
+
+        :lat:    array, latitude coordinates in normal geo frame in degree
+
+    """
     #___________________________________________________________________________
     # build rotation matrix
     rmat = grid_rotmat(abg)
@@ -1584,20 +1809,29 @@ def grid_r2g(abg, rlon, rlat):
     return(lon,lat)
 
 
-
+#
+#
 # ___ROTATE GRID FROM: GEO-->ROT_______________________________________________
-#| compute grid rotation from normal geo frame towards sperical rotated        |
-#| frame using the euler angles alpha, beta, gamma                             | 
-#| ___INPUT_________________________________________________________________   |
-#| abg      :   list, with euler angles [alpha, beta, gamma]                   |
-#| lon, lat :   array, longitude and latitude coordinates of normal geo        |
-#|              frame in degree                                                |
-#| ___RETURNS_______________________________________________________________   |
-#| rlon,rlat:   array, longitude and latitude coordinates in sperical rotated  |
-#|              frame in degree                                                |
-#|_____________________________________________________________________________|    
 def grid_g2r(abg, lon, lat):
-
+    """
+    --> compute grid rotation from normal geo frame towards sperical rotated
+    frame using the euler angles alpha, beta, gamma
+    
+    Parameters:
+    
+        :abg:   list, with euler angles [alpha, beta, gamma]
+        
+        :lon:   array, longitude coordinates of normal geo frame in degree 
+        
+        :lat:   array, latitude coordinates of normal geo frame in degree
+        
+    Returns:    
+    
+        :rlon:   array, longitude coordinates in sperical rotated frame in degree
+        
+        :rlat:   array, latitude coordinates in sperical rotated frame in degree
+    
+    """
     #___________________________________________________________________________
     # build rotation matrix
     rmat = grid_rotmat(abg)
@@ -1627,19 +1861,29 @@ def grid_g2r(abg, lon, lat):
 
 
 
+#
+#
 # ___ROTATE GRID FOCUS: 0-->FOCUS______________________________________________
-#| compute grid rotation around z-axis to change the focus center of the lon,  |
-#| lat grid, by default focus=0-->lon=[-180...180], if focus=180-->lon[0..360] | 
-#| ___INPUT_________________________________________________________________   |
-#| focus    :   float, longitude of grid center                                |
-#| rlon,rlat:   array, longitude and latitude in focus=0-->lon=[-180...180]    |
-#|              in degree                                                      |
-#| ___RETURNS_______________________________________________________________   |
-#| lon,lat  :   array, longitude and latitude in lon=[-180+focus...180+focus]  |
-#|              frame in degree                                                |
-#|_____________________________________________________________________________|    
 def grid_focus(focus, rlon, rlat):
+    """
+    --> compute grid rotation around z-axis to change the focus center of the lon,
+    lat grid, by default focus=0-->lon=[-180...180], if focus=180-->lon[0..360] 
+    
+    Parameters: 
+    
+        :focus:  float, longitude of grid center
 
+        :rlon:   array, longitude in focus=0-->lon=[-180...180] in degree
+
+        :rlat:   array, latitude in focus=0-->lon=[-180...180] in degree
+
+    Returns:    
+
+        :lon:   array, longitude in lon=[-180+focus...180+focus] frame in degree
+  
+        :lat:   array, latitude in lon=[-180+focus...180+focus] frame in degree
+
+    """
     #___________________________________________________________________________
     # build rotation matrix
     abg = [-focus, 0, 0]
@@ -1670,22 +1914,39 @@ def grid_focus(focus, rlon, rlat):
     
     
 
+#
+#
 # ___ROTATE VECTOR FROM: ROT-->GEO_____________________________________________
-#| in FESOM2 the vector variables are always given in the rotated coordiante   | 
-#| frame in which the model works and need to be rotated into normal geo       |
-#| coordinates                                                                 |
-#| ___INPUT_________________________________________________________________   |
-#| abg      :   list, with euler angles [alpha, beta, gamma]                   |
-#| lon, lat :   array, longitude and latitude                                  |
-#| urot,vrot:   array, zonal and meridional velocities in rotated frame        |
-#| gridis   :   str, in which coordinate frame are given lon, lat              |
-#|              'geo','g','geographical': lon,lat is given in geo coordinates  |
-#|              'rot','r','rotated'     : lon,lat is given in rot coordinates  |
-#| ___RETURNS_______________________________________________________________   |
-#| ugeo,vgeo|   array, zonal and meridional velocities in normal geo frame     |
-#|_____________________________________________________________________________|    
 def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
+    """
+    --> In FESOM2 the vector variables are usually given in the rotated coordinate 
+    frame in which the model works and need to be rotated into normal geo    
+    coordinates, however in the latest FESOM2 version there is also the option that
+    they are rotated in the model via a flaf. So make sure what applies to you                                                           
     
+    Parameters:
+        
+        :abg:       list, with euler angles [alpha, beta, gamma]
+        
+        :lon:       array, longitude
+        
+        :lat:       array, latitude
+        
+        :urot:      array, zonal velocities in rotated frame
+        
+        :vrot:      array, meridional velocities in rotated frame
+        
+        :gridis:    str, in which coordinate frame are given lon, lat
+                    'geo','g','geographical': lon,lat is given in geo coordinates
+                    'rot','r','rotated'     : lon,lat is given in rot coordinates
+                    
+    Returns:
+    
+        :ugeo:      array, zonal velocities in normal geo frame
+        
+        :vgeo:      array, meridional velocities in normal geo frame
+    
+    """
     #___________________________________________________________________________
     # create grid coorinates for geo and rotated frame
     if any(x in gridis for x in ['geo','g','geographical']): 
@@ -1770,23 +2031,34 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
 
 
 
+#
+#
 # ___CUTOUT REGION BASED ON BOX________________________________________________
-#| cutout region based on box and return mesh elements indices that are        |
-#| within the box                                                              |
-#| ___INPUT_________________________________________________________________   |
-#| nx       :   longitude vertice coordinates                                  |
-#| ny       :   latitude  vertice coordinates                                  |
-#| e_i      :   element array                                                  |
-#| box      :   list, [lonmin, lonmax, latmin, latmax]                         |
-#| which    :   str, how limiting should be the selection                      |
-#|              'soft' : elem with at least 1 vertices in box are selected     |
-#|              'mid'  : elem with at least 2 vertices in box are selected     |
-#|              'hard' : elem with at all vertices in box are selected         |
-#| ___RETURNS_______________________________________________________________   |
-#| e_inbox :   array, boolian array with 1 in box, 0 outside box               |
-#|_____________________________________________________________________________|    
 def grid_cutbox_e(n_x, n_y, e_i, box, which='mid'):# , do_outTF=False):
+    """
+    --> cutout region based on box and return mesh elements indices that are
+    within the box                                                      
     
+    Parameters:
+    
+        :nx:        longitude vertice coordinates
+
+        :ny:        latitude  vertice coordinates
+
+        :e_i:       element array               
+
+        :box:       list, [lonmin, lonmax, latmin, latmax]
+
+        :which:     str, how limiting should be the selection
+                    - 'soft' : elem with at least 1 vertices in box are selected
+                    - 'mid'  : elem with at least 2 vertices in box are selected
+                    - 'hard' : elem with at all vertices in box are selected
+
+    Returns:
+    
+        :e_inbox:   array, boolian array with 1 in box, 0 outside box
+
+    """
     #___________________________________________________________________________
     n_inbox = grid_cutbox_n(n_x, n_y, box)
     
@@ -1804,19 +2076,30 @@ def grid_cutbox_e(n_x, n_y, e_i, box, which='mid'):# , do_outTF=False):
     return(e_inbox)
 
 
-# ___CUTOUT REGION BASED ON BOX________________________________________________
-#| cutout region based on box and return mesh elements indices that are        |
-#| within the box                                                              |
-#| ___INPUT_________________________________________________________________   |
-#| nx       :   longitude vertice coordinates                                  |
-#| ny       :   latitude  vertice coordinates                                  |
-#| e_i      :   element array                                                  |
-#| box      :   list, [lonmin, lonmax, latmin, latmax]                         |
-#| ___RETURNS_______________________________________________________________   |
-#| n_inbox :   array, boolian array with 1 in box, 0 outside box               |
-#|_____________________________________________________________________________|    
-def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
 
+#
+#
+# ___CUTOUT REGION BASED ON BOX________________________________________________
+def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
+    """
+    --> cutout region based on box and return mesh elements indices that are
+    within the box
+    
+    Parameters:
+    
+        :nx:    longitude vertice coordinates
+
+        :ny:    latitude  vertice coordinates
+
+        :e_i:   element array                
+
+        :box:   list, [lonmin, lonmax, latmin, latmax]
+
+    Returns:    
+
+        :n_inbox:   array, boolian array with 1 in box, 0 outside box
+
+    """
     #___________________________________________________________________________
     n_inbox = ((n_x >= box[0]) & (n_x <= box[1]) & 
                (n_y >= box[2]) & (n_y <= box[3]))
@@ -1830,7 +2113,21 @@ def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
 #|                                                                             |
 #|_____________________________________________________________________________|
 def grid_interp_e2n(mesh,data_e):
+    """
+    --> interpolate data from elements to vertices e.g velocity from elements to 
+    velocity on nodes
     
+    Parameter:
+    
+        :mesh: fesom2 mesh object
+        
+        :data_e: np.array with datas on elements either 2d or 3d 
+        
+    Returns:
+    
+        :data_n: np.array with datas on vertices 2d or 3d
+    
+    """
     #___________________________________________________________________________
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
@@ -1907,18 +2204,24 @@ def grid_interp_e2n(mesh,data_e):
     #___________________________________________________________________________
     return(data_n)
 
-    
-# ___EQUIVALENT OF MATLAB ISMEMBER FUNCTION____________________________________
-#|                                                                             |
-#|_____________________________________________________________________________|
-def ismember_rows(a, b):
-    return np.flatnonzero(np.in1d(b[:,0], a[:,0]) & np.in1d(b[:,1], a[:,1]))
 
 
+#
+#
 # ___COMPUTE BOUNDARY EDGES____________________________________________________
-#| compute edges that have only one adjacenbt trinagle                         |
-#|_____________________________________________________________________________|
 def compute_boundary_edges(e_i):
+    """
+    --> compute edges that have only one adjacenbt triangle
+    
+    Parameters:
+    
+        :e_i:   np.array([n2de x 3]), elemental array
+    
+    Returns:
+    
+        :bnde:
+    
+    """
     # set boundary depth to zero
     edge    = np.concatenate((e_i[:,[0,1]], e_i[:,[0,2]], e_i[:,[1,2]]),axis=0)
     edge    = np.sort(edge,axis=1) 

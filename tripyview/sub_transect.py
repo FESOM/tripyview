@@ -17,12 +17,94 @@ from   .sub_colormap            import *
 import pandas as pd
 #xr.set_options(enable_cftimeindex=True)
 
-#+___PRE-ANALYSE ARBITRARY CROSS-SECTION LINE__________________________________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def do_analyse_transects(input_transect, mesh, edge, edge_tri, edge_dxdy_l, edge_dxdy_r, 
-                          which_res='res', do_rot=True, res=1.0, npts=500):
+#
+#
+#_______________________________________________________________________________
+# --> pre-analyse defined tranects
+def do_analyse_transects(input_transect     , 
+                        mesh                , 
+                        edge                , 
+                        edge_tri            , 
+                        edge_dxdy_l         , 
+                        edge_dxdy_r         , 
+                        do_rot      = True  , 
+                        ):
+    """
+    --> pre-analyse defined transects, with respect to which triangles and edges 
+        are crossed by the transect line. Create transport path edge to compute 
+        modell accurate volume transports.
     
+    Parameters:   
+    
+        :input_transect:    list, to define transects, transects= [[[lon pts], 
+                            [lat pts], name], [...]]
+        
+        :mesh:              fesom2 mesh object, with all mesh information
+        
+        :edge:              np.array([2, nedges]), edge array with indices of participating vertice 
+                            points. Best load info from fesom.mesh.diag.nc
+        
+        :edge_tri:          np.array([2, nedges]), edge triangle array of indices of triangles that 
+                            participate in the edge  [2 x nedges]. If edge is boundary
+                            edge edge_tri[1, idx] = -1. Best load info from fesom.mesh.diag.nc
+                            
+        :edge_dxdy_l:       np.array([2, nedges]), array with dx, dy cartesian length of distance from 
+                            edge mid points to centroid of left side triangle from 
+                            edge. Best load info from fesom.mesh.diag.nc
+                            
+        :edge_dxdy_r:       np.array([2, nedges]), array with dx, dy cartesian length of distance from 
+                            edge mid points to centroid of right side triangle from 
+                            edge. Best load info from fesom.mesh.diag.nc  
+                            
+        :do_rot:            bool, (default=True) assume that the the edge_dxdy_l, 
+                            edge_dxdy_r arrays are in the rotated coordinate frame
+                            and needed to be rotated into geo coordinates
+
+    Return:
+    
+        :transect_list:     list of transect dictionary 
+        
+    transect dictionary keys:    
+    
+    ::
+    
+        #_______________________________________________________________________
+        # arrays that define cross-section 
+        transect['Name'         ] = [] # Name of transect
+        transect['lon'          ] = [] # transect defining longitude list
+        transect['lat'          ] = [] # transect defining latitude list
+        transect['ncsi'         ] = [] # running index of number of defined transects
+        transect['ncs'          ] = [] # number transect defining points
+        transect['Px'           ] = [] # lon points  that define the transect edges 
+        transect['Py'           ] = [] # lat points  that define the transect edges 
+        transect['e_vec'        ] = [] # unit vector of transect edges
+        transect['e_norm'       ] = [] # length of unit vector (length of edge)
+        transect['n_vec'        ] = [] # normal vector of transect edges
+        transect['alpha'        ] = [] # bearing of transect edge
+        
+        #_______________________________________________________________________
+        # arrays that define the intersection between cross-section and edges
+        transect['edge_cut_i'   ] = [] # indice of edges that are cutted by transect
+        transect['edge_cut_evec'] = [] # unit vector of those cutted edges
+        transect['edge_cut_P'   ] = [] # lon, lat point where transect cutted with edge
+        transect['edge_cut_midP'] = [] # mid points of cutted edge
+        transect['edge_cut_lint'] = [] # interpolator for cutting points on edge
+        transect['edge_cut_ni'  ] = [] # node indices of intersectted edges
+        transect['edge_cut_dist'] = [] # distance of cutted edge midpoint from start point of transect
+        
+        #_______________________________________________________________________
+        # arrays to define transport path
+        transect['path_xy'      ] = [] # lon/lat coordinates, edge midpoints --> elem centroid --> edge mid points ...
+        transect['path_ei'      ] = [] # elem indices
+        transect['path_ni'      ] = [] # node indices of elems 
+        transect['path_dx'      ] = [] # dx of path sections
+        transect['path_dy'      ] = [] # dy of path sections
+        transect['path_dist'    ] = [] # dy of path sections
+        transect['path_nvec_cs' ] = [] # normal vector of transection segment
+    
+    ____________________________________________________________________________
+
+    """
     transect_list = []
     # loop over transects in list
     for transec_lon, transec_lat, transec_name in input_transect:
@@ -675,12 +757,38 @@ def _do_compute_distance_from_startpoint(transect):
     return(transect)
     
 
-
-#+___COMPUTE VOLUME TRANSPORT THROUGH TRANSECT_________________________________+
-#|                                                                             |
-#+_____________________________________________________________________________+ 
+#
+#
+#___COMPUTE VOLUME TRANSPORT THROUGH TRANSECT___________________________________
 def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=True, do_info=True):
-    #t1=clock.time()
+    """
+    --> Compute fesom2 modell accurate transport through defined transect
+    
+    Parameters:
+    
+        :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :data:          object, with xarray dataset object with 3d element zonal and meridional
+                        velocities
+        
+        :transects:     list with analysed transect dictionary information computed by 
+                        do_analyse _trasnsects
+                        
+        :do_transectattr: bool, (default=True) write full transect info into return
+                        xarray dataset attribute
+        
+        :do_rot:        bool, (default=True), do rotation of velocities from rotated
+                        to geo coordinates
+        
+        :do_info:       bool, (default=True), write info
+    
+    Return:
+    
+        :data:          list with returned xarray dataset object that contain volume 
+                        transport through every section of the transport path
+    
+    ____________________________________________________________________________
+    """
     #___________________________________________________________________________
     if isinstance(transects, list): 
         #if len(transects)>1:
@@ -832,12 +940,40 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
 
 
 
-
-#+___COMPUTE TRANSECT OF SCALAR VERTICE/ELEMENTAL VARIABLE_____________________+
-#|                                                                             |
-#+_____________________________________________________________________________+ 
+#
+#
+#___COMPUTE TRANSECT OF SCALAR VERTICE/ELEMENTAL VARIABLE_______________________
 def calc_transect_scalar(mesh, data, transects, nodeinelem=None, 
                          do_transectattr=False, do_info=False):
+    """
+    --> interpolate scalar vertice values onto cutting point position where
+        cross-section intersects with edge
+    
+    Parameters: 
+        
+        :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :data:          object, with xarray dataset object containing 3d vertice values. 
+                        Can also be done with scalar datas on elements but than nodeinelem is needed
+        
+        transects:     list with analysed transect dictionary information computed by 
+                        do_analyse _trasnsects
+                        
+        nodeinelem:     np.array with elem indices that contribute to a vertice 
+                        point (default=None)              
+                        
+        :do_transectattr: bool, (default=True) write full transect info into return
+                        xarray dataset attribute
+                        
+        :do_info:       bool, (default=True), write info     
+        
+    Return:
+    
+        :data:          list with returned xarray dataset object that contains to
+                        the cutting point interpolated scalar values of transect
+    
+    ____________________________________________________________________________
+    """
     t1=clock.time()
     #___________________________________________________________________________
     if isinstance(transects, list): 
@@ -905,7 +1041,6 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                     dst = transect['edge_cut_dist'][:-1]
                 
             else:
-                #print(" >-)))°> DICK FICH <°(((-< (1.2)")
                 # average over all elemental values that contribute to edge node 1
                 #        o-----o
                 #       / \   / \
@@ -1039,14 +1174,66 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
     return(csects)
 
 
-
-#+___PLOT TRANSECT POSITION____________________________________________________+
-#|                                                                             |
-#+_____________________________________________________________________________+ 
+#
+#
+#___PLOT TRANSECT POSITION______________________________________________________
 def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figsize=[10,10], 
                            proj='nears', box = [-180, 180,-90, 90], 
                            resolution='low', do_path=True, do_labels=True, do_title=True,
                            do_grid=False, ax_pos=[0.90, 0.05, 0.45, 0.45]):
+    """
+    --> plot transect positions
+    
+    Parameters:
+    
+        :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :transects:     list with analysed transect dictionary information computed by 
+                        do_analyse _trasnsects
+        
+        :edge:          provide np.array with node indices of edge (default=None)
+        
+        :zoom:          float, (default=None), zzom factor for nearside projection
+        
+        :fig:           matplotlib figure handle, (default=None)
+        
+        :figsize:       list, (default=[10,10]) width and height of figure
+        
+        :proj:          str, (default='nears'), can be any other projections string
+                        
+                        - pc     ... PlateCarree         (box=[lonmin, lonmax, latmin, latmax])
+                        - merc   ... Mercator            (box=[lonmin, lonmax, latmin, latmax])
+                        - rob    ... Robinson            (box=[lonmin, lonmax, latmin, latmax])
+                        - eqearth... EqualEarth          (box=[lonmin, lonmax, latmin, latmax])
+                        - mol    ... Mollweide           (box=[lonmin, lonmax, latmin, latmax])
+                        - nps    ... NorthPolarStereo    (box=[-180, 180, >0, latmax])
+                        - sps    ... SouthPolarStereo    (box=[-180, 180, latmin, <0])
+                        - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
+                        - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
+                        - channel... PlateCaree
+                        
+        :box:           None, list (default:  [-180, 180,-90, 90]) 
+                        regional limitation of plot. For ortho...
+                        box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = 
+                        [lonmin, lonmax, latmin, latmax]. For nears box is computed based
+                        on transect definition.
+                        
+        :do_path:       bool, (default=True) plot entire transport path       
+        
+        :do_labels:     bool, (default=True) draw lon, lat axes do_labels
+        
+        :do_title:      bool, (default=True) draw title with name of transect
+        
+        :do_grid:       bool, (default=False) plot fesom mesh in background
+        
+    Returns:
+    
+        :hfig: returns figure handle 
+
+        :hax: returns axes handle 
+    
+    ____________________________________________________________________________
+    """
     #___________________________________________________________________________
     # compute zoom factor based on the length of the transect
     if zoom is None:
@@ -1139,20 +1326,70 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
     return(fig, ax)
 
 
-
-#+___COMPUTE ZONAL MEAN SECTION BASED ON BINNING_______________________________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_harithm='mean', 
-                              do_outputidx=False, diagpath=None, 
-                              do_info=False, do_smooth=True, do_checkbasin=False, 
-                              do_compute=False, do_load=True, do_persist=False, 
-                                **kwargs,):
+#
+#
+#___COMPUTE ZONAL MEAN SECTION BASED ON BINNING_________________________________
+def load_zmeantransect_fesom2(mesh                  , 
+                              data                  , 
+                              box_list              , 
+                              dlat          =0.5    , 
+                              boxname       =None   ,
+                              diagpath      =None   , 
+                              do_checkbasin =False  , 
+                              do_compute    =False  , 
+                              do_load       =True   , 
+                              do_persist    =False  , 
+                              do_info       =False  , 
+                              **kwargs,):
+    """
+    --> compute zonal means transect, defined by regional box_list
     
+    Parameters:
+        
+        :mesh:      fesom2 mesh object, with all mesh information
+
+        :data:      xarray dataset object, or list of xarray dataset object with 3d vertice
+                    data
+
+        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts), boxname] index region defined by polygon
+
+        :dlat:      float, (default=0.5) resolution of latitudinal bins
+        
+        :diagpath:  str, (default=None), path to diagnostic file only needed when 
+                    w_A weights for area average are not given in the dataset, than 
+                    he will search for the diagnostic file_loader
+                    
+        :do_checkbasin: bool, (default=False) additional plot with selected region/
+                        basin information
+                        
+        :do_compute:    bool (default=False), do xarray dataset compute() at the end
+                        data = data.compute(), creates a new dataobject the original
+                        data object seems to persist
+        
+        :do_load:       bool (default=True), do xarray dataset load() at the end
+                        data = data.load(), applies all operations to the original
+                        dataset
+                        
+        :do_persist:    bool (default=False), do xarray dataset persist() at the end
+                        data = data.persist(), keeps the dataset as dask array, keeps
+                        the chunking    
+                      
+        :do_info:       bool (defalt=False), print variable info at the end 
+                      
+    Returns:
+    
+        :index_list:    list with xarray dataset of zonal mean array
+    ____________________________________________________________________________
+    """
     #___________________________________________________________________________
     # str_anod    = ''
     index_list  = []
-    idxin_list  = []
     cnt         = 0
     
     #___________________________________________________________________________
@@ -1367,25 +1604,29 @@ def load_zmeantransect_fesom2(mesh, data, box_list, dlat=0.5, boxname=None, do_h
         cnt = cnt + 1
         
     #___________________________________________________________________________
-    if do_outputidx:
-        return(index_list, idxin_list)
-    else:
-        return(index_list)
+    return(index_list)
 
 
-
-# ___DO ANOMALY________________________________________________________________
-#| compute anomaly between two xarray Datasets                                 |
-#| ___INPUT_________________________________________________________________   |
-#| data1        :   xarray dataset object                                      |
-#| data2        :   xarray dataset object                                      |
-#| ___RETURNS_______________________________________________________________   |
-#| anom         :   xarray dataset object, data1-data2                         |
-#|_____________________________________________________________________________|
+#
+#
+#____DO ANOMALY_________________________________________________________________
 def do_transect_anomaly(index1,index2):
+    """
+    --> compute anomaly between two transect list xarray Datasets
     
+    Parameters:
+    
+        :index1:   list with transect xarray dataset object
+
+        :index2:   list with transect xarray dataset object
+
+    Returns:
+    
+        :anom:   list with  transect xarray dataset object, data1-data2
+
+    ____________________________________________________________________________
+    """
     anom_index = list()
-    
     #___________________________________________________________________________
     for idx1,idx2 in zip(index1, index2):
     
