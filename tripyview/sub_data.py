@@ -6,6 +6,7 @@ import warnings
 import xarray as xr
 import netCDF4 as nc
 import seawater as sw
+#import gsw as gsw
 from .sub_mesh import *
 import warnings
 
@@ -388,7 +389,7 @@ def load_data_fesom2(mesh,
         
         #_______________________________________________________________________
         if do_pdens: 
-            data, vname = do_potential_desnsity(data, do_pdens, vname, vname2, vname_tmp)
+            data, vname = do_potential_density(data, do_pdens, vname, vname2, vname_tmp)
             
         #_______________________________________________________________________
         # do vertical interpolation and summation over interpolated levels 
@@ -1094,42 +1095,51 @@ def do_time_arithmetic(data, do_tarithm):
         # yearly means 
         elif do_tarithm in ['ymean','annual']:
             import datetime
-            data = data.groupby('time.year').mean('time')
+            data     = data.groupby('time.year').mean('time')
             # recreate time axes based on year
-            data = data.rename_dims({'year':'time'})
+            data     = data.rename_dims({'year':'time'})
             
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             
-            data = data.assign_coords(time=xr.cftime_range(start='{:d}-01-01'.format(data.year[1]), periods=len(data['time']), freq='YS')).drop_vars('year')
+            aux_time = xr.cftime_range(start='{:d}-01-01'.format(data.year[1]), periods=len(data['time']), freq='YS')
+            data     = data.drop_vars('year')
+            data     = data.assign_coords(time=aux_time)
+            del(aux_time)
             warnings.resetwarnings()
         
         #_______________________________________________________________________
         # monthly means --> seasonal cycle 
         elif do_tarithm in ['mmean','monthly']:
             import datetime
-            data = data.groupby('time.month').mean('time')
+            data     = data.groupby('time.month').mean('time')
             # recreate time axes based on year
-            data = data.rename_dims({'month':'time'})
+            data     = data.rename_dims({'month':'time'})
             
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             
-            data = data.assign_coords(time=xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='MS')).drop_vars('month')
+            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='MS')
+            data     = data.drop_vars('month')
+            data     = data.assign_coords(time=aux_time)
+            del(aux_time)
             warnings.resetwarnings()
         
         #_______________________________________________________________________
         # daily means --> 1...365
         elif do_tarithm in ['dmean','daily']:
             import datetime
-            data = data.groupby('time.day').mean('time')
+            data     = data.groupby('time.day').mean('time')
             # recreate time axes based on year
-            data = data.rename_dims({'day':'time'})
+            data     = data.rename_dims({'day':'time'})
             
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             
-            data = data.assign_coords(time=xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='DS')).drop_vars('day')
+            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='DS')
+            data     = data.drop_vars('day')
+            data     = data.assign_coords(time=aux_time).drop_vars('day')
+            del(aux_time)
             warnings.resetwarnings()
         
         elif do_tarithm=='None':
@@ -1479,8 +1489,9 @@ def do_potential_density(data, do_pdens, vname, vname2, vname_tmp):
         else:
             data_depth = data['nz1'].expand_dims(dict({'nod2':data.dims['nod2']}))
             
-        # data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.025)})
+        # data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.00)})
         data = data.assign({vname_tmp: (list(data[vname].dims), sw.dens(data[vname2].data, data[vname].data, pref)-1000.00)})
+        
         del(data_depth)
         
         data[vname_tmp] = data[vname_tmp].where(data[vname2]!=0,drop=0.0)

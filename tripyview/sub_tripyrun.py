@@ -187,6 +187,7 @@ def tripyrun():
     
     analyses_driver_list["zmoc"               ] = drive_zmoc
     analyses_driver_list["zmoc_t"             ] = drive_zmoc_t
+    
     analyses_driver_list["dmoc"               ] = drive_dmoc
     analyses_driver_list["dmoc_z"             ] = drive_dmoc
     analyses_driver_list["dmoc_srf"           ] = drive_dmoc

@@ -1122,7 +1122,8 @@ def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_
         if do_info: print('\n ___parallel loop over longitudinal bins___'+'_'*1, end='\n')
         from joblib import Parallel, delayed
         results = Parallel(n_jobs=n_workers)(delayed(hbstrfbin_over_lon)(lon_i, lat, data, mdiag) for lon_i in hbstreamf.lon)
-        hbstreamf['hbstreamf'][:,:] = xr.concat(results, dim='nlon').transpose()
+        #hbstreamf['hbstreamf'][:,:] = xr.concat(results, dim='nlon').transpose()
+        hbstreamf['hbstreamf'][:,:] = np.column_stack(results)
         
     #___________________________________________________________________________
     hbstreamf['hbstreamf'] =-hbstreamf['hbstreamf'].cumsum(dim='nlat', skipna=True)#+150.0 

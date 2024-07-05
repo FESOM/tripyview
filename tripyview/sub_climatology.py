@@ -4,6 +4,7 @@ import time
 import os
 import xarray as xr
 import seawater as sw
+#import gsw as gsw
 from .sub_data import *
 
     
@@ -77,7 +78,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         elif vname == 'sigma3' : pref=3000
         elif vname == 'sigma4' : pref=4000
         elif vname == 'sigma5' : pref=5000
-        data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.025)})
+        #data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.00)})
+        data = data.assign({vname: (list(data.dims), sw.dens(data[vname_salt].data, data[vname_temp].data, pref)-1000.00)})
         #for labels in vname_drop:
         data = data.drop(labels=vname_drop)
         data[vname].attrs['units'] = 'kg/m^3'
