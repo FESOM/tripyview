@@ -2024,7 +2024,7 @@ def plot_hline(data                   ,
             # prepare regular gridded data for plotting
             optline = dict({'linewidth':1.5, 'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
             optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
-                            'clip_box':False, 'clip_on':False, 'zorder':3})
+                            'clip_on':False, 'zorder':3}) #'clip_box':False,
             list_lstyle=['solid', 'dashed', 'dotted', 'dashdot', 'dashdotdotted']
             
             #___________________________________________________________________
@@ -2417,7 +2417,7 @@ def plot_vline(data                   ,
             # prepare regular gridded data for plotting
             optline = dict({'linewidth':1.5, 'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
             optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
-                            'clip_box':False, 'clip_on':False, 'zorder':3})
+                            'clip_on':False, 'zorder':3}) #'clip_box':False, 
             list_lstyle=['solid', 'dashed', 'dotted', 'dashdot', 'dashdotdotted']
             
             #___________________________________________________________________
@@ -2826,7 +2826,7 @@ def plot_tline(data,
             # prepare regular gridded data for plotting
             optline = dict({'linewidth':1.5, 'marker':'None', 'markerfacecolor':'w', 'markersize':5, 'zorder':2})
             optmark = dict({'markersize':8, 'markeredgecolor':'k', 'markeredgewidth':0.5,
-                            'clip_box':False, 'clip_on':False, 'zorder':3})
+                            'clip_on':False, 'zorder':3}) #'clip_box':False, 
             list_lstyle=['solid', 'dashed', 'dotted', 'dashdot', 'dashdotdotted']
             
             #___________________________________________________________________
@@ -2873,6 +2873,8 @@ def plot_tline(data,
                         data_x = np.hstack((data_x0[-1], data_x))
                         data_y = np.hstack((data_y0[-1], data_y))
                         
+                        
+                    #data_x = data_x.values
                     xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
                     data_x0, data_y0 = data_x, data_y
                     xmax_list.append(xmax)
@@ -2927,7 +2929,7 @@ def plot_tline(data,
                     
                     # plot mean value with left triangle 
                     if do_mean: 
-                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<', **optmark)
+                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<',  **optmark)
                     
                     # plot std. range with up/dwn triangle 
                     if do_std:
@@ -5570,7 +5572,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
         #_______________________________________________________________________
         # loop over all the input data --> find out total cmin/cmax value
-        cmin, cmax = np.Inf, -np.Inf
+        cmin, cmax = np.inf, -np.inf
         for data_ii in data:
             
             if isinstance(data_ii, np.ndarray):

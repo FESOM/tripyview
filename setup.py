@@ -32,6 +32,7 @@ requirements = [
     'geopandas',
     'scipy',
     'seawater',
+    'gsw',
     'shapely',
     'xarray',
     'pyfesom2',
