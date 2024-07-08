@@ -21,6 +21,7 @@ requirements = [
     'joblib',
     'jupyter',
     'jupyterlab<4.0',
+    'jupyter_lsp',
     'matplotlib',
     "pickle5; python_version<'3.9'",
     'libnetcdf',
