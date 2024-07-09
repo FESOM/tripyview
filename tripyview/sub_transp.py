@@ -837,7 +837,7 @@ def calc_zhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlon=1.0, do
             for ix, lon_i in enumerate(zhflx.lon):
                 #_______________________________________________________________
                 if do_info: print('{:+06.1f}|'.format(lat_i), end='')
-                if np.mod(iy+1,15)==0 and do_info:
+                if np.mod(ix+1,15)==0 and do_info:
                     print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
                     ts1 = clock.time()
                 if 'time' in data.dims: zhflx['zhflx'][:,ix] = sum_over_lonbin(lon_i, mdiag_box, data, datat)
