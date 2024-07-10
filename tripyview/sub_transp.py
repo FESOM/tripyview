@@ -510,28 +510,46 @@ def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do
         del(idx_direct)
         
         # make sure that value of right boundary triangle is zero when boundary edge 
-        data_latbin   = data.isel(elem=mdiag_latbin.edge_tri)
-        list_vname    = list(data_latbin.keys())
-        vnameu, vnamv = list_vname[0], list_vname[1]
-        data_latbin[vnameu][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
-        data_latbin[vnamev][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
-        
-        # compute transport u,v --> u*dx,v*dy
-        data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dx_lr'] 
-        data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dy_lr'] 
-        
-        # compute u*t, v*t if data wasnt already ut,vt
-        if datat is not None:
-            datat_latbin = datat.isel(nod2=mdiag_latbin.edges)
-            vnamet       = list(datat_latbin.keys())[0]
-            data_latbin[vnameu] = data_latbin[vnameu]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
-            data_latbin[vnamev] = data_latbin[vnamev]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
-            del(datat_latbin)
-        
+        # --> if velocities, or tu, tv are defined on elements
+        if 'elem' in data.dims:
+            data_latbin   = data.isel(elem=mdiag_latbin.edge_tri)
+            list_vname    = list(data_latbin.keys())
+            vnameu, vnamv = list_vname[0], list_vname[1]
+            data_latbin[vnameu][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
+            data_latbin[vnamev][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
+            
+            # compute transport u,v --> u*dx,v*dy
+            data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dx_lr'] 
+            data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dy_lr'] 
+            
+            # compute u*t, v*t if data wasnt already ut,vt
+            if datat is not None:
+                datat_latbin = datat.isel(nod2=mdiag_latbin.edges)
+                vnamet       = list(datat_latbin.keys())[0]
+                data_latbin[vnameu] = data_latbin[vnameu]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
+                data_latbin[vnamev] = data_latbin[vnamev]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
+                del(datat_latbin)
+                
+        # --> if velocities or tu, tv are defined on nodes
+        elif 'nod2' in data.dims:
+            data_latbin = data.isel(nod2=mdiag_latbin.edges)
+            list_vname    = list(data_latbin.keys())
+            vnameu, vnamv = list_vname[0], list_vname[1]
+            
+            # compute u*t, v*t if data wasnt already ut,vt
+            if datat is not None:
+                datat_latbin = datat.isel(nod2=mdiag_latbin.edges)
+                vnamet       = list(datat_latbin.keys())[0]
+                data_latbin[vnameu] = data_latbin[vnameu] * datat_latbin[vnamet]
+                data_latbin[vnamev] = data_latbin[vnamev] * datat_latbin[vnamet]
+                
+            data_latbin[vnameu] = (data_latbin[vnameu][0,:]+data_latbin[vnameu][1,:])*0.5 * mdiag_latbin['edge_dx_lr']
+            data_latbin[vnamev] = (data_latbin[vnamev][0,:]+data_latbin[vnamev][1,:])*0.5 * mdiag_latbin['edge_dy_lr']
+            
         # multiply with layer thickness
         data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['dz'] 
         data_latbin[vnamev] = data_latbin[vnamev] * data_latbin['dz']
-         
+            
         # sum already over vflux contribution from left and right triangle 
         # and over cutted edges 
         data_latbin[vnameu] = data_latbin[vnameu].sum(dim=['n2','edg_n'], skipna=True)
@@ -715,24 +733,42 @@ def calc_zhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlon=1.0, do
         del(idx_direct)
         
         # make sure that value of right boundary triangle is zero when boundary edge 
-        data_lonbin   = data.isel(elem=mdiag_lonbin.edge_tri)
-        list_vname    = list(data_lonbin.keys())
-        vnameu, vnamv = list_vname[0], list_vname[1]
-        data_lonbin[vnameu][1, mdiag_lonbin.edge_tri[1,:]<0 ,:] = 0.0
-        data_lonbin[vnamev][1, mdiag_lonbin.edge_tri[1,:]<0 ,:] = 0.0
+        # --> if velocities, or tu, tv are defined on elements
+        if 'elem' in data.dims:
+            data_lonbin   = data.isel(elem=mdiag_lonbin.edge_tri)
+            list_vname    = list(data_lonbin.keys())
+            vnameu, vnamv = list_vname[0], list_vname[1]
+            data_lonbin[vnameu][1, mdiag_lonbin.edge_tri[1,:]<0 ,:] = 0.0
+            data_lonbin[vnamev][1, mdiag_lonbin.edge_tri[1,:]<0 ,:] = 0.0
+            
+            # compute transport u,v --> u*dx,v*dy
+            data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dx_lr'] 
+            data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dy_lr'] 
+            
+            # compute u*t, v*t if data wasnt already ut,vt
+            if datat is not None:
+                datat_lonbin = datat.isel(nod2=mdiag_lonbin.edges)
+                vnamet       = list(datat_lonbin.keys())[0]
+                data_lonbin[vnameu] = data_lonbin[vnameu]*(datat_lonbin[vnamet][0,:]+datat_lonbin[vnamet][1,:])*0.5
+                data_lonbin[vnamev] = data_lonbin[vnamev]*(datat_lonbin[vnamet][0,:]+datat_lonbin[vnamet][1,:])*0.5
+                del(datat_lonbin)
         
-        # compute transport u,v --> u*dx,v*dy
-        data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dx_lr'] 
-        data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dy_lr'] 
-        
-        # compute u*t, v*t if data wasnt already ut,vt
-        if datat is not None:
-            datat_latbin = datat.isel(nod2=mdiag_lonbin.edges)
-            vnamet       = list(datat_latbin.keys())[0]
-            data_lonbin[vnameu] = data_lonbin[vnameu]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
-            data_lonbin[vnamev] = data_lonbin[vnamev]*(datat_latbin[vnamet][0,:]+datat_latbin[vnamet][1,:])*0.5
-            del(datat_latbin)
-        
+         # --> if velocities or tu, tv are defined on nodes
+        elif 'nod2' in data.dims:
+            data_lonbin   = data.isel(nod2=mdiag_lonbin.edges)
+            list_vname    = list(data_lonbin.keys())
+            vnameu, vnamv = list_vname[0], list_vname[1]
+            
+            # compute u*t, v*t if data wasnt already ut,vt
+            if datat is not None:
+                datat_lonbin = datat.isel(nod2=mdiag_lonbin.edges)
+                vnamet       = list(datat_lonbin.keys())[0]
+                data_lonbin[vnameu] = data_lonbin[vnameu] * datat_lonbin[vnamet]
+                data_lonbin[vnamev] = data_lonbin[vnamev] * datat_lonbin[vnamet]
+            
+            data_lonbin[vnameu] = (data_lonbin[vnameu][0,:]+data_lonbin[vnameu][1,:])*0.5 * mdiag_lonbin['edge_dx_lr']
+            data_lonbin[vnamev] = (data_lonbin[vnamev][0,:]+data_lonbin[vnamev][1,:])*0.5 * mdiag_lonbin['edge_dy_lr']
+            
         # multiply with layer thickness
         data_lonbin[vnameu] = data_lonbin[vnameu] * data_lonbin['dz'] 
         data_lonbin[vnamev] = data_lonbin[vnamev] * data_lonbin['dz']

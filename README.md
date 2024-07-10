@@ -5,7 +5,7 @@
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
 fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
 Data reading got updated to xarray, plotting got updated to cartopy, actually works well for 
-python=3.9 (python 3.8 made recently some problems to resolve all the cartopy dependencies). 
+python=3.9, 3.10, 3.11 and 3.12 (python 3.8 made recently some problems to resolve all the cartopy dependencies). 
 It is tested upto dart mesh size (3M surface vertices) where it allows for a decend 
 working speed (but only when used in parallel)
 <br />
@@ -22,7 +22,8 @@ git clone https://github.com/patrickscholz/tripyview
 ```
 
 ### 2nd. install using conda & pip : 
-make sure your conda environment uses python=3.9 (conda create --name py39 python=3.9; conda activate py39)
+make sure your conda environment uses python 3.9, 3.10, 3.11 or 3.12
+(conda create --name py39 python=3.9; conda activate py39)
 
 ```bash
 # -netcdf4>=1.6.1 can be used now, there were problems with the thread safety of 

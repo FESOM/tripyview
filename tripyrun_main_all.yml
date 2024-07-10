@@ -478,7 +478,7 @@ mhflx:
     ncol: 1
     nrow: 1
     do_allcycl: False
-    use_advflx: True
+    use_advflx: False
     use_bolusv: True
     
 #_______________________________________________________________________________
