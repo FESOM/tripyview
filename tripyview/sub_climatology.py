@@ -3,8 +3,7 @@ import numpy as np
 import time
 import os
 import xarray as xr
-import gsw as sw
-#import gsw as gsw
+import gsw as gsw
 from .sub_data import *
 
     
@@ -66,7 +65,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         data_depth = data[coord_zlev].expand_dims(
                         dict({dim_lat:data[coord_lat].data, dim_lon:data[coord_lon].data})
                         ).transpose(dim_zlev,dim_lat,dim_lon)
-        data[vname_temp].data = sw.ptmp(data[vname_salt].data, data[vname_temp].data, data_depth )
+        data[vname_temp].data = gsw.pt_from_t(data[vname_salt].data, data[vname_temp].data, data_depth, p_ref=0)
         
     #___________________________________________________________________________
     # if there are multiple variables, than kick out varaible that is not needed
@@ -78,8 +77,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         elif vname == 'sigma3' : pref=3000
         elif vname == 'sigma4' : pref=4000
         elif vname == 'sigma5' : pref=5000
-        #data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.00)})
-        data = data.assign({vname: (list(data.dims), sw.dens(data[vname_salt].data, data[vname_temp].data, pref)-1000.00)})
+        #data = data.assign({vname: (list(data.dims), gsw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.00)})
+        data = data.assign({vname: (list(data.dims), gsw.dens(data[vname_salt].data, data[vname_temp].data, pref)-1000.00)})
         #for labels in vname_drop:
         data = data.drop(labels=vname_drop)
         data[vname].attrs['units'] = 'kg/m^3'
