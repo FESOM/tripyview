@@ -5,8 +5,7 @@ import os
 import warnings
 import xarray as xr
 import netCDF4 as nc
-import seawater as sw
-#import gsw as gsw
+import gsw as sw
 from .sub_mesh import *
 import warnings
 

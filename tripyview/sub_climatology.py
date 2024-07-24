@@ -3,7 +3,7 @@ import numpy as np
 import time
 import os
 import xarray as xr
-import seawater as sw
+import gsw as sw
 #import gsw as gsw
 from .sub_data import *
 
