@@ -5,8 +5,7 @@ import os
 import warnings
 import xarray as xr
 import netCDF4 as nc
-import seawater as sw
-#import gsw as gsw
+import gsw as gsw
 from .sub_mesh import *
 import warnings
 
@@ -1490,7 +1489,7 @@ def do_potential_density(data, do_pdens, vname, vname2, vname_tmp):
             data_depth = data['nz1'].expand_dims(dict({'nod2':data.dims['nod2']}))
             
         # data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.00)})
-        data = data.assign({vname_tmp: (list(data[vname].dims), sw.dens(data[vname2].data, data[vname].data, pref)-1000.00)})
+        data = data.assign({vname_tmp: (list(data[vname].dims), gsw.rho(data[vname2].data, data[vname].data, pref)-1000.00)})
         
         del(data_depth)
         

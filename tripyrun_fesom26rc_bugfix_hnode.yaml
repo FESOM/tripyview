@@ -1,0 +1,75 @@
+#___1lvl Parameter___
+tripyrun_name: "fesom_26rc1_bugfix_hnode"
+do_parallel: True
+input_paths:
+    - /work/ab0246/a270092/runtime/fesom-2.5-refactoring/bugfix_hnode/outdata/fesom/
+
+input_names:
+    - 'bugfix_hnode'
+
+ref_path: /work/ab0246/a270092/runtime/fesom-2.5-refactoring/reference/outdata/fesom/
+ref_name: 'reference'
+ref_year: [1992, 2017]
+
+mesh_path: '/work/ab0246/a270092/input/fesom2/core2/'
+save_path: './Results/'
+
+which_clim: 'phc3'
+clim_path: '/work/ab0246/a270092/input/fesom2/hydrography/phc3.0/phc3.0_annual.nc'
+
+ncol: 2
+box: None
+
+n_cycl: None
+do_allcycl: False
+year: [1992, 2017]
+depth: None
+proj: 'rob'
+save_dpi: 100
+
+
+vprofile:
+    #___2lvl Parameter___
+    box_regions:
+        - mpas_region/North_Atlantic_Ocean.shp
+        - mpas_region/Southern_Ocean.shp
+        - ocean_basins/Arctic_Basin.shp
+        #- ocean_basins/Arctic_Basin.shp
+        #- mpas_region/Greenland_Sea.shp
+        #- mpas_region/Irminger_Sea.shp
+        #- mpas_region/Norwegian_Sea.shp
+        #- mpas_region/Labrador_Sea.shp
+        #- mpas_region/North_Pacific_Ocean.shp
+        #- mpas_region/South_Pacific_Ocean.shp
+        #- mpas_region/Southern_Ocean.shp
+        #- mpas_region/Western_Weddell_Sea.shp
+    ncol: 4
+    do_clim: True
+    #___Variables________
+    Kv:
+        #___3lvl Parameter___
+        do_rescale: 'log10'
+
+#_______________________________________________________________________________
+# plot vertical profile of 3d temperature/salinity climatology anomaly averaged
+# over certain regions
+vprofile_clim:
+    #___2lvl Parameter___
+    box_regions:
+        - mpas_region/North_Atlantic_Ocean.shp
+        - mpas_region/Southern_Ocean.shp
+        - ocean_basins/Arctic_Basin.shp
+        #- ocean_basins/Arctic_Basin.shp
+        #- mpas_region/Greenland_Sea.shp
+        #- mpas_region/Irminger_Sea.shp
+        #- mpas_region/Norwegian_Sea.shp
+        #- mpas_region/Labrador_Sea.shp
+        #- mpas_region/North_Pacific_Ocean.shp
+        #- mpas_region/South_Pacific_Ocean.shp
+        #- mpas_region/Southern_Ocean.shp
+        #- mpas_region/Western_Weddell_Sea.shp
+    ncol: 4
+    #___Variables________
+    temp:
+    salt:
+
