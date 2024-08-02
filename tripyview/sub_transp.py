@@ -11,254 +11,254 @@ from .sub_mesh     import vec_r2g
 from .sub_plot     import *
 from .sub_utility  import *
 
-#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def calc_mhflx(mesh, data, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
-    #___________________________________________________________________________
-    vname_list = list(data.keys())
-    vname, vname2 = vname_list[0], vname_list[1]
+##+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+##|                                                                             |
+##+_____________________________________________________________________________+
+#def calc_mhflx(mesh, data, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
+    ##___________________________________________________________________________
+    #vname_list = list(data.keys())
+    #vname, vname2 = vname_list[0], vname_list[1]
     
-    #___________________________________________________________________________
-    # Create xarray dataset
-    list_dimname, list_dimsize = ['nlat'], [lat.size]
+    ##___________________________________________________________________________
+    ## Create xarray dataset
+    #list_dimname, list_dimsize = ['nlat'], [lat.size]
     
-    data_vars = dict()
-    gattr = data.attrs
-    gattrs['proj'] = 'index+xy'
-    aux_attr  = data[vname].attrs
-    aux_attr['long_name'], aux_attr['units'] = 'Meridional Heat Transport', 'PW'
-    data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
-    # define coordinates
-    coords    = {'nlat' : (['nlat' ], lat )}
-    # create dataset
-    mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
-    del(data_vars, coords, aux_attr)
+    #data_vars = dict()
+    #gattr = data.attrs
+    #gattrs['proj'] = 'index+xy'
+    #aux_attr  = data[vname].attrs
+    #aux_attr['long_name'], aux_attr['units'] = 'Meridional Heat Transport', 'PW'
+    #data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+    ## define coordinates
+    #coords    = {'nlat' : (['nlat' ], lat )}
+    ## create dataset
+    #mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+    #del(data_vars, coords, aux_attr)
     
-    #___________________________________________________________________________
-    # factors for heatflux computation
-    rho0 = 1030 # kg/m^3
-    cp   = 3850 # J/kg/K
-    inPW = 1.0e-15
+    ##___________________________________________________________________________
+    ## factors for heatflux computation
+    #rho0 = 1030 # kg/m^3
+    #cp   = 3850 # J/kg/K
+    #inPW = 1.0e-15
     
-    #___________________________________________________________________________
-    # coordinates of triangle centroids
-    e_x  = mesh.n_x[mesh.e_i].sum(axis=1)/3.0
-    e_y  = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+    ##___________________________________________________________________________
+    ## coordinates of triangle centroids
+    #e_x  = mesh.n_x[mesh.e_i].sum(axis=1)/3.0
+    #e_y  = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
     
-    #___________________________________________________________________________
-    # do zonal sum over latitudinal bins 
-    for bini, lat_i in enumerate(lat):
-        # indices of edges crossed by lat_i
-        ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i) < 0.)
-        ind2 =  (mesh.n_y[edge[0,:]] <= lat_i)
-        if not np.any(ind): continue
+    ##___________________________________________________________________________
+    ## do zonal sum over latitudinal bins 
+    #for bini, lat_i in enumerate(lat):
+        ## indices of edges crossed by lat_i
+        #ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i) < 0.)
+        #ind2 =  (mesh.n_y[edge[0,:]] <= lat_i)
+        #if not np.any(ind): continue
         
-        #_______________________________________________________________________
-        edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
-        edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+        ##_______________________________________________________________________
+        #edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+        #edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
         
-        #_______________________________________________________________________
-        # here must be a rotation of tu1,tv1; tu2,tv2 dx1,dy1; dx2,dy2 from rot-->geo
-        dx1, dx2 = edge_dxdy_l[0,ind], edge_dxdy_r[0,ind] 
-        dy1, dy2 = edge_dxdy_l[1,ind], edge_dxdy_r[1,ind]
-        tu1, tv1 = data[vname].values[edge_tri[0, ind], :], data[vname2].values[edge_tri[0, ind], :]
-        tu2, tv2 = data[vname].values[edge_tri[1, ind], :], data[vname2].values[edge_tri[1, ind], :]
+        ##_______________________________________________________________________
+        ## here must be a rotation of tu1,tv1; tu2,tv2 dx1,dy1; dx2,dy2 from rot-->geo
+        #dx1, dx2 = edge_dxdy_l[0,ind], edge_dxdy_r[0,ind] 
+        #dy1, dy2 = edge_dxdy_l[1,ind], edge_dxdy_r[1,ind]
+        #tu1, tv1 = data[vname].values[edge_tri[0, ind], :], data[vname2].values[edge_tri[0, ind], :]
+        #tu2, tv2 = data[vname].values[edge_tri[1, ind], :], data[vname2].values[edge_tri[1, ind], :]
         
-        # can not rotate them together
-        #tu1, tv1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], tu1, tv1)
-        #dx1, dy1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], dx1, dy1)
-        #tu2, tv2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], tu2, tv2)
-        #dx2, dy2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], dx2, dy2)
-        tv1, tv2 = tv1.T, tv2.T
-        tu1, tu2 = tu1.T, tu2.T
-        #del(dum, dy1, dy2, tu1, tu2)
+        ## can not rotate them together
+        ##tu1, tv1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], tu1, tv1)
+        ##dx1, dy1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], dx1, dy1)
+        ##tu2, tv2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], tu2, tv2)
+        ##dx2, dy2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], dx2, dy2)
+        #tv1, tv2 = tv1.T, tv2.T
+        #tu1, tu2 = tu1.T, tu2.T
+        ##del(dum, dy1, dy2, tu1, tu2)
         
-        #_______________________________________________________________________
-        # integrate along latitude bin--> int(t*u)dx 
-        tv_dx    = -np.nansum(tu1*dx1 + tu2*dx2 + tv1*dy1 + tv2*dy2, axis=1)
-        #tv_dx    = np.nansum(tv1*np.abs(dx1) + tv2*np.abs(dx2), axis=1)
+        ##_______________________________________________________________________
+        ## integrate along latitude bin--> int(t*u)dx 
+        #tv_dx    = -np.nansum(tu1*dx1 + tu2*dx2 + tv1*dy1 + tv2*dy2, axis=1)
+        ##tv_dx    = np.nansum(tv1*np.abs(dx1) + tv2*np.abs(dx2), axis=1)
         
-        #_______________________________________________________________________
-        # integrate vertically --> int()dz
-        mhflx['mhflx'].data[bini] = np.sum(tv_dx * np.abs(mesh.zlev[1:]-mesh.zlev[:-1])) *rho0*cp*inPW
+        ##_______________________________________________________________________
+        ## integrate vertically --> int()dz
+        #mhflx['mhflx'].data[bini] = np.sum(tv_dx * np.abs(mesh.zlev[1:]-mesh.zlev[:-1])) *rho0*cp*inPW
         
-        #_______________________________________________________________________
-        edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
-        edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+        ##_______________________________________________________________________
+        #edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+        #edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
         
-    #___________________________________________________________________________
-    return(mhflx)
+    ##___________________________________________________________________________
+    #return(mhflx)
 
 
-#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_r, 
-                   datat=None, dlat=1.0, do_checkbasin=True, do_buflay=True):
-    #___________________________________________________________________________
-    vname_list = list(data.keys())
-    vname, vname2 = vname_list[0], vname_list[1]
-    u = data[vname].values.T.copy()
-    v = data[vname2].values.T.copy()
+##+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+##|                                                                             |
+##+_____________________________________________________________________________+
+#def calc_mhflx_box(mesh, data, box_list, edge, edge_tri, edge_dxdy_l, edge_dxdy_r, 
+                   #datat=None, dlat=1.0, do_checkbasin=True, do_buflay=True):
+    ##___________________________________________________________________________
+    #vname_list = list(data.keys())
+    #vname, vname2 = vname_list[0], vname_list[1]
+    #u = data[vname].values.T.copy()
+    #v = data[vname2].values.T.copy()
     
-    # in case you only wrote out u, v and temp instead of u*temp and v*temp
-    if datat != None: 
-        vnamet = list(datat.keys())[0]
-        temp=datat[vnamet].values.T.copy()
+    ## in case you only wrote out u, v and temp instead of u*temp and v*temp
+    #if datat != None: 
+        #vnamet = list(datat.keys())[0]
+        #temp=datat[vnamet].values.T.copy()
         
-    #___________________________________________________________________________
-    # factors for heatflux computation
-    rho0 = 1030 # kg/m^3
-    cp   = 3850 # J/kg/K
-    inPW = 1.0e-15
+    ##___________________________________________________________________________
+    ## factors for heatflux computation
+    #rho0 = 1030 # kg/m^3
+    #cp   = 3850 # J/kg/K
+    #inPW = 1.0e-15
     
-    #___________________________________________________________________________
-    # coordinates of triangle centroids
-    e_x  = mesh.n_x[mesh.e_i].sum(axis=1)/3.0
-    e_y  = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+    ##___________________________________________________________________________
+    ## coordinates of triangle centroids
+    #e_x  = mesh.n_x[mesh.e_i].sum(axis=1)/3.0
+    #e_y  = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
     
-    #___________________________________________________________________________
-    # Loop over boxes
-    list_mhflx=list()
-    for box in box_list:
-        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
-            if len(box)==2: boxname, box = box[1], box[0]
-        elif isinstance(box, shp.Reader):
-            #boxname = box.shapeName.split('/')[-1].replace('_',' ')
-            boxname = box.shapeName.split('/')[-1]
-            boxname = boxname.split('_')[0].replace('_',' ')
-            print(boxname)
-        elif box =='global':    
-            boxname = 'global'
+    ##___________________________________________________________________________
+    ## Loop over boxes
+    #list_mhflx=list()
+    #for box in box_list:
+        #if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+            #if len(box)==2: boxname, box = box[1], box[0]
+        #elif isinstance(box, shp.Reader):
+            ##boxname = box.shapeName.split('/')[-1].replace('_',' ')
+            #boxname = box.shapeName.split('/')[-1]
+            #boxname = boxname.split('_')[0].replace('_',' ')
+            #print(boxname)
+        #elif box =='global':    
+            #boxname = 'global'
         
-        #_______________________________________________________________________
-        # compute box mask index for nodes
-        #n_idxin=do_boxmask(mesh,box,do_elem=False)
-        if boxname=='global':
-            n_idxin = np.ones(mesh.n2dn,dtype='bool')
-        else:    
-            e_idxin = do_boxmask(mesh,box,do_elem=True)
-            e_i     = mesh.e_i[e_idxin,:]
-            e_i     = np.unique(e_i.flatten())
-            n_idxin = np.zeros(mesh.n2dn,dtype='bool')
-            n_idxin[e_i]=True
-            del(e_i, e_idxin)
+        ##_______________________________________________________________________
+        ## compute box mask index for nodes
+        ##n_idxin=do_boxmask(mesh,box,do_elem=False)
+        #if boxname=='global':
+            #n_idxin = np.ones(mesh.n2dn,dtype='bool')
+        #else:    
+            #e_idxin = do_boxmask(mesh,box,do_elem=True)
+            #e_i     = mesh.e_i[e_idxin,:]
+            #e_i     = np.unique(e_i.flatten())
+            #n_idxin = np.zeros(mesh.n2dn,dtype='bool')
+            #n_idxin[e_i]=True
+            #del(e_i, e_idxin)
             
-        #_______________________________________________________________________
-        # create meridional bins
-        #lat  = np.arange(np.floor(mesh.n_y[n_idxin].min())-dlat/2, np.ceil(mesh.n_y[n_idxin].max())+dlat/2, dlat)
-        lat  = np.arange(np.ceil(mesh.n_y[n_idxin].min())-dlat/2, np.floor(mesh.n_y[n_idxin].max())+dlat/2, dlat)
+        ##_______________________________________________________________________
+        ## create meridional bins
+        ##lat  = np.arange(np.floor(mesh.n_y[n_idxin].min())-dlat/2, np.ceil(mesh.n_y[n_idxin].max())+dlat/2, dlat)
+        #lat  = np.arange(np.ceil(mesh.n_y[n_idxin].min())-dlat/2, np.floor(mesh.n_y[n_idxin].max())+dlat/2, dlat)
  
-        #___________________________________________________________________
-        if do_buflay and boxname!='global':
-            # add a buffer layer of selected triangles --> sometimes it can be be that 
-            # the shapefile is to small in this case boundary triangles might not get 
-            # selected
-            e_idxin = n_idxin[mesh.e_i].max(axis=1)
-            e_i = mesh.e_i[e_idxin,:]
-            e_i = np.unique(e_i.flatten())
-            n_idxin[e_i]=True
-            del(e_i, e_idxin)
+        ##___________________________________________________________________
+        #if do_buflay and boxname!='global':
+            ## add a buffer layer of selected triangles --> sometimes it can be be that 
+            ## the shapefile is to small in this case boundary triangles might not get 
+            ## selected
+            #e_idxin = n_idxin[mesh.e_i].max(axis=1)
+            #e_i = mesh.e_i[e_idxin,:]
+            #e_i = np.unique(e_i.flatten())
+            #n_idxin[e_i]=True
+            #del(e_i, e_idxin)
  
-        #__________________________________________________________________________
-        # Create xarray dataset
-        list_dimname, list_dimsize = ['lat'], [lat.size]
-        data_vars = dict()
-        gattrs = data.attrs
-        gattrs['proj'] = 'index+xy'
-        aux_attr  = data[vname].attrs
-        #aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
-        #aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
-        aux_attr['long_name']  = f'Meridional Heat Transport'
-        aux_attr['short_name'] = f'Merid. Heat Transp.'
-        aux_attr['boxname'] = boxname
-        aux_attr['units']      = 'PW'
-        data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
-        # define coordinates
-        coords    = {'lat' : (['lat' ], lat )}
-        # create dataset
-        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
-        del(data_vars, coords, aux_attr)
+        ##__________________________________________________________________________
+        ## Create xarray dataset
+        #list_dimname, list_dimsize = ['lat'], [lat.size]
+        #data_vars = dict()
+        #gattrs = data.attrs
+        #gattrs['proj'] = 'index+xy'
+        #aux_attr  = data[vname].attrs
+        ##aux_attr['long_name']  = f'{boxname} Meridional Heat Transport'
+        ##aux_attr['short_name'] = f'{boxname} Merid. Heat Transp.'
+        #aux_attr['long_name']  = f'Meridional Heat Transport'
+        #aux_attr['short_name'] = f'Merid. Heat Transp.'
+        #aux_attr['boxname'] = boxname
+        #aux_attr['units']      = 'PW'
+        #data_vars['mhflx'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+        ## define coordinates
+        #coords    = {'lat' : (['lat' ], lat )}
+        ## create dataset
+        #mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
+        #del(data_vars, coords, aux_attr)
     
-        #___________________________________________________________________________
-        # do zonal sum over latitudinal bins 
-        #n_check= np.zeros(mesh.n2dn,dtype='bool')
-        for bini, lat_i in enumerate(lat):
-            # indices of edges crossed by lat_i
-            if boxname=='global':
-                ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i)<=0.0)
-            else:    
-                ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i)<=0.0) & ((n_idxin[edge[0,:]]==True) | (n_idxin[edge[1,:]]==True))
-            ind2 = (mesh.n_y[edge[0,:]]<=lat_i) # & ((n_idxin[edge[0,:]]==True) | (n_idxin[edge[1,:]]==True))
-            if not np.any(ind): continue
+        ##___________________________________________________________________________
+        ## do zonal sum over latitudinal bins 
+        ##n_check= np.zeros(mesh.n2dn,dtype='bool')
+        #for bini, lat_i in enumerate(lat):
+            ## indices of edges crossed by lat_i
+            #if boxname=='global':
+                #ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i)<=0.0)
+            #else:    
+                #ind  = ((mesh.n_y[edge[0,:]]-lat_i)*(mesh.n_y[edge[1,:]]-lat_i)<=0.0) & ((n_idxin[edge[0,:]]==True) | (n_idxin[edge[1,:]]==True))
+            #ind2 = (mesh.n_y[edge[0,:]]<=lat_i) # & ((n_idxin[edge[0,:]]==True) | (n_idxin[edge[1,:]]==True))
+            #if not np.any(ind): continue
             
-            #print(lat_i, np.sum(ind))
-            #n_check[edge[0, ind]]=True
-            #n_check[edge[1, ind]]=True
-            #_______________________________________________________________________
-            edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
-            edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
-            
+            ##print(lat_i, np.sum(ind))
+            ##n_check[edge[0, ind]]=True
+            ##n_check[edge[1, ind]]=True
             ##_______________________________________________________________________
-            u1 , v1  = u[:, edge_tri[0,ind]], v[:, edge_tri[0,ind]]
-            u2 , v2  = u[:, edge_tri[1,ind]], v[:, edge_tri[1,ind]]
-            ny1, nx1 = edge_dxdy_l[1,ind]   , edge_dxdy_l[0,ind]
-            ny2, nx2 = edge_dxdy_r[1,ind]   , edge_dxdy_r[0,ind]
+            #edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+            #edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+            
+            ###_______________________________________________________________________
+            #u1 , v1  = u[:, edge_tri[0,ind]], v[:, edge_tri[0,ind]]
+            #u2 , v2  = u[:, edge_tri[1,ind]], v[:, edge_tri[1,ind]]
+            #ny1, nx1 = edge_dxdy_l[1,ind]   , edge_dxdy_l[0,ind]
+            #ny2, nx2 = edge_dxdy_r[1,ind]   , edge_dxdy_r[0,ind]
+            
+            ###___________________________________________________________________
+            ### extra rotation is not necessary !
+            ##u1, v1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], u1.T, v1.T)
+            ##u2, v2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], u2.T, v2.T)
+            ##u1, v1 = u1.T, v1.T
+            ##u2, v2 = u2.T, v2.T
+            ##nx1  , ny1   = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], nx1  , ny1)
+            ##nx2  , ny2   = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], nx2  , ny2)
             
             ##___________________________________________________________________
-            ## extra rotation is not necessary !
-            #u1, v1 = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], u1.T, v1.T)
-            #u2, v2 = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], u2.T, v2.T)
-            #u1, v1 = u1.T, v1.T
-            #u2, v2 = u2.T, v2.T
-            #nx1  , ny1   = vec_r2g(mesh.abg, e_x[edge_tri[0, ind]], e_y[edge_tri[0, ind]], nx1  , ny1)
-            #nx2  , ny2   = vec_r2g(mesh.abg, e_x[edge_tri[1, ind]], e_y[edge_tri[1, ind]], nx2  , ny2)
+            #u1dy1, v1dx1=nx1*u1, ny1*v1
+            #u2dy2, v2dx2=nx2*u2, ny2*v2
             
-            #___________________________________________________________________
-            u1dy1, v1dx1=nx1*u1, ny1*v1
-            u2dy2, v2dx2=nx2*u2, ny2*v2
-            
-            #___________________________________________________________________
-            # compute u*t, v*t if data wasnt already ut,vt
-            if datat != None: 
-                etemp = (temp[:,edge[0, ind]] + temp[:, edge[1, ind]])*0.5
-                u1dy1, v1dx1 = u1dy1*etemp, v1dx1*etemp
-                u2dy2, v2dx2 = u2dy2*etemp, v2dx2*etemp
+            ##___________________________________________________________________
+            ## compute u*t, v*t if data wasnt already ut,vt
+            #if datat != None: 
+                #etemp = (temp[:,edge[0, ind]] + temp[:, edge[1, ind]])*0.5
+                #u1dy1, v1dx1 = u1dy1*etemp, v1dx1*etemp
+                #u2dy2, v2dx2 = u2dy2*etemp, v2dx2*etemp
                 
-            #___________________________________________________________________
-            # integrate along latitudinal bin 
-            u1dy1, v1dx1 = np.nansum(u1dy1,axis=1), np.nansum(v1dx1,axis=1)
-            u2dy2, v2dx2 = np.nansum(u2dy2,axis=1), np.nansum(v2dx2,axis=1)
-            HT=-(u1dy1+v1dx1+u2dy2+v2dx2)
+            ##___________________________________________________________________
+            ## integrate along latitudinal bin 
+            #u1dy1, v1dx1 = np.nansum(u1dy1,axis=1), np.nansum(v1dx1,axis=1)
+            #u2dy2, v2dx2 = np.nansum(u2dy2,axis=1), np.nansum(v2dx2,axis=1)
+            #HT=-(u1dy1+v1dx1+u2dy2+v2dx2)
             
-            #_______________________________________________________________________
-            # integrate vertically --> int()dz
-            mhflx['mhflx'].data[bini] = np.sum(np.diff(-mesh.zlev)*HT)*rho0*cp*inPW
+            ##_______________________________________________________________________
+            ## integrate vertically --> int()dz
+            #mhflx['mhflx'].data[bini] = np.sum(np.diff(-mesh.zlev)*HT)*rho0*cp*inPW
             
-            #_______________________________________________________________________
-            edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
-            edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+            ##_______________________________________________________________________
+            #edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+            #edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
         
-        #if do_checkbasin:
-            #from matplotlib.tri import Triangulation
-            #tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
-            #plt.figure()
-            #plt.triplot(tri, color='k')
-            ##if do_onelem:
-                ##plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
-            ##else:
-            #plt.plot(mesh.n_x[n_check], mesh.n_y[n_check], 'or', linestyle='None', markersize=2)
-            #plt.title('Basin selection')
-            #plt.show()
+        ##if do_checkbasin:
+            ##from matplotlib.tri import Triangulation
+            ##tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            ##plt.figure()
+            ##plt.triplot(tri, color='k')
+            ###if do_onelem:
+                ###plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
+            ###else:
+            ##plt.plot(mesh.n_x[n_check], mesh.n_y[n_check], 'or', linestyle='None', markersize=2)
+            ##plt.title('Basin selection')
+            ##plt.show()
         
-        #STOP
-        #_______________________________________________________________________
-        if len(box_list)==1: list_mhflx = mhflx
-        else               : list_mhflx.append(mhflx)
+        ##STOP
+        ##_______________________________________________________________________
+        #if len(box_list)==1: list_mhflx = mhflx
+        #else               : list_mhflx.append(mhflx)
         
-    #___________________________________________________________________________
-    return(list_mhflx)
+    ##___________________________________________________________________________
+    #return(list_mhflx)
 
 
 
@@ -316,9 +316,16 @@ def calc_mhflx_box_fast(mesh, data, box_list, dlat=1.0, do_info=True, do_checkba
         data_latbin[vnameu][1, data_latbin.edge_tri[1,:]<0 ,:] = 0.0
         data_latbin[vnamev][1, data_latbin.edge_tri[1,:]<0 ,:] = 0.0
         
-        # compute transport u,v --> u*dx,v*dy
-        data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['edge_dx_lr'] 
-        data_latbin[vnamev] = data_latbin[vnamev] * data_latbin['edge_dy_lr'] 
+        ## compute transport u,v --> u*dx,v*dy
+        ## --> this when data_latbin['edge_dx_lr'] &  data_latbin['edge_dy_lr'] is cross-edge norm vector
+        #data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['edge_dx_lr'] 
+        #data_latbin[vnamev] = data_latbin[vnamev] * data_latbin['edge_dy_lr'] 
+        
+        # --> this when data_latbin['edge_dx_lr'] &  data_latbin['edge_dy_lr'] is cross-edge vector
+        data_latbin['edge_dx_lr'][0,:] = -data_latbin['edge_dx_lr'][0,:] 
+        data_latbin['edge_dy_lr'][1,:] = -data_latbin['edge_dy_lr'][1,:] 
+        data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['edge_dy_lr'] 
+        data_latbin[vnamev] = data_latbin[vnamev] * data_latbin['edge_dx_lr'] 
         
         # compute u*t, v*t if data wasnt already ut,vt
         if vnamet is not None:
@@ -519,8 +526,16 @@ def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do
             data_latbin[vnamev][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
             
             # compute transport u,v --> u*dx,v*dy
-            data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dx_lr'] 
-            data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dy_lr'] 
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dx_lr'] 
+            #data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dy_lr']
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_latbin['edge_dx_lr'][0,:] = -mdiag_latbin['edge_dx_lr'][0,:] 
+            mdiag_latbin['edge_dy_lr'][1,:] = -mdiag_latbin['edge_dy_lr'][1,:] 
+            data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dy_lr'] 
+            data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dx_lr'] 
             
             # compute u*t, v*t if data wasnt already ut,vt
             if datat is not None:
@@ -542,9 +557,17 @@ def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do
                 vnamet       = list(datat_latbin.keys())[0]
                 data_latbin[vnameu] = data_latbin[vnameu] * datat_latbin[vnamet]
                 data_latbin[vnamev] = data_latbin[vnamev] * datat_latbin[vnamet]
-                
-            data_latbin[vnameu] = (data_latbin[vnameu][0,:]+data_latbin[vnameu][1,:])*0.5 * mdiag_latbin['edge_dx_lr']
-            data_latbin[vnamev] = (data_latbin[vnamev][0,:]+data_latbin[vnamev][1,:])*0.5 * mdiag_latbin['edge_dy_lr']
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_latbin[vnameu] = (data_latbin[vnameu][0,:]+data_latbin[vnameu][1,:])*0.5 * mdiag_latbin['edge_dx_lr']
+            #data_latbin[vnamev] = (data_latbin[vnamev][0,:]+data_latbin[vnamev][1,:])*0.5 * mdiag_latbin['edge_dy_lr']
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_latbin['edge_dx_lr'][0,:] = -mdiag_latbin['edge_dx_lr'][0,:] 
+            mdiag_latbin['edge_dy_lr'][1,:] = -mdiag_latbin['edge_dy_lr'][1,:] 
+            data_latbin[vnameu] = (data_latbin[vnameu][0,:]+data_latbin[vnameu][1,:])*0.5 * mdiag_latbin['edge_dy_lr']
+            data_latbin[vnamev] = (data_latbin[vnamev][0,:]+data_latbin[vnamev][1,:])*0.5 * mdiag_latbin['edge_dx_lr']
             
         # multiply with layer thickness
         data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['dz'] 
@@ -742,8 +765,17 @@ def calc_zhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlon=1.0, do
             data_lonbin[vnamev][1, mdiag_lonbin.edge_tri[1,:]<0 ,:] = 0.0
             
             # compute transport u,v --> u*dx,v*dy
-            data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dx_lr'] 
-            data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dy_lr'] 
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dx_lr'] 
+            #data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dy_lr'] 
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_lonbin['edge_dx_lr'][0,:] = -mdiag_lonbin['edge_dx_lr'][0,:] 
+            mdiag_lonbin['edge_dy_lr'][1,:] = -mdiag_lonbin['edge_dy_lr'][1,:] 
+            data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dy_lr'] 
+            data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dx_lr'] 
+            
             
             # compute u*t, v*t if data wasnt already ut,vt
             if datat is not None:
@@ -766,8 +798,16 @@ def calc_zhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlon=1.0, do
                 data_lonbin[vnameu] = data_lonbin[vnameu] * datat_lonbin[vnamet]
                 data_lonbin[vnamev] = data_lonbin[vnamev] * datat_lonbin[vnamet]
             
-            data_lonbin[vnameu] = (data_lonbin[vnameu][0,:]+data_lonbin[vnameu][1,:])*0.5 * mdiag_lonbin['edge_dx_lr']
-            data_lonbin[vnamev] = (data_lonbin[vnamev][0,:]+data_lonbin[vnamev][1,:])*0.5 * mdiag_lonbin['edge_dy_lr']
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_lonbin[vnameu] = (data_lonbin[vnameu][0,:]+data_lonbin[vnameu][1,:])*0.5 * mdiag_lonbin['edge_dx_lr']
+            #data_lonbin[vnamev] = (data_lonbin[vnamev][0,:]+data_lonbin[vnamev][1,:])*0.5 * mdiag_lonbin['edge_dy_lr']
+            
+             # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_lonbin['edge_dx_lr'][0,:] = -mdiag_lonbin['edge_dx_lr'][0,:] 
+            mdiag_lonbin['edge_dy_lr'][1,:] = -mdiag_lonbin['edge_dy_lr'][1,:] 
+            data_lonbin[vnameu] = (data_lonbin[vnameu][0,:]+data_lonbin[vnameu][1,:])*0.5 * mdiag_lonbin['edge_dy_lr']
+            data_lonbin[vnamev] = (data_lonbin[vnamev][0,:]+data_lonbin[vnamev][1,:])*0.5 * mdiag_lonbin['edge_dx_lr']
             
         # multiply with layer thickness
         data_lonbin[vnameu] = data_lonbin[vnameu] * data_lonbin['dz'] 
@@ -1073,83 +1113,83 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True,
 
 
 
-#+___COMPUTE HORIZONTAL BAROTROPIC STREAM FUNCTION TROUGH BINNING______________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def calc_hbarstreamf(mesh, data, lon, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
+##+___COMPUTE HORIZONTAL BAROTROPIC STREAM FUNCTION TROUGH BINNING______________+
+##|                                                                             |
+##+_____________________________________________________________________________+
+#def calc_hbarstreamf(mesh, data, lon, lat, edge, edge_tri, edge_dxdy_l, edge_dxdy_r):
     
-    #___________________________________________________________________________
-    vname_list = list(data.keys())
-    vname, vname2 = vname_list[0], vname_list[1]
+    ##___________________________________________________________________________
+    #vname_list = list(data.keys())
+    #vname, vname2 = vname_list[0], vname_list[1]
     
-    #___________________________________________________________________________
-    # Create xarray dataset
-    list_dimname, list_dimsize = ['nlon','nlat'], [lon.size, lat.size]
+    ##___________________________________________________________________________
+    ## Create xarray dataset
+    #list_dimname, list_dimsize = ['nlon','nlat'], [lon.size, lat.size]
     
-    data_vars = dict()
-    aux_attr  = data[vname].attrs
-    aux_attr['long_name'], aux_attr['units'] = 'Horizontal. Barotropic \n Streamfunction', 'Sv'
-    aux_attr['short_name']= 'Horiz. Barotr. Streamf.'
-    data_vars['hbstreamf'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
-    # define coordinates
-    coords    = {'lon' : (['nlon' ], lon ), 'lat' : (['nlat' ], lat ), }
+    #data_vars = dict()
+    #aux_attr  = data[vname].attrs
+    #aux_attr['long_name'], aux_attr['units'] = 'Horizontal. Barotropic \n Streamfunction', 'Sv'
+    #aux_attr['short_name']= 'Horiz. Barotr. Streamf.'
+    #data_vars['hbstreamf'] = (list_dimname, np.zeros(list_dimsize), aux_attr) 
+    ## define coordinates
+    #coords    = {'lon' : (['nlon' ], lon ), 'lat' : (['nlat' ], lat ), }
     
-    # create dataset
-    hbstreamf = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
-    del(data_vars, coords, aux_attr)
+    ## create dataset
+    #hbstreamf = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
+    #del(data_vars, coords, aux_attr)
     
-    #___________________________________________________________________________
-    # factors for heatflux computation
-    inSv = 1.0e-6
-    #mask = np.zeros((list_dimsize))
+    ##___________________________________________________________________________
+    ## factors for heatflux computation
+    #inSv = 1.0e-6
+    ##mask = np.zeros((list_dimsize))
     
-    #___________________________________________________________________________
-    # loop over longitudinal bins 
-    for ix, lon_i in enumerate(lon):
-        ind  = ((mesh.n_x[edge[0,:]]-lon_i)*(mesh.n_x[edge[1,:]]-lon_i) <= 0.) & (abs(mesh.n_x[edge[0,:]]-lon_i)<50.) & (abs(mesh.n_x[edge[1,:]]-lon_i)<50.)
-        ind2 =  (mesh.n_x[edge[0,:]] <= lon_i)
+    ##___________________________________________________________________________
+    ## loop over longitudinal bins 
+    #for ix, lon_i in enumerate(lon):
+        #ind  = ((mesh.n_x[edge[0,:]]-lon_i)*(mesh.n_x[edge[1,:]]-lon_i) <= 0.) & (abs(mesh.n_x[edge[0,:]]-lon_i)<50.) & (abs(mesh.n_x[edge[1,:]]-lon_i)<50.)
+        #ind2 =  (mesh.n_x[edge[0,:]] <= lon_i)
             
-        #_______________________________________________________________________
-        edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
-        edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+        ##_______________________________________________________________________
+        #edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+        #edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
         
-        #_______________________________________________________________________
-        u1dxl = (edge_dxdy_l[0,ind] * data[vname ].values[edge_tri[0,ind],:].T)
-        v1dyl = (edge_dxdy_l[1,ind] * data[vname2].values[edge_tri[0,ind],:].T)
-        u2dxr = (edge_dxdy_r[0,ind] * data[vname ].values[edge_tri[1,ind],:].T)
-        v2dyr = (edge_dxdy_r[1,ind] * data[vname2].values[edge_tri[1,ind],:].T)
-        AUX   =-(u1dxl+v1dyl+u2dxr+v2dyr)*inSv
-        del(u1dxl, v1dyl, u2dxr, v2dyr)
+        ##_______________________________________________________________________
+        #u1dxl = (edge_dxdy_l[0,ind] * data[vname ].values[edge_tri[0,ind],:].T)
+        #v1dyl = (edge_dxdy_l[1,ind] * data[vname2].values[edge_tri[0,ind],:].T)
+        #u2dxr = (edge_dxdy_r[0,ind] * data[vname ].values[edge_tri[1,ind],:].T)
+        #v2dyr = (edge_dxdy_r[1,ind] * data[vname2].values[edge_tri[1,ind],:].T)
+        #AUX   =-(u1dxl+v1dyl+u2dxr+v2dyr)*inSv
+        #del(u1dxl, v1dyl, u2dxr, v2dyr)
         
-        #_______________________________________________________________________
-        # loop over latitudinal bins 
-        for iy in range(0, lat.size-1):
-            iind=(mesh.n_y[edge[:,ind]].mean(axis=0)>lat[iy]) & (mesh.n_y[edge[:,ind]].mean(axis=0)<=lat[iy+1])
-            hbstreamf['hbstreamf'].data[ix, iy] = np.nansum(np.diff(-mesh.zlev)*np.nansum(AUX[:,iind],axis=1))
-            #if not np.any(iind): continue
-            #mask[ix,iy] = 1
+        ##_______________________________________________________________________
+        ## loop over latitudinal bins 
+        #for iy in range(0, lat.size-1):
+            #iind=(mesh.n_y[edge[:,ind]].mean(axis=0)>lat[iy]) & (mesh.n_y[edge[:,ind]].mean(axis=0)<=lat[iy+1])
+            #hbstreamf['hbstreamf'].data[ix, iy] = np.nansum(np.diff(-mesh.zlev)*np.nansum(AUX[:,iind],axis=1))
+            ##if not np.any(iind): continue
+            ##mask[ix,iy] = 1
             
-        #_______________________________________________________________________
-        edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
-        edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
-        del(ind, ind2)
+        ##_______________________________________________________________________
+        #edge_dxdy_l[:, ind2]=-edge_dxdy_l[:, ind2]
+        #edge_dxdy_r[:, ind2]=-edge_dxdy_r[:, ind2]
+        #del(ind, ind2)
         
-    #___________________________________________________________________________
-    hbstreamf['hbstreamf'] =-hbstreamf['hbstreamf'].cumsum(dim='nlat', skipna=True)#+150.0 
-    hbstreamf['hbstreamf'] = hbstreamf['hbstreamf'].transpose()
-    hbstreamf['hbstreamf'].data = hbstreamf['hbstreamf'].data-hbstreamf['hbstreamf'].data[-1,:]
+    ##___________________________________________________________________________
+    #hbstreamf['hbstreamf'] =-hbstreamf['hbstreamf'].cumsum(dim='nlat', skipna=True)#+150.0 
+    #hbstreamf['hbstreamf'] = hbstreamf['hbstreamf'].transpose()
+    #hbstreamf['hbstreamf'].data = hbstreamf['hbstreamf'].data-hbstreamf['hbstreamf'].data[-1,:]
     
-    # impose periodic boundary condition
-    hbstreamf['hbstreamf'].data[:,-1] = hbstreamf['hbstreamf'].data[:,-2]
-    hbstreamf['hbstreamf'].data[:,0] = hbstreamf['hbstreamf'].data[:,1]
-    #mask[-1,:] = mask[0,:]
+    ## impose periodic boundary condition
+    #hbstreamf['hbstreamf'].data[:,-1] = hbstreamf['hbstreamf'].data[:,-2]
+    #hbstreamf['hbstreamf'].data[:,0] = hbstreamf['hbstreamf'].data[:,1]
+    ##mask[-1,:] = mask[0,:]
     
-    # set land sea mask 
-    #hbstreamf['hbstreamf'].data[mask.T==0] = np.nan
+    ## set land sea mask 
+    ##hbstreamf['hbstreamf'].data[mask.T==0] = np.nan
     
-    #del(mask)
-    #___________________________________________________________________________
-    return(hbstreamf)
+    ##del(mask)
+    ##___________________________________________________________________________
+    #return(hbstreamf)
 
 
 
@@ -1211,8 +1251,15 @@ def calc_hbarstreamf_fast(mesh, data, lon, lat, do_info=True, do_parallel=True, 
         del(idx_direct)
         
         # compute transport u,v --> u*dx,v*dy
-        data_lonbin['u'] = data_lonbin['u'] * data_lonbin['edge_dx_lr'] * inSv * (-1)
-        data_lonbin['v'] = data_lonbin['v'] * data_lonbin['edge_dy_lr'] * inSv * (-1)
+        # --> this when data_lonbin['edge_dx_lr'] &  data_lonbin['edge_dy_lr'] is cross-edge norm vector
+        #data_lonbin['u'] = data_lonbin['u'] * data_lonbin['edge_dx_lr'] * inSv * (-1)
+        #data_lonbin['v'] = data_lonbin['v'] * data_lonbin['edge_dy_lr'] * inSv * (-1)
+        
+        # --> this when data_lonbin['edge_dx_lr'] &  data_lonbin['edge_dy_lr'] is cross-edge vector
+        data_lonbin['edge_dx_lr'][0,:] = -data_lonbin['edge_dx_lr'][0,:] 
+        data_lonbin['edge_dy_lr'][1,:] = -data_lonbin['edge_dy_lr'][1,:] 
+        data_lonbin['u'] = data_lonbin['u'] * data_lonbin['edge_dy_lr'] * inSv * (-1)
+        data_lonbin['v'] = data_lonbin['v'] * data_lonbin['edge_dx_lr'] * inSv * (-1)
         
         # sum already over vflux contribution from left and right triangle 
         data_lonbin['u'] = data_lonbin['u'].sum(dim='n2', skipna=True) * data_lonbin['dz']
@@ -1268,7 +1315,7 @@ def calc_hbarstreamf_fast(mesh, data, lon, lat, do_info=True, do_parallel=True, 
 #|                                                                             |
 #+_____________________________________________________________________________+
 # try to take full advantage of xarray and dask
-def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_parallel=True, n_workers=10, client=None):
+def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_parallel=True, n_workers=10):
     
     #___________________________________________________________________________
     # Create xarray dataset for hor. bar. streamf
@@ -1329,8 +1376,16 @@ def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_
         del(idx_direct)
         
         # compute transport u,v --> u*dx,v*dy
-        data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
-        data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
+        # --> this when mdiag_lonbin['edge_dx_lr'] &  mdiag_lonbin['edge_dy_lr'] is cross-edge norm vector
+        #data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
+        #data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
+        
+        # --> this when mdiag_lonbin['edge_dx_lr'] &  mdiag_lonbin['edge_dy_lr'] is cross-edge vector
+        # transform unit --> norm vector
+        mdiag_lonbin['edge_dx_lr'][0,:] = -mdiag_lonbin['edge_dx_lr'][0,:] 
+        mdiag_lonbin['edge_dy_lr'][1,:] = -mdiag_lonbin['edge_dy_lr'][1,:] 
+        data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
+        data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
         del(mdiag_lonbin)
         
         # sum already over vflux contribution from left and right triangle 
@@ -1357,7 +1412,8 @@ def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_
             if np.mod(ix+1,15)==0 and do_info:
                 print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
                 ts1 = clock.time()
-            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag)
+            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag).data
+            #hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag)
     
     # do parallel loop over longitudinal bins        
     else:
