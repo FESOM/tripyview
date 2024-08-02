@@ -519,8 +519,16 @@ def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do
             data_latbin[vnamev][1, mdiag_latbin.edge_tri[1,:]<0 ,:] = 0.0
             
             # compute transport u,v --> u*dx,v*dy
-            data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dx_lr'] 
-            data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dy_lr'] 
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dx_lr'] 
+            #data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dy_lr']
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_latbin['edge_dx_lr'][0,:] = -mdiag_latbin['edge_dx_lr'][0,:] 
+            mdiag_latbin['edge_dy_lr'][1,:] = -mdiag_latbin['edge_dy_lr'][1,:] 
+            data_latbin[vnameu] = data_latbin[vnameu] * mdiag_latbin['edge_dy_lr'] 
+            data_latbin[vnamev] = data_latbin[vnamev] * mdiag_latbin['edge_dx_lr'] 
             
             # compute u*t, v*t if data wasnt already ut,vt
             if datat is not None:
@@ -542,9 +550,17 @@ def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do
                 vnamet       = list(datat_latbin.keys())[0]
                 data_latbin[vnameu] = data_latbin[vnameu] * datat_latbin[vnamet]
                 data_latbin[vnamev] = data_latbin[vnamev] * datat_latbin[vnamet]
-                
-            data_latbin[vnameu] = (data_latbin[vnameu][0,:]+data_latbin[vnameu][1,:])*0.5 * mdiag_latbin['edge_dx_lr']
-            data_latbin[vnamev] = (data_latbin[vnamev][0,:]+data_latbin[vnamev][1,:])*0.5 * mdiag_latbin['edge_dy_lr']
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_latbin[vnameu] = (data_latbin[vnameu][0,:]+data_latbin[vnameu][1,:])*0.5 * mdiag_latbin['edge_dx_lr']
+            #data_latbin[vnamev] = (data_latbin[vnamev][0,:]+data_latbin[vnamev][1,:])*0.5 * mdiag_latbin['edge_dy_lr']
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_latbin['edge_dx_lr'][0,:] = -mdiag_latbin['edge_dx_lr'][0,:] 
+            mdiag_latbin['edge_dy_lr'][1,:] = -mdiag_latbin['edge_dy_lr'][1,:] 
+            data_latbin[vnameu] = (data_latbin[vnameu][0,:]+data_latbin[vnameu][1,:])*0.5 * mdiag_latbin['edge_dy_lr']
+            data_latbin[vnamev] = (data_latbin[vnamev][0,:]+data_latbin[vnamev][1,:])*0.5 * mdiag_latbin['edge_dx_lr']
             
         # multiply with layer thickness
         data_latbin[vnameu] = data_latbin[vnameu] * data_latbin['dz'] 
@@ -742,8 +758,17 @@ def calc_zhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlon=1.0, do
             data_lonbin[vnamev][1, mdiag_lonbin.edge_tri[1,:]<0 ,:] = 0.0
             
             # compute transport u,v --> u*dx,v*dy
-            data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dx_lr'] 
-            data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dy_lr'] 
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dx_lr'] 
+            #data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dy_lr'] 
+            
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_lonbin['edge_dx_lr'][0,:] = -mdiag_lonbin['edge_dx_lr'][0,:] 
+            mdiag_lonbin['edge_dy_lr'][1,:] = -mdiag_lonbin['edge_dy_lr'][1,:] 
+            data_lonbin[vnameu] = data_lonbin[vnameu] * mdiag_lonbin['edge_dy_lr'] 
+            data_lonbin[vnamev] = data_lonbin[vnamev] * mdiag_lonbin['edge_dx_lr'] 
+            
             
             # compute u*t, v*t if data wasnt already ut,vt
             if datat is not None:
@@ -766,8 +791,16 @@ def calc_zhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlon=1.0, do
                 data_lonbin[vnameu] = data_lonbin[vnameu] * datat_lonbin[vnamet]
                 data_lonbin[vnamev] = data_lonbin[vnamev] * datat_lonbin[vnamet]
             
-            data_lonbin[vnameu] = (data_lonbin[vnameu][0,:]+data_lonbin[vnameu][1,:])*0.5 * mdiag_lonbin['edge_dx_lr']
-            data_lonbin[vnamev] = (data_lonbin[vnamev][0,:]+data_lonbin[vnamev][1,:])*0.5 * mdiag_lonbin['edge_dy_lr']
+            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge norm vector
+            #data_lonbin[vnameu] = (data_lonbin[vnameu][0,:]+data_lonbin[vnameu][1,:])*0.5 * mdiag_lonbin['edge_dx_lr']
+            #data_lonbin[vnamev] = (data_lonbin[vnamev][0,:]+data_lonbin[vnamev][1,:])*0.5 * mdiag_lonbin['edge_dy_lr']
+            
+             # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            # transform unit --> norm vector
+            mdiag_lonbin['edge_dx_lr'][0,:] = -mdiag_lonbin['edge_dx_lr'][0,:] 
+            mdiag_lonbin['edge_dy_lr'][1,:] = -mdiag_lonbin['edge_dy_lr'][1,:] 
+            data_lonbin[vnameu] = (data_lonbin[vnameu][0,:]+data_lonbin[vnameu][1,:])*0.5 * mdiag_lonbin['edge_dy_lr']
+            data_lonbin[vnamev] = (data_lonbin[vnamev][0,:]+data_lonbin[vnamev][1,:])*0.5 * mdiag_lonbin['edge_dx_lr']
             
         # multiply with layer thickness
         data_lonbin[vnameu] = data_lonbin[vnameu] * data_lonbin['dz'] 
@@ -1268,7 +1301,7 @@ def calc_hbarstreamf_fast(mesh, data, lon, lat, do_info=True, do_parallel=True, 
 #|                                                                             |
 #+_____________________________________________________________________________+
 # try to take full advantage of xarray and dask
-def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_parallel=True, n_workers=10, client=None):
+def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_parallel=True, n_workers=10):
     
     #___________________________________________________________________________
     # Create xarray dataset for hor. bar. streamf
@@ -1329,8 +1362,16 @@ def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_
         del(idx_direct)
         
         # compute transport u,v --> u*dx,v*dy
-        data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
-        data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
+        # --> this when mdiag_lonbin['edge_dx_lr'] &  mdiag_lonbin['edge_dy_lr'] is cross-edge norm vector
+        #data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
+        #data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
+        
+        # --> this when mdiag_lonbin['edge_dx_lr'] &  mdiag_lonbin['edge_dy_lr'] is cross-edge vector
+        # transform unit --> norm vector
+        mdiag_lonbin['edge_dx_lr'][0,:] = -mdiag_lonbin['edge_dx_lr'][0,:] 
+        mdiag_lonbin['edge_dy_lr'][1,:] = -mdiag_lonbin['edge_dy_lr'][1,:] 
+        data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
+        data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
         del(mdiag_lonbin)
         
         # sum already over vflux contribution from left and right triangle 
@@ -1357,7 +1398,8 @@ def calc_hbarstreamf_fast_lessmem(mesh, data, mdiag, lon, lat, do_info=True, do_
             if np.mod(ix+1,15)==0 and do_info:
                 print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
                 ts1 = clock.time()
-            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag)
+            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag).data
+            #hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag)
     
     # do parallel loop over longitudinal bins        
     else:
