@@ -73,8 +73,6 @@ def load_index_fesom2(mesh                  ,
         :do_persist:    bool (default=False), do xarray dataset persist() at the end
                         data = data.persist(), keeps the dataset as dask array, keeps
                         the chunking    
-                      
-        :do_info:       bool (defalt=False), print variable info at the end 
                        
                     
     Returns:
@@ -143,11 +141,11 @@ def load_index_fesom2(mesh                  ,
         # do volume averaged mean
         if do_harithm=='wmean' and do_zarithm=='wmean':
             if   'nod2' in data.dims:
-                weights = data['w_A']*data['w_z']
-                data    = data.drop_vars(['w_A', 'w_z'])
-                weights = weights/weights.sum(dim=dim_name, skipna=True)
-                data    = data*weights.astype('float32', copy=False )
-                index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
+                data_in_box = data.sel(nod2=idx_IN)
+                weights     = data_in_box['w_A']*data_in_box['w_z']
+                weights     = weights/weights.sum(dim=dim_name, skipna=True)
+                data_in_box = data_in_box*weights.astype('float32', copy=False )
+                index       = data_in_box.sum(dim=dim_name, keep_attrs=True, skipna=True)  
             elif 'elem' in data.dims:    
                 STOP
         
@@ -155,10 +153,10 @@ def load_index_fesom2(mesh                  ,
         # do volume integral
         elif do_harithm=='wint' and do_zarithm=='wint':
             if   'nod2' in data.dims:
-                weights = data['w_A']*data['w_z']
-                data    = data.drop_vars(['w_A', 'w_z'])
-                data    = data*weights.astype('float32', copy=False )
-                index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
+                data_in_box = data.sel(nod2=idx_IN)
+                weights     = data_in_box['w_A']*data_in_box['w_z']
+                data_in_box = data_in_box*weights.astype('float32', copy=False )
+                index       = data_in_box.sum(dim=dim_name, keep_attrs=True, skipna=True)  
             elif 'elem' in data.dims:    
                 STOP  
         
