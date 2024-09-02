@@ -27,7 +27,7 @@ from .sub_plot     import *
 def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_area=None, e_area=None, 
                    do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
                    do_bolus=True, add_bolus=False, do_zcoord=True, do_useZinfo='std_dens_H', do_ndensz=False, 
-                   do_compute=False, do_load=True, do_persist=False, , do_parallel=False
+                   do_compute=False, do_load=True, do_persist=False, do_parallel=False,
                    **kwargs):
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
