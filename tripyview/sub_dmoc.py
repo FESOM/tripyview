@@ -27,7 +27,7 @@ from .sub_plot     import *
 def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_area=None, e_area=None, 
                    do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
                    do_bolus=True, add_bolus=False, do_zcoord=True, do_useZinfo='std_dens_H', do_ndensz=False, 
-                   do_compute=False, do_load=True, do_persist=False, 
+                   do_compute=False, do_load=True, do_persist=False, , do_parallel=False
                    **kwargs):
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
@@ -57,17 +57,19 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', year=year, 
                 descript=descript , do_info=do_info, do_ie2n=False, 
                 do_tarithm=do_tarithm, do_nan=False, 
-                do_compute=do_compute, do_load=do_load, do_persist=do_persist)
+                do_compute=do_compute, do_load=do_load, do_persist=do_persist, do_parallel=do_parallel)
             
             data['std_heat_flux'].data = data['std_heat_flux'].data +\
             load_data_fesom2(mesh, datapath, vname='std_frwt_flux', 
                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
                 do_tarithm=do_tarithm, do_nan=False, 
-                do_compute=do_compute, do_load=do_load, do_persist=do_persist)['std_frwt_flux'].data + \
+                do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                do_parallel=do_parallel)['std_frwt_flux'].data + \
             load_data_fesom2(mesh, datapath, vname='std_rest_flux', 
                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
                 do_tarithm=do_tarithm, do_nan=False, 
-                do_compute=do_compute, do_load=do_load, do_persist=do_persist)['std_rest_flux'].data
+                do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                do_parallel=do_parallel)['std_rest_flux'].data
             data_attrs = data_dMOC.attrs # rescue attributes will get lost during multipolication
             data       = data.rename({'std_heat_flux':'dmoc_fd'}).assign_coords({'ndens' :("ndens",std_dens)})
             data_dMOC  = xr.merge([data_dMOC, data], combine_attrs="no_conflicts")
@@ -79,19 +81,22 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                 load_data_fesom2(mesh, datapath, vname='std_heat_flux', 
                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
                 do_tarithm=do_tarithm, do_nan=False, 
-                do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_heat_flux':'dmoc_fh'})], combine_attrs="no_conflicts") 
+                do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                do_parallel=do_parallel).rename({'std_heat_flux':'dmoc_fh'})], combine_attrs="no_conflicts") 
             
             data_dMOC = xr.merge([data_dMOC, 
                 load_data_fesom2(mesh, datapath, vname='std_frwt_flux', 
                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
                 do_tarithm=do_tarithm, do_nan=False, 
-                do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_frwt_flux':'dmoc_fw'})], combine_attrs="no_conflicts")   
+                do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                do_parallel=do_parallel).rename({'std_frwt_flux':'dmoc_fw'})], combine_attrs="no_conflicts")   
             
             data_dMOC = xr.merge([data_dMOC, 
                 load_data_fesom2(mesh, datapath, vname='std_rest_flux', 
                 year=year, descript=descript , do_info=do_info, do_ie2n=False, 
                 do_tarithm=do_tarithm, do_nan=False,
-                do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_rest_flux':'dmoc_fr'})], combine_attrs="no_conflicts")   
+                do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                do_parallel=do_parallel).rename({'std_rest_flux':'dmoc_fr'})], combine_attrs="no_conflicts")   
         
         #_______________________________________________________________________
         # add density levels and density level weights
@@ -129,7 +134,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         data_dMOC = xr.merge([data_dMOC, 
                               load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', 
                               year=year, descript=descript , do_info=do_info, do_ie2n=False, 
-                              do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute).rename({'std_heat_flux':'dmoc_dvdt'}).drop_vars('ndens')],
+                              do_tarithm=do_tarithm, do_nan=False, do_compute=do_compute, 
+                              do_parallel=do_parallel).rename({'std_heat_flux':'dmoc_dvdt'}).drop_vars('ndens')],
                               combine_attrs="no_conflicts")
         
     #___________________________________________________________________________
@@ -152,7 +158,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             data_h = load_data_fesom2(mesh, datapath, vname='std_dens_H', 
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
-                        do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_H':'ndens_h'})
+                        do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                        do_parallel=do_parallel).rename({'std_dens_H':'ndens_h'})
             data_h = data_h.assign_coords({'dens':dens})
             data_h = data_h.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_h], combine_attrs="no_conflicts")
@@ -174,7 +181,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             data_z = load_data_fesom2(mesh, datapath, vname='std_dens_Z'   , 
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
-                        do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_Z':'ndens_z'})
+                        do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                        do_parallel=do_parallel).rename({'std_dens_Z':'ndens_z'})
             data_z = data_z.assign_coords({'dens':dens})
             data_z = data_z.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs="no_conflicts")
@@ -187,7 +195,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                 data_sigma2 = load_data_fesom2(mesh, datapath, vname='density_dMOC', 
                             year=year, descript=descript , do_info=do_info, 
                             do_ie2n=False, do_tarithm=do_tarithm, do_zarithm=None, do_nan=False, 
-                            do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'density_dMOC':'nz_rho'})
+                            do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                            do_parallel=do_parallel).rename({'density_dMOC':'nz_rho'})
                 
                 # make land sea mask nan
                 data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
@@ -202,7 +211,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
                 data_sigma2 = load_data_fesom2(mesh, datapath, vname='sigma2', 
                             year=year, descript=descript , do_info=do_info, 
                             do_ie2n=False, do_tarithm=do_tarithm, do_zarithm=None, do_nan=False, 
-                            do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'sigma2':'nz_rho'})
+                            do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                            do_parallel=do_parallel).rename({'sigma2':'nz_rho'})
                 
                 # make land sea mask nan --> here ref density is already substracted
                 data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
@@ -238,7 +248,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
         data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
                         year=year, descript=descript , do_info=do_info, 
                         do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
-                        do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIV':'dmoc'})
+                        do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                        do_parallel=do_parallel).rename({'std_dens_DIV':'dmoc'})
         data_div  = data_div.drop_vars(['ndens', 'nodi']) 
         data_div  = data_div.assign_coords({'dens':dens})
         
@@ -290,7 +301,8 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             data_div_bolus  = load_data_fesom2(mesh, datapath, vname='std_dens_DIVbolus' , 
                                     year=year, descript=descript , do_info=do_info, 
                                     do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
-                                    do_compute=do_compute, do_load=do_load, do_persist=do_persist).rename({'std_dens_DIVbolus':'dmoc_bolus'})
+                                    do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
+                                    do_parallel=do_parallel).rename({'std_dens_DIVbolus':'dmoc_bolus'})
             data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi']) 
             data_div_bolus  = data_div_bolus.assign_coords({'dens':dens})
             
