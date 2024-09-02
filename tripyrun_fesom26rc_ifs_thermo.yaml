@@ -1,11 +1,11 @@
 #___1lvl Parameter___
-tripyrun_name: "fesom26rc_remove_PARMS"
+tripyrun_name: "fesom26rc_ifs_thermo"
 do_parallel: True
 input_paths:
-    - /work/ab0246/a270092/runtime/fesom26_rc1/remove_PARMS/outdata/fesom/
+    - /work/ab0246/a270092/runtime/fesom26_rc1/ifs_thermo/outdata/fesom/
 
 input_names:
-    - 'remove_PARMS'
+    - 'ifs_thermo'
 
 ref_path: /work/ab0246/a270092/runtime/fesom26_rc1/reference/outdata/fesom/
 ref_name: 'reference'
@@ -285,52 +285,4 @@ zmoc:
     gmoc:
     amoc:
     ipmoc:
-
-# plot time series of maximum AMOC upper circulation cell    
-zmoc_t:
-    #___2lvl Parameter___
-    which_lats: [26, 40, 'max']
-    year: [1958,2017]
-    ref_year: [1958, 2017] 
-    do_allcycl: False 
-    input_paths:
-        - /work/ab0246/a270092/runtime/fesom-2.5-refactoring/reference/outdata/fesom/
-        - /work/ab0246/a270092/runtime/fesom-2.5-refactoring/remove_PARMS/outdata/fesom/
-    input_names:
-        - 'reference'
-        - 'remove_PARMS'
-
-    #___Variables________
-    amoc:
-    
-
-#_______________________________________________________________________________     
-# plot horizontal barotropic streamfunction
-hbarstreamf:
-    #___Variables________
-    
-    
-#_______________________________________________________________________________
-# plot time-series of 2d and 3d globally averaged (volume weighted) variables 
-var_t:
-    #___2lvl Parameter___
-    box_regions: 
-        - global
-    input_paths:
-        - /work/ab0246/a270092/runtime/fesom-2.5-refactoring/reference/outdata/fesom/
-        - /work/ab0246/a270092/runtime/fesom-2.5-refactoring/remove_PARMS/outdata/fesom/
-    input_names:
-        - 'reference'
-        - 'remove_PARMS'
-    depth: None
-    output_structure: "esm_tools"
-    year: [1958, 2017]
-    ref_year: [1958, 2017] 
-    do_allcycl: True
-    do_concat: True
-    #___Variables________
-    temp:
-    salt:
-        
-
 

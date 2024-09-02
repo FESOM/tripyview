@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=ref
+#SBATCH -p compute
+#SBATCH --ntasks-per-node=128
+#SBATCH --ntasks=128
+#SBATCH --time=08:00:00
+#SBATCH -o slurm-%j.log
+#SBATCH -e slurm-%j.log
+#SBATCH -A ba0989
+
+source /home/a/a270092/loadconda.sh
+conda activate py39
+
+ulimit -s 102400
+ulimit -n 1000000
+
+echo Submitted job: $jobid
+squeue -u $USER
+
+date
+tripyrun  tripyrun_fesom26rc_fixsrfstress.yaml> "fixsrfstress.log"
+date
