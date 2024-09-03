@@ -143,11 +143,12 @@ def load_index_fesom2(mesh                  ,
         # do volume averaged mean
         if do_harithm=='wmean' and do_zarithm=='wmean':
             if   'nod2' in data.dims:
-                weights = data['w_A']*data['w_z']
-                data    = data.drop_vars(['w_A', 'w_z'])
+                index   = data.sel(nod2=idx_IN)
+                weights = index['w_A']*index['w_z']
+                index   = index.drop_vars(['w_A', 'w_z'])
                 weights = weights/weights.sum(dim=dim_name, skipna=True)
-                data    = data*weights.astype('float32', copy=False )
-                index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
+                index   = index*weights.astype('float32', copy=False )
+                index   = index.sum(dim=dim_name, keep_attrs=True, skipna=True)  
             elif 'elem' in data.dims:    
                 STOP
         
@@ -155,10 +156,11 @@ def load_index_fesom2(mesh                  ,
         # do volume integral
         elif do_harithm=='wint' and do_zarithm=='wint':
             if   'nod2' in data.dims:
-                weights = data['w_A']*data['w_z']
-                data    = data.drop_vars(['w_A', 'w_z'])
-                data    = data*weights.astype('float32', copy=False )
-                index   = data.sum(dim=dim_name, keep_attrs=True, skipna=True)  
+                index   = data.sel(nod2=idx_IN)
+                weights = index['w_A']*index['w_z']
+                index   = index.drop_vars(['w_A', 'w_z'])
+                index   = index*weights.astype('float32', copy=False )
+                index   = index.sum(dim=dim_name, keep_attrs=True, skipna=True)  
             elif 'elem' in data.dims:    
                 STOP  
         

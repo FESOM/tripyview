@@ -2838,18 +2838,20 @@ def plot_tline(data,
             
             #___________________________________________________________________
             allinone = False
-            if   nrow*ncol == 1:
-                if   nbox == 1: box_idx = [0]
-                elif nbox >  1: 
-                    box_idx, allinone = list(range(0,nbox)), True
-                    
-            elif nrow*ncol > 1 and nrow*ncol >= nbox:   
-                box_idx, allinone = [ii], False
+            if box_idx is None:
+                if   nrow*ncol == 1:
+                    if   nbox == 1: box_idx = [0]
+                    elif nbox >  1: 
+                        box_idx, allinone = list(range(0,nbox)), True
+                        
+                elif nrow*ncol > 1 and nrow*ncol >= nbox:   
+                    box_idx, allinone = [ii], False
             xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
-            
+
             #___________________________________________________________________
             # If nrow*ncol=1    && nbox > 1: plot all box lines in one figure panel
             #    nrow*ncol=nbox && nbox > 1: plot each box lines in separate figure panel
+            if not isinstance(box_idx, list): box_idx = [box_idx]
             for bi in box_idx:
                 #___________________________________________________________________
                 # prepare regular gridded data for plotting
