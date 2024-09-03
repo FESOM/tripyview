@@ -336,7 +336,9 @@ def plot_hslice(mesh                   ,
     for ii in np.unique(cb_plt_idx):
         idsel = np.where(cb_plt_idx==ii)[0]
         #_______________________________________________________________________
-        if isinstance(cinfo, list):
+        if isinstance(cinfo, list) and isinstance(do_rescale, list):
+            cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale[ii-1], mesh=mesh, tri=tri) )
+        elif isinstance(cinfo, list):
             cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale, mesh=mesh, tri=tri) )
         else:    
             cinfo_plot.append( do_setupcinfo(cinfo, [data[jj] for jj in idsel], do_rescale, mesh=mesh, tri=tri) )
@@ -448,9 +450,14 @@ def plot_hslice(mesh                   ,
         #_______________________________________________________________________
         # add colorbar 
         if hcb_ii != 0 and hp[-1] is not None: 
-            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                             cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
-                             cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
+            if isinstance(do_rescale, list):
+                hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
+                                cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
+            else:    
+                hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
+                                cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #___________________________________________________________________
         # add all handles together 
@@ -3798,10 +3805,12 @@ def do_axes_arrange(nx, ny,
             #hax[nn].set_title('', fontsize=fs_title)
             matplotlib.rcParams['axes.titlesize'] = fs_title
             hax[nn].tick_params(labelsize=fs_ticks)
-            hax[nn].fs_label=fs_label
-            hax[nn].fs_ticks=fs_ticks
-            hax[nn].fs_title=fs_title
-            hax[nn].dpi     =hfig.dpi
+            hax[nn].fs_label = fs_label
+            hax[nn].fs_ticks = fs_ticks
+            hax[nn].fs_title = fs_title
+            hax[nn].fig_dpi = hfig.dpi
+            hax[nn].fig_width, hax[nn].fig_height = hfig.get_size_inches()
+            
             #___________________________________________________________________
             # colorbar
             if cb_plt[ii,jj] != 0 and projection[0]!='index+depth' and projection[0]!='index+time' and projection[0]!='index+xy':
@@ -5408,6 +5417,19 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     
     cbl_optdefault = dict({'fontsize':fsize})
     cbl_optdefault.update(cbl_opt)
+    
+    ## wrap xlabel string when they are to long
+    ## Estimate the width of the axes dynamically
+    #axes_width_px = hcb_ii.ax.get_position().height * hax_ii.fig_height * hax_ii.fig_dpi
+    
+    ## Estimate the width of the axes in terms of characters
+    ## font_size = plt.rcParams['font.size']
+    #font_size = hcb_ii.ax.yaxis.get_label().get_size()
+    #max_chars_per_line = int(axes_width_px / (font_size))  # Empirical factor for font size to character width ratio
+    #cb_label = '\n'.join(textwrap.wrap(cb_label, width=max_chars_per_line))
+    
+    #___________________________________________________________________________
+    
     hcb_ii.set_label(cb_label, **cbl_optdefault)
     #___________________________________________________________________________
     return(hcb_ii)
