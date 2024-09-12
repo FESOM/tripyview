@@ -118,12 +118,12 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=[], do_slog=False, do_res
             if cname == 'dred2dblue': cmap_def = np.flipud(cmap_def)
         #---------------------------------------------------------------------------    
         elif cname in ['green2orange', 'orange2green']:    
-            cmap_def = np.array([[0.2196,    0.4196,      0.0],
+            cmap_def = np.array([
                                 [0.6039,    0.8039,      0.0],
                                 [0.8000,    1.0000,      0.0],
                                 [1.0000,    1.0000,   1.0000],
                                 [1.0000,    0.6000,      0.0],
-                                [0.6000,    0.2000,      0.0]])
+                                [0.6000,    0.2000,      0.0]]) #[0.2196,    0.4196,      0.0],
             if cname == 'orange2green': cmap_def = np.flipud(cmap_def)
         #---------------------------------------------------------------------------    
         elif cname in ['grads', 'grads_i']:    
