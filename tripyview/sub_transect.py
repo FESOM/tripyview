@@ -28,6 +28,7 @@ def do_analyse_transects(input_transect     ,
                         edge_dxdy_l         , 
                         edge_dxdy_r         , 
                         do_rot      = True  , 
+                        do_info     = False ,  
                         ):
     """
     --> pre-analyse defined transects, with respect to which triangles and edges 
@@ -119,6 +120,7 @@ def do_analyse_transects(input_transect     ,
         #_______________________________________________________________________
         # loop over transect points
         for ii in range(0,len(transec_lon)-1):
+            #print(' --> subtransect_ii', ii)
             sub_transect['ncsi'].append(ii)
             
             #___________________________________________________________________
@@ -177,7 +179,23 @@ def do_analyse_transects(input_transect     ,
         # buld distance from start point array [km]
         transect = _do_compute_distance_from_startpoint(transect)
         
-        #___________________________________________________________________________    
+        #_______________________________________________________________________
+        if do_info:
+            print('edge_cut_i    =', transect['edge_cut_i'   ].shape)
+            print('edge_cut_evec =', transect['edge_cut_evec'].shape)
+            print('edge_cut_P    =', transect['edge_cut_P'   ].shape)
+            print('edge_cut_midP =', transect['edge_cut_midP'].shape)
+            print('edge_cut_lint =', transect['edge_cut_lint'].shape)
+            print('edge_cut_ni   =', transect['edge_cut_ni'  ].shape)
+            print('path_ei       =', transect['path_ei'      ].shape)
+            print('path_ni       =', transect['path_ni'      ].shape)
+            print('path_dx       =', transect['path_dx'      ].shape)
+            print('path_dy       =', transect['path_dy'      ].shape)
+            print('path_nvec_cs  =', transect['path_nvec_cs' ].shape)
+            print('path_xy       =', transect['path_xy'      ].shape)
+            print('path_dist     =', transect['path_dist'    ].shape) 
+        
+        #_______________________________________________________________________  
         #if len(input_transect)>1:
         transect_list.append(transect)
         #else:
@@ -263,12 +281,18 @@ def _do_concat_subtransects(sub_transect):
             transect['edge_cut_midP'] = np.vstack((transect['edge_cut_midP'], sub_transect['edge_cut_midP'][ii]))
             transect['edge_cut_lint'] = np.hstack((transect['edge_cut_lint'], sub_transect['edge_cut_lint'][ii]))
             transect['edge_cut_ni'  ] = np.vstack((transect['edge_cut_ni'  ], sub_transect['edge_cut_ni'  ][ii]))
-            transect['path_xy'      ] = np.vstack((transect['path_xy'      ], sub_transect['path_xy'      ][ii]))
             transect['path_ei'      ] = np.hstack((transect['path_ei'      ], sub_transect['path_ei'      ][ii]))
             transect['path_ni'      ] = np.vstack((transect['path_ni'      ], sub_transect['path_ni'      ][ii]))
             transect['path_dx'      ] = np.hstack((transect['path_dx'      ], sub_transect['path_dx'      ][ii]))
             transect['path_dy'      ] = np.hstack((transect['path_dy'      ], sub_transect['path_dy'      ][ii]))
             transect['path_nvec_cs' ] = np.vstack((transect['path_nvec_cs' ], sub_transect['path_nvec_cs' ][ii]))
+            
+            # if there are multiple subsection to one transect than the last point
+            # of the previous subsection and the first point of the actual subsection 
+            # are identical so when they concatenated they are dublicated, therefor 
+            # the first point od a subsecuent subsection must be kicked out 
+            transect['path_xy'      ] = np.vstack((transect['path_xy'      ], sub_transect['path_xy'      ][ii][1:]))
+            
     del(sub_transect)
     
     #___________________________________________________________________________
@@ -452,7 +476,7 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     # loop over intersected edges 
     nced = transect['edge_cut_i'][-1].size
     for edi in range(0,nced):
-        #print(' --> ', edi)
+        #print(' --> edgecut_ii', edi)
         
         #_______________________________________________________________________
         # --> rotate edge with bearing angle -alpha

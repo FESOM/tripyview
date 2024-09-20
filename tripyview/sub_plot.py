@@ -1656,6 +1656,7 @@ def plot_vslice(mesh                   ,
     #___________________________________________________________________________
     # --> loop over axes
     hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
+    count_cb = 0
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
@@ -1668,7 +1669,7 @@ def plot_vslice(mesh                   ,
             #___________________________________________________________________
             # prepare regular gridded data for plotting
             data_x, data_y, data_plot = do_data_prepare_vslice(hax_ii, data[ii], box_idx)
-            
+           
             #___________________________________________________________________
             # add tripcolor or tricontourf plot 
             h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
@@ -1686,7 +1687,7 @@ def plot_vslice(mesh                   ,
             if   hax_ii.projection=='index+depth+xy':
                 h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, 
                                 data_plot=data_plot, bot_opt=bot_opt)
-            
+        
             # zmoc bottom patch
             elif hax_ii.projection=='zmoc':
                 ax_ylim0 = [0, abs(mesh.zlev[-1])]
@@ -1764,11 +1765,15 @@ def plot_vslice(mesh                   ,
             
         #_______________________________________________________________________
         # add colorbar 
-        if hcb_ii != 0 and hp[-1] is not None: 
-            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                             cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
-                             box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
+        if hcb_ii != 0 and hp[-1] is not None: 
+            if isinstance(cb_label,list): cb_label2 = cb_label[count_cb]
+            else: cb_label2 = cb_label
+            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
+                             cb_label2, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                             box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
+            
+            count_cb=count_cb+1
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
@@ -5434,6 +5439,7 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     
     hcb_ii.set_label(cb_label, **cbl_optdefault)
     #___________________________________________________________________________
+    
     return(hcb_ii)
 
 
