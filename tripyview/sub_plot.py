@@ -4514,9 +4514,16 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         cminmax=dict()
         if which_norm_plot is None:cminmax.update({'vmin':cinfo_plot['clevel'][0], 'vmax':cinfo_plot['clevel'][-1]})
         
-        h0 = hax_ii.pcolormesh(data_x, data_y, data_plot,
-                              cmap=cinfo_plot['cmap'],
-                              norm = which_norm_plot, transform=which_transf, **cminmax, **plt_optdefault)
+        # the transform=which_transf options in combination with pcolormesh seems 
+        # only to work in case of horizontal cartopy plot not in vertical slice 
+        # plot even when which_transf=None
+        if isinstance(hax_ii.projection, ccrs.CRS): plt_optdefault.update({'transform':which_transf})
+        h0 = hax_ii.pcolormesh(data_x, data_y, data_plot, 
+                               cmap=cinfo_plot['cmap'], norm=which_norm_plot, **cminmax, **plt_optdefault)
+        
+        #0 = hax_ii.pcolormesh(data_x, data_y, data_plot,
+                              #cmap=cinfo_plot['cmap'],
+                              #norm=which_norm_plot, transform=which_transf, **cminmax, **plt_optdefault)
         
     #___________________________________________________________________________
     # plot contourf 
@@ -5282,7 +5289,10 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                 elif hax_ii.projection not in ['zmoc', 'dmoc+depth']: 
                     hax_ii.set_ylim(ylim[0]-(ylim[1]-ylim[0])*0.025  ,ylim[-1]+(ylim[1]-ylim[0])*0.025)
             
-            if xlim is not None: hax_ii.set_xlim(xlim[0]  ,xlim[-1])
+            if xlim is not None: 
+                hax_ii.set_xlim(xlim[0]  ,xlim[-1])
+            else: 
+                hax_ii.set_xlim(data_x[0], data_x[-1])
             
             #___________________________________________________________________
             # invert y-axis

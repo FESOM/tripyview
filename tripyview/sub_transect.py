@@ -28,7 +28,8 @@ def do_analyse_transects(input_transect     ,
                         edge_dxdy_l         , 
                         edge_dxdy_r         , 
                         do_rot      = True  , 
-                        do_info     = False ,  
+                        do_info     = False , 
+                        Pdxy        = 10.0  
                         ):
     """
     --> pre-analyse defined transects, with respect to which triangles and edges 
@@ -60,6 +61,13 @@ def do_analyse_transects(input_transect     ,
         :do_rot:            bool, (default=True) assume that the the edge_dxdy_l, 
                             edge_dxdy_r arrays are in the rotated coordinate frame
                             and needed to be rotated into geo coordinates
+                            
+        :do_info:           bool, (default=False) print info of transect dictionary
+        
+        :Pdxy:              float, (default=15) buffer lon/lat width of lon/lat box around transect
+                            for preselection of cutted edges within this box. On 
+                            very coarse meshes if it looks like that certain edges 
+                            are not cutted increase this number 
 
     Return:
     
@@ -135,16 +143,22 @@ def do_analyse_transects(input_transect     ,
             #___________________________________________________________________
             # pre-limit edges based on min/max lon and lat points that form 
             # cruise-line
-            Pdxy = 2.0
+            #Pdxy = 10.0
             Pxmin, Pxmax = min(sub_transect['Px'][-1]), max(sub_transect['Px'][-1])
             Pymin, Pymax = min(sub_transect['Py'][-1]), max(sub_transect['Py'][-1])
-            Pxmin, Pxmax = Pxmin-Pdxy, Pxmax+Pdxy
-            Pymin, Pymax = Pymin-Pdxy, Pymax+Pdxy
+            
+            Pdx ,Pdy = Pdxy, Pdxy
+            # if section reaches into polar areas than increase the longitudinal width 
+            # of the buffer box around the transect
+            if Pymin<-70.0 or Pymax>80.0: Pdx=180.0 
+            
+            Pxmin, Pxmax = Pxmin-Pdx, Pxmax+Pdx
+            Pymin, Pymax = Pymin-Pdy, Pymax+Pdy
             idx_edlimit  = np.where( ( mesh.n_x[edge].min(axis=0)>=Pxmin ) &  
                                      ( mesh.n_x[edge].max(axis=0)<=Pxmax ) & 
                                      ( mesh.n_y[edge].min(axis=0)>=Pymin ) &  
                                      ( mesh.n_y[edge].max(axis=0)<=Pymax ) )[0]
-            del(Pxmin, Pxmax, Pymin, Pymax, Pdxy)
+            del(Pxmin, Pxmax, Pymin, Pymax, Pdx, Pdy)
             
             #___________________________________________________________________
             # compute which edges are intersected by cross-section line 
@@ -181,6 +195,7 @@ def do_analyse_transects(input_transect     ,
         
         #_______________________________________________________________________
         if do_info:
+            print(' --> Name:', transect['Name'])
             print('edge_cut_i    =', transect['edge_cut_i'   ].shape)
             print('edge_cut_evec =', transect['edge_cut_evec'].shape)
             print('edge_cut_P    =', transect['edge_cut_P'   ].shape)
@@ -194,7 +209,7 @@ def do_analyse_transects(input_transect     ,
             print('path_nvec_cs  =', transect['path_nvec_cs' ].shape)
             print('path_xy       =', transect['path_xy'      ].shape)
             print('path_dist     =', transect['path_dist'    ].shape) 
-        
+            print('')
         #_______________________________________________________________________  
         #if len(input_transect)>1:
         transect_list.append(transect)
@@ -290,8 +305,9 @@ def _do_concat_subtransects(sub_transect):
             # if there are multiple subsection to one transect than the last point
             # of the previous subsection and the first point of the actual subsection 
             # are identical so when they concatenated they are dublicated, therefor 
-            # the first point od a subsecuent subsection must be kicked out 
+            # the first point of a subsecuent subsection must be kicked out 
             transect['path_xy'      ] = np.vstack((transect['path_xy'      ], sub_transect['path_xy'      ][ii][1:]))
+            #transect['path_xy'      ] = np.vstack((transect['path_xy'      ], sub_transect['path_xy'      ][ii]))
             
     del(sub_transect)
     
@@ -370,7 +386,10 @@ def _do_find_intersected_edges(mesh, transect, edge, idx_ed):
     
     #___________________________________________________________________________
     # loop over indices of edges-->use already lon,lat limited edge indices 
-    for edi in idx_ed: 
+    #plt.figure()
+        
+    for edi in idx_ed:
+        
         A[0, 0] = mesh.n_x[edge[1, edi]]-mesh.n_x[edge[0, edi]]
         A[1, 0] = mesh.n_y[edge[1, edi]]-mesh.n_y[edge[0, edi]]
         normA0  = np.sqrt(A[0, 0]**2 + A[1, 0]**2)
@@ -384,8 +403,8 @@ def _do_find_intersected_edges(mesh, transect, edge, idx_ed):
         X1      = (P[0]*A[1,0]-P[1]*A[0,0])/-div
         
         # determine if edge is intersected by crossection line
-        if ((X0>=0) & (X0<=normA0               +np.finfo(np.float32).eps) &
-            (X1>=0) & (X1<=transect['e_norm'][-1]+np.finfo(np.float32).eps) ):
+        if ((X0>=0.0-np.finfo(np.float32).eps) & (X0<=normA0                +np.finfo(np.float32).eps) &
+            (X1>=0.0-np.finfo(np.float32).eps) & (X1<=transect['e_norm'][-1]+np.finfo(np.float32).eps) ):
             # indice of cutted edge
             transect['edge_cut_i'   ][-1].append(edi)
             
@@ -681,16 +700,21 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
             path_dy.append(np.nan)
             
             if edi!=0 and edi!=nced-1:
+                # in case of a single transect
                 path_ei.append(-1)                     
                 path_ni.append(np.array([-1, -1, -1])) 
                 path_dx.append(np.nan)
                 path_dy.append(np.nan)
             elif transect['ncsi'][-1]!=0 and edi==0:        
+                # in case of transect consist of subtransects
+                path_xy.append(transect['edge_cut_midP'][-1][edi])  #(***)
                 path_ei.append(-1)                     
                 path_ni.append(np.array([-1, -1, -1])) 
                 path_dx.append(np.nan)
                 path_dy.append(np.nan)
-            elif transect['ncsi'][-1]!=transect['ncs'] and edi==nced-1:        
+            elif transect['ncsi'][-1]!=transect['ncs'] and edi==nced-1:   
+                # in case of transect consist of subtransects
+                path_xy.append(transect['edge_cut_midP'][-1][edi])  #(***)
                 path_ei.append(-1)                     
                 path_ni.append(np.array([-1, -1, -1])) 
                 path_dx.append(np.nan)
@@ -765,7 +789,8 @@ def _do_compute_distance_from_startpoint(transect):
     # avoid nan's in arccos from numerics
     dist[dist>=1.0] = 1.0
     dist   = np.arccos(dist)*Rearth
-    transect['path_dist'] = dist.cumsum()    
+    transect['path_dist'] = dist.cumsum()   
+    transect['path_dist'] = transect['path_dist']-transect['path_dist'][0]
     del(dist, x, y, z)
     
     # build distance from start point for edge cut mid points [km]
@@ -944,9 +969,11 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             # are not possible
             if 'time' in data.dims: transp[-1] = transp[-1].assign_coords(time=data.time)  
             if do_info:
-                print('neto transport:', transp[-1]['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (+) transport:', transp[-1]['transp'].where(transp[-1]['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (-) transport:', transp[-1]['transp'].where(transp[-1]['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' --------> Name:', transp[-1]['transp'].attrs['transect_name'])
+                print(' neto transport:', transp[-1]['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' (+) transport :', transp[-1]['transp'].where(transp[-1]['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' (-) transport :', transp[-1]['transp'].where(transp[-1]['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print('')
         else:
             transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs )
             # we have to set the time here with assign_coords otherwise if its 
@@ -955,9 +982,11 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             # are not possible
             if 'time' in data.dims: transp = transp.assign_coords(time=data.time)  
             if do_info:
-                print('neto transport:', transp['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (+) transport:', transp['transp'].where(transp['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (-) transport:', transp['transp'].where(transp['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' --------> Name:', transp['transp'].attrs['transect_name'])
+                print(' neto transport:', transp['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' (+) transport :', transp['transp'].where(transp['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' (-) transport :', transp['transp'].where(transp['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print('')
     #___________________________________________________________________________
     #if do_info: print('        elapsed time: {:3.2f}min.'.format((clock.time()-t1)/60.0))
     return(transp)
@@ -1265,7 +1294,6 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
             Rearth = 6367.5  # [km]
             x,y,z  = grid_cart3d(transect['path_xy'][[0,-1],0], transect['path_xy'][[0,-1],1], is_deg=True)
             dist   = np.arccos(x[0]*x[1] + y[0]*y[1] + z[0]*z[1])*Rearth
-            print(dist)
             #zoom = (np.pi*6367.5)/transect['edge_cut_dist'].max()
             zoom = (np.pi*Rearth)/dist
             del(dist, x, y, z)
@@ -1273,7 +1301,7 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
             if proj == 'nears': proj = 'rob'
     
     #___________________________________________________________________________
-    orig = ccrs.PlateCarree()
+    proj_from = ccrs.PlateCarree()
     if proj == 'nears': box = [transect['edge_cut_P'][:,0].mean(), transect['edge_cut_P'][:,1].mean(), zoom]
     proj_to, box = do_projection(mesh, proj, box)
     
@@ -1294,32 +1322,34 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
         tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)),
                             np.hstack((mesh.n_y,mesh.n_ya)),
                             np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
-        points = orig.transform_points(proj, 
-                                    tri.x[tri.triangles].sum(axis=1)/3, 
-                                    tri.y[tri.triangles].sum(axis=1)/3)
-        xpts, ypts = points[:,0].flatten().tolist(), points[:,1].flatten().tolist()
+        
+        tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
+        
+        xpts, ypts = tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3
+        
         crs_pts = list(zip(xpts,ypts))
         fig_pts = ax.transData.transform(crs_pts)
         ax_pts  = ax.transAxes.inverted().transform(fig_pts)
         x, y    =  ax_pts[:,0], ax_pts[:,1]
         e_idxbox= (x>=-0.05) & (x<=1.05) & (y>=-0.05) & (y<=1.05)
-        ax.triplot(tri.x, tri.y, tri.triangles[e_idxbox,:], color='w', linewidth=0.25, alpha=0.35, transform=orig)
+        #ax.triplot(tri.x, tri.y, tri.triangles[e_idxbox,:], color='w', linewidth=0.25, alpha=0.35, transform=proj_from)
+        ax.triplot(tri.x, tri.y, tri.triangles[e_idxbox,:], color='w', linewidth=0.25, alpha=0.35,)
     
     #___________________________________________________________________________
     #intersected edges 
     if edge is not None:
-        ax.plot(mesh.n_x[edge[:,transect['edge_cut_i']]], mesh.n_y[edge[:,transect['edge_cut_i']]],'-', color=[0.75,0.75,0.75], linewidth=1.5, transform=orig)
+        ax.plot(mesh.n_x[edge[:,transect['edge_cut_i']]], mesh.n_y[edge[:,transect['edge_cut_i']]],'-', color=[0.75,0.75,0.75], linewidth=1.5, transform=proj_from)
 
     # intersection points
-    ax.plot(transect['edge_cut_P'][ :, 0], transect['edge_cut_P'][ :, 1],'limegreen', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=3.0, transform=orig)
+    ax.plot(transect['edge_cut_P'][ :, 0], transect['edge_cut_P'][ :, 1],'limegreen', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=3.0, transform=proj_from)
 
     #transport path
     if do_path:
-        ax.plot(transect['path_xy'   ][ :, 0], transect['path_xy'   ][ :, 1],'m', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=1.0, transform=orig)
+        ax.plot(transect['path_xy'   ][ :, 0], transect['path_xy'   ][ :, 1],'m', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=1.0, transform=proj_from)
 
     # end start point [green] and end point [red]
-    ax.plot(transect['edge_cut_P'][ 0, 0], transect['edge_cut_P'][ 0, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='g', transform=orig)
-    ax.plot(transect['edge_cut_P'][-1, 0], transect['edge_cut_P'][-1, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='r', transform=orig)
+    ax.plot(transect['edge_cut_P'][ 0, 0], transect['edge_cut_P'][ 0, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='g', transform=proj_from)
+    ax.plot(transect['edge_cut_P'][-1, 0], transect['edge_cut_P'][-1, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='r', transform=proj_from)
     
     ## plot cross-section 
     #for ii, (Px, Py) in enumerate(zip(transect['Px'],transect['Py'])):
