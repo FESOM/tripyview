@@ -5621,7 +5621,8 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 if do_index: vname = list(data_ii[box_idx].keys())
                 else       : vname = list(data_ii.keys())
                 
-                #___________________________________________________________________
+                #_______________________________________________________________
+                # --> consider scalar data
                 if do_vec==False:
                     if   do_index: data_plot = data_ii[box_idx][ vname[0] ].data.copy()
                     elif do_moc  : data_plot = data_ii['zmoc'].isel(nz=np.abs(data_ii['depth'])>=500).values.copy()
@@ -5636,31 +5637,15 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                         data_plot   = data_ii[ vname[0] ].data.copy()
                         if cinfo['chist'] and 'w_A' in list(data_ii.coords.keys()): 
                             do_cweights = data_ii['w_A'].data.copy()
+                
+                #_______________________________________________________________
+                # --> consider vector norm data
                 else:
                     # compute norm when vector data
                     data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
                     if cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
-                    
-                    if   data_plot.size == mesh.n2dn:
-                        if tri.mask_n_box is not None:
-                            aux = np.ones(data_plot.shape)*np.nan
-                            aux[tri.mask_n_box] = data_plot[tri.mask_n_box]
-                            data_plot = aux.copy()
-                            del(aux)
-                            if cinfo['chist']: 
-                                aux = np.zeros(do_cweights.shape)
-                                aux[tri.mask_n_box] = do_cweights[tri.mask_n_box]
-                                do_cweights = aux.copy()
-                                del(aux)
-                               
-                    elif data_plot.size == mesh.n2de:    
-                        if any(tri.mask_e_box==False): 
-                            data_plot = np.hstack((data_plot[mesh.e_pbnd_0],data_plot[mesh.e_pbnd_a]))
-                            data_plot[tri.mask_e_box==False] = np.nan
-                            if cinfo['chist']: 
-                                do_cweights = np.hstack((do_cweights[mesh.e_pbnd_0],do_cweights[mesh.e_pbnd_a]))
-                                do_cweights[tri.mask_e_box==False] = 0
-                
+            
+            #___________________________________________________________________    
             # for logarythmic rescaling cmin or cmax can not be zero
             if isinstance(do_rescale, str):
                 if do_rescale=='log10' or do_rescale=='slog10': 
@@ -5668,6 +5653,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     data_plot[np.abs(data_plot)<=1e-15]=np.nan
             
             #___________________________________________________________________
+            # Consider regular griddet data or index data
             if tri is None or do_index:
                 #cmin = np.min([cmin,np.nanmin(data_plot) ])
                 #cmax = np.max([cmax,np.nanmax(data_plot) ])
@@ -5680,26 +5666,45 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     cmin = np.min([cmin,np.nanmin(data_plot) ])
                     cmax = np.max([cmax,np.nanmax(data_plot) ])
                     print('cmin, cmax = ', cmin, cmax)
-            else:    
-                data_plot = np.hstack((data_plot,data_plot[mesh.n_pbnd_a]))
-                #cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
-                #cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
-                #print('cmin, cmax = ', cmin, cmax)
+            
+            #___________________________________________________________________
+            # Consider unstructured griddet data --> tri is not None
+            else:
+                # data_plot is on vertices --> add augmentation arrays --> now 
+                # size mesh.n2dna
+                if   data_plot.size == mesh.n2dn: 
+                    data_plot = np.hstack((data_plot, data_plot[mesh.n_pbnd_a]))
+                    if tri.mask_n_box is not None: data_plot = data_plot[tri.mask_n_box]
+                    
+                # data_plot is on elements --> add augmentation arrays --> now 
+                # size mesh.n2dea
+                elif data_plot.size == mesh.n2de: 
+                    data_plot = np.hstack((data_plot[mesh.e_pbnd_0], data_plot[mesh.e_pbnd_a]))
+                    if any(tri.mask_e_box==False): data_plot = data_plot[tri.mask_e_box]
+                    
+                # compute min/max value range by histogram, computation of cumulativ 
+                # distribution function at certain cutoff treshold allow to kick out 
+                # outlier values from the cmin/cmax value range
                 if cinfo['chist']:
                     if do_cweights is not None: 
-                        do_cweights_in = do_cweights.copy()
-                        if do_cweights_in.size==mesh.n2dn: do_cweights_in = np.hstack((do_cweights_in,do_cweights_in[mesh.n_pbnd_a]))
-                        do_cweights_in = do_cweights_in[mesh.e_i.flatten()]
-                    else: 
-                        do_cweights_in = do_cweights
-                    #auxcmin,auxcmax = do_climit_hist(data_plot[tri.triangles.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in[tri.triangles.flatten()])
-                    auxcmin,auxcmax = do_climit_hist(data_plot[mesh.e_i.flatten()], ctresh=cinfo['ctresh'], cweights=do_cweights_in)                    
-                    cmin, cmax = np.min([cmin,auxcmin]), np.max([cmax,auxcmax])
-                    print('--> histo: cmin, cmax = ', cmin, cmax)
+                        if   do_cweights.size == mesh.n2dn: 
+                            do_cweights = np.hstack((do_cweights, do_cweights[mesh.n_pbnd_a]))
+                            if tri.mask_n_box is not None: do_cweights = do_cweights[tri.mask_n_box]
+                            
+                        elif do_cweights.size == mesh.n2de: 
+                            do_cweights = np.hstack((do_cweights[mesh.e_pbnd_0], do_cweights[mesh.e_pbnd_a]))
+                            if any(tri.mask_e_box==False): do_cweights = do_cweights[tri.mask_e_box]
+                    
+                    histcmin,histcmax = do_climit_hist(data_plot, ctresh=cinfo['ctresh'], cweights=do_cweights)                    
+                    cmin, cmax = np.min([cmin,histcmin]), np.max([cmax,histcmax])
+                    print('--> cmin/cmax: norm: {:f}/{:f}, hist: {:f}/{:f}, fin: {:f}/{:f}'.format(np.nanmin(data_plot), np.nanmax(data_plot), histcmin, histcmax, cmin, cmax))
+                
+                # just take global or box reduced local cmin and cmax
                 else:    
-                    cmin = np.min([cmin,np.nanmin(data_plot[tri.triangles.flatten()]) ])
-                    cmax = np.max([cmax,np.nanmax(data_plot[tri.triangles.flatten()]) ])
-                    print('cmin, cmax = ', cmin, cmax)
+                    cmin, cmax = np.min([ cmin, np.nanmin(data_plot) ]), np.max([ cmax, np.nanmax(data_plot) ])
+                    print('--> cmin/cmax: fin: {:f}/{:f}'.format(cmin,cmax))
+                    
+            # increase/decrease cmin/cmax limit by pre-defined factor 
             cmin, cmax = cmin*cfac, cmax*cfac
             
         #_______________________________________________________________________
@@ -5730,7 +5735,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
         cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
         if 'cref' not in cinfo.keys(): 
-            if isinstance(do_rescale,str):
+            if isinstance(do_rescale, str):
                 if do_rescale=='log10':
                     # compute cref in decimal units and tranfer back to normal units 
                     # afterwards
