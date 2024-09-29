@@ -16,7 +16,7 @@ import matplotlib.ticker        as mticker
 import matplotlib.path          as mpath
 import matplotlib.colors        as mcolors
 from   matplotlib.colors        import ListedColormap
-from   matplotlib.ticker        import MultipleLocator, AutoMinorLocator, ScalarFormatter, LogLocator, LogFormatter
+from   matplotlib.ticker        import MultipleLocator, AutoMinorLocator, ScalarFormatter, LogLocator, LogFormatter, SymmetricalLogLocator
 from   scipy.signal             import convolve2d
 from   scipy.interpolate        import interp1d
 import textwrap
@@ -2456,11 +2456,18 @@ def plot_vline(data                   ,
                     #_______________________________________________________________
                     vname = list(data[jj][bi].data_vars)[0]
                     data_x = data[jj][bi][vname].data.copy()
-                    xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                    xmin, xmax = np.min([xmin, np.nanmin(data_x)]), np.max([xmax, np.nanmax(data_x)])
+                    
+                    # in case you plot anomalous Kv data, than they can be negativ. If
+                    # than do_rescale ist setted to log10 it cant scale the x-axis 
+                    # and creates a error message
+                    if any(data_x<0.0) and do_rescale=='log10': do_rescale='slog10'
+                    if do_rescale=='slog10': 
+                        xmin, xmax = -np.max([np.abs(xmin), np.abs(xmax)]), np.max([np.abs(xmin), np.abs(xmax)])
                     
                     #_______________________________________________________________
                     data_y, str_ylabel = np.abs(data[jj][bi]['depth'].values) , 'Depth / m'
-                    ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
+                    ymin, ymax = np.min([ymin, np.nanmin(data_y)]), np.max([ymax, np.nanmax(data_y)])
                     
                     #_______________________________________________________________
                     loc_attrs= data[jj][bi][vname].attrs
@@ -2533,8 +2540,10 @@ def plot_vline(data                   ,
             # add grids lines 
             ax_ylim0 = ax_ylim
             if ax_ylim is None: ax_ylim0=[ymin,ymax]
+            if ax_xlim is None: ax_xlim0=[xmin,xmax]
+            
             h0 = do_plt_gridlines(hax_ii, do_grid, None, None, data_x=None, 
-                                  data_y=data_y, xlim=ax_xlim, ylim=ax_ylim0, 
+                                  data_y=data_y, xlim=ax_xlim0, ylim=ax_ylim0, 
                                   grid_opt=grid_opt, do_rescale=do_rescale)
             hgrd.append(h0)
             
@@ -5264,17 +5273,27 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             # rescale x-axhes in case of vline index+depth plot
             if   hax_ii.projection in ['index+depth'] and isinstance(do_rescale,str): 
                 if   do_rescale in ['log10' , 'slog10']: 
-                    if   do_rescale=='log10' : hax_ii.set_xscale('log')
-                    elif do_rescale=='slog10': hax_ii.set_xscale('symlog')
-                    hax_ii.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0, ), numticks=10))
-                    
-                    xtlabels = hax_ii.get_xticklabels()
-                    if hax_ii.xaxis.get_tick_space()+2<len(xtlabels):
-                        for ll in range(0,len(xtlabels),2):
-                                xtlabels[ll] = ''
-                    hax_ii.set_xticklabels(xtlabels)
-                    hax_ii.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks=10))
-                else: hax_ii.get_xaxis().set_minor_locator(AutoMinorLocator())
+                    if   do_rescale=='log10' : 
+                        hax_ii.set_xscale('log')
+                        hax_ii.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0, ), numticks=10))
+                        xtlabels = hax_ii.get_xticklabels()
+                        if hax_ii.xaxis.get_tick_space()+2<len(xtlabels):
+                            for ll in range(0,len(xtlabels),2):
+                                    xtlabels[ll] = ''
+                        hax_ii.set_xticklabels(xtlabels)
+                        hax_ii.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks=10))
+                    elif do_rescale=='slog10': 
+                        hax_ii.set_xscale('symlog')
+                        hax_ii.xaxis.set_major_locator(SymmetricalLogLocator(base=10.0, linthresh=1e-4))
+                        xtlabels = hax_ii.get_xticklabels()
+                        if hax_ii.xaxis.get_tick_space()+2<len(xtlabels):
+                            for ll in range(0,len(xtlabels),2):
+                                    xtlabels[ll] = ''
+                        hax_ii.set_xticklabels(xtlabels)
+                        hax_ii.xaxis.set_minor_locator(SymmetricalLogLocator(base=10.0, linthresh=1e-4, subs=np.arange(2, 10)))
+                else:
+                    hax_ii.get_xaxis().set_minor_locator(AutoMinorLocator())
+                
             else: hax_ii.get_xaxis().set_minor_locator(AutoMinorLocator())
                
             #___________________________________________________________________
@@ -5289,9 +5308,9 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                 elif hax_ii.projection not in ['zmoc', 'dmoc+depth']: 
                     hax_ii.set_ylim(ylim[0]-(ylim[1]-ylim[0])*0.025  ,ylim[-1]+(ylim[1]-ylim[0])*0.025)
             
-            if xlim is not None: 
+            if   xlim is not None: 
                 hax_ii.set_xlim(xlim[0]  ,xlim[-1])
-            else: 
+            elif xlim is     None and data_x is not None: 
                 hax_ii.set_xlim(data_x[0], data_x[-1])
             
             #___________________________________________________________________
@@ -5601,6 +5620,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     if cinfo is None: cinfo=dict()
     else            : cinfo=cinfo.copy()
     do_cweights=None
+    
     #___________________________________________________________________________
     # check if dictionary keys exist, if they do not exist fill them up 
     cfac = 1
@@ -5608,7 +5628,11 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
     if 'chist'  not in cinfo.keys(): cinfo['chist' ] = True
     if 'ctresh' not in cinfo.keys(): cinfo['ctresh'] = 0.995
     if 'cnlab'  not in cinfo.keys(): cinfo['cnlab' ] = 8
+    if 'cnum'   not in cinfo.keys(): cinfo['cnum'] = 20
+    if 'cstr'   not in cinfo.keys(): cinfo['cstr'] = 'wbgyr'
     
+    #___________________________________________________________________________    
+    #  estimate cmin, cmax, cref and crange value if not already predefined 
     if (('cmin' not in cinfo.keys()) or ('cmax' not in cinfo.keys())) and ('crange' not in cinfo.keys()):
         #_______________________________________________________________________
         # loop over all the input data --> find out total cmin/cmax value
@@ -5727,32 +5751,56 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         if 'cmin' not in cinfo.keys(): cinfo['cmin'] = cmin
         if 'cmax' not in cinfo.keys(): cinfo['cmax'] = cmax  
         
-    #___________________________________________________________________________    
+    #___________________________________________________________________________  
+    # crange (cmin,cmax,cref) is predefined through cinfo dictionary 
     if 'crange' in cinfo.keys():
         cinfo['cmin'], cinfo['cmax'], cinfo['cref'] = cinfo['crange'][0], cinfo['crange'][1], cinfo['crange'][2]
         if do_rescale=='slog10': cinfo['cref'] = np.abs(cinfo['cref']) 
+    
+    # crange (cmin,cmax,cref) is undefined and needs to be now setted up 
     else:
         if (cinfo['cmin'] == cinfo['cmax'] ): raise ValueError (' --> can\'t plot! data are everywhere: {}'.format(str(cinfo['cmin'])))
-        cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2
+        
+        #_______________________________________________________________________
+        # cref is NOT predefined in cinfo dictionary
         if 'cref' not in cinfo.keys(): 
+            
+            #___________________________________________________________________
+            # do_rescale is either 'log' or 'slog', so data and colorbar will be 
+            # logarithmically scaled
             if isinstance(do_rescale, str):
+                
+                # colorrange center reference value for logarithmic scaling 
                 if do_rescale=='log10':
                     # compute cref in decimal units and tranfer back to normal units 
                     # afterwards
-                    cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
-                    cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
-                    cref = cdmin + (cdmax-cdmin)/2
+                    cdmin         = np.floor(np.log10(np.abs(cinfo['cmin'])))
+                    cdmax         = np.floor(np.log10(np.abs(cinfo['cmax'])))
+                    cref          = cdmin + (cdmax-cdmin)/2
                     cinfo['cref'] = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-1) )
                     cinfo['cref'] = np.power(10.0,cinfo['cref'])
+                
+                # colorrange center reference value for symetric logarithmic scaling 
                 elif do_rescale=='slog10':    
                     # cref becomes cutoff value for logarithmic to liner transition in 
                     # case of symetric log10
                     cinfo['cref'] = np.power(10.0,-6)
+            
+            #___________________________________________________________________
+            # do_rescale is None or False, means normal linear color value range
             else:
-                dez = 0
+                # compute a cref value based on arithmetic mean between cmin and cmax
+                cref = cinfo['cmin'] + (cinfo['cmax']-cinfo['cmin'])/2        
+                
+                # colorrange is centered around zero 
                 if cref==0.0: 
                     cinfo['cref'] = cref
+                    
+                # colorrange center is not zero, means that the cref value rounded 
+                # to a clean dezimal so  cref = 7.516 --> becomes cref = 7.5 ensures 
+                # clean colorstep levels 
                 else:
+                    dez  = 0
                     while True:
                         new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
                         #print(cref, new_cref, cinfo['cmin'], cinfo['cmax'])
@@ -5761,22 +5809,24 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                         else: 
                             dez=dez+1
                     cinfo['cref'] = new_cref
-        
-    #___________________________________________________________________________    
-    if 'cnum' not in cinfo.keys(): cinfo['cnum'] = 20
-    if 'cstr' not in cinfo.keys(): cinfo['cstr'] = 'wbgyr'
     
     #___________________________________________________________________________    
     # compute clevels and cmap
+    # --> for logarithmic and symmetric logarithmic scaling 
     if isinstance(do_rescale, str):
         if do_rescale=='log10':
+            if (np.abs(cinfo['cmin'])>=np.abs(cinfo['cmax'])) or  \
+               (np.abs(cinfo['cmax'])<=np.abs(cinfo['cref'])) or  \
+               (np.abs(cinfo['cmin'])>=np.abs(cinfo['cref'])) :
+                raise ValueError (' --> For log10 scaled colormaps it must be cmin<cref<cmax, check your definition of cmin, cmax or crange\n' + \
+                                  '     It is recommented to ensure that crange is setted by hand when use log10, e.g crange=[1e-7,1e-1,1e-3]')
+            
             # transfer cmin, cmax, cref into decimal units
             cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
             cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
             cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
-            
-            #print(cinfo)
             print(cdmin,cdmax,cdref)
+            
             #compute levels in decimal units
             cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
             
@@ -5785,6 +5835,12 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cinfo['cref']   = np.power(10.0,cinfo['cref'])
             
         elif do_rescale=='slog10':
+            if (np.abs(cinfo['cmax'])<=np.abs(cinfo['cref'])) or  \
+               (np.abs(cinfo['cmin'])<=np.abs(cinfo['cref'])) :
+                raise ValueError (' --> For slog10 scaled colormaps it must be cmin<cref<cmax, e.g crange=[cmin,cmax,cref]=[-1e-1,1e-1,1e-7] \n' + \
+                                  '     where cref defines the center cutoff of the slog scaling \n' + \
+                                  '     It is recommented to ensure that crange is setted by hand when use slog10, e.g crange=[-1e-1,1e-1,1e-7]')
+            
             # transfer cmin, cmax, cref into decimal units
             cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
             cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
@@ -5801,7 +5857,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cinfo['clevel'][isneg] = -np.power(10.0, cinfo['clevel'][isneg])
             cinfo['clevel'][ispos] = np.power(10.0, cinfo['clevel'][ispos])
     
-    # define custom non-linear colorsteps via numpy array
+    # --> for custom non-linear colorsteps defined by numpy array
     elif isinstance(do_rescale, np.ndarray):
         rescal_ref=None
         if any(do_rescale==0.0) and do_rescale[0]!=0.0 and cinfo['cref']==0.0: rescal_ref=cinfo['cref']
@@ -5811,14 +5867,20 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                                                                    cstep=1 ,do_slog=False, do_rescal=do_rescale, rescal_ref=rescal_ref)
         cinfo['clevel'] = do_rescale
         cinfo['cref'] = do_rescale[cinfo['cref']]
-        
+    
+    # --> for standard linear scaled colormap steps
     else:    
         if cinfo['cref'] == 0.0:
             if cinfo['cref'] > cinfo['cmax']: cinfo['cmax'] = cinfo['cref']+np.finfo(np.float32).eps
             if cinfo['cref'] < cinfo['cmin']: cinfo['cmin'] = cinfo['cref']-np.finfo(np.float32).eps
+            
+        if cinfo['cmax']<=cinfo['cref'] or cinfo['cmin']>=cinfo['cref']: 
+            raise ValueError (' --> For standard linear scaled colormaps it must be cmin<cref<cmax, check your definition of cmin, cmax or crange')
+        
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cinfo['cmin'],cinfo['cmax'],cinfo['cref'],cinfo['cnum'],cinfo['cstr'])
     
     #___________________________________________________________________________
+    
     if 'cmap0' in list(cinfo.keys()): cinfo['cmap'] = cinfo['cmap0'].resampled(cinfo['clevel'].size-1)
         
     #___________________________________________________________________________
