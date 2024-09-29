@@ -6,16 +6,16 @@ input_paths:
     - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/5/
     - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_nycander_bin_ck0.1/5/
     - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_stormtide_bin_ck0.1/5/
-    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
+    #- /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
 
 input_names:
     - '$TKE{{+}}IDEMIX_{{Jayne}}$'
     - '$TKE{{+}}IDEMIX_{{Nycander}}$'
     - '$TKE{{+}}IDEMIX_{{Stormtide}}$'
-    - '$TKE$'
+    #- '$TKE$'
     
-#ref_path: /home/ollie/pscholz/results/trr181_tke_ctrl_ck0.1_v2/
-#ref_name: '$TKE_{{ck:0.1}}$'    
+ref_path: /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
+ref_name: $TKE$' 
     
 mesh_path: '/albedo/work/user/pscholz/mesh_fesom2.0/core2_srt_dep@node/'
 save_path: './Results/'
@@ -353,7 +353,7 @@ transect_zmean:
         #___3lvl Parameter___
         do_rescale: 'log10'
         cstr: 'wbgyr'
-        #crange: [1.0e-6, 1.0e-0, 1.0e-4]
+        crange: [1.0e-6, 1.0e-0, 1.0e-4]
     #N2:
         ##___3lvl Parameter___
         #do_rescale: 'log10'   
