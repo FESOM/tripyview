@@ -77,7 +77,6 @@ jobs:
         # It caches the environment to speed up future runs.
         - uses: mamba-org/setup-micromamba@main
           with:
-            # environment-file: main/ci/requirements-py39.yml
             environment-name: tripyview
             create-args: >-
               python=${{ matrix.python-version }}
