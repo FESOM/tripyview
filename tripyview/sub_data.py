@@ -33,7 +33,7 @@ def load_data_fesom2(mesh,
                      do_nan         = True      , 
                      do_ie2n        = True      ,
                      do_vecrot      = True      , 
-                     do_filename    = None      , 
+                     do_filename    = False     , 
                      do_file        = 'run'     , 
                      descript       = ''        , 
                      runid          = 'fesom'   , 
@@ -287,7 +287,7 @@ def load_data_fesom2(mesh,
     if len(pathlist)==0: 
         data = None
         return data
-
+    
     #___________________________________________________________________________
     # set specfic type when loading --> #convert to specific precision
     from functools import partial
@@ -344,13 +344,25 @@ def load_data_fesom2(mesh,
         # remove variables that are not needed
         #data = data.drop(labels=vname_drop)
         data = data.drop_vars(vname_drop)
-    
+        
     #___________________________________________________________________________    
     # rename old vertices dimension name to new
     # 'node' --> 'nod2'
     # 'nz_1' --> 'nz1'
     if ('node' in data.dims): data = data.rename_dims({'node':'nod2'})
     if ('nz_1' in data.dims): data = data.rename_dims({'nz_1':'nz1'})
+    
+    # convert dimensions name from fesom14cmip6 --> fesom2
+    if do_f14cmip6: 
+        data = data.drop_vars(['lon_bnds','lat_bnds', 'time_bnds'])
+        
+        if ('ncells' in data.dims  ): data = data.rename_dims({'ncells':'nod2'})
+        if ('depth ' in data.dims  ): data = data.rename_dims({'depth' :'nz'  })
+        if ('depth ' in data.coords): data = data.rename({'depth':'nz'})
+        
+        if ('time' in data.dims) and \
+           ('nods' in data.dims) and \
+           ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
         
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
@@ -537,7 +549,7 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
         
         :datapath:      str, path that leads to the FESOM2 data
         
-        :do_filename:   str, (default=None) load this specific filname string instead
+        :do_filename:   bool, (default=None) load this specific filname string instead
         
         :fo_file:       str, which kind of file should be loaded, 'run', 
                         'restart_oce', 'restart_ice', 'blowup'   
@@ -554,11 +566,13 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     """
 
     pathlist=[]
-    
     # specific filename and path is given to load 
-    if do_filename: 
-        pathlist = do_filename
-        str_mtim = os.path.basename(do_filename)
+    if  do_filename: 
+        pathlist = datapath
+        if isinstance(datapath, list):
+            str_mtim = 'y:{}'.format(year)
+        else:
+            str_mtim = os.path.basename(datapath)
         
     # list, np.array or range of years is given to load files
     elif isinstance(year, (list, np.ndarray, range)):
@@ -672,7 +686,10 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
                 w_A = xr.DataArray(mesh.n_area.astype(       'float32'), dims=[dimv, dimh]).chunk(set_chunk)
             else:   
                 set_chunk = dict({dimh: data.chunksizes[dimh]}) 
-                w_A = xr.DataArray(mesh.n_area[0, :].astype( 'float32'), dims=[        dimh]).chunk(set_chunk)
+                if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
+                    w_A = xr.DataArray(mesh.n_area.astype( 'float32'), dims=[        dimh]).chunk(set_chunk)
+                else:    
+                    w_A = xr.DataArray(mesh.n_area[0, :].astype( 'float32'), dims=[        dimh]).chunk(set_chunk)
             data = data.assign_coords(w_A=w_A)
             del(w_A)
         

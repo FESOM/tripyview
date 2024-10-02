@@ -603,10 +603,20 @@ class mesh_fesom2(object):
         else: 
            raise ValueError("This rotatio option in do_rot is not supported.")
         
-        # change focus 
+        
+        # we assume that the center focus of the mesh is at 0deg (-180°...180°) 
+        # check if this right change focus 
+        src_focus = (np.ceil(self.n_x.max()) + np.floor(self.n_x.min()))*0.5
+        if (src_focus != 0):
+            self.n_xo, self.n_yo = self.n_x.copy(), self.n_y.copy()
+            self.n_x, self.n_y = grid_focus(0, self.n_xo, self.n_yo)
+        
+        # now change focus to destined longitude
+        # cartopy always assumes that the input grid goes from -180...180 it than can internally
+        # rotate the grid to a different focus
         if (self.focus != 0): 
-            self.n_xo, self.n_yo = self.n_x, self.n_y
-            self.n_x, self.n_y = grid_focus(focus, self.n_xo, self.n_yo)
+            self.n_xo, self.n_yo = self.n_x.copy(), self.n_y.copy()
+            self.n_x, self.n_y = grid_focus(self.focus, self.n_xo, self.n_yo)
         
         # find periodic boundary
         self.pbnd_find()
@@ -666,7 +676,8 @@ class mesh_fesom2(object):
         
         """
         #____load 2d node matrix________________________________________________
-        file_content = pa.read_csv(self.fname_nod2d, delim_whitespace=True, skiprows=1, \
+        #file_content = pa.read_csv(self.fname_nod2d, delim_whitespace=True, skiprows=1, \
+        file_content = pa.read_csv(self.fname_nod2d, sep='\\s+', skiprows=1, \
                                       names=['node_number','x','y','flag'] )
         self.n_x     = file_content.x.values.astype('float32')
         self.n_y     = file_content.y.values.astype('float32')
@@ -674,8 +685,9 @@ class mesh_fesom2(object):
         self.n2dn    = len(self.n_x)
         
         #____load 2d element matrix_____________________________________________
-        file_content = pa.read_csv(self.fname_elem2d, delim_whitespace=True, skiprows=1, \
-                                       names=['1st_node_in_elem','2nd_node_in_elem','3rd_node_in_elem'])
+        #file_content = pa.read_csv(self.fname_elem2d, delim_whitespace=True, skiprows=1, \
+        file_content = pa.read_csv(self.fname_elem2d, sep='\\s+', skiprows=1, \
+                                    names=['1st_node_in_elem','2nd_node_in_elem','3rd_node_in_elem'])
         self.e_i     = file_content.values.astype('int32') - 1
         self.n2de    = np.shape(self.e_i)[0]
         # print('    : #2de={:d}'.format(self.n2de))
@@ -704,7 +716,8 @@ class mesh_fesom2(object):
             
             # identify the vertical levels
             with open(self.fname_nod3d) as f: n3dn= int(next(f))
-            file_content = pa.read_csv(self.fname_nod3d, delim_whitespace=True, usecols=[3])
+            #file_content = pa.read_csv(self.fname_nod3d, delim_whitespace=True, usecols=[3])
+            file_content = pa.read_csv(self.fname_nod3d, sep='\\s+', usecols=[3])
             aux_n3z      = file_content.values.astype('int16') 
             self.zlev    = np.unique(aux_n3z)[::-1]
             #self.zlev    = np.hstack((self.zlev, self.zlev[-1]+(self.zlev[-1]-self.zlev[-2])))
@@ -722,7 +735,8 @@ class mesh_fesom2(object):
         
         #____load number of levels at each node_________________________________
         if ( os.path.isfile(self.fname_nlvls) ):
-            file_content = pa.read_csv(self.fname_nlvls, delim_whitespace=True, skiprows=0, \
+            #file_content = pa.read_csv(self.fname_nlvls, delim_whitespace=True, skiprows=0, \
+            file_content = pa.read_csv(self.fname_nlvls, sep='\\s+', skiprows=0, \
                                            names=['numb_of_lev'])
             self.n_iz    = file_content.values.astype('int16') - 1
             self.n_iz    = self.n_iz.squeeze()
@@ -735,7 +749,8 @@ class mesh_fesom2(object):
         
         #____load number of levels at each elem_________________________________
         if ( os.path.isfile(self.fname_elvls) ):
-            file_content = pa.read_csv(self.fname_elvls, delim_whitespace=True, skiprows=0, \
+            #file_content = pa.read_csv(self.fname_elvls, delim_whitespace=True, skiprows=0, \
+            file_content = pa.read_csv(self.fname_elvls, sep='\\s+', skiprows=0, \
                                            names=['numb_of_lev'])
             self.e_iz    = file_content.values.astype('int16') - 1
             self.e_iz    = self.e_iz.squeeze()
@@ -747,7 +762,8 @@ class mesh_fesom2(object):
         #____load number of raw levels at each elem_____________________________
         if (self.do_loadraw and  not self.do_f14cmip6):
             if ( os.path.isfile(self.fname_elvls_raw) ):
-                file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
+                #file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
+                file_content = pa.read_csv(self.fname_elvls_raw, sep='\\s+', skiprows=0, \
                                             names=['numb_of_lev'])
                 self.e_iz_raw    = file_content.values.astype('int16') - 1
                 self.e_iz_raw    = self.e_iz_raw.squeeze()
@@ -909,7 +925,7 @@ ___________________________________________""".format(
             xmin, xmax= -self.cyclic/2+self.focus, self.cyclic/2+self.focus
         else:    
             xmin, xmax = 0, self.cyclic
-            
+        
         self.n_xa = np.concatenate((np.zeros(nn_ir)+xmin, np.zeros(nn_il)+xmax))
         self.n_ya = self.n_y[self.n_pbnd_a]
         self.n_za = self.n_z[self.n_pbnd_a]
@@ -1359,11 +1375,18 @@ ___________________________________________""".format(
         nlsmask = len(self.lsmask)
         
         # min/max of longitude box 
-        xmin,xmax = -180+self.focus, 180+self.focus
+        # xmin,xmax = -180+self.focus, 180+self.focus
+        xmin, xmax = np.floor(self.n_x.min()), np.ceil(self.n_x.max())
         
         for ii in range(0,nlsmask):
             #___________________________________________________________________
             polygon_xy = self.lsmask[ii].copy()
+            
+            #___________________________________________________________________
+            #import matplotlib.pyplot as plt 
+            #plt.figure()
+            #plt.plot(polygon_xy[:,0], polygon_xy[:,1])
+            #plt.show()
             
             #___________________________________________________________________
             # idx compute how many periodic boudnaries are in the polygon 
@@ -1375,7 +1398,8 @@ ___________________________________________""".format(
                 # at the left periodic boudnary at the most northward periodic point
                 aux_i      = np.hstack((idx,idx+1))
                 aux_x      = polygon_xy[aux_i,0]
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
+                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
+                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])
                 isort_y    = np.flip(np.argsort(polygon_xy[aux_il,1]))
                 aux_il     = aux_il[isort_y]
                 del isort_y, aux_x, aux_i
@@ -1406,8 +1430,10 @@ ___________________________________________""".format(
                 aux_x      = polygon_xy[aux_i,0]
                 
                 # compure index location of left and right pbnd points
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
-                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])
+                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
+                #aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])
+                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])
+                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > (xmin+xmax)*0.5).ravel()])
                 del aux_x, aux_i
                 
                 #_______________________________________________________________
@@ -1467,8 +1493,10 @@ ___________________________________________""".format(
                 aux_x,aux_y= polygon_xy[aux_i,0], polygon_xy[aux_i,1]
                 
                 # indeces for left and right pbnd points
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])[0]
-                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])[0]
+                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])[0]
+                #aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])[0]
+                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])[0]
+                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > (xmin+xmax)*0.5).ravel()])[0]
                 #polygon_xy = self.lsmask_a[ii]
                 
                 # set corner points for polar polygon
@@ -1907,7 +1935,7 @@ def grid_focus(focus, rlon, rlat):
     # compute to geographical coordinates:
     lon, lat = np.arctan2(yg,xg), np.arcsin(zg)        
     lon, lat = lon/rad, lat/rad
-    lon      = lon + focus 
+    lon      = lon + focus
     
     #___________________________________________________________________________
     return(lon,lat)
