@@ -357,12 +357,13 @@ def load_data_fesom2(mesh,
         data = data.drop_vars(['lon_bnds','lat_bnds', 'time_bnds'])
         
         if ('ncells' in data.dims  ): data = data.rename_dims({'ncells':'nod2'})
-        if ('depth ' in data.dims  ): data = data.rename_dims({'depth' :'nz'  })
-        if ('depth ' in data.coords): data = data.rename({'depth':'nz'})
+        if ('depth'  in data.dims  ): data = data.rename_dims({'depth' :'nz'  })
+        if ('depth'  in data.coords): data = data.rename({'depth':'nz'})
         
         if ('time' in data.dims) and \
            ('nods' in data.dims) and \
            ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
+        data = data.unify_chunks()
         
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
