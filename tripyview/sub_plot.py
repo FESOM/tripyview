@@ -3090,12 +3090,12 @@ def do_projection(mesh, proj, box):
 
     ____________________________________________________________________________
     """ 
-    
+     
     #___Horizontal Projection___________________________________________________
     if   proj=='pc'     :
         if len(box)!=4: raise ValueError( 'For PlateCarree projection: box=[lon_min, lon_max, lat_min, lat_max]')
-        proj_to = ccrs.PlateCarree()     
-    
+        proj_to = ccrs.PlateCarree()
+        
     elif proj=='merc'   : 
         if len(box)!=4: raise ValueError( 'For Mercator projection: box=[lon_min, lon_max, lat_min, lat_max]')
         proj_to = ccrs.Mercator()
@@ -3162,7 +3162,7 @@ def do_projection(mesh, proj, box):
 #
 #_______________________________________________________________________________
 # --> do triangulation
-def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(), 
+def do_triangulation(hax, mesh, proj_to, box, proj_from=None, 
                      do_triorig=False, do_narea=True, do_earea=False):
     """
     --> create matplotlib triangulation object
@@ -3194,9 +3194,13 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
                         np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
     
     #___________________________________________________________________________
+    if not proj_from: 
+        proj_from = ccrs.PlateCarree()   
+    
+    #___________________________________________________________________________
     # --> limit mesh triangulation to projection box
     e_box_mask = np.ones(tri.triangles.shape[0], dtype=bool)
-    if isinstance(proj_to, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
+    if isinstance(proj_to, (ccrs.PlateCarree, ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
         e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
     
     elif isinstance(proj_to, (ccrs.NearsidePerspective)):
@@ -3212,9 +3216,9 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
         else:    
             fig_pts    = hax.transData.transform(list(zip(xpts,ypts)))
             ax_pts     = hax.transAxes.inverted().transform(fig_pts)
-        e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.05) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.05)
+        e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.06) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.06)
         del(xpts, ypts, fig_pts, ax_pts)
-        
+    
     # --> reindex vertices and elements --> ensure smallest triangulation object 
     # hopefully saves some memory when going to very large meshes 
     n_box_mask = None
@@ -3227,10 +3231,12 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
     # when you transpose a 2D array with two columns, it effectively swaps the 
     # rows and columns, allowing you to use tuple unpacking to assign each 
     # column to a separate variable.
-    
     if do_triorig: tri.xorig, tri.yorig = tri.x, tri.y
-    tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
-    
+    if not isinstance(proj_to, (ccrs.PlateCarree)):    
+        tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
+    else:
+        tri.x[tri.x > 180] -= 360
+       
     #___________________________________________________________________________
     # add some more varaibles i need
     tri.mask_e_box     = e_box_mask
@@ -3241,11 +3247,16 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
     #___________________________________________________________________________
     if do_narea:
         if tri.mask_n_box is not None: 
-            tri.narea = np.hstack((mesh.n_area[0,:],mesh.n_area[0,mesh.n_pbnd_a]))
+            if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
+                tri.narea = np.hstack((mesh.n_area,mesh.n_area[mesh.n_pbnd_a]))
+            else:    
+                tri.narea = np.hstack((mesh.n_area[0,:],mesh.n_area[0,mesh.n_pbnd_a]))
             tri.narea = tri.narea[tri.mask_n_box]
         else: 
-            tri.narea = mesh.n_area[0,:]
-    
+            if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
+                tri.narea = mesh.n_area
+            else:    
+                tri.narea = mesh.n_area[0,:]
     #___________________________________________________________________________
     if do_earea:
         if any(tri.mask_e_box==False): 
@@ -3253,7 +3264,7 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=ccrs.PlateCarree(),
             tri.earea = tri.earea[tri.mask_e_box]
         else: 
             tri.earea = mesh.e_area
-            
+    
     #___________________________________________________________________________
     return(tri)
 
