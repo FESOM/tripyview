@@ -3094,7 +3094,11 @@ def do_projection(mesh, proj, box):
     #___Horizontal Projection___________________________________________________
     if   proj=='pc'     :
         if len(box)!=4: raise ValueError( 'For PlateCarree projection: box=[lon_min, lon_max, lat_min, lat_max]')
-        proj_to = ccrs.PlateCarree()
+        if (box[1]-box[0]) == 360 and (box[0]+box[1])*0.5!=0.0:
+            #proj_to = ccrs.PlateCarree(central_longitude=(box[0]+box[1])*0.5)
+            raise ValueError ('--> an uncentered (focus !=0) global PlateCarree, doesnt work in moment due to an issue with cartopy in multi axes environment ')
+        else:     
+            proj_to = ccrs.PlateCarree()
         
     elif proj=='merc'   : 
         if len(box)!=4: raise ValueError( 'For Mercator projection: box=[lon_min, lon_max, lat_min, lat_max]')
@@ -3104,17 +3108,25 @@ def do_projection(mesh, proj, box):
         
     elif proj=='rob'    : 
         if len(box)!=4: raise ValueError( 'For Robinson projection: box=[lon_min, lon_max, lat_min, lat_max]')
-        proj_to = ccrs.Robinson()  
-        #box[0], box[1] = box[0]+0.25, box[1]-0.25
-    
+        if (box[1]-box[0]) == 360 and (box[0]+box[1])*0.5!=0.0:
+            proj_to = ccrs.Robinson(central_longitude=(box[0]+box[1])*0.5)
+        else:    
+            proj_to = ccrs.Robinson()  
+
     elif proj=='eqearth': 
         if len(box)!=4: raise ValueError( 'For EqualEarth projection: box=[lon_min, lon_max, lat_min, lat_max]')
-        proj_to = ccrs.EqualEarth(central_longitude=mesh.focus)
+        if (box[1]-box[0]) == 360 and (box[0]+box[1])*0.5!=0.0:
+            proj_to = ccrs.EqualEarth(central_longitude=(box[0]+box[1])*0.5)
+        else:    
+            proj_to = ccrs.EqualEarth()
         box[0], box[1] = box[0]+0.25, box[1]-0.25
     
     elif proj=='mol': 
         if len(box)!=4: raise ValueError( 'For Mollweide projection: box=[lon_min, lon_max, lat_min, lat_max]')
-        proj_to = ccrs.Mollweide(central_longitude=mesh.focus)
+        if (box[1]-box[0]) == 360 and (box[0]+box[1])*0.5!=0.0:
+            proj_to = ccrs.Mollweide(central_longitude=(box[0]+box[1])*0.5)
+        else:    
+            proj_to = ccrs.Mollweide()
         box[0], box[1] = box[0]+0.25, box[1]-0.25
     
     elif proj=='nps'    : 
@@ -3202,7 +3214,7 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=None,
     e_box_mask = np.ones(tri.triangles.shape[0], dtype=bool)
     if isinstance(proj_to, (ccrs.PlateCarree, ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Robinson, ccrs.EqualEarth, ccrs.Mollweide, ccrs.Mercator) ):
         e_box_mask = grid_cutbox_e(tri.x, tri.y, tri.triangles, box, which='soft')
-    
+
     elif isinstance(proj_to, (ccrs.NearsidePerspective)):
         xpts, ypts = proj_to.transform_points(proj_from, tri.x[tri.triangles].sum(axis=1)/3, tri.y[tri.triangles].sum(axis=1)/3)[:,0:2].T
         e_box_mask = (np.isnan(xpts)==False) & (np.isnan(ypts)==False)
@@ -3219,24 +3231,30 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=None,
         e_box_mask = (ax_pts[:,0]>=-0.05) & (ax_pts[:,0]<=1.06) & (ax_pts[:,1]>=-0.05) & (ax_pts[:,1]<=1.06)
         del(xpts, ypts, fig_pts, ax_pts)
     
-    # --> reindex vertices and elements --> ensure smallest triangulation object 
-    # hopefully saves some memory when going to very large meshes 
-    n_box_mask = None
-    if any(e_box_mask==False):
-        tri, n_box_mask = do_reindex_vert_and_elem(tri, e_box_mask)
-        
     #___________________________________________________________________________
     # --> do the mapping transformation outside of tricontourf is absolutely 
     #     faster than let doing cartopy doing it within 
     # when you transpose a 2D array with two columns, it effectively swaps the 
     # rows and columns, allowing you to use tuple unpacking to assign each 
     # column to a separate variable.
-    if do_triorig: tri.xorig, tri.yorig = tri.x, tri.y
-    if not isinstance(proj_to, (ccrs.PlateCarree)):    
-        tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
-    else:
-        tri.x[tri.x > 180] -= 360
-       
+    if do_triorig: tri.xorig, tri.yorig = tri.x.copy(), tri.y.copy()
+    tri.x, tri.y = proj_to.transform_points(proj_from, tri.x, tri.y)[:,0:2].T
+    
+    # In case you shift the center focus from 0 to somewhere else than there will 
+    # be still a periodic boundary spanning across that needs to eliminated
+    if (box[1]-box[0]) >= 359 and (box[0]+box[1])*0.5!=0.0:
+        xmin_arr, xmax_arr = tri.x[tri.triangles].min(axis=1), tri.x[tri.triangles].max(axis=1)
+        xmin,     xmax     = xmin_arr.min(), xmax_arr.max()
+        mask_pbnd          = ((xmax_arr-xmin_arr) < (xmax-xmin)/2)
+        e_box_mask[mask_pbnd==False] = False
+        del(mask_pbnd, xmin_arr, xmax_arr, xmin, xmax)
+    
+    # --> reindex vertices and elements --> ensure smallest triangulation object 
+    # hopefully saves some memory when going to very large meshes 
+    n_box_mask = None
+    if any(e_box_mask==False):
+        tri, n_box_mask = do_reindex_vert_and_elem(tri, e_box_mask)
+    
     #___________________________________________________________________________
     # add some more varaibles i need
     tri.mask_e_box     = e_box_mask
@@ -3823,8 +3841,14 @@ def do_axes_arrange(nx, ny,
             #if box is not None: hax[nn].set_extent(box, crs=projection[nn])
             if box is not None and isinstance(projection[nn], ccrs.CRS): 
                 if  not isinstance(projection[nn], (ccrs.Orthographic, ccrs.NearsidePerspective ) ): #ccrs.NorthPolarStereo, ccrs.SouthPolarStereo,
-                    hax[nn].set_extent(box, crs=ccrs.PlateCarree())
-            
+                    
+                    if box[1]-box[0]==360 and (box[3]-box[2])==180:
+                        #print('set_global()')
+                        hax[nn].set_global()
+                    else:    
+                        #print('set_extent(box, ...)')
+                        hax[nn].set_extent(box, crs=ccrs.PlateCarree())
+                    
             #___________________________________________________________________
             # label
             hax[nn].set_xlabel(xlabel, fontsize=fs_label)
@@ -5155,7 +5179,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                 hax_ii.set_global()
             
             elif isinstance(hax_ii.projection, (ccrs.Mollweide, ccrs.EqualEarth, ccrs.Robinson)):
-                if box[1]-box[0]>359 and box[3]-box[2]>89 : hax_ii.set_global()
+                if box[1]-box[0]>=359 and box[3]-box[2]>=179 : hax_ii.set_global()
                 
             if not isinstance(hax_ii.projection, (ccrs.NearsidePerspective, ccrs.Orthographic, ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
                 #if hax_ii.do_ylabel: h0.ylabels_left   = True
@@ -5811,15 +5835,18 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 # to a clean dezimal so  cref = 7.516 --> becomes cref = 7.5 ensures 
                 # clean colorstep levels 
                 else:
-                    dez  = 0
+                    dez     = 0
+                    ini_dez = np.int32(np.log10(np.abs(cref-cmin))) + 2
+                    new_cref= prev_cref = cref
+                    dc      = cinfo['cmax']- cinfo['cmin']
                     while True:
-                        new_cref = np.around(cref, -np.int32(np.floor(np.log10(np.abs(cref)))-dez) )
-                        #print(cref, new_cref, cinfo['cmin'], cinfo['cmax'])
-                        if new_cref>cinfo['cmin'] and new_cref<cinfo['cmax']:
+                        prev_cref = new_cref
+                        new_cref  = np.around(cref, ini_dez-dez)
+                        if new_cref<cref-dc/4 or new_cref>cref+dc/4:
                             break
                         else: 
                             dez=dez+1
-                    cinfo['cref'] = new_cref
+                    cinfo['cref'] = prev_cref
     
     #___________________________________________________________________________    
     # compute clevels and cmap

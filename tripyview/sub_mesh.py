@@ -2087,8 +2087,15 @@ def grid_cutbox_e(n_x, n_y, e_i, box, which='mid'):# , do_outTF=False):
         :e_inbox:   array, boolian array with 1 in box, 0 outside box
 
     """
+    
+    
+    # if the global selection box center is not at 0 (-180...180), also need to offset
+    # cutting box
+    offset = 0.0
+    if (box[1]-box[0]) >= 359 and (box[0]+box[1])*0.5!=0.0: offset = (box[0]+box[1])*0.5
+    
     #___________________________________________________________________________
-    n_inbox = grid_cutbox_n(n_x, n_y, box)
+    n_inbox = grid_cutbox_n(n_x+offset, n_y, box)
     
     #___________________________________________________________________________
     e_inbox = n_inbox[e_i]
