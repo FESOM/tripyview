@@ -357,11 +357,18 @@ def load_data_fesom2(mesh,
         data = data.drop_vars(['lon_bnds','lat_bnds', 'time_bnds'])
         
         if ('ncells' in data.dims  ): data = data.rename_dims({'ncells':'nod2'})
-        if ('depth'  in data.dims  ): data = data.rename_dims({'depth' :'nz'  })
-        if ('depth'  in data.coords): data = data.rename({'depth':'nz'})
+        
+        # rename coordinate: depth --> nz, do this first than rename dimension otherwise
+        # it triggers a warning message
+        if ('depth'  in data.coords): 
+            data = data.rename({'depth' :'nz'  })
+            if 'nz' not in data.indexes:
+                data = data.set_index(nz='nz')
+        # rename dimension: depth --> nz
+        if ('depth'  in data.dims  ): data = data.swap_dims({'depth': 'nz'})
         
         if ('time' in data.dims) and \
-           ('nods' in data.dims) and \
+           ('nod2' in data.dims) and \
            ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
         data = data.unify_chunks()
         
@@ -652,7 +659,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         
     elif ('nz'   in data.dims): 
         dimv = 'nz'
-        if ('nz1'  in data.coords): data = data.drop_vars('nz1' ) 
+        if ('nz'  in data.coords): data = data.drop_vars('nz' ) 
         set_chunk = dict({dimv:data.chunksizes[dimv]}) 
         data = data.assign_coords(nz   = xr.DataArray(-mesh.zlev,                  dims=dimv).astype('float32').chunk(set_chunk) )
         data = data.assign_coords(nzi  = xr.DataArray(np.arange(0,mesh.zlev.size), dims=dimv).astype('uint8').chunk(set_chunk) )
@@ -683,8 +690,12 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
                 set_chunk = dict({dimh: data.chunksizes[dimh], dimv:data.chunksizes[dimv]}) 
                 w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=[dimv, dimh]).chunk(set_chunk)
             elif 'nz'   == dimv:
-                set_chunk = dict({dimh: data.chunksizes[dimh], dimv:data.chunksizes[dimv]}) 
-                w_A = xr.DataArray(mesh.n_area.astype(       'float32'), dims=[dimv, dimh]).chunk(set_chunk)
+                if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
+                    set_chunk = dict({dimh: data.chunksizes[dimh]}) 
+                    w_A = xr.DataArray(mesh.n_area.astype( 'float32'), dims=[        dimh]).chunk(set_chunk)
+                else:    
+                    set_chunk = dict({dimh: data.chunksizes[dimh], dimv:data.chunksizes[dimv]}) 
+                    w_A = xr.DataArray(mesh.n_area.astype('float32'), dims=[dimv, dimh]).chunk(set_chunk)
             else:   
                 set_chunk = dict({dimh: data.chunksizes[dimh]}) 
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
