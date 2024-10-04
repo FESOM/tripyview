@@ -3318,12 +3318,17 @@ def do_reindex_vert_and_elem(tri, e_box_mask):
     vert_map  = {old_index: new_index for new_index, old_index in enumerate(n_box_mask)}
 
     # Update vertices and elements using NumPy indexing
-    tri       = Triangulation(tri.x[n_box_mask], 
-                              tri.y[n_box_mask], 
-                              np.vectorize(vert_map.get)(tri.triangles[e_box_mask,:]))
+    tri_new       = Triangulation(tri.x[n_box_mask], 
+                                tri.y[n_box_mask], 
+                                np.vectorize(vert_map.get)(tri.triangles[e_box_mask,:]))
+    
+    # rescue xorig and yorig into the new triangulation object
+    if hasattr(tri, 'xorig'): tri_new.xorig = tri.xorig[n_box_mask]
+    if hasattr(tri, 'yorig'): tri_new.yorig = tri.yorig[n_box_mask]
+    del(tri)
     
     #___________________________________________________________________________
-    return(tri, n_box_mask)
+    return(tri_new, n_box_mask)
 
 
 
