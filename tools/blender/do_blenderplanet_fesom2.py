@@ -16,32 +16,44 @@ print(tpv_path+'/tools/blender')
 from sub_blender  import blender_create_mesh, blender_create_txtremat
 
 R_earth             = 6371.0e3 # meter
-potatoefac_ocean    = 0.0
-potatoefac_land     = 0.0
 
-gen_path            = '/home/pscholz/Python/blender_fesom2/'
+# real extrusion for ocean and land when !=0
+potatoefac_ocean    = 0.0 
+potatoefac_land     = 0.0 
 
-mesh_path, do_rot   = '/home/pscholz/Python/blender_fesom2/data/core2_srt_dep@node/', 'None'
+# main path of data for blender project is used now the structure
+# blender_fesom2/
+#        |--data        can contain fesom data and mesh folder
+#        |    |--mesh  
+#        |--texture     contains texture and bump images
+#        |--lsmask      contains land sea mask of original mesh to mask out regions 
+#        |              from texture files
+#        |--topo        folder with etopo1 data              
+gen_path             = '/home/pscholz/Python/blender_fesom2/'
 
-do_oce_data         = False
-oce_txturepath      = gen_path+'texture/Albedo.jpg'
-oce_alphamap        = gen_path+'lsmask/core2_lsmask_ocean.jpg'
+mesh_path, do_rot    = gen_path+'data/core2_srt_dep@node/', 'None'
 
-oce_datapath        = '/home/pscholz/Python/blender_fesom2/data/'
-oce_vname           = 'ssh'
-oce_year            = [1958, 1958]
-oce_mon             = None
-oce_day             = None
-oce_depth           = None
+oce_txturepath       = gen_path+'texture/Albedo.jpg'
+oce_alphamap         = gen_path+'lsmask/core2_lsmask_ocean.jpg'
+oce_bumpmap          = gen_path+'texture/Bump.jpg'
+oce_bumpstrength     = 0.5
 
-oce_bumpmap         = gen_path+'texture/Bump.jpg'
-oce_bumpstrength    = 0.5
+# load fesom2 data from path, if None no data are loaded
+oce_datapath         = None # gen_path+'/data/'
+oce_vname            = 'ssh'
+oce_year             = [1958, 1958]
+oce_mon              = None
+oce_day              = None
+oce_depth            = None
 
 land_txturepath      = gen_path+'texture/Albedo.jpg'
 land_alphamap        = gen_path+'lsmask/core2_lsmask_ocean.jpg'
 land_bumpmap         = gen_path+'texture/Bump.jpg'
 land_bumpstrength    = 0.5
 
+# load topographic information to interpolate on land mesh part, to give it a 
+# real extrusion. I used here very coarse etopo1 data. It is maybe more efficient 
+# to do a fake extrusion via bump maps
 topo_path, do_topo         = gen_path+'topo/topo_1deg.nc', True
 topo_varname, topo_dimname = 'topo', ['lon','lat']
 topo_resol                 = 1
