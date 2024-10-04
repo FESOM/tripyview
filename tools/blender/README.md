@@ -1,9 +1,14 @@
  
 ## How to install tripyview in blender: 
 
-1.  download and unpack Blender src code archive e.g. blender-4.2.2-linux-x64.tar.xz
+1.  go into the folder of your choice and download tripyview with
+    
+    ```bash
+    git clone https://github.com/FESOM/tripyview.git
+    ```
 
-2.  unzip folder
+2.  download and unpack Blender src code archive from https://www.blender.org/download/ 
+    and unzip the archive (e.g. blender-4.2.2-linux-x64.tar.xz) 
     
 3.  go to directory /blender-4.2.2-linux-x64/4.2/python/bin/ and execute (make 
     sure that the entire path to blenders python3.11 is used)
