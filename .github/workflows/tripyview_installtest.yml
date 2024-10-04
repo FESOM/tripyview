@@ -1,0 +1,117 @@
+name: Run Tripyview Test
+
+# Trigger the workflow on push and pull request for all branches
+on:
+  push:  # Trigger on push to any branch
+    branches:
+      - '**'
+  pull_request:  # Trigger on pull request to any branch
+    branches:
+      - '**'
+
+# Ensures that if multiple runs of the same workflow are triggered, the 
+# in-progress run is canceled before starting a new one.      
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
+jobs:
+  setup:
+    name: ${{matrix.os}}-py-${{matrix.python-version}}
+    runs-on: ${{ matrix.os }} #, macos-latest, windows-latest]
+    
+    #___________________________________________________________________________
+    # The job will run across multiple platforms and Python versions:
+    # Operating Systems: ubuntu-latest, macos-latest, and windows-latest
+    # Python Versions: 3.8, 3.9, and 3.10
+    # This creates a matrix of environments to test against different configurations.
+    strategy:
+      #max-parallel: 1
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        #os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        #python-version: ["3.9"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    
+    #___________________________________________________________________________
+    # The defaults: run: shell: bash -l {0} block in your GitHub Actions workflow 
+    # specifies the default shell that will be used to run commands in the run 
+    # steps of the job. Here's a breakdown of what this line does:
+    # shell: bash -l {0}:
+    #        This sets the shell to be used as bash in login mode (-l).
+    #        {0} is a placeholder for the actual command that will be run in 
+    #        {that shell. GitHub Actions replaces {0} with the actual command 
+    #        {when it runs a run: step.
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    #___________________________________________________________________________    
+    steps:
+        
+        #_______________________________________________________________________
+        # Checkout the Main Repository - The action first checks out the 
+        # repository to a directory named main so that the workflow can operate
+        # on the repository code.
+        - name: checkout main 
+          uses: actions/checkout@v3
+          with:
+            path: main
+      
+        #_______________________________________________________________________
+        # Checkout pyfesom2 Repository - It then checks out the tripyview 
+        # repository, which is stored in the path: pyfesom2 directory. This is 
+        # likely a dependency or another repository being tested.
+        - name: checkout tripyview
+          uses: actions/checkout@v3
+          with:
+            repository: FESOM/tripyview
+            path: tripyview
+            fetch-depth: 0
+        
+        #_______________________________________________________________________
+        # Install Conda Environment with Micromamba - Uses Micromamba (a lighter, 
+        # faster version of Conda) to set up the Python environment from a YAML 
+        # file (requirements-py37.yml) stored in the main/ci/ directory.
+        # It caches the environment to speed up future runs.
+        - uses: mamba-org/setup-micromamba@main
+          with:
+            environment-name: tripyview
+            create-args: >-
+              python=${{ matrix.python-version }}
+              xarray
+              netCDF4
+            # supports off, critical, error, warning, info, debug, trace
+            log-level: info  
+            cache-environment: true
+            cache-environment-key: "${{runner.os}}-${{runner.arch}}-py${{env.PYTHON_VERSION}}-${{env.TODAY}}-${{hashFiles(env.CONDA_ENV_FILE)}}"
+          
+        #_______________________________________________________________________
+        # Check xarray and netCDF Versions - This step prints the versions of two 
+        # key libraries (xarray and netCDF4) used by the project to ensure they 
+        # are installed correctly.
+        - name: checkout xarray version
+          working-directory: tripyview
+          run: |
+            python -c "import xarray; print('xarray version:', xarray.__version__)"
+            python -c "import netCDF4; print('netcdf4 (py,c) versions:', netCDF4.__version__, netCDF4._netCDF4.__netcdf4libversion__)"
+            
+        #_______________________________________________________________________    
+        # Install tripyview - Installs the tripyview library in editable mode (-e), 
+        # allowing changes in the source code to immediately affect the library 
+        # without reinstalling.    
+        - name: install tripyview
+          working-directory: tripyview
+          run: |
+            python -m pip install -e .    
+            
+        #_______________________________________________________________________        
+        # Test tripyvie Import - Tests whether the pyfesom2 package can be 
+        # successfully imported, which is a basic check to ensure the installation 
+        # is correct.    
+        - name: checkout tripyview import
+          working-directory: tripyview
+          run: |
+            python -c "import tripyview"    
+            
