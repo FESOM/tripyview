@@ -76,7 +76,25 @@ def tripyrun():
     parser.add_argument('--diagnostics',
                         '-d',
                         nargs='+',
-                        help='run only particular driver diagnostics from the yml file.',)
+                        help='run only particular driver diagnostics from the yml file.'+ \
+                             'Possible diagnostics are: \n'+ \
+                             ' - hmesh \n'+ \
+                             ' - hslice, hslice_np, hslice_sp \n'+ \
+                             ' - hslice_clim, hslice_clim_np, hslice_clim_sp \n'+ \
+                             ' - hslice_isotdep \n'+ \
+                             ' - hquiver \n'+ \
+                             ' - hovm, hovm_clim \n'+ \
+                             ' - transect, transect_clim \n'+ \
+                             ' - transect_transp, transect_transp_t \n'+ \
+                             ' - transect_zmean, transect_zmean_clim \n'+ \
+                             ' - vprofile, vprofile_clim \n'+ \
+                             ' - var_t \n'+ \
+                             ' - zmoc, zmoc_t \n'+ \
+                             ' - dmoc, dmoc_srf, dmoc_inner, dmoc_t \n'+ \
+                             ' - dmoc_z, dmoc_srf_z, dmoc_inner_z \n'+ \
+                             ' - dmoc_wdiap, dmoc_srfcbflx \n'+ \
+                             ' - hbarstreamf \n'+ \
+                             ' - ghflx, mhflx, zhflx \n')
     
     # only run specific variable within diagnostic driver
     parser.add_argument('--variable',
