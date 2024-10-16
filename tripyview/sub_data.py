@@ -344,7 +344,12 @@ def load_data_fesom2(mesh,
         # remove variables that are not needed
         #data = data.drop(labels=vname_drop)
         data = data.drop_vars(vname_drop)
-        
+    
+    #___________________________________________________________________________    
+    # This is for icepack data over thickness classes make class selection always 
+    # based in indices
+    if ('ncat' in data.dims): depidx = True
+    
     #___________________________________________________________________________    
     # rename old vertices dimension name to new
     # 'node' --> 'nod2'
@@ -403,7 +408,7 @@ def load_data_fesom2(mesh,
     # select depth levels also for vertical interpolation 
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
     # if ( ('nz1' in data[vname].dims) or ('nz'  in data[vname].dims) ) and (depth is not None):
-    if ( bool(set(['nz1','nz']).intersection(data.dims)) ) and (depth is not None):
+    if ( bool(set(['nz1','nz', 'ncat']).intersection(data.dims)) ) and (depth is not None):
         #print('~~ >-))))o> o0O ~~~ A')
         #_______________________________________________________________________
         data, str_ldep = do_select_levidx(data, mesh, depth, depidx)
@@ -433,10 +438,11 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
-    elif ( bool(set(['nz1', 'nz']).intersection(data.dims)) ) and (depth is None) and (do_zarithm in ['sum','mean','wmean']): 
+    elif ( bool(set(['nz1', 'nz', 'ncat']).intersection(data.dims)) ) and (depth is None) and (do_zarithm in ['sum','mean','wmean','wint', 'max', 'min']): 
         #print('~~ >-))))o> o0O ~~~ B')
         if   ('nz1'  in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz1" )
-        elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz"  )     
+        elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz"  )
+        elif ('ncat' in data.dims): data = do_depth_arithmetic(data, do_zarithm, "ncat")     
     # only 2D data found            
     else:
         #print('~~ >-))))o> o0O ~~~ C')
@@ -476,6 +482,10 @@ def load_data_fesom2(mesh,
                         'do_zarithm':str_adep, 'str_ltim':str_ltim,'str_ldep':str_ldep,'str_lsave':str_lsave,
                         'is_data':is_data, 'is_ie2n':is_ie2n, 'do_compute':do_compute, 
                         'descript':descript})
+        
+        # in case of icepack data write thickness class as attribute
+        if ('ncat' in data.dims) and (depth is not None): attr_dict.update({'ncat':depth})
+            
         data = do_additional_attrs(data, vname, attr_dict)
     
     #___________________________________________________________________________
@@ -666,6 +676,9 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         
     elif ('ndens'   in data.dims): 
         dimv = 'ndens'
+    
+    elif ('ncat'   in data.dims): 
+        dimv = 'ncat'
         
     dimh = None
     if   ('nod2' in data.dims):
@@ -974,7 +987,7 @@ def do_select_levidx(data, mesh, depth, depidx):
         #_______________________________________________________________________        
         # select vertical levels from data
         data = data.isel(nz1=sel_levidx)        
-        
+        aux_strdep = 'depidx'
     #___________________________________________________________________________
     # found 3d data based on full-depth levels (w, Kv,...) --> compute 
     # selection index
@@ -987,10 +1000,24 @@ def do_select_levidx(data, mesh, depth, depidx):
         #_______________________________________________________________________        
         # select vertical levels from data
         data = data.isel(nz=sel_levidx)
+        aux_strdep = 'depidx'
+        
+    #___________________________________________________________________________
+    # found 3d data based based on icepack thickness classes -->
+    # selection index
+    elif ('ncat' in data.dims) and (depth is not None):  
+        #_______________________________________________________________________
+        # compute selection index either single layer of for interpolation 
+        ndimax  = data.sizes['ncat']
+        sel_levidx = do_comp_sel_levidx(np.arange(1,ndimax+1,1), depth, depidx, ndimax)
+        #_______________________________________________________________________        
+        # select vertical levels from data
+        data = data.isel(ncat=sel_levidx)    
+        aux_strdep = 'ncat'
         
     #___________________________________________________________________________
     # do depth information string
-    if (depth is not None):
+    if (depth is not None) and not depidx:
         if   isinstance(depth,(int, float)):
             str_ldep = ', dep:{}m'.format(str(depth))
         elif isinstance(depth,(list, np.ndarray, range)):   
@@ -998,6 +1025,9 @@ def do_select_levidx(data, mesh, depth, depidx):
                 str_ldep = ', dep:{}-{}m'.format(str(depth[0]), str(depth[-1]))
             else:    
                 str_ldep = ', dep:{}-{}m'.format(str(mesh.zlev[0]), str(mesh.zlev[-1]))
+                
+    elif (depth is not None) and depidx:            
+        str_ldep = ', {}:{}'.format(aux_strdep, str(depth))
     #___________________________________________________________________________
     return(data, str_ldep)
 
