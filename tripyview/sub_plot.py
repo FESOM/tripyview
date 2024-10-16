@@ -5841,14 +5841,19 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 # clean colorstep levels 
                 else:
                     dez     = 0
-                    ini_dez = np.int32(np.log10(np.abs(cref-cmin))) + 2
+                    ini_dez = np.log10(np.abs(cref-cmin))
+                    if ini_dez<0: ini_dez = -np.floor(ini_dez)
+                    else        : ini_dez =  np.ceil(ini_dez) 
+                    ini_dez = np.int32(ini_dez) + 2
                     new_cref= prev_cref = cref
                     dc      = cinfo['cmax']- cinfo['cmin']
+                    #print(ini_dez, cref, new_cref, cmin, dc)
                     while True:
                         prev_cref = new_cref
                         new_cref  = np.around(cref, ini_dez-dez)
-                        print(prev_cref, new_cref)
-                        if new_cref<cref-dc/10 or new_cref>cref+dc/10 or prev_cref==new_cref:
+                        #print(prev_cref, new_cref, dez, ini_dez-dez)
+                        #if (new_cref<cref-dc/10 or new_cref>cref+dc/10 or prev_cref==new_cref) and dez!=0:
+                        if (new_cref<cref-dc/10 or new_cref>cref+dc/10 or dez>10) and dez!=0:    
                             break
                         else: 
                             dez=dez+1
