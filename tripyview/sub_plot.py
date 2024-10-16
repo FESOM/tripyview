@@ -5841,7 +5841,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 # clean colorstep levels 
                 else:
                     dez     = 0
-                    ini_dez = np.log10(np.abs(cref-cmin))
+                    ini_dez = np.log10(np.abs(cref-cinfo['cmin']))
                     if ini_dez<0: ini_dez = -np.floor(ini_dez)
                     else        : ini_dez =  np.ceil(ini_dez) 
                     ini_dez = np.int32(ini_dez) + 2
