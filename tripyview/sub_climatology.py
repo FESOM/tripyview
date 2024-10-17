@@ -21,12 +21,13 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     
     str_mdep = ''
     is_data = 'scalar'
-    if isinstance(depth, list): depth = depth[0]
+    if isinstance(depth, list) : depth = depth[0]
+    if vname in ['sst', 'sss'] and depth>np.abs(mesh.zmid[0]): depth = np.abs(mesh.zmid[0])
     
     #___________________________________________________________________________
     # load climatology data with xarray
     data = xr.open_dataset(datapath, decode_times=False, **kwargs)
-    
+
     #___________________________________________________________________________
     # delete eventual time dimension from climatology data
     if 'time' in data.dims:
@@ -53,16 +54,15 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     coord_zlev= list(data.coords)[idx]
     
     #___________________________________________________________________________
+    # determine vname for temp and salt in the climatology file
+    for key in list(data.keys()):
+        if key in ['temp', 'T', 't00', 'temperature']: vname_temp=key
+        if key in ['salt', 'S', 's00', 'salinity'   ]: vname_salt=key
+    
+    #___________________________________________________________________________
     # compute potential temperature
     if vname == 'pdens' or 'sigma' in vname: do_ptemp=True
-    if do_ptemp and (any( [a in vname for a in ['temp', 'T', 't00', 'temperature', 'pdens']]) or 'sigma' in vname) :
-        for key in list(data.keys()):
-            if any( [a in key for a in ['temp', 'T', 't00', 'temperature']]): vname_temp=key
-            if any( [a in key for a in ['salt', 'S', 's00', 'salinity'   ]]): vname_salt=key
-        #data_depth = data[coord_zlev]
-        #data_depth = data_depth.expand_dims({dim_lat:data[coord_lat].data, 
-                                             #dim_lon:data[coord_lon].data}
-                                            #).transpose(dim_zlev,dim_lat,dim_lon)
+    if do_ptemp and (any( [a in vname for a in ['temp', 'sst', 'T', 't00', 'temperature', 'pdens']]) or 'sigma' in vname) :
         data_depth = data[coord_zlev].expand_dims(
                         dict({dim_lat:data[coord_lat].data, dim_lon:data[coord_lon].data})
                         ).transpose(dim_zlev,dim_lat,dim_lon)
@@ -70,7 +70,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         
     #___________________________________________________________________________
     # if there are multiple variables, than kick out varaible that is not needed
-    vname_drop = list(data.keys())            
+    vname_drop = list(data.keys())
     if vname == 'pdens' or 'sigma' in vname:
         if   vname == 'sigma'  : pref=0
         elif vname == 'sigma1' : pref=1000
@@ -83,19 +83,25 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         #for labels in vname_drop:
         data = data.drop(labels=vname_drop)
         data[vname].attrs['units'] = 'kg/m^3'
+        
     else:
         if len(list(data.keys()))>1:
-            vname_drop.remove(vname)
-            data = data.drop_vars(vname_drop)
-            if vname == 'temp':
-                data[vname].attrs['units'] = '°C'
-                data[vname].attrs['short_name'] = 'temp'
-                data[vname].attrs['long_name'] = 'Temperature'
-            elif vname == 'salt':
-                data[vname].attrs['units'] = 'psu'
-                data[vname].attrs['short_name'] = 'salt'
-                data[vname].attrs['long_name'] = 'Salinity'
-                
+            if vname in ['temp', 'sst']:
+                vname_drop.remove('temp')
+                data[vname_temp].attrs['units'] = '°C'
+                data[vname_temp].attrs['short_name'] = 'temp'
+                data[vname_temp].attrs['long_name'] = 'Temperature'
+                data = data.drop_vars(vname_drop)
+                data = data.rename({vname_temp:vname})
+                print(vname_drop)
+            elif vname in ['salt', 'sss']:
+                vname_drop.remove('salt')
+                data[vname_salt].attrs['units'] = 'psu'
+                data[vname_salt].attrs['short_name'] = 'salt'
+                data[vname_salt].attrs['long_name'] = 'Salinity'
+                data = data.drop_vars(vname_drop)
+                data = data.rename({vname_salt:vname})
+    
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with 
     # the fesom2 mesh focus 
