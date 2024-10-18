@@ -5853,7 +5853,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                         new_cref  = np.around(cref, ini_dez-dez)
                         #print(prev_cref, new_cref, dez, ini_dez-dez)
                         #if (new_cref<cref-dc/10 or new_cref>cref+dc/10 or prev_cref==new_cref) and dez!=0:
-                        if (new_cref<cref-dc/10 or new_cref>cref+dc/10 or dez>10) and dez!=0:    
+                        if (new_cref<cref-dc/10 or new_cref>cref+dc/10 or dez>25) and dez!=0:    
                             break
                         else: 
                             dez=dez+1

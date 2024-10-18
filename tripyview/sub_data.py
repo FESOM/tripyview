@@ -544,10 +544,13 @@ def do_fnamemask(do_file,vname,runid,year):
     
     ____________________________________________________________________________
     """
-    if   do_file=='run'        : fname = '{}.{}.{}.nc'.format(   vname,runid,year)
-    elif do_file=='restart_oce': fname = '{}.{}.oce.restart.nc'.format(runid,year)
-    elif do_file=='restart_ice': fname = '{}.{}.ice.restart.nc'.format(runid,year)
-    elif do_file=='blowup'     : fname = '{}.{}.oce.blowup.nc'.format( runid,year)
+    if   do_file=='run'            : fname = '{}.{}.{}.nc'.format(   vname,runid,year)
+    elif do_file=='restart_oce'    : fname = '{}.{}.oce.restart/{}.nc'.format(runid,year,vname)
+    elif do_file=='restart_ice'    : fname = '{}.{}.ice.restart/{}.nc'.format(runid,year,vname)
+    elif do_file=='restart_icepack': fname = '{}.{}.icepack.restart/{}.nc'.format(runid,year,vname)
+    elif do_file=='blowup'         : fname = '{}.{}.oce.blowup.nc'.format( runid,year)
+    #elif do_file=='restart_oce': fname = '{}.{}.oce.restart.nc'.format(runid,year)
+    #elif do_file=='restart_ice': fname = '{}.{}.ice.restart.nc'.format(runid,year)
     
     #___________________________________________________________________________
     return(fname)
