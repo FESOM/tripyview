@@ -203,7 +203,7 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
         lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat')
-        lat     = np.arange(lat_bin.min(), lat_bin.max()+dlat, dlat)
+        lat     = np.arange(lat_bin.data.min(), lat_bin.data.max()+dlat, dlat)
         warnings.resetwarnings()
         #t4 = clock.time()
         #print('  --> comp. lat_bin', t4-t3)

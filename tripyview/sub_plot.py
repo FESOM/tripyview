@@ -746,7 +746,8 @@ def plot_hmesh( mesh                   ,
     
     #___________________________________________________________________________
     # --> check if input data is a list
-    if not isinstance(mesh, list): mesh = [mesh]
+    if not isinstance(mesh  , list): mesh   = [mesh]
+    if not isinstance(do_lsm, list): do_lsm = [do_lsm]*len(mesh)
     ndat = len(mesh)
     
     #___________________________________________________________________________
@@ -799,7 +800,6 @@ def plot_hmesh( mesh                   ,
             tri = do_triangulation(hax, mesh[ii], proj_to, box)
             
             #___________________________________________________________________
-            print(data)
             if data != None and data != 'None':
                 if  data in ['resolution', 'resol', 'n_resol', 'nresol']:
                     if len(mesh[ii].n_resol)==0: mesh[ii]=mesh[ii].compute_n_resol()
@@ -825,7 +825,6 @@ def plot_hmesh( mesh                   ,
                     data_plot = np.abs(mesh[ii].zlev[mesh[ii].e_iz])
                     cb_label, cb_lunit = 'element depth', 'm'
                 
-                print(data_plot.shape)
                 #_______________________________________________________________
                 cinfo_plot = do_setupcinfo(cinfo, [data_plot], do_rescale, mesh=mesh[ii], tri=tri)
                 norm_plot  = do_data_norm(cinfo_plot, do_rescale)
@@ -852,7 +851,7 @@ def plot_hmesh( mesh                   ,
                 
             #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh[ii], lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hax_ii, do_lsm[ii], mesh[ii], lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
@@ -879,7 +878,7 @@ def plot_hmesh( mesh                   ,
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data, cinfo_plot, norm_plot, 
                                 cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         else:
-            hcb_ii.remove()
+            if hcb_ii != 0: hcb_ii.remove()
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
@@ -5351,7 +5350,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             if   xlim is not None: 
                 hax_ii.set_xlim(xlim[0]  ,xlim[-1])
             elif xlim is     None and data_x is not None: 
-                hax_ii.set_xlim(data_x[0], data_x[-1])
+                if   data_x.ndim==1: hax_ii.set_xlim(data_x[0], data_x[-1])
+                elif data_x.ndim==2: hax_ii.set_xlim(data_x[0,0], data_x[0,-1])
             
             #___________________________________________________________________
             # invert y-axis

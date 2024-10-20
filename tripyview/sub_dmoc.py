@@ -445,7 +445,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', which_transf=None, do
     #___________________________________________________________________________
     # create meridional bins --> this trick is from Nils Brückemann (ICON)
     lat_bin = xr.DataArray(data=np.round(data_dMOC['lat'].data/dlat)*dlat, dims='elem', name='lat')
-    lat    = np.arange(lat_bin.min(), lat_bin.max()+dlat, dlat)
+    lat    = np.arange(lat_bin.data.min(), lat_bin.data.max()+dlat, dlat)
     
     #___________________________________________________________________________
     # define subroutine for binning over latitudes, allows for parallelisation
