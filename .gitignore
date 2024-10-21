@@ -1,0 +1,7 @@
+notebooks/
+
+# Sphinx build files
+docs/_build/
+docs/_static/
+docs/.doctrees
+docs/.buildinfo
