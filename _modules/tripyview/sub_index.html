@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tripyview.sub_index &#8212; tripyview 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head><body>
+    <div class="header-wrapper" role="banner">
+      <div class="header">
+        <div class="headertitle"><a
+          href="../../index.html">tripyview 0.3.0 documentation</a></div>
+        <div class="rel" role="navigation" aria-label="Related">
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a>
+        </div>
+       </div>
+    </div>
+
+    <div class="content-wrapper">
+      <div class="content">
+        <div class="document">
+            
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tripyview.sub_index</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Patrick Scholz, 23.01.2018</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">copy</span> <span class="k">as</span>  <span class="nn">cp</span>
+<span class="kn">from</span>   <span class="nn">shapely.geometry</span>   <span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">shape</span>
+<span class="kn">import</span> <span class="nn">shapefile</span> <span class="k">as</span> <span class="nn">shp</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pylab</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span>   <span class="nn">matplotlib.ticker</span> <span class="kn">import</span> <span class="n">MultipleLocator</span><span class="p">,</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">ScalarFormatter</span>
+
+<span class="kn">from</span>   <span class="nn">.sub_mesh</span>           <span class="kn">import</span> <span class="o">*</span> 
+<span class="kn">from</span>   <span class="nn">.sub_data</span>           <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span>   <span class="nn">.sub_utility</span>        <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span>   <span class="nn">.sub_plot</span>           <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span>   <span class="nn">.sub_colormap</span>       <span class="kn">import</span> <span class="o">*</span>
+
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#___COMPUTE INDEX OVER REGION 2D AND 3D_________________________________________</span>
+<div class="viewcode-block" id="load_index_fesom2">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_index.load_index_fesom2">[docs]</a>
+<span class="k">def</span> <span class="nf">load_index_fesom2</span><span class="p">(</span><span class="n">mesh</span>                  <span class="p">,</span> 
+                      <span class="n">data</span>                  <span class="p">,</span> 
+                      <span class="n">box_list</span>              <span class="p">,</span> 
+                      <span class="n">boxname</span>       <span class="o">=</span> <span class="kc">None</span>  <span class="p">,</span> 
+                      <span class="n">do_harithm</span>    <span class="o">=</span><span class="s1">&#39;wmean&#39;</span><span class="p">,</span> 
+                      <span class="n">do_zarithm</span>    <span class="o">=</span> <span class="kc">None</span>  <span class="p">,</span>
+                      <span class="n">do_checkbasin</span> <span class="o">=</span> <span class="kc">False</span> <span class="p">,</span> 
+                      <span class="n">do_compute</span>    <span class="o">=</span> <span class="kc">False</span> <span class="p">,</span> 
+                      <span class="n">do_load</span>       <span class="o">=</span> <span class="kc">True</span>  <span class="p">,</span> 
+                      <span class="n">do_persist</span>    <span class="o">=</span> <span class="kc">False</span> <span class="p">,</span>
+                      <span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; compute index over region from 2d and 3d vertice data</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        </span>
+<span class="sd">        :mesh:          fesom2 mesh object, with all mesh information</span>
+
+<span class="sd">        :data:          xarray dataset object, or list of xarray dataset object with 3d vertice</span>
+<span class="sd">                        data</span>
+
+<span class="sd">        :box_list:      None, list (default: None)  list with regional box limitation for index computation box can be: </span>
+
+<span class="sd">                        - [&#39;global&#39;]   ... compute global index </span>
+<span class="sd">                        - [shp.Reader] ... index region defined by shapefile </span>
+<span class="sd">                        - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box </span>
+<span class="sd">                        - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon</span>
+<span class="sd">                        - [ np.array(2 x npts), boxname] index region defined by polygon</span>
+
+<span class="sd">        :do_harithm:    str, (default=&#39;wmean&#39;) which horizontal arithmetic should be applied </span>
+<span class="sd">                        over the index definition region</span>
+<span class="sd">                        </span>
+<span class="sd">                        - &#39;wmean&#39; ... area weighted mean </span>
+<span class="sd">                        - &#39;wint&#39;  ... area weighted integral</span>
+<span class="sd">        </span>
+<span class="sd">        :do_zarithm:    str, (default=None) which arithmetic should be applied in the vertical</span>
+<span class="sd">                        </span>
+<span class="sd">                        - &#39;wmean&#39; ... depth weighted mean </span>
+<span class="sd">                        - &#39;wint&#39;  ... depth weighted integral</span>
+<span class="sd">                    </span>
+<span class="sd">        :do_checkbasin: bool, (default=False) additional plot with selected region/</span>
+<span class="sd">                        basin information</span>
+<span class="sd">        </span>
+<span class="sd">        :do_compute:    bool (default=False), do xarray dataset compute() at the end</span>
+<span class="sd">                        data = data.compute(), creates a new dataobject the original</span>
+<span class="sd">                        data object seems to persist</span>
+<span class="sd">        </span>
+<span class="sd">        :do_load:       bool (default=True), do xarray dataset load() at the end</span>
+<span class="sd">                        data = data.load(), applies all operations to the original</span>
+<span class="sd">                        dataset</span>
+<span class="sd">                        </span>
+<span class="sd">        :do_persist:    bool (default=False), do xarray dataset persist() at the end</span>
+<span class="sd">                        data = data.persist(), keeps the dataset as dask array, keeps</span>
+<span class="sd">                        the chunking    </span>
+<span class="sd">                      </span>
+<span class="sd">        :do_info:       bool (defalt=False), print variable info at the end </span>
+<span class="sd">                       </span>
+<span class="sd">                    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">    </span>
+<span class="sd">    </span>
+<span class="sd">    ____________________________________________________________________________</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    
+    <span class="n">xr</span><span class="o">.</span><span class="n">set_options</span><span class="p">(</span><span class="n">keep_attrs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># str_anod    = &#39;&#39;</span>
+    <span class="n">index_list</span>  <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">idxin_list</span>  <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">cnt</span>         <span class="o">=</span> <span class="mi">0</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># loop over box_list</span>
+    <span class="k">for</span> <span class="n">box</span> <span class="ow">in</span> <span class="n">box_list</span><span class="p">:</span>
+        
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">shp</span><span class="o">.</span><span class="n">Reader</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">box</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span> <span class="n">boxname</span><span class="p">,</span> <span class="n">box</span> <span class="o">=</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">box</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">box</span><span class="o">==</span><span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="n">boxname</span><span class="o">=</span><span class="s1">&#39;global&#39;</span>
+        <span class="k">else</span><span class="p">:</span>     
+            <span class="n">boxname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">box</span><span class="o">.</span><span class="n">shapeName</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span><span class="s1">&#39; &#39;</span><span class="p">)</span>  
+           
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># compute  mask index</span>
+        <span class="k">if</span>   <span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> 
+            <span class="n">idx_IN</span><span class="o">=</span><span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">do_boxmask</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">do_elem</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">dims</span><span class="o">=</span><span class="s1">&#39;nod2&#39;</span><span class="p">)</span>
+            <span class="c1"># --&gt; seems to be not allowed anymore in newer version of xarray + dask</span>
+            <span class="c1">#     indexing array cant be chunked anymore</span>
+            <span class="c1">#if any(data.chunks.values()): idx_IN = idx_IN.chunk({&#39;nod2&#39;:data.chunksizes[&#39;nod2&#39;]})</span>
+            
+        <span class="k">elif</span> <span class="s1">&#39;elem&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> 
+            <span class="n">idx_IN</span><span class="o">=</span><span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">do_boxmask</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">do_elem</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">dims</span><span class="o">=</span><span class="s1">&#39;elem&#39;</span><span class="p">)</span>
+            <span class="c1"># --&gt; seems to be not allowed anymore in newer version of xarray + dask</span>
+            <span class="c1">#     indexing array cant be chunked anymore</span>
+            <span class="c1">#if any(data.chunks.values()): idx_IN = idx_IN.chunk({&#39;elem&#39;:data.chunksizes[&#39;elem&#39;]})</span>
+            
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># check basin selection</span>
+        <span class="k">if</span> <span class="n">do_checkbasin</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
+            <span class="n">tri</span> <span class="o">=</span> <span class="n">Triangulation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_xa</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_ya</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_0</span><span class="p">,:],</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_ia</span><span class="p">)))</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+            <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">triplot</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+            <span class="k">if</span>   <span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> 
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">idx_IN</span><span class="p">],</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="n">idx_IN</span><span class="p">],</span> <span class="s1">&#39;*r&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span> 
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">tri</span><span class="o">.</span><span class="n">triangles</span><span class="p">[</span><span class="n">idx_IN</span><span class="p">,:]]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mf">3.0</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="n">tri</span><span class="o">.</span><span class="n">triangles</span><span class="p">[</span><span class="n">idx_IN</span><span class="p">,:]]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mf">3.0</span><span class="p">,</span> <span class="s1">&#39;*r&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Basin selection&#39;</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+                
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># selected points in xarray dataset object and  average over selected </span>
+        <span class="c1"># points</span>
+        <span class="n">dim_name</span><span class="o">=</span><span class="p">[]</span>
+        <span class="k">if</span>   <span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> <span class="n">dim_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;nod2&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="s1">&#39;elem&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> <span class="n">dim_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;elem&#39;</span><span class="p">)</span>    
+        <span class="k">if</span>   <span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> <span class="n">dim_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;nz&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="s1">&#39;nz1&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> <span class="n">dim_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;nz1&#39;</span><span class="p">)</span>      
+                
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># do volume averaged mean</span>
+        <span class="k">if</span> <span class="n">do_harithm</span><span class="o">==</span><span class="s1">&#39;wmean&#39;</span> <span class="ow">and</span> <span class="n">do_zarithm</span><span class="o">==</span><span class="s1">&#39;wmean&#39;</span><span class="p">:</span>
+            <span class="k">if</span>   <span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">sel</span><span class="p">(</span><span class="n">nod2</span><span class="o">=</span><span class="n">idx_IN</span><span class="p">)</span>
+                <span class="n">weights</span> <span class="o">=</span> <span class="n">index</span><span class="p">[</span><span class="s1">&#39;w_A&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">index</span><span class="p">[</span><span class="s1">&#39;w_z&#39;</span><span class="p">]</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;w_A&#39;</span><span class="p">,</span> <span class="s1">&#39;w_z&#39;</span><span class="p">])</span>
+                <span class="n">weights</span> <span class="o">=</span> <span class="n">weights</span><span class="o">/</span><span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="n">dim_name</span><span class="p">,</span> <span class="n">skipna</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">index</span><span class="o">*</span><span class="n">weights</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span> <span class="p">)</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="n">dim_name</span><span class="p">,</span> <span class="n">keep_attrs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">skipna</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  
+            <span class="k">elif</span> <span class="s1">&#39;elem&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>    
+                <span class="n">STOP</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># do volume integral</span>
+        <span class="k">elif</span> <span class="n">do_harithm</span><span class="o">==</span><span class="s1">&#39;wint&#39;</span> <span class="ow">and</span> <span class="n">do_zarithm</span><span class="o">==</span><span class="s1">&#39;wint&#39;</span><span class="p">:</span>
+            <span class="k">if</span>   <span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">sel</span><span class="p">(</span><span class="n">nod2</span><span class="o">=</span><span class="n">idx_IN</span><span class="p">)</span>
+                <span class="n">weights</span> <span class="o">=</span> <span class="n">index</span><span class="p">[</span><span class="s1">&#39;w_A&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">index</span><span class="p">[</span><span class="s1">&#39;w_z&#39;</span><span class="p">]</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;w_A&#39;</span><span class="p">,</span> <span class="s1">&#39;w_z&#39;</span><span class="p">])</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">index</span><span class="o">*</span><span class="n">weights</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span> <span class="p">)</span>
+                <span class="n">index</span>   <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="n">dim_name</span><span class="p">,</span> <span class="n">keep_attrs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">skipna</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  
+            <span class="k">elif</span> <span class="s1">&#39;elem&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>    
+                <span class="n">STOP</span>  
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># do horizontal/ vertical metrix that can be idependent from each other</span>
+        <span class="k">else</span><span class="p">:</span>    
+            <span class="c1">#___________________________________________________________________</span>
+            <span class="k">if</span>   <span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">do_horiz_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">sel</span><span class="p">(</span><span class="n">nod2</span><span class="o">=</span><span class="n">idx_IN</span><span class="p">),</span> <span class="n">do_harithm</span><span class="p">,</span> <span class="s1">&#39;nod2&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="s1">&#39;elem&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>    
+                <span class="n">index</span> <span class="o">=</span> <span class="n">do_horiz_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">sel</span><span class="p">(</span><span class="n">elem</span><span class="o">=</span><span class="n">idx_IN</span><span class="p">),</span> <span class="n">do_harithm</span><span class="p">,</span> <span class="s1">&#39;elem&#39;</span><span class="p">)</span>
+                
+            <span class="c1">#___________________________________________________________________</span>
+            <span class="k">if</span>   <span class="s1">&#39;nz1&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span> <span class="ow">and</span> <span class="n">do_harithm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">do_depth_arithmetic</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">do_zarithm</span><span class="p">,</span> <span class="s1">&#39;nz1&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="s1">&#39;nz&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span> <span class="ow">and</span> <span class="n">do_harithm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>        
+                <span class="n">index</span> <span class="o">=</span> <span class="n">do_depth_arithmetic</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">do_zarithm</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span><span class="p">)</span>
+                    
+        <span class="n">index_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">idxin_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx_IN</span><span class="p">)</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Sending large graph of size&quot;</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Large object of size&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">do_compute</span><span class="p">:</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span> <span class="o">=</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">do_load</span>   <span class="p">:</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span> <span class="o">=</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">do_persist</span><span class="p">:</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span> <span class="o">=</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">persist</span><span class="p">()</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">resetwarnings</span><span class="p">()</span>
+            
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># set additional attributes</span>
+        <span class="n">vname</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span>
+        <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">][</span><span class="n">vname</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;boxname&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">boxname</span>
+        <span class="n">proj</span> <span class="o">=</span> <span class="s1">&#39;index&#39;</span>
+        <span class="k">if</span> <span class="s1">&#39;nz1&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;nz&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+            <span class="n">proj</span> <span class="o">=</span> <span class="n">proj</span><span class="o">+</span><span class="s1">&#39;+depth&#39;</span>
+            <span class="k">if</span> <span class="s1">&#39;nz1&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+                <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span> <span class="o">=</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">rename_vars</span><span class="p">({</span><span class="s1">&#39;nz1&#39;</span><span class="p">:</span> <span class="s1">&#39;depth&#39;</span><span class="p">})</span>
+            <span class="k">elif</span> <span class="s1">&#39;nz&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+                <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span> <span class="o">=</span> <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">rename_vars</span><span class="p">({</span><span class="s1">&#39;nz&#39;</span> <span class="p">:</span> <span class="s1">&#39;depth&#39;</span><span class="p">})</span>
+                
+        <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+            <span class="n">proj</span> <span class="o">=</span> <span class="n">proj</span><span class="o">+</span><span class="s1">&#39;+time&#39;</span>
+            
+        <span class="k">if</span> <span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;elem&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+            <span class="n">proj</span> <span class="o">=</span> <span class="n">proj</span><span class="o">+</span><span class="s1">&#39;+xy&#39;</span>
+            
+        <span class="n">index_list</span><span class="p">[</span><span class="n">cnt</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;proj&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">proj</span>    
+        
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="n">cnt</span> <span class="o">=</span> <span class="n">cnt</span> <span class="o">+</span> <span class="mi">1</span>
+        
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">index_list</span><span class="p">)</span></div>
+
+
+
+    
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#_______________________________________________________________________________</span>
+<div class="viewcode-block" id="plot_index_region">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_index.plot_index_region">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_index_region</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">idx_IN</span><span class="p">,</span> <span class="n">box_list</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;hard&#39;</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; plot index definition region </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        </span>
+<span class="sd">        :mesh:          fesom2 tripyview mesh object,  with all mesh information </span>
+<span class="sd">        </span>
+<span class="sd">        :idx_IN:        list with bool np.array which vertices are within index defintion </span>
+<span class="sd">                        region</span>
+<span class="sd">    </span>
+<span class="sd">        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: </span>
+
+<span class="sd">                    - [&#39;global&#39;]   ... compute global index </span>
+<span class="sd">                    - [shp.Reader] ... index region defined by shapefile </span>
+<span class="sd">                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box </span>
+<span class="sd">                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon</span>
+<span class="sd">                    - [ np.array(2 x npts), boxname] index region defined by polygon</span>
+
+<span class="sd">        :which:     str, (default=hard)</span>
+<span class="sd">                    - &#39;soft&#39; plot triangles that at least one selected vertice in them</span>
+<span class="sd">                    - &#39;hard&#39; plot triangles that at all three selected vertice in them </span>
+<span class="sd">                    - &#39;mid&#39;  plot triangles that have more than one selected vertice in them</span>
+<span class="sd">                    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        </span>
+<span class="sd">        :None:</span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># make triangulation</span>
+    <span class="n">tri</span>       <span class="o">=</span> <span class="n">Triangulation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_xa</span> <span class="p">)),</span>
+                              <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_ya</span> <span class="p">)),</span>
+                              <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span> <span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">mesh</span><span class="o">.</span><span class="n">e_ia</span> <span class="p">)))</span> 
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># plot basemesh</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+    <span class="c1">#plt.triplot(tri,linewidth=0.2)</span>
+    
+    <span class="n">nidx</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">idx_IN</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">nidx</span><span class="p">):</span>
+        <span class="n">isnan</span>     <span class="o">=</span> <span class="n">idx_IN</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="n">aux_isnan</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">isnan</span><span class="p">,</span> <span class="n">isnan</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]))</span>
+        <span class="k">if</span>   <span class="n">which</span> <span class="o">==</span> <span class="s1">&#39;soft&#39;</span><span class="p">:</span> <span class="n">isnan_tri</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">aux_isnan</span><span class="p">[</span><span class="n">tri</span><span class="o">.</span><span class="n">triangles</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">which</span> <span class="o">==</span> <span class="s1">&#39;hard&#39;</span><span class="p">:</span> <span class="n">isnan_tri</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">aux_isnan</span><span class="p">[</span><span class="n">tri</span><span class="o">.</span><span class="n">triangles</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">which</span> <span class="o">==</span> <span class="s1">&#39;mid&#39;</span> <span class="p">:</span> <span class="n">isnan_tri</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">aux_isnan</span><span class="p">[</span><span class="n">tri</span><span class="o">.</span><span class="n">triangles</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">triplot</span><span class="p">(</span><span class="n">tri</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">tri</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">tri</span><span class="o">.</span><span class="n">triangles</span><span class="p">[</span><span class="n">isnan_tri</span><span class="p">,:],</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># loop over box_list</span>
+    <span class="k">for</span> <span class="n">box</span> <span class="ow">in</span> <span class="n">box_list</span><span class="p">:</span>
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># a rectangular box is given --&gt; translate into shapefile object</span>
+        <span class="k">if</span>  <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">))</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">box</span><span class="p">)</span><span class="o">==</span><span class="mi">4</span><span class="p">:</span> 
+            <span class="n">px</span>     <span class="o">=</span> <span class="p">[</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="n">py</span>     <span class="o">=</span> <span class="p">[</span><span class="n">box</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span>
+            <span class="n">p</span>      <span class="o">=</span> <span class="n">Polygon</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">px</span><span class="p">,</span><span class="n">py</span><span class="p">)))</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">xy</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+            
+        <span class="c1"># a polygon as list or ndarray is given --&gt; translate into shape file object</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span><span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">box</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span> 
+            <span class="n">px</span><span class="p">,</span> <span class="n">py</span> <span class="o">=</span> <span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>  
+            <span class="n">p</span>      <span class="o">=</span> <span class="n">Polygon</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">px</span><span class="p">,</span><span class="n">py</span><span class="p">)))</span>  
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">xy</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+            
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span> 
+            <span class="k">if</span> <span class="n">box</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+                <span class="n">px</span><span class="p">,</span> <span class="n">py</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]),</span> <span class="nb">list</span><span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">,:])</span>
+                <span class="n">p</span>      <span class="o">=</span> <span class="n">Polygon</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">px</span><span class="p">,</span><span class="n">py</span><span class="p">)))</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">xy</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+                
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span>  <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39; ndarray box has wrong format must be [2 x npts], yours is </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">box</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
+            
+        <span class="c1"># a polygon as shapefile or shapefile collection is given</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="p">(</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">))):</span>
+            <span class="k">if</span>   <span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">):</span> <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">box</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">xy</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+                
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">box</span><span class="p">:</span> <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">xy</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+        
+        <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">shp</span><span class="o">.</span><span class="n">Reader</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">shape</span> <span class="ow">in</span> <span class="n">box</span><span class="o">.</span><span class="n">shapes</span><span class="p">():</span> 
+                <span class="n">p</span>      <span class="o">=</span> <span class="n">Polygon</span><span class="p">(</span><span class="n">shape</span><span class="o">.</span><span class="n">points</span><span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">xy</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="c1"># otherwise</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;the given box information to compute the index has no valid format&#39;</span><span class="p">)</span>
+            
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">return</span></div>
+
+
+
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#___DO INDEX ANOMALY____________________________________________________________</span>
+<div class="viewcode-block" id="do_indexanomaly">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_index.do_indexanomaly">[docs]</a>
+<span class="k">def</span> <span class="nf">do_indexanomaly</span><span class="p">(</span><span class="n">index1</span><span class="p">,</span><span class="n">index2</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; compute anomaly between two index xarray Datasets</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">    </span>
+<span class="sd">        :data1:   index xarray dataset object</span>
+
+<span class="sd">        :data2:   index xarray dataset object</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">    </span>
+<span class="sd">        :anom:   index xarray dataset object, data1-data2</span>
+
+<span class="sd">    ____________________________________________________________________________</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">anom_index</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">for</span> <span class="n">idx1</span><span class="p">,</span><span class="n">idx2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">index1</span><span class="p">,</span> <span class="n">index2</span><span class="p">):</span>
+    
+        <span class="c1"># copy datasets object </span>
+        <span class="n">anom_idx</span> <span class="o">=</span> <span class="n">idx1</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        
+        <span class="n">idx1_vname</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">idx1</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">idx2_vname</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">idx2</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="c1">#for vname in list(anom.keys()):</span>
+        <span class="k">for</span> <span class="n">vname</span><span class="p">,</span> <span class="n">vname2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">idx1_vname</span><span class="p">,</span> <span class="n">idx2_vname</span><span class="p">):</span>
+            <span class="c1"># do anomalous data </span>
+            <span class="n">anom_idx</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">idx1</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="o">-</span> <span class="n">idx2</span><span class="p">[</span><span class="n">vname2</span><span class="p">]</span><span class="o">.</span><span class="n">data</span>
+            
+            <span class="c1"># do anomalous attributes </span>
+            <span class="n">attrs_data1</span> <span class="o">=</span> <span class="n">idx1</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span>
+            <span class="n">attrs_data2</span> <span class="o">=</span> <span class="n">idx2</span><span class="p">[</span><span class="n">vname2</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span>
+            
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">attrs_data1</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">key</span> <span class="ow">in</span> <span class="n">attrs_data1</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="ow">and</span> <span class="p">(</span><span class="n">key</span> <span class="ow">in</span> <span class="n">attrs_data2</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                    <span class="k">if</span>   <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;long_name&#39;</span><span class="p">]:</span>
+                        <span class="n">anom_idx</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;anom. &#39;</span><span class="o">+</span><span class="n">anom_idx</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> 
+                    <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;short_name&#39;</span><span class="p">]:</span>
+                        <span class="n">anom_idx</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;anom. &#39;</span><span class="o">+</span><span class="n">anom_idx</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>        
+                    <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;units&#39;</span><span class="p">,]:</span> 
+                        <span class="k">continue</span>
+                    <span class="k">elif</span> <span class="n">idx1</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">!=</span> <span class="n">idx2</span><span class="p">[</span><span class="n">vname2</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+                        <span class="n">anom_idx</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>  <span class="o">=</span> <span class="n">idx1</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39; - &#39;</span><span class="o">+</span><span class="n">idx2</span><span class="p">[</span><span class="n">vname2</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        
+        <span class="c1">#___________________________________________________________________________</span>
+        <span class="n">anom_index</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">anom_idx</span><span class="p">)</span>
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">anom_index</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+        </div>
+        <div class="sidebar">
+          
+          <h3>Table of Contents</h3>
+          
+          <search role="search">
+            <h3 style="margin-top: 1.5em;">Search</h3>
+            <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" />
+                <input type="submit" value="Go" />
+            </form>
+          </search>
+
+        </div>
+        <div class="clearer"></div>
+      </div>
+    </div>
+
+    <div class="footer-wrapper">
+      <div class="footer">
+        <div class="left">
+          <div role="navigation" aria-label="Related">
+            <a href="../../py-modindex.html" title="Python Module Index"
+              >modules</a> |
+            <a href="../../genindex.html" title="General Index"
+              >index</a>
+          </div>
+          <div role="note" aria-label="source link">
+          </div>
+        </div>
+
+        <div class="right">
+          
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Patrick Scholz.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.4.7.
+    </div>
+        </div>
+        <div class="clearer"></div>
+      </div>
+    </div>
+
+  </body>
+</html>
