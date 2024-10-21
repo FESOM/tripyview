@@ -6,7 +6,7 @@ Triangular plotting and diagnostics for FESOM2 + command line utility similar to
 fdiag using plotting suite of Patrick.Scholz@awi.de (former fesom2/view_pscholz folder). 
 Data reading got updated to xarray, plotting got updated to cartopy, actually works well for 
 python=3.9, 3.10, 3.11 and 3.12 (python 3.8 made recently some problems to resolve all the cartopy dependencies). 
-It is tested upto dart mesh size (3M surface vertices) where it allows for a decend 
+It is tested up to dart mesh size (3M surface vertices) where it allows for a decent
 working speed (but only when used in parallel)
 <br />
 version: 0.3.0
@@ -32,17 +32,13 @@ make sure your conda environment uses python 3.9, 3.10, 3.11 or 3.12
 #  gets one thread
 # -install libstdcxx-ng with conda since there is no pip package for it is needed
 #  so that pyvista is able to plot interactively
+# -all other packages will be automatically installed by pip
 conda install -c conda-forge libstdcxx-ng
 cd tripyview
 pip install -e .
 
-# If you want to use the interactive features in tools/do_topo@elem_or_node.ipynb
-# due to python issues you will need jupyter_server=1.23.6, jupyter_client=7.3.2, 
-# tornad=6.1 --> its the only combination where this features works in moment!!!
-(pip install jupyter_server==1.23.6 jupyter_client==7.3.2 tornado==6.1)
-
 # On my laptop i had problems with the classic notebook support beyond jupyter_server==2.0.0
-# and had to downgrade it to jupyter_server<2.0.0. However on HPC albedo that didnt
+# and had to downgrade it to jupyter_server<2.0.0. However on HPC albedo that did not
 # seems to be the case.
 (pip install "jupyter_server<2.0.0")
 ```
@@ -105,9 +101,9 @@ vertice/element- resolution and area)
 
 
 ### General time plots: 
-* `hovm`             - plot hovmöller diagramms for 3d ocean variable over depth and time averaged over
+* `hovm`             - plot hovmöller diagrams for 3d ocean variable over depth and time averaged over
 specific region that is defined by shapefile (see. tripyview/shapefiles/...)
-* `hovm_clim`        - plot hovmöller diagramms for  temperature, salinity and density climatology 
+* `hovm_clim`        - plot hovmöller diagrams for  temperature, salinity and density climatology 
 over depth and time averaged over specific region that is defined by shapefile (see. tripyview/shapefiles/...)
 
 * `var_t`            - plots time-series of globally or shapefile (see. tripyview/shapefiles/...) averaged 2d and 3d variables 
@@ -123,11 +119,11 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 </p>
 
 
-* `zmoc_t`           - plot time-series of atlantic meridional overturning circulation at specific latitudes 
+* `zmoc_t`           - plot time-series of Atlantic meridional overturning circulation at specific latitudes 
 (default: which_lats: [26, 40, 'max'])
 
 
-* `dmoc`             - plot meridional overturning circulation in density coordinates using FESOM2 density MOC diagnostics (graditues goes to **Dmitry.Sidorenko@awi.de**), Globally, 
+* `dmoc`             - plot meridional overturning circulation in density coordinates using FESOM2 density MOC diagnostics (gratitude goes to **Dmitry.Sidorenko@awi.de**), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
 * `dmoc_srf`         - plot surface transformation of meridional overturning circulation in density coordinates
 * `dmoc_inner`       - plot inner transformation of meridional overturning circulation in density coordinates
@@ -151,7 +147,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `dmoc_srfcbflx`    - plot surface buoyancy flux transformation for specific water-class
 
 
-* `dmoc_t`           - plot time-series of atlantic meridional overturning circulation in density coordinates at specific latitudes 
+* `dmoc_t`           - plot time-series of Atlantic meridional overturning circulation in density coordinates at specific latitudes 
 (default: which_lats: [26, 55, 'max'])
 
 
@@ -164,7 +160,7 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 
 
 ### 2D automatic multipanel plotting: 
-* plot automatised figure multipanels depending on number of choosen datasets and number
+* plot automatised figure multi-panels depending on number of chosen datasets and number
 of panel columns ncol (the panel arrangement uses ideas from **Nils.Brueggemann@mpimet.mpg.de**)
 <p align="center" width="100%">
   <img width=75% src="tripyview/tripyview_multipanel.png">
@@ -185,7 +181,7 @@ of panel columns ncol (the panel arrangement uses ideas from **Nils.Brueggemann@
 
 ## Command line batch diagnostics:
 * `tripyrun  <workflowfile.yml>` - command line diagnostics similar to fdiag (fdiag, served as a 
-template, graditues go to **Nikolay.Koldunov@awi.de**), creates html files with linked plots.
+template, gratitude go to **Nikolay.Koldunov@awi.de**), creates html files with linked plots.
 
 * `tripyrun  <workflowfile.yml> -d <driver>` - re-run one specific driver from .yml file 
 
@@ -193,7 +189,7 @@ template, graditues go to **Nikolay.Koldunov@awi.de**), creates html files with 
 subset of one specific driver driver from .yml file
 
 * `tripyrun  <workflowfile.yml> -r` - for the case the diagnostic did not fully finish you can 
-render the html file from hand based on hte saved json file. The json file is update after each finished
+render the html file from hand based on the saved json file. The json file is update after each finished
 driver section.
 
 <p align="center" width="100%">
