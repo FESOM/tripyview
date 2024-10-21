@@ -1,5 +1,5 @@
 <p align="center" width="100%">
-  <img width=100% src="tripyview/tripyview_logo_02.png">
+  <img width=100% src="docs/images/tripyview_logo_02.png">
 </p>
 <br />
 Triangular plotting and diagnostics for FESOM2 + command line utility similar to 
@@ -43,6 +43,10 @@ pip install -e .
 (pip install "jupyter_server<2.0.0")
 ```
 
+## Documentation
+https://fesom.github.io/tripyview/py-modindex.html
+<br />
+
 ## Different diagnostics
 #### see ./template_notebook/:
 It is recommented to leave the template_notebooks unaltered since they are needed by the tripyrun (papermill)
@@ -53,8 +57,8 @@ batch diagnostic. If you want to work on them simply copy them to the ./notebook
 * `hmesh`          - plot horizontal fesom2 mesh in various projections (plot: mesh, topographie, 
 vertice/element- resolution and area)
 <p align="center" width="100%">
-  <img height=200px src="tripyview/tripyview_hmesh1.png">
-  <img height=200px src="tripyview/tripyview_hmesh2.png">
+  <img height=200px src="docs/images/tripyview_hmesh1.png">
+  <img height=200px src="docs/images/tripyview_hmesh2.png">
 </p>
 
 
@@ -69,13 +73,13 @@ vertice/element- resolution and area)
 
 * `hslice_channel`   - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
 <p align="center" width="100%">
-  <img width=40% src="tripyview/tripyview_mov_channel.gif">
+  <img width=40% src="docs/images/tripyview_mov_channel.gif">
 </p>
 
 
 * `hquiver`          - plot horizontal arrow vector field in various projections
 <p align="center" width="100%">
-  <img width=50% src="tripyview/tripyview_quiver.png">
+  <img width=50% src="docs/images/tripyview_quiver.png">
 </p>
 
 
@@ -87,16 +91,16 @@ vertice/element- resolution and area)
 * `transect_zmean`   - plot zonally averaged transects of 3d ocean variables
 * `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
 <p align="center" width="100%">
-  <img height=150px src="tripyview/tripyview_transect_pos.png">
-  <img height=150px src="tripyview/tripyview_transect.png">
-  <img height=150px src="tripyview/tripyview_transect_zmean.png">
+  <img height=150px src="docs/images/tripyview_transect_pos.png">
+  <img height=150px src="docs/images/tripyview_transect.png">
+  <img height=150px src="docs/images/tripyview_transect_zmean.png">
 </p>
 
 
 * `vprofile`         - plot lines for averaged vertical profile of 3d ocean variables
 * `vprofile_clim`    - plot lines for averaged vertical profile of 3d temperature, salinity and density climatology
 <p align="center" width="100%">
-  <img width=100% src="tripyview/tripyview_vprofile.png">
+  <img width=100% src="docs/images/tripyview_vprofile.png">
 </p>
 
 
@@ -113,9 +117,9 @@ over depth and time averaged over specific region that is defined by shapefile (
 * `zmoc`             - plot meridional overturning circulation from vertical velocity (based on latitudinal binning), Globally, 
 for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian Ocean(ipmoc) and Indian Ocean(imoc)
 <p align="left" width="100%">
-  <img width=32% src="tripyview/tripyview_zAMOC.png">
-  <img width=32% src="tripyview/tripyview_zIPMOC.png">
-  <img width=32% src="tripyview/tripyview_zGMOC.png">
+  <img width=32% src="docs/images/tripyview_zAMOC.png">
+  <img width=32% src="docs/images/tripyview_zIPMOC.png">
+  <img width=32% src="docs/images/tripyview_zGMOC.png">
 </p>
 
 
@@ -129,17 +133,17 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * `dmoc_inner`       - plot inner transformation of meridional overturning circulation in density coordinates
 
 <p align="left" width="100%">
-  <img width=32% src="tripyview/tripyview_dAMOC.png">
-  <img width=32% src="tripyview/tripyview_dAMOC_srf.png">
-  <img width=32% src="tripyview/tripyview_dAMOC_inner.png">
+  <img width=32% src="docs/images/tripyview_dAMOC.png">
+  <img width=32% src="docs/images/tripyview_dAMOC_srf.png">
+  <img width=32% src="docs/images/tripyview_dAMOC_inner.png">
 </p>
 
 
 * `dmoc_z`, `dmoc_srf_z`, `dmoc_inner_z` - plot meridional overturning circulation in density coordinates remapped into z-coordinate space
 <p align="left" width="100%">
-  <img width=32% src="tripyview/tripyview_dAMOC_z.png">
-  <img width=32% src="tripyview/tripyview_dIPMOC_z.png">
-  <img width=32% src="tripyview/tripyview_dGMOC_z.png">
+  <img width=32% src="docs/images/tripyview_dAMOC_z.png">
+  <img width=32% src="docs/images/tripyview_dIPMOC_z.png">
+  <img width=32% src="docs/images/tripyview_dGMOC_z.png">
 </p>
 
 
@@ -163,14 +167,14 @@ for the: Atlantic(amoc), Atlantic+Arctic(aamoc), Pacific(pmoc), Pacific+Indian O
 * plot automatised figure multi-panels depending on number of chosen datasets and number
 of panel columns ncol (the panel arrangement uses ideas from **Nils.Brueggemann@mpimet.mpg.de**)
 <p align="center" width="100%">
-  <img width=75% src="tripyview/tripyview_multipanel.png">
+  <img width=75% src="docs/images/tripyview_multipanel.png">
 </p>
 
 
 ### 3D plotting: 
 * `3dsphere`         - plot 3d model of FESOM grid with variables using pyvista interface. Full functionality can be only achieved with jupyter-lab (<4.0)
 <p align="center" width="100%">
-  <img width=75% src="tripyview/tripyview_icon_NH.png">
+  <img width=75% src="docs/images/tripyview_icon_NH.png">
 </p>
 
 * `make 3D animations`
@@ -193,7 +197,7 @@ render the html file from hand based on the saved json file. The json file is up
 driver section.
 
 <p align="center" width="100%">
-  <img width=75% src="tripyview/tripyview_tripyrun.png">
+  <img width=75% src="docs/images/tripyview_tripyrun.png">
 </p>
 
 ## Credits:
