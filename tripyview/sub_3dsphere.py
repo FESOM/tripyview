@@ -144,7 +144,7 @@ def create_3dsphere_land_mesh(mesh, resol=1, potatoefac=1, do_topo=False, topo_p
             poly_y = poly_y[ poly_idx ]
         
             
-        x_m, y_m  = np.meshgrid(np.arange(xmin, xmax, resol),np.arange(ymin, ymax, resol))
+        x_m, y_m  = np.meshgrid(np.arange(xmin, xmax+resol, resol),np.arange(ymin, ymax+resol, resol))
         x_m, y_m  = x_m.reshape((x_m.size, 1)), y_m.reshape((y_m.size, 1))
            
         #_______________________________________________________________________
