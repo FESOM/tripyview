@@ -42,7 +42,7 @@ import warnings
 def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False, 
               do_info=True, diagpath=None, do_checkbasin=False, 
               do_compute=False, do_load=True, do_persist=False, 
-              do_parallel=False, n_workers=10, 
+              do_parallel=False, n_workers=10, basin_shppath=None
               **kwargs, 
              ):
     #_________________________________________________________________________________________________
@@ -52,9 +52,9 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
     if do_onelem:
-        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='elem')
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem, basin_shppath=basin_shppath), dims='elem')
     else:
-        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='nod2')
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem, basin_shppath=basin_shppath), dims='nod2')
     
     #___________________________________________________________________________
     if do_checkbasin:

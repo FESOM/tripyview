@@ -11,7 +11,10 @@ from   shapely.vectorized import contains
 import shapefile as shp
 from   scipy.interpolate        import interp1d
 import json
+import cartopy.crs              as ccrs
 
+from .sub_mesh import *
+from .sub_plot import *
 
 #
 #
@@ -523,7 +526,7 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
 #| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
 #| 
 #+___________________________________________________________________________________________________
-def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False):
+def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False, basin_shppath=None):
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
     if which_moc=='gmoc':
@@ -552,8 +555,14 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_medito
         mocbaspath=os.path.join(pkg_path,'shapefiles/moc_basins/')
         
         #_______________________________________________________________________
+        if   basin_shppath is not None:
+            # for calculation of amoc mesh focus must be on 0 degree longitude
+            box_list.append( shp.Reader(basin_shppath))
+            exclude_meditoce=False
+            
+        #_______________________________________________________________________
         # amoc2 ... calculate amoc without arctic
-        if   which_moc=='amoc':
+        elif   which_moc=='amoc':
             # for calculation of amoc mesh focus must be on 0 degree longitude
             box_list.append( shp.Reader(os.path.join(mocbaspath,'Atlantic_MOC.shp') ))
             
@@ -1620,3 +1629,340 @@ class select_scatterpts_depth(object):
     def _savechanges_(self):
         if any(self.vs-self.vs_new != 0.0):
             self.data[self.idxd]=self.vs_new
+
+
+
+class select_polygon_basin(object):
+    
+    #
+    #
+    # ___INIT SELECT_SCATTER_POINTS DEPTH OBJECT______________________________________________________
+    def __init__(self, mesh, box_list=[-180,180,-90,90], do_elem=True, do_tri=True, zoom_fac=0.8,
+                 figax=None, figsize=[10, 10], do_centersel=True,
+                 showtxt_o=False, showtxt_c=False, do_datacopy=True, do_reldep=False, do_grid= True, do_axeq=True):
+        
+        #_____________________________________________________________________________________________
+        # init varaibles for selection
+        self.xs, self.ys          = [], []
+        self.vs, self.vs_new      = [], []
+        self.idx_box              = 0
+        self.do_elem              = do_elem
+        self.do_tri, self.tri     = do_tri, []
+        self.htri                 = None
+        
+        # data from mouse/key press event
+        self.xm, self.ym, self.bm = [], [], []
+        self.xk, self.yk, self.bk = [], [], []
+        self.idx_c = []
+        
+        # handle for: figure, axes, scatter, text slider
+        self.fig, self.ax         = [], []
+        self.hscat, self.hchos    = None, []
+        self.htxt, self.hitxt     = None, []
+        self.htxt_x, self.htxt_y, self.htxt_v = [], [], []
+        self.zoom_fac             = zoom_fac
+        self.showtxt_o            = showtxt_o
+        self.showtxt_c            = showtxt_c
+        self.centersel            = do_centersel
+        self.box_list             = box_list
+        
+        # handle of mouse key press event 
+        self.cid_m, self.cid_k    = [], []
+        
+        # original xy limits
+        self.xlim_o, self.ylim_o  = [], []
+        self.dxlim_o, self.dylim_o= [], []
+        self.cbar                 = []
+        
+        self.mesh                 = mesh
+        
+        self.sel_poly             = True
+        self.poly_x, self.poly_y  = [], []
+        self.poly_h               = []
+        self.polygon              = []
+        self.auxpolygon           = []
+        
+        #_____________________________________________________________________________________________
+        # set indices mask for vertices and element centroids in box 
+        # create first round of scatter points from box_list with index 0 
+        self._update_pts_()
+        
+        #_____________________________________________________________________________________________
+        if figax is not None:
+            self.fig, self.ax = figax[0], figax[1]
+        else:    
+            #self.fig, self.ax = plt.figure(figsize=figsize), plt.gca()
+            self.fig, self.ax = plt.subplots( 1,1,figsize=figsize, #projection=ccrs.PlateCarree(),
+                                gridspec_kw=dict(left=0.05, bottom=0.05, right=0.95, top=0.95, wspace=0.05, hspace=0.05,),
+                                constrained_layout=True, sharex=True, sharey=True)
+        if do_grid: self.ax.grid(True, linewidth=1.0, alpha=0.9, zorder=10, )
+        if do_axeq: self.ax.axis('equal')
+        
+        #_____________________________________________________________________________________________
+        self._update_tri_()
+        
+        #_____________________________________________________________________________________________
+        # set initial axis limits from box 
+        self._update_axes_()
+        
+        #_____________________________________________________________________________________________
+        # do title string and colorbar string
+        self._update_title_()
+            
+        #_____________________________________________________________________________________________
+        # create infoo text at bottom of axes
+        self.hitxt = self.ax.annotate("default", [0.01,0.01], xycoords='figure fraction' , va="bottom", ha="left", zorder=10)
+        
+        #_____________________________________________________________________________________________
+        # make interactive mpl connection for mouse and keybouad press 
+        self.cid_m = self.fig.canvas.mpl_connect('button_press_event'  , self._buttonpress_)
+        self.cid_k = self.fig.canvas.mpl_connect('key_press_event'     , self._keypress_)
+        
+    #_________________________________________________________________________________________________
+    # define mouse press events 
+    def _buttonpress_(self, event):
+        self.xm, self.ym, self.bm = event.xdata, event.ydata, event.button
+        #self.hitxt.set_text('xm={:f}, ym={:f}, bm={:d}, |P{:d}|'.format(self.xm, self.ym, self.bm, self.sel_poly))
+        #self.hitxt.set_text('xm={:f}, ym={:f}, bm={:d}'.format(self.xm, self.ym, self.bm))
+        
+        
+        # if mouse is not over axes nothing happens 
+        if event.inaxes!=self.ax: return
+        
+        
+        #_______________________________________________________________________
+        # left mouse button --> do select points for polygon
+        if self.bm==1 and self.sel_poly==True:
+            self.hitxt.set_text('xm={:f}, ym={:f}, bm={:d}, p={:s}'.format(self.xm, self.ym, self.bm, str(self.sel_poly)))
+        
+            self.mpress = False
+            #___________________________________________________________________
+            # collect polygon points
+            if   len(self.poly_x)==0: 
+                self.poly_x, self.poly_y = list([self.xm]), list([self.ym])
+                self.poly_h = self.ax.plot(self.poly_x, self.poly_y,'-o', color='k')
+            else: 
+                self.poly_x.append(self.xm) 
+                self.poly_y.append(self.ym)
+                self.poly_h[0].set_data(self.poly_x, self.poly_y)
+                
+            #___________________________________________________________________
+            # check if polygon is closed --> compute points in polygon 
+            if len(self.poly_x)>2:
+                d = np.sqrt( (self.poly_x[0]-self.poly_x[-1])**2 + 
+                             (self.poly_y[0]-self.poly_y[-1])**2)
+                if d<2.5 : 
+                    self.poly_x[-1], self.poly_y[-1] = self.poly_x[0], self.poly_y[0]
+                    self.auxpolygon = Polygon(list(zip(self.poly_x, self.poly_y)))
+                    
+                    # make polygon selection line in green
+                    self.poly_h[0].set_color([0.1,1,0.5]) 
+                    
+        #_______________________________________________________________________
+        # right mouse button --> zoom to original
+        if self.bm==3 : 
+            #self.hitxt.set_text('---{{,_,"> [right]')
+            self._zoomorig_()
+            
+    #__________________________________________________________________________________________________
+    # define keyboard press events 
+    def _keypress_(self, event):
+        self.xk, self.yk, self.bk = event.xdata, event.ydata, event.key
+        
+        # if mouse is not over axes nothing happens 
+        if event.inaxes!=self.ax: return
+        
+        self.hitxt.set_text('xk={:f}, yk={:f}, bk={:s},'.format(self.xk, self.yk, str(self.bk)))
+        
+        # press d key --> delete polygon
+        if   self.bk=='d'    : self._keydelete_()
+        
+        # press r key --> delete last polygon point
+        elif self.bk=='r'    : self._keyremove1_()
+        
+        # press e key --> exit and disconnect interactive selection
+        elif self.bk=='e'    : self._disconnect_()
+        
+        # press right key --> move right
+        elif self.bk=='w'    : self._savepolygon_()    
+        
+        # press + key --> zoom in 
+        elif self.bk=='+'    : self._zoomin_()
+        
+        # press - key --> zoom in 
+        elif self.bk=='-'    : self._zoomout_() 
+        
+        # press up key    --> move up 
+        elif self.bk=='up'   : self._moveup_()
+        
+        # press down key  --> move down
+        elif self.bk=='down' : self._movedown_()
+        
+        # press left key  --> move left 
+        elif self.bk=='left' : self._moveleft_()
+        
+        # press right key --> move right
+        elif self.bk=='right': self._moveright_()    
+        
+    
+    #__________________________________________________________________________________________________
+    # disconect interative mpl connection 
+    def _keydelete_(self):
+        #self.sel_single, self.sel_rect, self.sel_poly = True , False, False
+        if self.sel_poly==True: 
+            self.poly_x, self.poly_y = [], []
+            if len(self.poly_h):
+                self.poly_h[0].remove()
+                self.poly_h = []
+        self.hitxt.set_text('[ d ]')
+    
+    #__________________________________________________________________________________________________
+    # disconect interative mpl connection 
+    def _keyremove1_(self):
+        #self.sel_single, self.sel_rect, self.sel_poly = True , False, False
+        if self.sel_poly==True: 
+            self.poly_x, self.poly_y = self.poly_x[:-1], self.poly_y[:-1]
+            if len(self.poly_h):
+                self.poly_h[0].remove()
+                self.poly_h = []
+                self.poly_h = self.ax.plot(self.poly_x, self.poly_y,'-o', color='k')
+                
+        self.hitxt.set_text('[ r ]')
+        
+    #__________________________________________________________________________________________________
+    # disconect interactive mpl connection 
+    def _disconnect_(self):
+        
+        self.hitxt.set_text('[e]--> finish')
+        
+        # before exiting and disconnecting plot save changes from the actual one 
+        self._savepolygon_()
+        
+        # disconect interactive mouse, keyboard
+        self.fig.canvas.mpl_disconnect(self.cid_m)
+        self.fig.canvas.mpl_disconnect(self.cid_k)
+        plt.show(block=False)
+        return(self) 
+    
+    #__________________________________________________________________________________________________
+    # zoom in, out, to original
+    def _zoomin_(self):
+        self.hitxt.set_text('[+]')
+        aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
+        aux_dxlim, aux_dylim = aux_xlim[1]-aux_xlim[0], aux_ylim[1]-aux_ylim[0]
+        
+        # shift xy axes limits
+        self.ax.set_xlim(sum(aux_xlim)*0.5-aux_dxlim*0.5*self.zoom_fac, sum(aux_xlim)*0.5+aux_dxlim*0.5*self.zoom_fac)
+        self.ax.set_ylim(sum(aux_ylim)*0.5-aux_dylim*0.5*self.zoom_fac, sum(aux_ylim)*0.5+aux_dylim*0.5*self.zoom_fac)
+        
+    def _zoomout_(self):
+        self.hitxt.set_text('[-]')
+        aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
+        aux_dxlim, aux_dylim = aux_xlim[1]-aux_xlim[0], aux_ylim[1]-aux_ylim[0]
+        # shift xy axes limits
+        self.ax.set_xlim(sum(aux_xlim)*0.5+aux_dxlim*0.5*self.zoom_fac, sum(aux_xlim)*0.5-aux_dxlim*0.5*self.zoom_fac)
+        self.ax.set_ylim(sum(aux_ylim)*0.5+aux_dylim*0.5*self.zoom_fac, sum(aux_ylim)*0.5-aux_dylim*0.5*self.zoom_fac)
+        
+    def _zoomorig_(self):
+        # shift xy axes limits
+        self.ax.set_xlim(self.xlim_o)
+        self.ax.set_ylim(self.ylim_o) 
+        
+    #__________________________________________________________________________________________________
+    # move up, down, left, right
+    def _moveup_(self):
+        self.hitxt.set_text('[up]')
+        aux_ylim  = self.ax.get_ylim()
+        aux_dylim = aux_ylim[1]-aux_ylim[0]
+        # shift y axes limits
+        self.ax.set_ylim(aux_ylim[0]+aux_dylim*0.5*self.zoom_fac, aux_ylim[1]+aux_dylim*0.5*self.zoom_fac)
+        
+    def _movedown_(self):
+        self.hitxt.set_text('[down]')
+        aux_ylim  = self.ax.get_ylim()
+        aux_dylim = aux_ylim[1]-aux_ylim[0]
+        # shift y axes limits
+        self.ax.set_ylim(aux_ylim[0]-aux_dylim*0.5*self.zoom_fac, aux_ylim[1]-aux_dylim*0.5*self.zoom_fac)
+    
+    def _moveleft_(self):
+        self.hitxt.set_text('[left]')
+        aux_xlim  = self.ax.get_xlim()
+        aux_dxlim = aux_xlim[1]-aux_xlim[0]
+        # shift x axes limits
+        self.ax.set_xlim(aux_xlim[0]-aux_dxlim*0.5*self.zoom_fac, aux_xlim[1]-aux_dxlim*0.5*self.zoom_fac)
+        
+    def _moveright_(self):
+        self.hitxt.set_text('[right]')
+        aux_xlim  = self.ax.get_xlim()
+        aux_dxlim = aux_xlim[1]-aux_xlim[0]
+        # shift x axes limits
+        self.ax.set_xlim(aux_xlim[0]+aux_dxlim*0.5*self.zoom_fac, aux_xlim[1]+aux_dxlim*0.5*self.zoom_fac)
+    
+    def _movecenter_(self):
+        aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
+        aux_dxlim, aux_dylim = aux_xlim[1]-aux_xlim[0], aux_ylim[1]-aux_ylim[0]
+        # shift xy axes limits
+        self.ax.set_xlim(self.xs[self.idx_c]-aux_dxlim*0.5, self.xs[self.idx_c]+aux_dxlim*0.5)
+        self.ax.set_ylim(self.ys[self.idx_c]-aux_dylim*0.5, self.ys[self.idx_c]+aux_dylim*0.5)
+        
+    #___________________________________________________________________________________________________
+    # update position and data of scatter points according to selected box
+    def _update_pts_(self):
+        # set indices mask for vertices and element centroids in box 
+        # create first round of scatter points from box_list with index 0 
+        self.tri  = Triangulation(np.hstack((self.mesh.n_x,self.mesh.n_xa)),
+                                  np.hstack((self.mesh.n_y,self.mesh.n_ya)),
+                                  np.vstack((self.mesh.e_i[self.mesh.e_pbnd_0,:],self.mesh.e_ia)))
+        self.xs   = self.mesh.n_x
+        self.ys   = self.mesh.n_y
+        self.idxd = np.ones(self.tri.triangles.shape[0], dtype=bool)
+        idxn = None
+        if any(self.idxd==False):
+            self.tri, idxn = do_reindex_vert_and_elem(self.tri, self.idxd)
+        self.tri.mask_e_box     = self.idxd
+        self.tri.mask_n_box     = idxn
+        
+    # update axes of scatter plot according to box
+    def _update_axes_(self):
+        self.ax.set_xlim(self.box_list[0], self.box_list[1])
+        self.ax.set_ylim(self.box_list[2], self.box_list[3])
+        self.xlim_o,  self.ylim_o  = self.ax.get_xlim(), self.ax.get_ylim()
+        self.dxlim_o, self.dylim_o = self.xlim_o[1] - self.xlim_o[0], self.ylim_o[1] - self.ylim_o[0]
+    
+    # update text for data points    
+    def _update_txt_(self):
+        # 1st. remove text if it exist
+        if self.htxt is not None:
+            for htxt in self.htxt:
+                htxt.remove()
+        
+        # 2nd. redo depth text labels
+        self.htxt=list()
+        for ii in range(0,len(self.xs)):
+            # do here annotation instead of text because anotation can become
+            # transparent --> i can hide them with text checkbox
+            #htxt = self.ax.annotate('{:.0f}m'.format(self.vs[ii]), [self.xs[ii], self.ys[ii]],
+            htxt = self.ax.annotate('{:.0f}'.format(self.vs[ii]), [self.xs[ii], self.ys[ii]],                         
+                                    xycoords='data' , va="center", ha="center", fontsize=7)
+            self.htxt.append(htxt)
+    
+    # update title of scatter plot
+    def _update_title_(self):
+        self.ax.set_title(self.box_list)  
+    
+    # update triangular mesh in scatter plot
+    def _update_tri_(self):
+        if self.do_tri:
+            if self.htri is not None: 
+               for line in self.htri :
+                line.remove()
+            self.htri=self.ax.triplot(self.tri, linewidth=0.25, color= 'k', zorder=0)
+
+    #___________________________________________________________________________________________________
+    # save polygon
+    def _savepolygon_(self):
+        if isinstance(self.auxpolygon, Polygon): 
+            self.polygon.append(self.auxpolygon)
+            self.auxpolygon = []
+            self.hitxt.set_text('[ w ]')
+            
