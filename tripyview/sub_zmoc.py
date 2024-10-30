@@ -42,7 +42,7 @@ import warnings
 def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False, 
               do_info=True, diagpath=None, do_checkbasin=False, 
               do_compute=False, do_load=True, do_persist=False, 
-              do_parallel=False, n_workers=10, basin_shppath=None
+              do_parallel=False, n_workers=10, basin_shppath=None,
               **kwargs, 
              ):
     #_________________________________________________________________________________________________
