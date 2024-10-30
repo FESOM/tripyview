@@ -529,7 +529,7 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
 def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False, basin_shppath=None):
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
-    if which_moc=='gmoc':
+    if which_moc=='gmoc' and basin_shppath is None:
         #_______________________________________________________________________
         if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
         else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
