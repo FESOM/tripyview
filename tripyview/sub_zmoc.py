@@ -47,14 +47,33 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
              ):
     #_________________________________________________________________________________________________
     t1=clock.time()
-    if do_info==True: print('_____calc. '+which_moc.upper()+' from vertical velocities via meridional bins_____')
+    # In case MOC is defined via string
+    if isinstance(which_moc, str):
+        which_moc_name = which_moc
+        if do_info==True: print('_____calc. '+which_moc.upper()+' from vertical velocities via meridional bins_____')
+    
+    # In case MOC is defined via  custom shapefile e.g for deep paleo time slices
+    elif isinstance(which_moc, shp.Reader):
+        # Extract the 'Name' attribute for each shape
+        field_names = [field[0] for field in which_moc.fields[1:]]
+        which_moc_name, which_moc_region = 'moc', ''
+        # search for "Name" attribute in shapefile
+        if "Name" in field_names:
+            index = [field[0] for field in which_moc.fields[1:] ].index("Name")
+            which_moc_name = [record[index] for record in which_moc.records()][0]
+        # search for "Region" attribute in shapefile    
+        if "Region" in field_names:
+            index = [field[0] for field in which_moc.fields[1:] ].index("Region")
+            which_moc_region = [record[index] for record in which_moc.records()][0]
+            
+        if do_info==True: print('_____calc. '+which_moc_name.upper()+' from vertical velocities via meridional bins_____')
         
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
     if do_onelem:
-        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem, basin_shppath=basin_shppath), dims='elem')
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='elem')
     else:
-        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem, basin_shppath=basin_shppath), dims='nod2')
+        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='nod2')
     
     #___________________________________________________________________________
     if do_checkbasin:
@@ -211,18 +230,19 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     #___________________________________________________________________________
     # create ZMOC xarray Dataset
     # define variable attributes    
-    if   which_moc=='gmoc' : str_region='Global '
-    elif which_moc=='amoc' : str_region='Atlantic '
-    elif which_moc=='aamoc': str_region='Atlantic-Arctic '
-    elif which_moc=='pmoc' : str_region='Pacific '
-    elif which_moc=='ipmoc': str_region='Indo-Pacific '
-    elif which_moc=='pmoc' : str_region='Indo '
+    if   which_moc_name=='gmoc' : str_region='Global '
+    elif which_moc_name=='amoc' : str_region='Atlantic '
+    elif which_moc_name=='aamoc': str_region='Atlantic-Arctic '
+    elif which_moc_name=='pmoc' : str_region='Pacific '
+    elif which_moc_name=='ipmoc': str_region='Indo-Pacific '
+    elif which_moc_name=='pmoc' : str_region='Indo '
+    elif isinstance(which_moc,shp.Reader): str_region=which_moc_region
     
     # for the choice of vertical plotting mode
     gattr['proj'         ]= 'zmoc'
     
-    vattr['long_name'    ]= which_moc.upper()
-    vattr['short_name'   ]= which_moc.upper()
+    vattr['long_name'    ]= which_moc_name.upper()
+    vattr['short_name'   ]= which_moc_name.upper()
     vattr['standard_name']= str_region+'Meridional Overturning Circulation'
     vattr['description'  ]= str_region+'Meridional Overturning Circulation Streamfunction, positive: clockwise, negative: counter-clockwise circulation', 
     vattr['units'        ]= 'Sv'
@@ -309,12 +329,12 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
     if do_info==True: 
         print(' --> total time:{:.3f} s'.format(clock.time()-t1))
         if 'time' not in list(zmoc.dims):
-            if which_moc in ['amoc', 'aamoc', 'gmoc']:
+            if which_moc_name in ['amoc', 'aamoc', 'gmoc']:
                 maxv = zmoc.isel(nz=zmoc['depth']>= 700 , lat=zmoc['lat']>0.0)['zmoc'].max().values
                 minv = zmoc.isel(nz=zmoc['depth']>= 2500, lat=zmoc['lat']>-50.0)['zmoc'].min().values
                 print(' max. NADW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],maxv))
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
-            elif which_moc in ['pmoc', 'ipmoc']:
+            elif which_moc_name in ['pmoc', 'ipmoc']:
                 minv = zmoc['zmoc'].isel(nz=zmoc['depth']>= 2000, lat=zmoc['lat']>-50.0)['moc'].min().values
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
     

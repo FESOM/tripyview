@@ -526,10 +526,10 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
 #| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
 #| 
 #+___________________________________________________________________________________________________
-def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False, basin_shppath=None):
+def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False):
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
-    if which_moc=='gmoc' and basin_shppath is None:
+    if which_moc=='gmoc' and not isinstance(which_moc,shp.Reader):
         #_______________________________________________________________________
         if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
         else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
@@ -555,9 +555,9 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_medito
         mocbaspath=os.path.join(pkg_path,'shapefiles/moc_basins/')
         
         #_______________________________________________________________________
-        if   basin_shppath is not None:
+        if   isinstance(which_moc, shp.Reader):
             # for calculation of amoc mesh focus must be on 0 degree longitude
-            box_list.append( shp.Reader(basin_shppath))
+            box_list.append( which_moc )
             exclude_meditoce=False
             
         #_______________________________________________________________________
@@ -1637,8 +1637,8 @@ class select_polygon_basin(object):
     #
     #
     # ___INIT SELECT_SCATTER_POINTS DEPTH OBJECT______________________________________________________
-    def __init__(self, mesh, box_list=[-180,180,-90,90], do_elem=True, do_tri=True, zoom_fac=0.8,
-                 figax=None, figsize=[10, 10], do_centersel=True,
+    def __init__(self, mesh, box_list=[-180,180,-90,90], do_elem=True, do_tri=True, 
+                 zoom_fac=0.8, move_fac=0.1, figax=None, figsize=[10, 10], do_centersel=True,
                  showtxt_o=False, showtxt_c=False, do_datacopy=True, do_reldep=False, do_grid= True, do_axeq=True):
         
         #_____________________________________________________________________________________________
@@ -1661,6 +1661,7 @@ class select_polygon_basin(object):
         self.htxt, self.hitxt     = None, []
         self.htxt_x, self.htxt_y, self.htxt_v = [], [], []
         self.zoom_fac             = zoom_fac
+        self.move_fac             = move_fac
         self.showtxt_o            = showtxt_o
         self.showtxt_c            = showtxt_c
         self.centersel            = do_centersel
@@ -1682,10 +1683,6 @@ class select_polygon_basin(object):
         self.polygon              = []
         self.auxpolygon           = []
         
-        #_____________________________________________________________________________________________
-        # set indices mask for vertices and element centroids in box 
-        # create first round of scatter points from box_list with index 0 
-        self._update_pts_()
         
         #_____________________________________________________________________________________________
         if figax is not None:
@@ -1697,6 +1694,14 @@ class select_polygon_basin(object):
                                 constrained_layout=True, sharex=True, sharey=True)
         if do_grid: self.ax.grid(True, linewidth=1.0, alpha=0.9, zorder=10, )
         if do_axeq: self.ax.axis('equal')
+        #_____________________________________________________________________________________________
+        # create infoo text at bottom of axes
+        self.hitxt = self.ax.annotate("default", [0.01,0.01], xycoords='figure fraction' , va="bottom", ha="left", zorder=10)
+        
+        #_____________________________________________________________________________________________
+        # set indices mask for vertices and element centroids in box 
+        # create first round of scatter points from box_list with index 0 
+        self._update_pts_()
         
         #_____________________________________________________________________________________________
         self._update_tri_()
@@ -1709,9 +1714,6 @@ class select_polygon_basin(object):
         # do title string and colorbar string
         self._update_title_()
             
-        #_____________________________________________________________________________________________
-        # create infoo text at bottom of axes
-        self.hitxt = self.ax.annotate("default", [0.01,0.01], xycoords='figure fraction' , va="bottom", ha="left", zorder=10)
         
         #_____________________________________________________________________________________________
         # make interactive mpl connection for mouse and keybouad press 
@@ -1850,64 +1852,96 @@ class select_polygon_basin(object):
         self.hitxt.set_text('[+]')
         aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
         aux_dxlim, aux_dylim = aux_xlim[1]-aux_xlim[0], aux_ylim[1]-aux_ylim[0]
+        aux_xmin, aux_xmax   = sum(aux_xlim)*0.5-aux_dxlim*0.5*self.zoom_fac, sum(aux_xlim)*0.5+aux_dxlim*0.5*self.zoom_fac
+        aux_ymin, aux_ymax   = sum(aux_ylim)*0.5-aux_dylim*0.5*self.zoom_fac, sum(aux_ylim)*0.5+aux_dylim*0.5*self.zoom_fac
+        aux_xmin, aux_xmax   = np.max([aux_xmin, self.xlim_o[0]]), np.min([aux_xmax, self.xlim_o[1]])
+        aux_ymin, aux_ymax   = np.max([aux_ymin, self.ylim_o[0]]), np.min([aux_ymax, self.ylim_o[1]])
         
         # shift xy axes limits
-        self.ax.set_xlim(sum(aux_xlim)*0.5-aux_dxlim*0.5*self.zoom_fac, sum(aux_xlim)*0.5+aux_dxlim*0.5*self.zoom_fac)
-        self.ax.set_ylim(sum(aux_ylim)*0.5-aux_dylim*0.5*self.zoom_fac, sum(aux_ylim)*0.5+aux_dylim*0.5*self.zoom_fac)
+        self.ax.set_xlim(aux_xmin, aux_xmax)
+        self.ax.set_ylim(aux_ymin, aux_ymax)
+        
+        self._update_pts_(box=[aux_xmin, aux_xmax, aux_ymin, aux_ymax])
+        self._update_tri_()
+        
+            
+        #self.hitxt.set_text('xlim={:f},{:f}, ylim={:f},{:f}'.format(aux_xmin, aux_xmax,aux_ymin, aux_ymax))
         
     def _zoomout_(self):
         self.hitxt.set_text('[-]')
         aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
         aux_dxlim, aux_dylim = aux_xlim[1]-aux_xlim[0], aux_ylim[1]-aux_ylim[0]
+        aux_xmin, aux_xmax   = sum(aux_xlim)*0.5-aux_dxlim*0.5/self.zoom_fac, sum(aux_xlim)*0.5+aux_dxlim*0.5/self.zoom_fac
+        aux_ymin, aux_ymax   = sum(aux_ylim)*0.5-aux_dylim*0.5/self.zoom_fac, sum(aux_ylim)*0.5+aux_dylim*0.5/self.zoom_fac
+        aux_xmin, aux_xmax   = np.max([aux_xmin, self.xlim_o[0]]), np.min([aux_xmax, self.xlim_o[1]])
+        aux_ymin, aux_ymax   = np.max([aux_ymin, self.ylim_o[0]]), np.min([aux_ymax, self.ylim_o[1]])
+        
         # shift xy axes limits
-        self.ax.set_xlim(sum(aux_xlim)*0.5+aux_dxlim*0.5*self.zoom_fac, sum(aux_xlim)*0.5-aux_dxlim*0.5*self.zoom_fac)
-        self.ax.set_ylim(sum(aux_ylim)*0.5+aux_dylim*0.5*self.zoom_fac, sum(aux_ylim)*0.5-aux_dylim*0.5*self.zoom_fac)
+        self.ax.set_xlim(aux_xmin, aux_xmax)
+        self.ax.set_ylim(aux_ymin, aux_ymax)
+        self._update_pts_(box=[aux_xmin, aux_xmax, aux_ymin, aux_ymax])
+        self._update_tri_()
+        
+        #self.hitxt.set_text('xlim={:f},{:f}, ylim={:f},{:f}'.format(aux_xmin, aux_xmax,aux_ymin, aux_ymax))
         
     def _zoomorig_(self):
         # shift xy axes limits
-        self.ax.set_xlim(self.xlim_o)
-        self.ax.set_ylim(self.ylim_o) 
+        aux_xmin, aux_xmax = self.xlim_o[0], self.xlim_o[1]
+        aux_ymin, aux_ymax = self.ylim_o[0], self.ylim_o[1]
+        self.ax.set_xlim(aux_xmin, aux_xmax)
+        self.ax.set_ylim(aux_ymin, aux_ymax)
+        self._update_pts_(box=[aux_xmin, aux_xmax, aux_ymin, aux_ymax])
+        self._update_tri_()
         
     #__________________________________________________________________________________________________
     # move up, down, left, right
     def _moveup_(self):
         self.hitxt.set_text('[up]')
-        aux_ylim  = self.ax.get_ylim()
-        aux_dylim = aux_ylim[1]-aux_ylim[0]
+        aux_xmin, aux_xmax  = self.ax.get_xlim()
+        aux_ymin, aux_ymax  = self.ax.get_ylim()
+        aux_dylim           = aux_ymax-aux_ymin
+        aux_ymin, aux_ymax  = aux_ymin+aux_dylim*self.move_fac, aux_ymax+aux_dylim*self.move_fac
         # shift y axes limits
-        self.ax.set_ylim(aux_ylim[0]+aux_dylim*0.5*self.zoom_fac, aux_ylim[1]+aux_dylim*0.5*self.zoom_fac)
+        self.ax.set_ylim(aux_ymin, aux_ymax)
+        self._update_pts_(box=[aux_xmin, aux_xmax, aux_ymin, aux_ymax])
+        self._update_tri_()
         
     def _movedown_(self):
         self.hitxt.set_text('[down]')
-        aux_ylim  = self.ax.get_ylim()
-        aux_dylim = aux_ylim[1]-aux_ylim[0]
+        aux_xmin, aux_xmax  = self.ax.get_xlim()
+        aux_ymin, aux_ymax  = self.ax.get_ylim()
+        aux_dylim           = aux_ymax-aux_ymin
+        aux_ymin, aux_ymax  = aux_ymin-aux_dylim*self.move_fac, aux_ymax-aux_dylim*self.move_fac
         # shift y axes limits
-        self.ax.set_ylim(aux_ylim[0]-aux_dylim*0.5*self.zoom_fac, aux_ylim[1]-aux_dylim*0.5*self.zoom_fac)
+        self.ax.set_ylim(aux_ymin, aux_ymax)
+        self._update_pts_(box=[aux_xmin, aux_xmax, aux_ymin, aux_ymax])
+        self._update_tri_()
     
     def _moveleft_(self):
         self.hitxt.set_text('[left]')
-        aux_xlim  = self.ax.get_xlim()
-        aux_dxlim = aux_xlim[1]-aux_xlim[0]
+        aux_xmin, aux_xmax  = self.ax.get_xlim()
+        aux_ymin, aux_ymax  = self.ax.get_ylim()
+        aux_dxlim           = aux_xmax-aux_xmin
+        aux_xmin, aux_xmax  = aux_xmin-aux_dxlim*self.move_fac, aux_xmax-aux_dxlim*self.move_fac
         # shift x axes limits
-        self.ax.set_xlim(aux_xlim[0]-aux_dxlim*0.5*self.zoom_fac, aux_xlim[1]-aux_dxlim*0.5*self.zoom_fac)
+        self.ax.set_xlim(aux_xmin, aux_xmax)
+        self._update_pts_(box=[aux_xmin, aux_xmax, aux_ymin, aux_ymax])
+        self._update_tri_()
         
     def _moveright_(self):
         self.hitxt.set_text('[right]')
-        aux_xlim  = self.ax.get_xlim()
-        aux_dxlim = aux_xlim[1]-aux_xlim[0]
+        aux_xmin, aux_xmax  = self.ax.get_xlim()
+        aux_ymin, aux_ymax  = self.ax.get_ylim()
+        aux_dxlim           = aux_xmax-aux_xmin
+        aux_xmin, aux_xmax  = aux_xmin+aux_dxlim*self.move_fac, aux_xmax+aux_dxlim*self.move_fac
         # shift x axes limits
-        self.ax.set_xlim(aux_xlim[0]+aux_dxlim*0.5*self.zoom_fac, aux_xlim[1]+aux_dxlim*0.5*self.zoom_fac)
+        self.ax.set_xlim(aux_xmin, aux_xmax)
+        self._update_pts_(box=[aux_xmin, aux_xmax, aux_ymin, aux_ymax])
+        self._update_tri_()
     
-    def _movecenter_(self):
-        aux_xlim, aux_ylim   = self.ax.get_xlim(), self.ax.get_ylim()
-        aux_dxlim, aux_dylim = aux_xlim[1]-aux_xlim[0], aux_ylim[1]-aux_ylim[0]
-        # shift xy axes limits
-        self.ax.set_xlim(self.xs[self.idx_c]-aux_dxlim*0.5, self.xs[self.idx_c]+aux_dxlim*0.5)
-        self.ax.set_ylim(self.ys[self.idx_c]-aux_dylim*0.5, self.ys[self.idx_c]+aux_dylim*0.5)
-        
     #___________________________________________________________________________________________________
     # update position and data of scatter points according to selected box
-    def _update_pts_(self):
+    def _update_pts_(self, box=None):
         # set indices mask for vertices and element centroids in box 
         # create first round of scatter points from box_list with index 0 
         self.tri  = Triangulation(np.hstack((self.mesh.n_x,self.mesh.n_xa)),
@@ -1916,9 +1950,14 @@ class select_polygon_basin(object):
         self.xs   = self.mesh.n_x
         self.ys   = self.mesh.n_y
         self.idxd = np.ones(self.tri.triangles.shape[0], dtype=bool)
+        if box is not None: 
+            self.idxd = grid_cutbox_e(self.tri.x, self.tri.y, self.tri.triangles, box, which='soft')
         idxn = None
         if any(self.idxd==False):
             self.tri, idxn = do_reindex_vert_and_elem(self.tri, self.idxd)
+        
+        #self.hitxt.set_text(' NTRI={:f}'.format(self.tri.triangles.shape[0]))
+        
         self.tri.mask_e_box     = self.idxd
         self.tri.mask_n_box     = idxn
         
@@ -1954,8 +1993,8 @@ class select_polygon_basin(object):
     def _update_tri_(self):
         if self.do_tri:
             if self.htri is not None: 
-               for line in self.htri :
-                line.remove()
+                for line in self.htri :
+                    line.remove()
             self.htri=self.ax.triplot(self.tri, linewidth=0.25, color= 'k', zorder=0)
 
     #___________________________________________________________________________________________________
