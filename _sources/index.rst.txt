@@ -36,6 +36,16 @@ Welcome to tripyview's documentation!
    :undoc-members:
    :show-inheritance:      
    
+.. automodule:: tripyview.sub_zmoc
+   :members:
+   :undoc-members:
+   :show-inheritance:      
+   
+.. automodule:: tripyview.sub_dmoc
+   :members:
+   :undoc-members:
+   :show-inheritance:         
+   
 Indices and tables
 ==================
 

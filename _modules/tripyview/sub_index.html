@@ -266,7 +266,6 @@
 <div class="viewcode-block" id="plot_index_region">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_index.plot_index_region">[docs]</a>
 <span class="k">def</span> <span class="nf">plot_index_region</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">idx_IN</span><span class="p">,</span> <span class="n">box_list</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;hard&#39;</span><span class="p">):</span>
-    <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot index definition region </span>
 <span class="sd">    </span>
@@ -276,25 +275,28 @@
 <span class="sd">        </span>
 <span class="sd">        :idx_IN:        list with bool np.array which vertices are within index defintion </span>
 <span class="sd">                        region</span>
-<span class="sd">    </span>
-<span class="sd">        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: </span>
-
-<span class="sd">                    - [&#39;global&#39;]   ... compute global index </span>
-<span class="sd">                    - [shp.Reader] ... index region defined by shapefile </span>
-<span class="sd">                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box </span>
-<span class="sd">                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon</span>
-<span class="sd">                    - [ np.array(2 x npts), boxname] index region defined by polygon</span>
-
-<span class="sd">        :which:     str, (default=hard)</span>
-<span class="sd">                    - &#39;soft&#39; plot triangles that at least one selected vertice in them</span>
-<span class="sd">                    - &#39;hard&#39; plot triangles that at all three selected vertice in them </span>
-<span class="sd">                    - &#39;mid&#39;  plot triangles that have more than one selected vertice in them</span>
-<span class="sd">                    </span>
+<span class="sd">        </span>
+<span class="sd">        :box_list:      None, list (default: None)  list with regional box limitation for index computation box can be: </span>
+<span class="sd">        </span>
+<span class="sd">                        - [&#39;global&#39;]   ... compute global index </span>
+<span class="sd">                        - [shp.Reader] ... index region defined by shapefile </span>
+<span class="sd">                        - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box </span>
+<span class="sd">                        - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon</span>
+<span class="sd">                        - [ np.array(2 x npts), boxname] index region defined by polygon</span>
+<span class="sd">        </span>
+<span class="sd">        :which:         str, (default=hard)</span>
+<span class="sd">                        - &#39;soft&#39; plot triangles that at least one selected vertice in them</span>
+<span class="sd">                        - &#39;hard&#39; plot triangles that at all three selected vertice in them </span>
+<span class="sd">                        - &#39;mid&#39;  plot triangles that have more than one selected vertice in them</span>
+<span class="sd">        </span>
 <span class="sd">    Returns:</span>
 <span class="sd">        </span>
 <span class="sd">        :None:</span>
 <span class="sd">    </span>
+<span class="sd">    ____________________________________________________________________________</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># make triangulation</span>

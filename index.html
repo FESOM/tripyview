@@ -4152,7 +4152,7 @@ option are</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_data.load_data_fesom2">
 <span class="sig-prename descclassname"><span class="pre">tripyview.sub_data.</span></span><span class="sig-name descname"><span class="pre">load_data_fesom2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datapath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">year</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">day</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">record</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">depidx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_tarithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_zarithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_zweight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_hweight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_nan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_ie2n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_vecrot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'run'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descript</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fesom'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_prec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'float32'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_f14cmip6</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_compute</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_load</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_persist</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_parallel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'edg_n':</span> <span class="pre">'auto',</span> <span class="pre">'elem':</span> <span class="pre">'auto',</span> <span class="pre">'ndens':</span> <span class="pre">'auto',</span> <span class="pre">'nod2':</span> <span class="pre">'auto',</span> <span class="pre">'nz':</span> <span class="pre">'auto',</span> <span class="pre">'nz1':</span> <span class="pre">'auto',</span> <span class="pre">'time':</span> <span class="pre">'auto'}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_showtime</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_data.html#load_data_fesom2"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_data.load_data_fesom2" title="Link to this definition">¶</a></dt>
-<dd><p>–&gt; general loading of</p>
+<dd><p>–&gt; general loading of fesom2 and fesom14cmip6 data</p>
 <p>Parameters:</p>
 <blockquote>
 <div><dl class="field-list simple">
@@ -4745,9 +4745,446 @@ the chunking</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_index.plot_index_region">
 <span class="sig-prename descclassname"><span class="pre">tripyview.sub_index.</span></span><span class="sig-name descname"><span class="pre">plot_index_region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx_IN</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">box_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">which</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'hard'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_index.html#plot_index_region"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_index.plot_index_region" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>–&gt; plot index definition region</p>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">mesh<span class="colon">:</span></dt>
+<dd class="field-odd"><p>fesom2 tripyview mesh object,  with all mesh information</p>
+</dd>
+<dt class="field-even">idx_IN<span class="colon">:</span></dt>
+<dd class="field-even"><p>list with bool np.array which vertices are within index defintion 
+region</p>
+</dd>
+<dt class="field-odd">box_list<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None, list (default: None)  list with regional box limitation for index computation box can be:</p>
+<ul class="simple">
+<li><p>[‘global’]   … compute global index</p></li>
+<li><p>[shp.Reader] … index region defined by shapefile</p></li>
+<li><p>[ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box</p></li>
+<li><p>[ [ [px1,px2…], [py1,py2,…]], boxname] index region defined by polygon</p></li>
+<li><p>[ np.array(2 x npts), boxname] index region defined by polygon</p></li>
+</ul>
+</dd>
+<dt class="field-even">which<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, (default=hard)
+- ‘soft’ plot triangles that at least one selected vertice in them
+- ‘hard’ plot triangles that at all three selected vertice in them 
+- ‘mid’  plot triangles that have more than one selected vertice in them</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">None<span class="colon">:</span></dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<hr class="docutils" />
+<dl class="py function" id="module-tripyview.sub_zmoc">
+<dt class="sig sig-object py" id="tripyview.sub_zmoc.calc_bottom_patch">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_zmoc.</span></span><span class="sig-name descname"><span class="pre">calc_bottom_patch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat_bin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx_iz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idxin</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_zmoc.html#calc_bottom_patch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_zmoc.calc_bottom_patch" title="Link to this definition">¶</a></dt>
+<dd><p>–&gt; compute idealized AMOC bottom path based on 3d data bathymetry structure</p>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list">
+<dt class="field-odd">data<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xarray MOC data object</p>
+</dd>
+<dt class="field-even">lat_bin<span class="colon">:</span></dt>
+<dd class="field-even"><p>xarray Array with latitudinal bins</p>
+</dd>
+<dt class="field-odd">idx_iz<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>xarray Array with 2d bottom zlevel index. Can be for </dt><dd><p>elements or vertices</p>
+</dd>
+</dl>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">idx_iz</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_iz</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elem&#39;</span><span class="p">]),</span> <span class="ow">or</span> 
+<span class="n">idx_iz</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_iz</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;nod2&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd>
+<dt class="field-even">idxin<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool index array for regional basin selection</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">data<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xarray MOC data object with additional coord: botnice</p>
+</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<hr class="docutils" />
+<dl class="py function">
+<dt class="sig sig-object py" id="tripyview.sub_zmoc.calc_zmoc">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_zmoc.</span></span><span class="sig-name descname"><span class="pre">calc_zmoc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dlat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">which_moc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gmoc'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_onelem</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagpath</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_checkbasin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_parallel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_compute</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_load</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_persist</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_zmoc.html#calc_zmoc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_zmoc.calc_zmoc" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>–&gt; calculate meridional overturning circulation from vertical velocities </dt><dd><p>(Pseudostreamfunction) either on vertices or elements</p>
+</dd>
+</dl>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list">
+<dt class="field-odd">mesh<span class="colon">:</span></dt>
+<dd class="field-odd"><p>fesom2 tripyview mesh object,  with all mesh information</p>
+</dd>
+<dt class="field-even">data<span class="colon">:</span></dt>
+<dd class="field-even"><p>xarray dataset object with 3d vertical velocities</p>
+</dd>
+<dt class="field-odd">dlat<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float (default=1.0), latitudinal binning resolution</p>
+</dd>
+<dt class="field-even">which_moc<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, shp.Reader() (default=’gmox’) which global or regional 
+MOC should be computed based on present day shapefiles. 
+·Options are:</p>
+<ul class="simple">
+<li><p>‘gmoc’  … compute global MOC</p></li>
+<li><p>‘amoc’  … compute MOC for Atlantic Basin</p></li>
+<li><p>‘aamoc’ … compute MOC for Atlantic+Arctic Basin</p></li>
+<li><p>‘pmoc’  … compute MOC for Pacific Basin</p></li>
+<li><p>‘ipmoc’ … compute MOC for Indo-Pacific Basin (PMOC how it should be)</p></li>
+<li><p>‘imoc’  … compute MOC for Indian-Ocean Basin</p></li>
+<li><p>shp.Reader(‘path’) … compute MOC based on custom shapefile</p></li>
+</ul>
+<p>Important:
+Between ‘amoc’ and ‘aamoc’ there is not much difference 
+in variability, but upto 1.5Sv in amplitude. Where ‘aamoc’
+is stronger than ‘amoc’. There is no clear rule which one 
+is better, just be sure you are consistent</p>
+</dd>
+<dt class="field-odd">do_onelem<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=False) … should computation be done on 
+elements or vertices</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>:diagpath       str (default=None) if str give custom path to specific fesom2</dt><dd><p>fesom.mesh.diag.nc file, if None routine looks automatically in    
+meshfolder and original datapath folder (stored as attribute in)
+xarray dataset object</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">do_checkbasin<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=False) provide plot with regional basin selection</p>
+</dd>
+<dt class="field-even">do_parallel<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False) do computation of binning based MOC 
+in parallel</p>
+</dd>
+<dt class="field-odd">n_workers<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int (default=10) how many worker (CPUs) are used for the 
+parallelized MOC computation</p>
+</dd>
+<dt class="field-even">do_compute<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False), do xarray dataset compute() at the end
+data = data.compute(), creates a new dataobject the original
+data object seems to persist</p>
+</dd>
+<dt class="field-odd">do_load<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=True), do xarray dataset load() at the end
+data = data.load(), applies all operations to the original
+dataset</p>
+</dd>
+<dt class="field-even">do_persist<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False), do xarray dataset persist() at the end
+data = data.persist(), keeps the dataset as dask array, keeps
+the chunking</p>
+</dd>
+<dt class="field-odd">do_info<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (defalt=True), print variable info at the end</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">zmoc<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object, returns xarray dataset object with MOC</p>
+</dd>
+</dl>
+</div></blockquote>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">tpv</span><span class="o">.</span><span class="n">load_data_fesom2</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">datapath</span><span class="p">,</span> <span class="n">vname</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">year</span><span class="o">=</span><span class="n">year</span><span class="p">,</span> <span class="n">descript</span><span class="o">=</span><span class="n">descript</span><span class="p">,</span> 
+                            <span class="n">do_zarithm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_nan</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_load</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_persist</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">zmoc</span> <span class="o">=</span> <span class="n">tpv</span><span class="o">.</span><span class="n">calc_zmoc</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dlat</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">which_moc</span><span class="o">=</span><span class="s1">&#39;amoc&#39;</span><span class="p">)</span>
+
+<span class="n">data_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">zmoc</span> <span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<hr class="docutils" />
+<dl class="py function" id="module-tripyview.sub_dmoc">
+<dt class="sig sig-object py" id="tripyview.sub_dmoc.calc_dmoc">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_dmoc.</span></span><span class="sig-name descname"><span class="pre">calc_dmoc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_dMOC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dlat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">which_moc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gmoc'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">which_transf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_checkbasin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude_meditoce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_bolus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_parallel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_compute</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_load</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_persist</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_dropvar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_dmoc.html#calc_dmoc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_dmoc.calc_dmoc" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>–&gt; calculate meridional overturning circulation from vertical velocities </dt><dd><p>(Pseudostreamfunction) either on vertices or elements</p>
+</dd>
+</dl>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list">
+<dt class="field-odd">mesh<span class="colon">:</span></dt>
+<dd class="field-odd"><p>fesom2 tripyview mesh object,  with all mesh information</p>
+</dd>
+<dt class="field-even">data_dMOC<span class="colon">:</span></dt>
+<dd class="field-even"><p>xarray dataset object with 3d density class data</p>
+</dd>
+<dt class="field-odd">dlat<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float (default=1.0), latitudinal binning resolution</p>
+</dd>
+<dt class="field-even">which_moc<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, shp.Reader() (default=’gmox’) which global or regional 
+MOC should be computed based on present day shapefiles. 
+·Options are:</p>
+<ul class="simple">
+<li><p>‘gmoc’  … compute global MOC</p></li>
+<li><p>‘amoc’  … compute MOC for Atlantic Basin</p></li>
+<li><p>‘aamoc’ … compute MOC for Atlantic+Arctic Basin</p></li>
+<li><p>‘pmoc’  … compute MOC for Pacific Basin</p></li>
+<li><p>‘ipmoc’ … compute MOC for Indo-Pacific Basin (PMOC how it should be)</p></li>
+<li><p>‘imoc’  … compute MOC for Indian-Ocean Basin</p></li>
+<li><p>shp.Reader(‘path’) … compute MOC based on custom shapefile</p></li>
+</ul>
+<p>Important:
+Between ‘amoc’ and ‘aamoc’ there is not much difference 
+in variability, but upto 1.5Sv in amplitude. Where ‘aamoc’
+is stronger than ‘amoc’. There is no clear rule which one 
+is better, just be sure you are consistent</p>
+</dd>
+<dt class="field-odd">which_transf<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str (default=’dmoc’) which transformation should be computed
+options area</p>
+<ul class="simple">
+<li><p>‘dmoc’    compute dmoc density transformation</p></li>
+<li><p>‘srf’     compute density transform. from surface forcing</p></li>
+<li><p>‘inner’   compute density transform. from interior mixing (dmoc-srf)</p></li>
+</ul>
+</dd>
+<dt class="field-even">do_checkbasin<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False) provide plot with regional basin selection</p>
+</dd>
+<dt class="field-odd">exclude_meditoce<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=False) exclude mediteranian sea from basin selection</p>
+</dd>
+<dt class="field-even">do_bolus<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False) load density class divergence from bolus velolcity
+and add them to the total density class divergence</p>
+</dd>
+<dt class="field-odd">do_dropvar<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=true) drop all variables from dataset that are not                
+absolutely needed</p>
+</dd>
+<dt class="field-even">do_parallel<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False) do computation of binning based MOC 
+in parallel</p>
+</dd>
+<dt class="field-odd">n_workers<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int (default=10) how many worker (CPUs) are used for the 
+parallelized MOC computation</p>
+</dd>
+<dt class="field-even">do_compute<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False), do xarray dataset compute() at the end
+data = data.compute(), creates a new dataobject the original
+data object seems to persist</p>
+</dd>
+<dt class="field-odd">do_load<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=True), do xarray dataset load() at the end
+data = data.load(), applies all operations to the original
+dataset</p>
+</dd>
+<dt class="field-even">do_persist<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False), do xarray dataset persist() at the end
+data = data.persist(), keeps the dataset as dask array, keeps
+the chunking</p>
+</dd>
+<dt class="field-odd">do_info<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (defalt=True), print variable info at the end</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">dmoc<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object, returns xarray dataset object with DMOC</p>
+</dd>
+</dl>
+</div></blockquote>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">tpv</span><span class="o">.</span><span class="n">load_dmoc_data</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">datapath</span><span class="p">,</span> <span class="n">std_dens</span><span class="p">,</span> <span class="n">year</span><span class="o">=</span><span class="n">year</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="s1">&#39;dmoc&#39;</span><span class="p">,</span> <span class="n">descript</span><span class="o">=</span><span class="n">descript</span><span class="p">,</span>
+              <span class="n">do_zcoord</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_bolus</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_load</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_persist</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="n">dmoc</span>     <span class="o">=</span> <span class="n">tpv</span><span class="o">.</span><span class="n">calc_dmoc</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dlat</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">which_moc</span><span class="o">=</span><span class="n">vname</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="s1">&#39;dmoc&#39;</span><span class="p">)</span>
+
+<span class="n">data_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">dmoc</span> <span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<hr class="docutils" />
+<dl class="py function">
+<dt class="sig sig-object py" id="tripyview.sub_dmoc.do_ztransform">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_dmoc.</span></span><span class="sig-name descname"><span class="pre">do_ztransform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_dmoc.html#do_ztransform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_dmoc.do_ztransform" title="Link to this definition">¶</a></dt>
+<dd><section id="id1">
+<h2>–&gt;<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h2>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="tripyview.sub_dmoc.do_ztransform_hydrography">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_dmoc.</span></span><span class="sig-name descname"><span class="pre">do_ztransform_hydrography</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_dmoc.html#do_ztransform_hydrography"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_dmoc.do_ztransform_hydrography" title="Link to this definition">¶</a></dt>
+<dd><section id="id2">
+<h2>–&gt;<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h2>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="tripyview.sub_dmoc.do_ztransform_martin">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_dmoc.</span></span><span class="sig-name descname"><span class="pre">do_ztransform_martin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_dmoc.html#do_ztransform_martin"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_dmoc.do_ztransform_martin" title="Link to this definition">¶</a></dt>
+<dd><section id="id3">
+<h2>–&gt;<a class="headerlink" href="#id3" title="Link to this heading">¶</a></h2>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="tripyview.sub_dmoc.do_ztransform_mom6">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_dmoc.</span></span><span class="sig-name descname"><span class="pre">do_ztransform_mom6</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_dmoc.html#do_ztransform_mom6"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_dmoc.do_ztransform_mom6" title="Link to this definition">¶</a></dt>
+<dd><section id="id4">
+<h2>–&gt;<a class="headerlink" href="#id4" title="Link to this heading">¶</a></h2>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="tripyview.sub_dmoc.load_dmoc_data">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_dmoc.</span></span><span class="sig-name descname"><span class="pre">load_dmoc_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datapath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_dens</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">year</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">which_transf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'dmoc'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_tarithm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_bolus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_bolus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_trend</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_wdiap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_dflx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_zcoord</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_useZinfo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'std_dens_H'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_ndensz</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">descript</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_compute</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_load</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_persist</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_parallel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_dmoc.html#load_dmoc_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_dmoc.load_dmoc_data" title="Link to this definition">¶</a></dt>
+<dd><p>–&gt; load data that are neccessary for density moc computation</p>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">mesh<span class="colon">:</span></dt>
+<dd class="field-odd"><p>fesom2 tripyview mesh object,  with all mesh information</p>
+</dd>
+<dt class="field-even">datapath<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, path that leads to the FESOM2 data</p>
+</dd>
+<dt class="field-odd">std_dens<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.array with sigma2 density bins that were used in FESOM2
+for the DMOC diagnostic</p>
+</dd>
+<dt class="field-even">year<span class="colon">:</span></dt>
+<dd class="field-even"><p>int, list, np.array, range, default: None, single year or 
+list/array of years whos file should be opened</p>
+</dd>
+<dt class="field-odd">which_transf<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str (default=’dmoc’) which transformation should be computed
+options area</p>
+<ul class="simple">
+<li><p>‘dmoc’    compute dmoc density transformation</p></li>
+<li><p>‘srf’     compute density transform. from surface forcing</p></li>
+<li><p>‘inner’   compute density transform. from interior mixing (dmoc-srf)</p></li>
+</ul>
+</dd>
+<dt class="field-even">do_tarithm<span class="colon">:</span></dt>
+<dd class="field-even"><p>str (default=’mean’) do time arithmetic on time selection
+option are: None, ‘None’, ‘mean’, ‘median’, ‘std’, ‘var’, ‘max’
+‘min’, ‘sum’</p>
+</dd>
+<dt class="field-odd">do_bolus<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=False) load density class divergence from bolus velolcity
+and add them to the total density class divergence</p>
+</dd>
+<dt class="field-even">add_bolus<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False) include density class divergence from bolus velolcity
+as separate varaible in xarray dataset object</p>
+</dd>
+<dt class="field-odd">add_trend<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=False) include density class volume trend  
+as separate varaible in xarray dataset object</p>
+</dd>
+<dt class="field-even">do_wdiap<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False) load data to be used to only look at
+diapycnal vertical velocity</p>
+</dd>
+<dt class="field-odd">do_dflx<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=False) load data to be used for the computation 
+surface buoyancy forced transformations vertical velocities</p>
+</dd>
+<dt class="field-even">do_zcoord<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=True)  do density MOC remapping back into zcoord
+space</p>
+</dd>
+<dt class="field-odd">do_useZinfo<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str (default=’std_dens_H’) which data should be used for the 
+zcoord remapping. Options are:</p>
+<ul class="simple">
+<li><p>‘std_dens_H’   use mean layerthickness of density classes (best option)</p></li>
+<li><p>‘hydrography’  use mean sigma2 hydrography to estime z position of density classes (OK),</p></li>
+<li><p>‘density_dMOC’ use density_dMOC variable to estime z position of density classes (Bad),</p></li>
+<li><p>‘std_dens_Z’   use mean depth of density classes (very bad)</p></li>
+</ul>
+</dd>
+<dt class="field-even">do_ndensz<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False) alreadz compute here the density class z position
+from the density class layer thickness by cumulatic sumation</p>
+</dd>
+<dt class="field-odd">descript<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str (default=’’), string to describe dataset is written into 
+variable attributes</p>
+</dd>
+<dt class="field-even">do_compute<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False), do xarray dataset compute() at the end
+data = data.compute(), creates a new dataobject the original
+data object seems to persist</p>
+</dd>
+<dt class="field-odd">do_load<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=True), do xarray dataset load() at the end
+data = data.load(), applies all operations to the original
+dataset</p>
+</dd>
+<dt class="field-even">do_persist<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (default=False), do xarray dataset persist() at the end
+data = data.persist(), keeps the dataset as dask array, keeps
+the chunking</p>
+</dd>
+<dt class="field-odd">chunks<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict(), (default=dict({‘time’:’auto’, …})) dictionary 
+with chunksize of specific dimensions. By default setted 
+to auto but can also be setted to specific value. In my 
+observation it revealed that the loading of data was a factor 2-3
+faster with auto-chunking but this might has its limitation
+for very large meshes</p>
+</dd>
+<dt class="field-even">do_info<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool (defalt=True), print variable info at the end</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">data<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object, returns xarray dataset object with density class informations</p>
+</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
 
 </section>
+<hr class="docutils" />
 <section id="indices-and-tables">
 <h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">¶</a></h1>
 <ul class="simple">

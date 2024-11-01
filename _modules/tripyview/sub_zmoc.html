@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tripyview.sub_zmoc &#8212; tripyview 0.3.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head><body>
+    <div class="header-wrapper" role="banner">
+      <div class="header">
+        <div class="headertitle"><a
+          href="../../index.html">tripyview 0.3.0 documentation</a></div>
+        <div class="rel" role="navigation" aria-label="Related">
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a>
+        </div>
+       </div>
+    </div>
+
+    <div class="content-wrapper">
+      <div class="content">
+        <div class="document">
+            
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tripyview.sub_zmoc</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Patrick, Scholz 02.09.2018</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">time</span> <span class="k">as</span> <span class="nn">clock</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">netCDF4</span> <span class="kn">import</span> <span class="n">Dataset</span>
+<span class="kn">import</span> <span class="nn">xarray</span> <span class="k">as</span> <span class="nn">xr</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;contour.negative_linestyle&#39;</span><span class="p">]</span><span class="o">=</span> <span class="s1">&#39;solid&#39;</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="c1">#import matplotlib.patches as Polygon</span>
+<span class="c1">#import matplotlib.path as mpltPath</span>
+<span class="c1">#from matplotlib.tri import Triangulation</span>
+<span class="kn">from</span> <span class="nn">numba</span> <span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">njit</span><span class="p">,</span> <span class="n">prange</span>
+<span class="kn">import</span> <span class="nn">shapefile</span> <span class="k">as</span> <span class="nn">shp</span>
+<span class="kn">from</span> <span class="nn">matplotlib.ticker</span> <span class="kn">import</span> <span class="n">FormatStrFormatter</span>
+<span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="kn">import</span> <span class="n">interp1d</span>
+<span class="kn">from</span> <span class="nn">numpy.matlib</span> <span class="kn">import</span> <span class="n">repmat</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">interpolate</span>
+<span class="kn">import</span> <span class="nn">numpy.ma</span> <span class="k">as</span> <span class="nn">ma</span>
+
+<span class="kn">from</span> <span class="nn">.sub_colormap</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">.sub_utility</span>  <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">.sub_plot</span>     <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="c1"># ___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________</span>
+<span class="c1">#|                                                                             |</span>
+<span class="c1">#|                                                                             |</span>
+<span class="c1">#|_____________________________________________________________________________|</span>
+<div class="viewcode-block" id="calc_zmoc">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_zmoc.calc_zmoc">[docs]</a>
+<span class="k">def</span> <span class="nf">calc_zmoc</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> 
+              <span class="n">data</span><span class="p">,</span> 
+              <span class="n">dlat</span>          <span class="o">=</span> <span class="mf">1.0</span>       <span class="p">,</span> 
+              <span class="n">which_moc</span>     <span class="o">=</span> <span class="s1">&#39;gmoc&#39;</span>    <span class="p">,</span> 
+              <span class="n">do_onelem</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+              <span class="n">diagpath</span>      <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
+              <span class="n">do_checkbasin</span> <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+              <span class="n">do_parallel</span>   <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+              <span class="n">n_workers</span>     <span class="o">=</span> <span class="mi">10</span>        <span class="p">,</span> 
+              <span class="n">do_compute</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+              <span class="n">do_load</span>       <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
+              <span class="n">do_persist</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+              <span class="n">do_info</span>       <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
+              <span class="o">**</span><span class="n">kwargs</span>                  <span class="p">,</span> 
+             <span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; calculate meridional overturning circulation from vertical velocities </span>
+<span class="sd">        (Pseudostreamfunction) either on vertices or elements</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">    </span>
+<span class="sd">        :mesh:          fesom2 tripyview mesh object,  with all mesh information </span>
+<span class="sd">        </span>
+<span class="sd">        :data:          xarray dataset object with 3d vertical velocities</span>
+<span class="sd">        </span>
+<span class="sd">        :dlat:          float (default=1.0), latitudinal binning resolution</span>
+<span class="sd">        </span>
+<span class="sd">        :which_moc:     str, shp.Reader() (default=&#39;gmox&#39;) which global or regional </span>
+<span class="sd">                        MOC should be computed based on present day shapefiles. </span>
+<span class="sd">                        ·Options are:</span>
+<span class="sd">                        </span>
+<span class="sd">                        - &#39;gmoc&#39;  ... compute global MOC</span>
+<span class="sd">                        - &#39;amoc&#39;  ... compute MOC for Atlantic Basin</span>
+<span class="sd">                        - &#39;aamoc&#39; ... compute MOC for Atlantic+Arctic Basin</span>
+<span class="sd">                        - &#39;pmoc&#39;  ... compute MOC for Pacific Basin</span>
+<span class="sd">                        - &#39;ipmoc&#39; ... compute MOC for Indo-Pacific Basin (PMOC how it should be)</span>
+<span class="sd">                        - &#39;imoc&#39;  ... compute MOC for Indian-Ocean Basin</span>
+<span class="sd">                        - shp.Reader(&#39;path&#39;) ... compute MOC based on custom shapefile</span>
+<span class="sd">                        </span>
+<span class="sd">                        Important:</span>
+<span class="sd">                        Between &#39;amoc&#39; and &#39;aamoc&#39; there is not much difference </span>
+<span class="sd">                        in variability, but upto 1.5Sv in amplitude. Where &#39;aamoc&#39;</span>
+<span class="sd">                        is stronger than &#39;amoc&#39;. There is no clear rule which one </span>
+<span class="sd">                        is better, just be sure you are consistent       </span>
+<span class="sd">                        </span>
+<span class="sd">        :do_onelem:     bool (default=False) ... should computation be done on </span>
+<span class="sd">                        elements or vertices</span>
+<span class="sd">        </span>
+<span class="sd">        :diagpath       str (default=None) if str give custom path to specific fesom2</span>
+<span class="sd">                        fesom.mesh.diag.nc file, if None routine looks automatically in    </span>
+<span class="sd">                        meshfolder and original datapath folder (stored as attribute in)</span>
+<span class="sd">                        xarray dataset object </span>
+<span class="sd">        </span>
+<span class="sd">        :do_checkbasin: bool (default=False) provide plot with regional basin selection</span>
+<span class="sd">        </span>
+<span class="sd">        :do_parallel:   bool (default=False) do computation of binning based MOC </span>
+<span class="sd">                        in parallel</span>
+<span class="sd">        </span>
+<span class="sd">        :n_workers:     int (default=10) how many worker (CPUs) are used for the </span>
+<span class="sd">                        parallelized MOC computation</span>
+<span class="sd">                        </span>
+<span class="sd">                        </span>
+<span class="sd">        :do_compute:    bool (default=False), do xarray dataset compute() at the end</span>
+<span class="sd">                        data = data.compute(), creates a new dataobject the original</span>
+<span class="sd">                        data object seems to persist</span>
+<span class="sd">        </span>
+<span class="sd">        :do_load:       bool (default=True), do xarray dataset load() at the end</span>
+<span class="sd">                        data = data.load(), applies all operations to the original</span>
+<span class="sd">                        dataset</span>
+<span class="sd">                        </span>
+<span class="sd">        :do_persist:    bool (default=False), do xarray dataset persist() at the end</span>
+<span class="sd">                        data = data.persist(), keeps the dataset as dask array, keeps</span>
+<span class="sd">                        the chunking   </span>
+<span class="sd">                        </span>
+<span class="sd">        :do_info:       bool (defalt=True), print variable info at the end </span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">    </span>
+<span class="sd">        :zmoc:          object, returns xarray dataset object with MOC</span>
+<span class="sd">        </span>
+<span class="sd">    ::</span>
+<span class="sd">    </span>
+<span class="sd">        data_list = list()</span>
+<span class="sd">        </span>
+<span class="sd">        data = tpv.load_data_fesom2(mesh, datapath, vname=&#39;w&#39;, year=year, descript=descript, </span>
+<span class="sd">                                    do_zarithm=None, do_nan=False, do_load=False, do_persist=True)</span>
+<span class="sd">        </span>
+<span class="sd">        zmoc = tpv.calc_zmoc(mesh, data, dlat=1.0, which_moc=&#39;amoc&#39;)</span>
+<span class="sd">        </span>
+<span class="sd">        data_list.append( zmoc )</span>
+<span class="sd">    </span>
+<span class="sd">    ____________________________________________________________________________</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="n">t1</span><span class="o">=</span><span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="c1"># In case MOC is defined via string</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">which_moc</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">which_moc_name</span> <span class="o">=</span> <span class="n">which_moc</span>
+        <span class="k">if</span> <span class="n">do_info</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;_____calc. &#39;</span><span class="o">+</span><span class="n">which_moc</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="o">+</span><span class="s1">&#39; from vertical velocities via meridional bins_____&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># In case MOC is defined via  custom shapefile e.g for deep paleo time slices</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">which_moc</span><span class="p">,</span> <span class="n">shp</span><span class="o">.</span><span class="n">Reader</span><span class="p">):</span>
+        <span class="c1"># Extract the &#39;Name&#39; attribute for each shape</span>
+        <span class="n">field_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">field</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">which_moc</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
+        <span class="n">which_moc_name</span><span class="p">,</span> <span class="n">which_moc_region</span> <span class="o">=</span> <span class="s1">&#39;moc&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span>
+        <span class="c1"># search for &quot;Name&quot; attribute in shapefile</span>
+        <span class="k">if</span> <span class="s2">&quot;Name&quot;</span> <span class="ow">in</span> <span class="n">field_names</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="p">[</span><span class="n">field</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">which_moc</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;Name&quot;</span><span class="p">)</span>
+            <span class="n">which_moc_name</span> <span class="o">=</span> <span class="p">[</span><span class="n">record</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">which_moc</span><span class="o">.</span><span class="n">records</span><span class="p">()][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># search for &quot;Region&quot; attribute in shapefile    </span>
+        <span class="k">if</span> <span class="s2">&quot;Region&quot;</span> <span class="ow">in</span> <span class="n">field_names</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="p">[</span><span class="n">field</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">which_moc</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;Region&quot;</span><span class="p">)</span>
+            <span class="n">which_moc_region</span> <span class="o">=</span> <span class="p">[</span><span class="n">record</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">which_moc</span><span class="o">.</span><span class="n">records</span><span class="p">()][</span><span class="mi">0</span><span class="p">]</span>
+            
+        <span class="k">if</span> <span class="n">do_info</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;_____calc. &#39;</span><span class="o">+</span><span class="n">which_moc_name</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="o">+</span><span class="s1">&#39; from vertical velocities via meridional bins_____&#39;</span><span class="p">)</span>
+        
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># compute/use index for basin domain limitation</span>
+    <span class="k">if</span> <span class="n">do_onelem</span><span class="p">:</span>
+        <span class="n">idxin</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">calc_basindomain_fast</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">which_moc</span><span class="o">=</span><span class="n">which_moc</span><span class="p">,</span> <span class="n">do_onelem</span><span class="o">=</span><span class="n">do_onelem</span><span class="p">),</span> <span class="n">dims</span><span class="o">=</span><span class="s1">&#39;elem&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">idxin</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">calc_basindomain_fast</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">which_moc</span><span class="o">=</span><span class="n">which_moc</span><span class="p">,</span> <span class="n">do_onelem</span><span class="o">=</span><span class="n">do_onelem</span><span class="p">),</span> <span class="n">dims</span><span class="o">=</span><span class="s1">&#39;nod2&#39;</span><span class="p">)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">if</span> <span class="n">do_checkbasin</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
+        <span class="n">tri</span> <span class="o">=</span> <span class="n">Triangulation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_xa</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_ya</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_0</span><span class="p">,:],</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_ia</span><span class="p">)))</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">triplot</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">do_onelem</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">triplot</span><span class="p">(</span><span class="n">tri</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">tri</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">tri</span><span class="o">.</span><span class="n">triangles</span><span class="p">[</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">idxin</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_0</span><span class="p">],</span> <span class="n">idxin</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_a</span><span class="p">]))</span> <span class="p">,:],</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">idxin</span><span class="p">],</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="n">idxin</span><span class="p">],</span> <span class="s1">&#39;or&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Basin selection&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># rescue global and variable attributes</span>
+    <span class="n">vname</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">gattr</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">attrs</span>
+    <span class="n">vattr</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># do moc calculation either on nodes or on elements        </span>
+    <span class="c1"># keep in mind that node area info is changing over depth--&gt; therefor load from file </span>
+    <span class="k">if</span> <span class="n">diagpath</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">fname</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;w&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;.mesh.diag.nc&#39;</span>
+        
+        <span class="k">if</span>   <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;w&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">],</span> <span class="n">fname</span><span class="p">)</span> <span class="p">):</span> 
+            <span class="n">dname</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;w&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;w&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">])),</span><span class="s1">&#39;1/&#39;</span><span class="p">),</span> <span class="n">fname</span><span class="p">)</span> <span class="p">):</span> 
+            <span class="n">dname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;w&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">])),</span><span class="s1">&#39;1/&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">path</span><span class="p">,</span><span class="n">fname</span><span class="p">)</span> <span class="p">):</span> 
+            <span class="n">dname</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">path</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;could not find directory with...mesh.diag.nc file&#39;</span><span class="p">)</span>
+        
+        <span class="n">diagpath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dname</span><span class="p">,</span><span class="n">fname</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">do_info</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; --&gt; found diag in directory:</span><span class="si">{}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">diagpath</span><span class="p">)</span>
+        
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># compute area weighted vertical velocities on elements</span>
+    <span class="k">if</span> <span class="n">do_onelem</span><span class="p">:</span>
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="n">edims</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">dtime</span><span class="p">,</span> <span class="n">delem</span><span class="p">,</span> <span class="n">dnz</span> <span class="o">=</span> <span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="s1">&#39;elem&#39;</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span>
+        <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dtime</span> <span class="o">=</span> <span class="s1">&#39;time&#39;</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># load elem area from diag file</span>
+        <span class="k">if</span> <span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">diagpath</span><span class="p">)):</span>
+            <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_mfdataset</span><span class="p">(</span><span class="n">diagpath</span><span class="p">,</span> <span class="n">parallel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="s1">&#39;elem_area&#39;</span><span class="p">]</span><span class="c1">#.chunk({&#39;elem&#39;:1e4})</span>
+            <span class="k">if</span> <span class="s1">&#39;elem_n&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">nz_w_A</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;elem_n&#39;</span><span class="p">:</span><span class="s1">&#39;elem&#39;</span><span class="p">})</span>
+            <span class="k">if</span> <span class="s1">&#39;nl&#39;</span>     <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">nz_w_A</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;nl&#39;</span>    <span class="p">:</span><span class="s1">&#39;nz&#39;</span>  <span class="p">})</span>
+            <span class="k">if</span> <span class="s1">&#39;nl1&#39;</span>    <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">nz_w_A</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;nl1&#39;</span>   <span class="p">:</span><span class="s1">&#39;nz1&#39;</span> <span class="p">})</span> 
+            
+        <span class="k">else</span><span class="p">:</span> 
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elem&#39;</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>    
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;could not find ...mesh.diag.nc file or the variable mesh.e_area&#39;</span><span class="p">)</span>
+            
+        <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span> <span class="n">elem</span><span class="o">=</span><span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">idxin</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elem&#39;</span><span class="p">])</span> <span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________    </span>
+        <span class="c1"># average from vertices towards elements</span>
+        <span class="n">e_i</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;elem&quot;</span><span class="p">,</span><span class="s1">&#39;n3&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> 
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;w&#39;</span><span class="p">][:,</span> <span class="n">e_i</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="s2">&quot;n3&quot;</span><span class="p">,</span> <span class="n">keep_attrs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">/</span><span class="mf">3.0</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>  
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;w&#39;</span><span class="p">][</span>   <span class="n">e_i</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="s2">&quot;n3&quot;</span><span class="p">,</span> <span class="n">keep_attrs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">/</span><span class="mf">3.0</span> <span class="p">)</span>
+        
+        <span class="c1"># drop un-necessary variables </span>
+        <span class="k">for</span> <span class="n">vdrop</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="s1">&#39;nodi&#39;</span><span class="p">,</span> <span class="s1">&#39;nodiz&#39;</span><span class="p">,</span> <span class="s1">&#39;w_A&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">vdrop</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">vdrop</span><span class="p">)</span>
+        <span class="c1">#data = data.drop([&#39;lon&#39;, &#39;lat&#39;, &#39;nodi&#39;, &#39;nodiz&#39;, &#39;w_A&#39;])    </span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">assign_coords</span><span class="p">(</span><span class="n">elemiz</span><span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_iz</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elem&#39;</span><span class="p">]))</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">assign_coords</span><span class="p">(</span><span class="n">elemi</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2de</span><span class="p">),</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elem&#39;</span><span class="p">]))</span>
+        
+        <span class="c1">#_______________________________________________________________________    </span>
+        <span class="c1"># select MOC basin </span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">elem</span><span class="o">=</span><span class="n">idxin</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________    </span>
+        <span class="c1"># enforce bottom topography --&gt; !!! important otherwise results will look </span>
+        <span class="c1"># weired</span>
+        <span class="n">mat_elemiz</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;elemiz&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">({</span><span class="s1">&#39;nz&#39;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;nzi&#39;</span><span class="p">]})</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+        <span class="n">mat_nzielem</span><span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;nzi&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">({</span><span class="s1">&#39;elem&#39;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;elemi&#39;</span><span class="p">]})</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">mat_nzielem</span><span class="o">.</span><span class="n">data</span><span class="o">&lt;</span><span class="n">mat_elemiz</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">mat_elemiz</span><span class="p">,</span> <span class="n">mat_nzielem</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># calculate area weighted mean</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">dtime</span><span class="p">,</span> <span class="n">dnz</span><span class="p">,</span> <span class="n">delem</span><span class="p">,</span> <span class="n">missing_dims</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="n">nz_w_A</span> <span class="o">*</span> <span class="mf">1e-6</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">dtime</span><span class="p">,</span> <span class="n">delem</span><span class="p">,</span> <span class="n">dnz</span><span class="p">,</span> <span class="n">missing_dims</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">nz_w_A</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># create meridional bins --&gt; this trick is from Nils Brückemann (ICON)</span>
+        <span class="n">lat</span>     <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mf">3.0</span>
+        <span class="n">lat_bin</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">lat</span><span class="p">[</span><span class="n">idxin</span><span class="p">]</span><span class="o">/</span><span class="n">dlat</span><span class="p">)</span><span class="o">*</span><span class="n">dlat</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="s1">&#39;elem&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>  
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># compute area weighted vertical velocities on vertices</span>
+    <span class="k">else</span><span class="p">:</span>    
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># load vertice cluster area from diag file</span>
+        <span class="k">if</span> <span class="s1">&#39;w_A&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">diagpath</span><span class="p">)):</span>
+                <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_mfdataset</span><span class="p">(</span><span class="n">diagpath</span><span class="p">,</span> <span class="n">parallel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="s1">&#39;nod_area&#39;</span><span class="p">]</span><span class="c1">#.chunk({&#39;nod2&#39;:1e4})</span>
+                <span class="k">if</span> <span class="s1">&#39;nod_n&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">nz_w_A</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;nod_n&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
+                <span class="k">if</span> <span class="s1">&#39;nl&#39;</span>    <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">nz_w_A</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;nl&#39;</span>   <span class="p">:</span><span class="s1">&#39;nz&#39;</span>  <span class="p">})</span>
+                <span class="k">if</span> <span class="s1">&#39;nl1&#39;</span>   <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">nz_w_A</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;nl1&#39;</span>  <span class="p">:</span><span class="s1">&#39;nz1&#39;</span> <span class="p">})</span>
+                <span class="c1"># you need to drop here the coordinates for nz since they go from </span>
+                <span class="c1"># 0...-6000 the coordinates of nz in the data go from 0...6000 that </span>
+                <span class="c1"># causes otherwise troubles</span>
+                <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">nz_w_A</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;nz&#39;</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span> 
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_area</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_area</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="c1"># this here is only for the special case when fesom14-CMIP6</span>
+                        <span class="c1"># data are load to compute the MOC</span>
+                        <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_area</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;nod2&#39;</span><span class="p">])</span>
+                    <span class="k">else</span><span class="p">:</span> 
+                        <span class="c1"># normal case when fesom2 data are used!!!</span>
+                        <span class="n">nz_w_A</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_area</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;nz&#39;</span><span class="p">,</span><span class="s1">&#39;nod2&#39;</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span> 
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;could not find ...mesh.diag.nc file&#39;</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">chunks</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span> <span class="n">nz_w_A</span><span class="o">=</span><span class="n">nz_w_A</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">chunksizes</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">assign_coords</span><span class="p">(</span><span class="n">w_A</span><span class="o">=</span><span class="n">nz_w_A</span><span class="p">)</span>
+            <span class="k">del</span><span class="p">(</span><span class="n">nz_w_A</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________    </span>
+        <span class="c1"># select MOC basin</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">nod2</span><span class="o">=</span><span class="n">idxin</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># calculate area weighted mean</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Sending large graph of size&quot;</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Large object of size&quot;</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">vname</span><span class="p">]</span><span class="o">*</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;w_A&#39;</span><span class="p">]</span><span class="o">*</span><span class="mf">1e-6</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+        <span class="c1">#t3 = clock.time()</span>
+        <span class="c1">#print(&#39;  --&gt; comp. area weighted mean&#39;, t3-t2)</span>
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># create meridional bins --&gt; this trick is from Nils Brückemann (ICON)</span>
+        <span class="n">lat_bin</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">lat</span><span class="o">/</span><span class="n">dlat</span><span class="p">)</span><span class="o">*</span><span class="n">dlat</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="s1">&#39;nod2&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>
+        <span class="n">lat</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">lat_bin</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">lat_bin</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">+</span><span class="n">dlat</span><span class="p">,</span> <span class="n">dlat</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">resetwarnings</span><span class="p">()</span>
+        <span class="c1">#t4 = clock.time()</span>
+        <span class="c1">#print(&#39;  --&gt; comp. lat_bin&#39;, t4-t3)</span>
+        
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># create ZMOC xarray Dataset</span>
+    <span class="c1"># define variable attributes    </span>
+    <span class="k">if</span>   <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;gmoc&#39;</span> <span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Global &#39;</span>
+    <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;amoc&#39;</span> <span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Atlantic &#39;</span>
+    <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;aamoc&#39;</span><span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Atlantic-Arctic &#39;</span>
+    <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;pmoc&#39;</span> <span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Pacific &#39;</span>
+    <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;ipmoc&#39;</span><span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Indo-Pacific &#39;</span>
+    <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;pmoc&#39;</span> <span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Indo &#39;</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">which_moc</span><span class="p">,</span><span class="n">shp</span><span class="o">.</span><span class="n">Reader</span><span class="p">):</span> <span class="n">str_region</span><span class="o">=</span><span class="n">which_moc_region</span>
+    
+    <span class="c1"># for the choice of vertical plotting mode</span>
+    <span class="n">gattr</span><span class="p">[</span><span class="s1">&#39;proj&#39;</span>         <span class="p">]</span><span class="o">=</span> <span class="s1">&#39;zmoc&#39;</span>
+    
+    <span class="n">vattr</span><span class="p">[</span><span class="s1">&#39;long_name&#39;</span>    <span class="p">]</span><span class="o">=</span> <span class="n">which_moc_name</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="n">vattr</span><span class="p">[</span><span class="s1">&#39;short_name&#39;</span>   <span class="p">]</span><span class="o">=</span> <span class="n">which_moc_name</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="n">vattr</span><span class="p">[</span><span class="s1">&#39;standard_name&#39;</span><span class="p">]</span><span class="o">=</span> <span class="n">str_region</span><span class="o">+</span><span class="s1">&#39;Meridional Overturning Circulation&#39;</span>
+    <span class="n">vattr</span><span class="p">[</span><span class="s1">&#39;description&#39;</span>  <span class="p">]</span><span class="o">=</span> <span class="n">str_region</span><span class="o">+</span><span class="s1">&#39;Meridional Overturning Circulation Streamfunction, positive: clockwise, negative: counter-clockwise circulation&#39;</span><span class="p">,</span> 
+    <span class="n">vattr</span><span class="p">[</span><span class="s1">&#39;units&#39;</span>        <span class="p">]</span><span class="o">=</span> <span class="s1">&#39;Sv&#39;</span>
+    <span class="c1"># define data_vars dict, coordinate dict, as well as list of dimension name </span>
+    <span class="c1"># and size </span>
+    <span class="n">data_vars</span><span class="p">,</span> <span class="n">coords</span><span class="p">,</span> <span class="n">dim_n</span><span class="p">,</span> <span class="n">dim_s</span><span class="p">,</span>  <span class="o">=</span> <span class="nb">dict</span><span class="p">(),</span> <span class="nb">dict</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dim_n</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">&#39;nz1&#39;</span>  <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dim_n</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;nz1&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dim_n</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;nz&#39;</span><span class="p">)</span>
+    <span class="n">dim_n</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dim_ni</span> <span class="ow">in</span> <span class="n">dim_n</span><span class="p">:</span>
+        <span class="k">if</span>   <span class="n">dim_ni</span><span class="o">==</span><span class="s1">&#39;time&#39;</span><span class="p">:</span> <span class="n">dim_s</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]);</span> <span class="n">coords</span><span class="p">[</span><span class="s1">&#39;time&#39;</span> <span class="p">]</span><span class="o">=</span><span class="p">([</span><span class="s1">&#39;time&#39;</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="p">)</span> 
+        <span class="k">elif</span> <span class="n">dim_ni</span><span class="o">==</span><span class="s1">&#39;lat&#39;</span> <span class="p">:</span> <span class="n">dim_s</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lat</span><span class="o">.</span><span class="n">size</span>          <span class="p">);</span> <span class="n">coords</span><span class="p">[</span><span class="s1">&#39;lat&#39;</span>  <span class="p">]</span><span class="o">=</span><span class="p">([</span><span class="s1">&#39;lat&#39;</span> <span class="p">],</span> <span class="n">lat</span>          <span class="p">)</span> 
+        <span class="k">elif</span> <span class="n">dim_ni</span><span class="o">==</span><span class="s1">&#39;nz1&#39;</span> <span class="p">:</span> <span class="n">dim_s</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="s1">&#39;nz1&#39;</span><span class="p">]</span> <span class="p">);</span> <span class="n">coords</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">]</span><span class="o">=</span><span class="p">([</span><span class="s1">&#39;nz1&#39;</span> <span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;nz1&#39;</span> <span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">dim_ni</span><span class="o">==</span><span class="s1">&#39;nz&#39;</span>  <span class="p">:</span> <span class="n">dim_s</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="s1">&#39;nz&#39;</span> <span class="p">]</span> <span class="p">);</span> <span class="n">coords</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">]</span><span class="o">=</span><span class="p">([</span><span class="s1">&#39;nz&#39;</span>  <span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;nz&#39;</span>  <span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="p">)</span> 
+    <span class="n">data_vars</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">dim_n</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">dim_s</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">),</span> <span class="n">vattr</span><span class="p">)</span> 
+    <span class="c1"># create dataset</span>
+    <span class="n">zmoc</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span><span class="n">data_vars</span><span class="o">=</span><span class="n">data_vars</span><span class="p">,</span> <span class="n">coords</span><span class="o">=</span><span class="n">coords</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="n">gattr</span><span class="p">)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># define subroutine for binning over latitudes, allows for parallelisation</span>
+    <span class="k">def</span> <span class="nf">moc_over_lat</span><span class="p">(</span><span class="n">lat_i</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># compute which vertice is within the latitudinal bin</span>
+        <span class="c1"># --&gt; groupby is here a factor 5-6 slower than using isel+np.where</span>
+        <span class="n">data_latbin</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">nod2</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">lat_bin</span><span class="o">==</span><span class="n">lat_i</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">data_latbin</span> <span class="o">=</span> <span class="n">data_latbin</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="s1">&#39;nod2&#39;</span><span class="p">,</span> <span class="n">skipna</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">data_latbin</span><span class="p">)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># do serial loop over latitudinal bins</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">do_parallel</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">do_info</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1"> ___loop over latitudinal bins___&#39;</span><span class="o">+</span><span class="s1">&#39;_&#39;</span><span class="o">*</span><span class="mi">90</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">iy</span><span class="p">,</span> <span class="n">lat_i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lat</span><span class="p">):</span>
+            <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">][:,:,</span><span class="n">iy</span><span class="p">]</span> <span class="o">=</span> <span class="n">moc_over_lat</span><span class="p">(</span><span class="n">lat_i</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+            <span class="k">else</span>                  <span class="p">:</span> <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">][</span>  <span class="p">:,</span><span class="n">iy</span><span class="p">]</span> <span class="o">=</span> <span class="n">moc_over_lat</span><span class="p">(</span><span class="n">lat_i</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+    
+    <span class="c1"># do parallel loop over latitudinal bins</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">do_info</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1"> ___parallel loop over longitudinal bins___&#39;</span><span class="o">+</span><span class="s1">&#39;_&#39;</span><span class="o">*</span><span class="mi">1</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">joblib</span> <span class="kn">import</span> <span class="n">Parallel</span><span class="p">,</span> <span class="n">delayed</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">Parallel</span><span class="p">(</span><span class="n">n_jobs</span><span class="o">=</span><span class="n">n_workers</span><span class="p">)(</span><span class="n">delayed</span><span class="p">(</span><span class="n">moc_over_lat</span><span class="p">)(</span><span class="n">lat_i</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">lat_i</span> <span class="ow">in</span> <span class="n">zmoc</span><span class="o">.</span><span class="n">lat</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">][:,:,:]</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span><span class="s1">&#39;nz&#39;</span><span class="p">,</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>
+        <span class="k">else</span>                  <span class="p">:</span> <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">][</span>  <span class="p">:,:]</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;nz&#39;</span><span class="p">,</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>
+    
+    <span class="k">del</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    
+    <span class="c1">##___________________________________________________________________________</span>
+    <span class="c1">## group data by bins --&gt; this trick is from Nils Brückemann (ICON)</span>
+    <span class="c1">#if do_info==True: print(&#39; --&gt; do binning of latitudes&#39;)</span>
+    <span class="c1">#data    = data.rename_vars({&#39;w&#39;:&#39;zmoc&#39;, &#39;nz&#39;:&#39;depth&#39;})</span>
+    <span class="c1">#data    = data.groupby(lat_bin)</span>
+    <span class="c1">#t5 = clock.time()</span>
+    <span class="c1">#print(&#39;  --&gt; comp. bins&#39;, t5-t4)</span>
+
+    <span class="c1">## zonal sumation/integration over bins</span>
+    <span class="c1">#if do_info==True: print(&#39; --&gt; do sumation/integration over bins&#39;)</span>
+    <span class="c1">#data    = data.sum().load()</span>
+    <span class="c1">#t6 = clock.time()</span>
+    <span class="c1">#print(&#39;  --&gt; comp. zonal int&#39;, t6-t5)</span>
+    
+    <span class="c1">## transpose data from [lat x nz] --&gt; [nz x lat]</span>
+    <span class="c1">#dtime, dhz, dnz = &#39;None&#39;, &#39;lat&#39;, &#39;nz&#39;</span>
+    <span class="c1">#if &#39;time&#39; in list(data.dims): dtime = &#39;time&#39;</span>
+    <span class="c1">#data = data.transpose(dtime, dnz, dhz, missing_dims=&#39;ignore&#39;)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># cumulative sum over latitudes</span>
+    <span class="k">if</span> <span class="n">do_info</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; --&gt; do cumsum over latitudes&#39;</span><span class="p">)</span>
+    <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">lat</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;lat&#39;</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="n">skipna</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">lat</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;lat&#39;</span><span class="p">])</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># compute depth of max and nice bottom topography</span>
+    <span class="k">if</span> <span class="n">do_onelem</span><span class="p">:</span> <span class="n">zmoc</span> <span class="o">=</span> <span class="n">calc_bottom_patch</span><span class="p">(</span><span class="n">zmoc</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_iz</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elem&#39;</span><span class="p">]),</span> <span class="n">idxin</span><span class="p">)</span>        
+    <span class="k">else</span>        <span class="p">:</span> <span class="n">zmoc</span> <span class="o">=</span> <span class="n">calc_bottom_patch</span><span class="p">(</span><span class="n">zmoc</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_iz</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;nod2&#39;</span><span class="p">]),</span> <span class="n">idxin</span><span class="p">)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">if</span> <span class="n">do_compute</span><span class="p">:</span> <span class="n">zmoc</span> <span class="o">=</span> <span class="n">zmoc</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">do_load</span>   <span class="p">:</span> <span class="n">zmoc</span> <span class="o">=</span> <span class="n">zmoc</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">do_persist</span><span class="p">:</span> <span class="n">zmoc</span> <span class="o">=</span> <span class="n">zmoc</span><span class="o">.</span><span class="n">persist</span><span class="p">()</span>
+        
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># write some infos </span>
+    <span class="k">if</span> <span class="n">do_info</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span> 
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; --&gt; total time:</span><span class="si">{:.3f}</span><span class="s1"> s&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">-</span><span class="n">t1</span><span class="p">))</span>
+        <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">zmoc</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">which_moc_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;amoc&#39;</span><span class="p">,</span> <span class="s1">&#39;aamoc&#39;</span><span class="p">,</span> <span class="s1">&#39;gmoc&#39;</span><span class="p">]:</span>
+                <span class="n">maxv</span> <span class="o">=</span> <span class="n">zmoc</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">nz</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">]</span><span class="o">&gt;=</span> <span class="mi">700</span> <span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;lat&#39;</span><span class="p">]</span><span class="o">&gt;</span><span class="mf">0.0</span><span class="p">)[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">values</span>
+                <span class="n">minv</span> <span class="o">=</span> <span class="n">zmoc</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">nz</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">]</span><span class="o">&gt;=</span> <span class="mi">2500</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;lat&#39;</span><span class="p">]</span><span class="o">&gt;-</span><span class="mf">50.0</span><span class="p">)[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; max. NADW_</span><span class="si">{:s}</span><span class="s1"> = </span><span class="si">{:.2f}</span><span class="s1"> Sv&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;descript&#39;</span><span class="p">],</span><span class="n">maxv</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; max. AABW_</span><span class="si">{:s}</span><span class="s1"> = </span><span class="si">{:.2f}</span><span class="s1"> Sv&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;descript&#39;</span><span class="p">],</span><span class="n">minv</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">which_moc_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;pmoc&#39;</span><span class="p">,</span> <span class="s1">&#39;ipmoc&#39;</span><span class="p">]:</span>
+                <span class="n">minv</span> <span class="o">=</span> <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">nz</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">]</span><span class="o">&gt;=</span> <span class="mi">2000</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;lat&#39;</span><span class="p">]</span><span class="o">&gt;-</span><span class="mf">50.0</span><span class="p">)[</span><span class="s1">&#39;moc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; max. AABW_</span><span class="si">{:s}</span><span class="s1"> = </span><span class="si">{:.2f}</span><span class="s1"> Sv&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;descript&#39;</span><span class="p">],</span><span class="n">minv</span><span class="p">))</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">zmoc</span><span class="p">)</span></div>
+
+
+
+
+<span class="c1"># ___CALC BOTTOM TOPO PATCH____________________________________________________</span>
+<span class="c1">#|                                                                             |</span>
+<span class="c1">#|                                                                             |</span>
+<span class="c1">#|_____________________________________________________________________________|</span>
+<div class="viewcode-block" id="calc_bottom_patch">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_zmoc.calc_bottom_patch">[docs]</a>
+<span class="k">def</span> <span class="nf">calc_bottom_patch</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">idx_iz</span><span class="p">,</span> <span class="n">idxin</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; compute idealized AMOC bottom path based on 3d data bathymetry structure</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">    </span>
+<span class="sd">        :data:          xarray MOC data object </span>
+<span class="sd">        </span>
+<span class="sd">        :lat_bin:       xarray Array with latitudinal bins</span>
+<span class="sd">        </span>
+<span class="sd">        :idx_iz:        xarray Array with 2d bottom zlevel index. Can be for </span>
+<span class="sd">                        elements or vertices </span>
+<span class="sd">                        </span>
+<span class="sd">            ::</span>
+<span class="sd">        </span>
+<span class="sd">                idx_iz = xr.DataArray(mesh.e_iz, dims=[&#39;elem&#39;]), or </span>
+<span class="sd">                idx_iz = xr.DataArray(mesh.n_iz, dims=[&#39;nod2&#39;])</span>
+<span class="sd">        </span>
+<span class="sd">        :idxin:         bool index array for regional basin selection</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">    </span>
+<span class="sd">        :data:          xarray MOC data object with additional coord: botnice </span>
+<span class="sd">    </span>
+<span class="sd">    ____________________________________________________________________________</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">idx_z</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">][</span><span class="n">idx_iz</span><span class="p">]</span>
+    <span class="n">idx_z</span> <span class="o">=</span> <span class="n">idx_z</span><span class="o">.</span><span class="n">isel</span><span class="p">({</span> <span class="nb">list</span><span class="p">(</span><span class="n">idx_z</span><span class="o">.</span><span class="n">dims</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">idxin</span><span class="p">})</span>
+    <span class="n">idx_z</span> <span class="o">=</span> <span class="n">idx_z</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="n">lat_bin</span><span class="p">)</span>
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># maximum bottom topography for MOC</span>
+    <span class="n">botmax</span><span class="o">=</span> <span class="n">idx_z</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="n">data</span>  <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">assign_coords</span><span class="p">(</span><span class="n">botmax</span> <span class="o">=</span> <span class="n">botmax</span><span class="p">)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># optiocal nicer bottom topography for MOC</span>
+    <span class="n">botnic</span><span class="o">=</span> <span class="n">idx_z</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">0.20</span><span class="p">,</span> <span class="n">skipna</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;quantile&#39;</span><span class="p">])</span>
+    
+    <span class="c1"># smooth bottom topography patch</span>
+    <span class="c1">#filt=np.array([1,2,3,2,1])</span>
+    <span class="n">filt</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">filt</span><span class="o">=</span><span class="n">filt</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">filt</span><span class="p">)</span>
+    <span class="n">aux</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">filt</span><span class="o">.</span><span class="n">size</span><span class="p">,))</span><span class="o">*</span><span class="n">botnic</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">botnic</span><span class="o">.</span><span class="n">data</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">filt</span><span class="o">.</span><span class="n">size</span><span class="p">,))</span><span class="o">*</span><span class="n">botnic</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">)</span>
+    <span class="n">aux</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">convolve</span><span class="p">(</span><span class="n">aux</span><span class="p">,</span><span class="n">filt</span><span class="p">,</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;same&#39;</span><span class="p">)</span>
+    <span class="n">botnic</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">aux</span><span class="p">[</span><span class="n">filt</span><span class="o">.</span><span class="n">size</span><span class="p">:</span><span class="o">-</span><span class="n">filt</span><span class="o">.</span><span class="n">size</span><span class="p">]</span>
+    <span class="k">del</span><span class="p">(</span><span class="n">aux</span><span class="p">)</span>
+    
+    <span class="n">data</span>  <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">assign_coords</span><span class="p">(</span><span class="n">botnice</span><span class="o">=</span> <span class="n">botnic</span><span class="p">)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># index for max bottom index for every lat bin </span>
+    <span class="c1">#idx_iz    = idx_iz.isel({list(idx_z.dims)[0] : idxin})</span>
+    <span class="c1">#idx_iz    = nodeiz.groupby(lat_bin).max()</span>
+    <span class="c1">#data      = data.assign_coords(botmaxi=idx_iz)</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+        </div>
+        <div class="sidebar">
+          
+          <h3>Table of Contents</h3>
+          
+          <search role="search">
+            <h3 style="margin-top: 1.5em;">Search</h3>
+            <form class="search" action="../../search.html" method="get">
+                <input type="text" name="q" />
+                <input type="submit" value="Go" />
+            </form>
+          </search>
+
+        </div>
+        <div class="clearer"></div>
+      </div>
+    </div>
+
+    <div class="footer-wrapper">
+      <div class="footer">
+        <div class="left">
+          <div role="navigation" aria-label="Related">
+            <a href="../../py-modindex.html" title="Python Module Index"
+              >modules</a> |
+            <a href="../../genindex.html" title="General Index"
+              >index</a>
+          </div>
+          <div role="note" aria-label="source link">
+          </div>
+        </div>
+
+        <div class="right">
+          
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Patrick Scholz.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.4.7.
+    </div>
+        </div>
+        <div class="clearer"></div>
+      </div>
+    </div>
+
+  </body>
+</html>

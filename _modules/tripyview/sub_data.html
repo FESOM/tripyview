@@ -58,38 +58,38 @@
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.load_data_fesom2">[docs]</a>
 <span class="k">def</span> <span class="nf">load_data_fesom2</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> 
                      <span class="n">datapath</span><span class="p">,</span> 
-                     <span class="n">vname</span>          <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
-                     <span class="n">year</span>           <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
-                     <span class="n">mon</span>            <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
-                     <span class="n">day</span>            <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
-                     <span class="n">record</span>         <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
-                     <span class="n">depth</span>          <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
-                     <span class="n">depidx</span>         <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
-                     <span class="n">do_tarithm</span>     <span class="o">=</span> <span class="s1">&#39;mean&#39;</span>    <span class="p">,</span> 
-                     <span class="n">do_zarithm</span>     <span class="o">=</span> <span class="s1">&#39;mean&#39;</span>    <span class="p">,</span> 
-                     <span class="n">do_zweight</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
-                     <span class="n">do_hweight</span>     <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
-                     <span class="n">do_nan</span>         <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
+                     <span class="n">vname</span>          <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
+                     <span class="n">year</span>           <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
+                     <span class="n">mon</span>            <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
+                     <span class="n">day</span>            <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
+                     <span class="n">record</span>         <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
+                     <span class="n">depth</span>          <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
+                     <span class="n">depidx</span>         <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                     <span class="n">do_tarithm</span>     <span class="o">=</span> <span class="s1">&#39;mean&#39;</span>    <span class="p">,</span>
+                     <span class="n">do_zarithm</span>     <span class="o">=</span> <span class="s1">&#39;mean&#39;</span>    <span class="p">,</span>
+                     <span class="n">do_zweight</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                     <span class="n">do_hweight</span>     <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span>
+                     <span class="n">do_nan</span>         <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span>
                      <span class="n">do_ie2n</span>        <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span>
-                     <span class="n">do_vecrot</span>      <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
-                     <span class="n">do_filename</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
-                     <span class="n">do_file</span>        <span class="o">=</span> <span class="s1">&#39;run&#39;</span>     <span class="p">,</span> 
-                     <span class="n">descript</span>       <span class="o">=</span> <span class="s1">&#39;&#39;</span>        <span class="p">,</span> 
-                     <span class="n">runid</span>          <span class="o">=</span> <span class="s1">&#39;fesom&#39;</span>   <span class="p">,</span> 
-                     <span class="n">do_prec</span>        <span class="o">=</span> <span class="s1">&#39;float32&#39;</span> <span class="p">,</span> 
-                     <span class="n">do_f14cmip6</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
-                     <span class="n">do_compute</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
-                     <span class="n">do_load</span>        <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
-                     <span class="n">do_persist</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+                     <span class="n">do_vecrot</span>      <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span>
+                     <span class="n">do_filename</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                     <span class="n">do_file</span>        <span class="o">=</span> <span class="s1">&#39;run&#39;</span>     <span class="p">,</span>
+                     <span class="n">descript</span>       <span class="o">=</span> <span class="s1">&#39;&#39;</span>        <span class="p">,</span>
+                     <span class="n">runid</span>          <span class="o">=</span> <span class="s1">&#39;fesom&#39;</span>   <span class="p">,</span>
+                     <span class="n">do_prec</span>        <span class="o">=</span> <span class="s1">&#39;float32&#39;</span> <span class="p">,</span>
+                     <span class="n">do_f14cmip6</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                     <span class="n">do_compute</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                     <span class="n">do_load</span>        <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span>
+                     <span class="n">do_persist</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
                      <span class="n">do_parallel</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
                      <span class="n">chunks</span>         <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;time&#39;</span> <span class="p">:</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="s1">&#39;elem&#39;</span><span class="p">:</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="s1">&#39;nod2&#39;</span><span class="p">:</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> \
                                         <span class="s1">&#39;edg_n&#39;</span><span class="p">:</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span>  <span class="p">:</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="s1">&#39;nz1&#39;</span> <span class="p">:</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> \
                                         <span class="s1">&#39;ndens&#39;</span><span class="p">:</span><span class="s1">&#39;auto&#39;</span><span class="p">},</span>
-                     <span class="n">do_showtime</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
-                     <span class="n">do_info</span>        <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
+                     <span class="n">do_showtime</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                     <span class="n">do_info</span>        <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span>
                      <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    --&gt; general loading of </span>
+<span class="sd">    --&gt; general loading of fesom2 and fesom14cmip6 data</span>
 <span class="sd">    </span>
 <span class="sd">    Parameters:</span>
 <span class="sd">    </span>
