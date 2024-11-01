@@ -371,16 +371,38 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
 #|                                                                             |
 #+_____________________________________________________________________________+
 def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', which_transf=None, do_info=True, do_checkbasin=False,
-              exclude_meditoce=True, do_bolus=True, do_parallel=False, n_workers=10, 
+              exclude_meditoce=False, do_bolus=True, do_parallel=False, n_workers=10, 
               do_compute=False, do_load=True, do_persist=False, do_dropvar=True, 
               **kwargs):
     
     # rescue global dataset attributes
     gattr = data_dMOC.attrs
     
+    #_________________________________________________________________________________________________
+    t1=clock.time()
+    # In case MOC is defined via string
+    if isinstance(which_moc, str):
+        which_moc_name = which_moc
+        if do_info==True: print('_____calc. '+which_moc.upper()+' from vertical velocities via meridional bins_____')
+    
+    # In case MOC is defined via  custom shapefile e.g for deep paleo time slices
+    elif isinstance(which_moc, shp.Reader):
+        # Extract the 'Name' attribute for each shape
+        field_names = [field[0] for field in which_moc.fields[1:]]
+        which_moc_name, which_moc_region = 'moc', ''
+        # search for "Name" attribute in shapefile
+        if "Name" in field_names:
+            index = [field[0] for field in which_moc.fields[1:] ].index("Name")
+            which_moc_name = [record[index] for record in which_moc.records()][0]
+        # search for "Region" attribute in shapefile    
+        if "Region" in field_names:
+            index = [field[0] for field in which_moc.fields[1:] ].index("Region")
+            which_moc_region = [record[index] for record in which_moc.records()][0]
+            
+        if do_info==True: print('_____calc. '+which_moc_name.upper()+' from vertical velocities via meridional bins_____')
+        
     #___________________________________________________________________________
-    # compute index for basin domain limitation
-    ts1 = clock.time()
+    # compute/use index for basin domain limitation
     idxin     = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=True, exclude_meditoce=exclude_meditoce)
 
     # reduce to dMOC data to basin domain
@@ -496,7 +518,7 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', which_transf=None, do
         
         #_______________________________________________________________________
         # add more variable attributes
-        strmoc = 'd'+which_moc.upper()
+        strmoc = 'd'+which_moc_name.upper()
         vattr = data_dMOC[vari].attrs
         if   vari=='dmoc_fh'   : vattr.update({'long_name':'Transformation from heat flux'                 , 'short_name':strmoc+'_fh'   , 'units':'Sv'   })
         elif vari=='dmoc_fw'   : vattr.update({'long_name':'Transformation from freshwater flux'           , 'short_name':strmoc+'_fw'   , 'units':'Sv'   })
