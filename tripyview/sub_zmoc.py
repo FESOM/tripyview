@@ -23,29 +23,105 @@ from .sub_utility  import *
 from .sub_plot     import *
 import warnings
 
-#+___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________+
-#| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
+# ___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________
 #|                                                                             |
-#| which_moc=:                                                                 |
-#| 'gmoc'  ... compute global MOC                                              |
-#| 'amoc'  ... compute MOC for Atlantic Basin                                  |
-#| 'aamoc' ... compute MOC for Atlantic+Artic Basin                            |
-#| 'pmoc'  ... compute MOC for Pacific Basin                                   |
-#| 'ipmoc' ... compute MOC for Indo-Pacific Basin (PMOC how it should be)      |
-#| 'imoc'  ... compute MOC for Indian-Ocean Basin                              |
 #|                                                                             |
-#| Important:                                                                  |
-#| Between 'amoc' and 'aamoc' there is not much difference in variability, but |
-#| upto 1.5Sv in amplitude. Where 'aamoc' is stronger than 'amoc'. There is no |
-#| clear rule which one is better, just be sure you are consistent             |
-#+_____________________________________________________________________________+
-def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False, 
-              do_info=True, diagpath=None, do_checkbasin=False, 
-              do_compute=False, do_load=True, do_persist=False, 
-              do_parallel=False, n_workers=10, basin_shppath=None,
-              **kwargs, 
+#|_____________________________________________________________________________|
+def calc_zmoc(mesh, 
+              data, 
+              dlat          = 1.0       , 
+              which_moc     = 'gmoc'    , 
+              do_onelem     = False     , 
+              diagpath      = None      , 
+              do_checkbasin = False     , 
+              do_parallel   = False     , 
+              n_workers     = 10        , 
+              do_compute    = False     , 
+              do_load       = True      , 
+              do_persist    = False     , 
+              do_info       = True      , 
+              **kwargs                  , 
              ):
-    #_________________________________________________________________________________________________
+    """
+    --> calculate meridional overturning circulation from vertical velocities 
+        (Pseudostreamfunction) either on vertices or elements
+    
+    Parameters:
+    
+        :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :data:          xarray dataset object with 3d vertical velocities
+        
+        :dlat:          float (default=1.0), latitudinal binning resolution
+        
+        :which_moc:     str, shp.Reader() (default='gmox') which global or regional 
+                        MOC should be computed based on present day shapefiles. 
+                        ·Options are:
+                        
+                        - 'gmoc'  ... compute global MOC
+                        - 'amoc'  ... compute MOC for Atlantic Basin
+                        - 'aamoc' ... compute MOC for Atlantic+Arctic Basin
+                        - 'pmoc'  ... compute MOC for Pacific Basin
+                        - 'ipmoc' ... compute MOC for Indo-Pacific Basin (PMOC how it should be)
+                        - 'imoc'  ... compute MOC for Indian-Ocean Basin
+                        - shp.Reader('path') ... compute MOC based on custom shapefile
+                        
+                        Important:
+                        Between 'amoc' and 'aamoc' there is not much difference 
+                        in variability, but upto 1.5Sv in amplitude. Where 'aamoc'
+                        is stronger than 'amoc'. There is no clear rule which one 
+                        is better, just be sure you are consistent       
+                        
+        :do_onelem:     bool (default=False) ... should computation be done on 
+                        elements or vertices
+        
+        :diagpath       str (default=None) if str give custom path to specific fesom2
+                        fesom.mesh.diag.nc file, if None routine looks automatically in    
+                        meshfolder and original datapath folder (stored as attribute in)
+                        xarray dataset object 
+        
+        :do_checkbasin: bool (default=False) provide plot with regional basin selection
+        
+        :do_parallel:   bool (default=False) do computation of binning based MOC 
+                        in parallel
+        
+        :n_workers:     int (default=10) how many worker (CPUs) are used for the 
+                        parallelized MOC computation
+                        
+                        
+        :do_compute:    bool (default=False), do xarray dataset compute() at the end
+                        data = data.compute(), creates a new dataobject the original
+                        data object seems to persist
+        
+        :do_load:       bool (default=True), do xarray dataset load() at the end
+                        data = data.load(), applies all operations to the original
+                        dataset
+                        
+        :do_persist:    bool (default=False), do xarray dataset persist() at the end
+                        data = data.persist(), keeps the dataset as dask array, keeps
+                        the chunking   
+                        
+        :do_info:       bool (defalt=True), print variable info at the end 
+    
+    Returns:
+    
+        :zmoc:          object, returns xarray dataset object with MOC
+        
+    ::
+    
+        data_list = list()
+        
+        data = tpv.load_data_fesom2(mesh, datapath, vname='w', year=year, descript=descript, 
+                                    do_zarithm=None, do_nan=False, do_load=False, do_persist=True)
+        
+        zmoc = tpv.calc_zmoc(mesh, data, dlat=1.0, which_moc='amoc')
+        
+        data_list.append( zmoc )
+    
+    ____________________________________________________________________________
+    """
+    
+    #___________________________________________________________________________
     t1=clock.time()
     # In case MOC is defined via string
     if isinstance(which_moc, str):
@@ -69,7 +145,7 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         if do_info==True: print('_____calc. '+which_moc_name.upper()+' from vertical velocities via meridional bins_____')
         
     #___________________________________________________________________________
-    # calculate/use index for basin domain limitation
+    # compute/use index for basin domain limitation
     if do_onelem:
         idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='elem')
     else:
@@ -210,7 +286,7 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
         # select MOC basin
         data = data.isel(nod2=idxin)
         
-        #___________________________________________________________________
+        #_______________________________________________________________________
         # calculate area weighted mean
         warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
         warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
@@ -343,10 +419,37 @@ def calc_zmoc(mesh, data, dlat=1.0, which_moc='gmoc', do_onelem=False,
 
 
 
-#+___CALC BOTTOM TOPO PATCH____________________________________________________+
+# ___CALC BOTTOM TOPO PATCH____________________________________________________
 #|                                                                             |
-#+_____________________________________________________________________________+
+#|                                                                             |
+#|_____________________________________________________________________________|
 def calc_bottom_patch(data, lat_bin, idx_iz, idxin):
+    """
+    --> compute idealized AMOC bottom path based on 3d data bathymetry structure
+    
+    Parameters:
+    
+        :data:          xarray MOC data object 
+        
+        :lat_bin:       xarray Array with latitudinal bins
+        
+        :idx_iz:        xarray Array with 2d bottom zlevel index. Can be for 
+                        elements or vertices 
+                        
+            ::
+        
+                idx_iz = xr.DataArray(mesh.e_iz, dims=['elem']), or 
+                idx_iz = xr.DataArray(mesh.n_iz, dims=['nod2'])
+        
+        :idxin:         bool index array for regional basin selection
+        
+    Returns:
+    
+        :data:          xarray MOC data object with additional coord: botnice 
+    
+    ____________________________________________________________________________
+    """
+    
     idx_z = data['depth'][idx_iz]
     idx_z = idx_z.isel({ list(idx_z.dims)[0] : idxin})
     idx_z = idx_z.groupby(lat_bin)
