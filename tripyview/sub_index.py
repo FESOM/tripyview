@@ -224,7 +224,6 @@ def load_index_fesom2(mesh                  ,
 #
 #_______________________________________________________________________________
 def plot_index_region(mesh, idx_IN, box_list, which='hard'):
-    from matplotlib.tri import Triangulation
     """
     --> plot index definition region 
     
@@ -234,25 +233,28 @@ def plot_index_region(mesh, idx_IN, box_list, which='hard'):
         
         :idx_IN:        list with bool np.array which vertices are within index defintion 
                         region
-    
-        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: 
-
-                    - ['global']   ... compute global index 
-                    - [shp.Reader] ... index region defined by shapefile 
-                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
-                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
-                    - [ np.array(2 x npts), boxname] index region defined by polygon
-
-        :which:     str, (default=hard)
-                    - 'soft' plot triangles that at least one selected vertice in them
-                    - 'hard' plot triangles that at all three selected vertice in them 
-                    - 'mid'  plot triangles that have more than one selected vertice in them
-                    
+        
+        :box_list:      None, list (default: None)  list with regional box limitation for index computation box can be: 
+        
+                        - ['global']   ... compute global index 
+                        - [shp.Reader] ... index region defined by shapefile 
+                        - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                        - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                        - [ np.array(2 x npts), boxname] index region defined by polygon
+        
+        :which:         str, (default=hard)
+                        - 'soft' plot triangles that at least one selected vertice in them
+                        - 'hard' plot triangles that at all three selected vertice in them 
+                        - 'mid'  plot triangles that have more than one selected vertice in them
+        
     Returns:
         
         :None:
     
+    ____________________________________________________________________________
     """
+    
+    from matplotlib.tri import Triangulation
     
     #___________________________________________________________________________
     # make triangulation

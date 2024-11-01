@@ -20,15 +20,118 @@ from .sub_utility  import *
 from .sub_plot     import *
 
 
-#+___CALCULATE MERIDIONAL OVERTURNING IN DENSITY COORDINATES___________________+
+# ___CALCULATE MERIDIONAL OVERTURNING IN DENSITY COORDINATES___________________
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
 #|                                                                             |
-#+_____________________________________________________________________________+
-def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_area=None, e_area=None, 
-                   do_info=True, do_tarithm='mean', add_trend=False, do_wdiap=False, do_dflx=False, 
-                   do_bolus=True, add_bolus=False, do_zcoord=True, do_useZinfo='std_dens_H', do_ndensz=False, 
-                   do_compute=False, do_load=True, do_persist=False, do_parallel=False,
+#|                                                                             |
+#|_____________________________________________________________________________|
+def load_dmoc_data(mesh                         , 
+                   datapath                     , 
+                   std_dens                     ,
+                   year         = None          , 
+                   which_transf = 'dmoc'        , 
+                   do_tarithm   = 'mean'        , 
+                   do_bolus     = True          , 
+                   add_bolus    = False         , 
+                   add_trend    = False         , 
+                   do_wdiap     = False         , 
+                   do_dflx      = False         , 
+                   do_zcoord    = True          , 
+                   do_useZinfo  = 'std_dens_H'  ,
+                   do_ndensz    = False         , 
+                   descript     = ''            , 
+                   do_compute   = False         , 
+                   do_load      = True          ,  
+                   do_persist   = False         , 
+                   do_parallel  = False         , 
+                   do_info      = True          , 
                    **kwargs):
+    """
+    --> load data that are neccessary for density moc computation
+    
+    Parameters:
+    
+        :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :datapath:      str, path that leads to the FESOM2 data
+        
+        :std_dens:      np.array with sigma2 density bins that were used in FESOM2
+                        for the DMOC diagnostic
+        
+        :year:          int, list, np.array, range, default: None, single year or 
+                        list/array of years whos file should be opened
+        
+        :which_transf:  str (default='dmoc') which transformation should be computed
+                        options area
+                        
+                        - 'dmoc'    compute dmoc density transformation
+                        - 'srf'     compute density transform. from surface forcing 
+                        - 'inner'   compute density transform. from interior mixing (dmoc-srf)
+        
+        :do_tarithm:    str (default='mean') do time arithmetic on time selection
+                        option are: None, 'None', 'mean', 'median', 'std', 'var', 'max'
+                        'min', 'sum'
+            
+        :do_bolus:      bool (default=False) load density class divergence from bolus velolcity
+                        and add them to the total density class divergence
+        
+        :add_bolus:     bool (default=False) include density class divergence from bolus velolcity
+                        as separate varaible in xarray dataset object
+        
+        :add_trend:     bool (default=False) include density class volume trend  
+                        as separate varaible in xarray dataset object
+        
+        :do_wdiap:      bool (default=False) load data to be used to only look at
+                        diapycnal vertical velocity
+        
+        :do_dflx:       bool (default=False) load data to be used for the computation 
+                        surface buoyancy forced transformations vertical velocities
+        
+        :do_zcoord:     bool (default=True)  do density MOC remapping back into zcoord
+                        space
+        
+        :do_useZinfo:   str (default='std_dens_H') which data should be used for the 
+                        zcoord remapping. Options are:
+                        
+                        - 'std_dens_H'   use mean layerthickness of density classes (best option)
+                        - 'hydrography'  use mean sigma2 hydrography to estime z position of density classes (OK), 
+                        - 'density_dMOC' use density_dMOC variable to estime z position of density classes (Bad), 
+                        - 'std_dens_Z'   use mean depth of density classes (very bad)
+        
+        :do_ndensz:     bool (default=False) alreadz compute here the density class z position
+                        from the density class layer thickness by cumulatic sumation
+        
+        :descript:      str (default=''), string to describe dataset is written into 
+                        variable attributes                
+        
+        :do_compute:    bool (default=False), do xarray dataset compute() at the end
+                        data = data.compute(), creates a new dataobject the original
+                        data object seems to persist
+        
+        :do_load:       bool (default=True), do xarray dataset load() at the end
+                        data = data.load(), applies all operations to the original
+                        dataset
+        
+        :do_persist:    bool (default=False), do xarray dataset persist() at the end
+                        data = data.persist(), keeps the dataset as dask array, keeps
+                        the chunking   
+        
+        :chunks:        dict(), (default=dict({'time':'auto', ...})) dictionary 
+                        with chunksize of specific dimensions. By default setted 
+                        to auto but can also be setted to specific value. In my 
+                        observation it revealed that the loading of data was a factor 2-3
+                        faster with auto-chunking but this might has its limitation
+                        for very large meshes 
+        
+        :do_info:       bool (defalt=True), print variable info at the end 
+        
+    Returns:
+    
+        :data:          object, returns xarray dataset object with density class informations
+        
+    ____________________________________________________________________________
+    """
+    
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
     xr.set_options(keep_attrs=True)
@@ -366,19 +469,120 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
     return(data_dMOC)
     
 
-#+___CALCULATE MERIDIONAL OVERTURNING IN DENSITY COORDINATES___________________+
+
+# ___CALCULATE MERIDIONAL OVERTURNING IN DENSITY COORDINATES___________________
 #| Global MOC, Atlantik MOC, Indo-Pacific MOC, Indo MOC                        |
 #|                                                                             |
-#+_____________________________________________________________________________+
-def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', which_transf=None, do_info=True, do_checkbasin=False,
-              exclude_meditoce=False, do_bolus=True, do_parallel=False, n_workers=10, 
-              do_compute=False, do_load=True, do_persist=False, do_dropvar=True, 
+#|                                                                             |
+#|_____________________________________________________________________________|
+def calc_dmoc(mesh, 
+              data_dMOC, 
+              dlat              = 1.0       , 
+              which_moc         = 'gmoc'    , 
+              which_transf      = None      , 
+              do_checkbasin     = False     ,
+              exclude_meditoce  = False     , 
+              do_bolus          = True      , 
+              do_parallel       = False     , 
+              n_workers         = 10        , 
+              do_compute        = False     , 
+              do_load           = True      , 
+              do_persist        = False     , 
+              do_info           = True      , 
+              do_dropvar        = True      , 
               **kwargs):
+    """
+    --> calculate meridional overturning circulation from vertical velocities 
+        (Pseudostreamfunction) either on vertices or elements
+    
+    Parameters:
+    
+        :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :data_dMOC:     xarray dataset object with 3d density class data
+        
+        :dlat:          float (default=1.0), latitudinal binning resolution
+        
+        :which_moc:     str, shp.Reader() (default='gmox') which global or regional 
+                        MOC should be computed based on present day shapefiles. 
+                        ·Options are:
+                        
+                        - 'gmoc'  ... compute global MOC
+                        - 'amoc'  ... compute MOC for Atlantic Basin
+                        - 'aamoc' ... compute MOC for Atlantic+Arctic Basin
+                        - 'pmoc'  ... compute MOC for Pacific Basin
+                        - 'ipmoc' ... compute MOC for Indo-Pacific Basin (PMOC how it should be)
+                        - 'imoc'  ... compute MOC for Indian-Ocean Basin
+                        - shp.Reader('path') ... compute MOC based on custom shapefile
+                        
+                        Important:
+                        Between 'amoc' and 'aamoc' there is not much difference 
+                        in variability, but upto 1.5Sv in amplitude. Where 'aamoc'
+                        is stronger than 'amoc'. There is no clear rule which one 
+                        is better, just be sure you are consistent       
+                        
+        :which_transf:  str (default='dmoc') which transformation should be computed
+                        options area
+                        
+                        - 'dmoc'    compute dmoc density transformation
+                        - 'srf'     compute density transform. from surface forcing 
+                        - 'inner'   compute density transform. from interior mixing (dmoc-srf)
+        
+        
+        :do_checkbasin: bool (default=False) provide plot with regional basin selection
+        
+        :exclude_meditoce: bool (default=False) exclude mediteranian sea from basin selection
+        
+        :do_bolus:      bool (default=False) load density class divergence from bolus velolcity
+                        and add them to the total density class divergence
+                        
+        :do_dropvar:    bool (default=true) drop all variables from dataset that are not                
+                        absolutely needed
+                        
+        :do_parallel:   bool (default=False) do computation of binning based MOC 
+                        in parallel
+        
+        :n_workers:     int (default=10) how many worker (CPUs) are used for the 
+                        parallelized MOC computation
+                        
+                        
+        :do_compute:    bool (default=False), do xarray dataset compute() at the end
+                        data = data.compute(), creates a new dataobject the original
+                        data object seems to persist
+        
+        :do_load:       bool (default=True), do xarray dataset load() at the end
+                        data = data.load(), applies all operations to the original
+                        dataset
+                        
+        :do_persist:    bool (default=False), do xarray dataset persist() at the end
+                        data = data.persist(), keeps the dataset as dask array, keeps
+                        the chunking   
+                        
+        :do_info:       bool (defalt=True), print variable info at the end 
+    
+    Returns:
+    
+        :dmoc:          object, returns xarray dataset object with DMOC
+        
+    ::
+    
+        data_list = list()
+        
+        data = tpv.load_dmoc_data(mesh, datapath, std_dens, year=year, which_transf='dmoc', descript=descript,
+                      do_zcoord=True, do_bolus=True, do_load=False, do_persist=True)
+    
+    
+        dmoc     = tpv.calc_dmoc(mesh, data, dlat=1.0, which_moc=vname, which_transf='dmoc')
+        
+        data_list.append( dmoc )
+    
+    ____________________________________________________________________________
+    """
     
     # rescue global dataset attributes
     gattr = data_dMOC.attrs
     
-    #_________________________________________________________________________________________________
+    #___________________________________________________________________________
     t1=clock.time()
     # In case MOC is defined via string
     if isinstance(which_moc, str):
@@ -631,6 +835,11 @@ def calc_dmoc(mesh, data_dMOC, dlat=1.0, which_moc='gmoc', which_transf=None, do
 # do creepy brute force play around to enforce more or less monotonicity in 
 # dens_z, std_dens_Z --> not realy recommendet to do only as a last option
 def do_ztransform(data):
+    """
+    --> 
+    ____________________________________________________________________________
+    """
+    
     from scipy.interpolate import interp1d
     from numpy.matlib import repmat
     from scipy import interpolate
@@ -690,6 +899,11 @@ def do_ztransform(data):
 #
 #_______________________________________________________________________________
 def do_ztransform_martin(mesh, data):
+    """
+    --> 
+    ____________________________________________________________________________
+    """
+    
     from scipy.interpolate import interp1d
     #___________________________________________________________________________
     lat, dens,  = data['lat'].values, data['ndens'].values
@@ -712,11 +926,16 @@ def do_ztransform_martin(mesh, data):
 
 #
 #
-#_______________________________________________________________________________________
+#_______________________________________________________________________________
 def do_ztransform_mom6(mesh, data):
+    """
+    --> 
+    ____________________________________________________________________________
+    """
+    
     from scipy.interpolate import interp1d
 
-    #___________________________________________________________________________________
+    #___________________________________________________________________________
     lat, dens, dep  = data['lat'].values, data['ndens'].values, np.abs(mesh.zmid)
     nlat, ndens, nz = lat.size, dens.size, dep.size
     sigma2 = data['nz_rho'].values
@@ -749,6 +968,11 @@ def do_ztransform_mom6(mesh, data):
 #
 #_______________________________________________________________________________
 def do_ztransform_hydrography(mesh, data):
+    """
+    --> 
+    ____________________________________________________________________________
+    """
+    
     from scipy.interpolate import interp1d
     #___________________________________________________________________________
     lat, dens,  = data['lat'].values, data['ndens'].values
