@@ -55,7 +55,11 @@ def plot_hslice(mesh                   ,
                 pltcl_opt  = dict()    , # contour line label options
                 #--- mesh -----------
                 do_mesh    = False     , 
-                mesh_opt   = dict()    , 
+                mesh_opt   = dict()    ,
+                #--- streamlines-----
+                do_streaml = False     , 
+                streaml_dat= None      , 
+                streaml_opt= dict()    , 
                 #--- bottom mask ----
                 do_bot     = True      , 
                 bot_opt    = dict()    ,
@@ -288,6 +292,8 @@ def plot_hslice(mesh                   ,
     #___________________________________________________________________________
     # --> check if input data is a list
     if not isinstance(data, list): data = [data]
+    if do_streaml:
+        if not isinstance(streaml_dat, list): streaml_dat = [streaml_dat]
     ndat = len(data)
     
     #___________________________________________________________________________
@@ -351,7 +357,7 @@ def plot_hslice(mesh                   ,
         
     #___________________________________________________________________________
     # --> loop over axes
-    hp, hbot, hmsh, hlsm, hgrd, hall = list(), list(), list(), list(), list(), list()
+    hp, hbot, hmsh, hlsm, hgrd, hstrm, hall = list(), list(), list(), list(), list(), list(), list()
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
@@ -402,7 +408,8 @@ def plot_hslice(mesh                   ,
                 data_plot = data[ii][vname].data.copy()
                 if   do_plt in ['tpc','pc'] and ('lon_bnd' in data[ii] and 'lat_bnd' in data[ii]) : 
                     data_x, data_y = data[ii]['lon_bnd'], data[ii]['lat_bnd']
-                else               : data_x, data_y = data[ii]['lon'    ], data[ii]['lat'    ]
+                else: 
+                    data_x, data_y = data[ii]['lon'    ], data[ii]['lat'    ]
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
@@ -415,7 +422,15 @@ def plot_hslice(mesh                   ,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt)
                 hp.append(h0)
-                
+            
+            #___________________________________________________________________
+            # add streamline data if available 
+            h0 = do_plt_streaml(hax_ii, ii, do_streaml, 
+                                box         = box, 
+                                streaml_dat = streaml_dat, 
+                                streaml_opt = streaml_opt)
+            hstrm.append(h0)
+            
             #___________________________________________________________________
             # add mesh land-sea mask
             h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
@@ -4642,7 +4657,6 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
 #
 #
 #_______________________________________________________________________________
-
 def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
                   cinfo_plot, norm_plot, quiv_scalfac=1, quiv_arrwidth=0.25, quiv_dens=0.4, 
                   quiv_smax=10, quiv_shiftL=2, quiv_smooth=2, 
@@ -4813,6 +4827,120 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         
         h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
         del(tri0x, tri0y)    
+    return(h0)
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_streaml(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dict(), 
+                   box=None, which_transf=ccrs.PlateCarree()):
+    """
+    --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
+        data. Data can originate either from corase graining or interpolation
+        
+    Parameters:
+    
+        :hax_ii:        handle of axes ii
+    
+        :ii:            int, index of handle ii
+    
+        :do_streaml:    bool, do cartopy streaml plot
+    
+        :streaml_dat:   list of xr.Datasets with u,v data in it (default=None)
+    
+            ::
+    
+                Dimensions:  (lat: 85, lon: 180, n2: 2)
+                Coordinates:
+                * lat      (lat) float32 340B -79.0 -77.0 -75.0 -73.0 ... 83.0 85.0 87.0 89.0
+                * lon      (lon) float32 720B -179.0 -177.0 -175.0 ... 175.0 177.0 179.0
+                    nzi      float64 8B 15.89
+                    nz1      int64 8B 250
+                    lat_bnd  (lat, n2) float32 680B -80.0 -78.0 -78.0 -76.0 ... 88.0 nan nan
+                    lon_bnd  (lon, n2) float32 1kB -180.0 -178.0 -178.0 ... 178.0 178.0 180.0
+                    w_A      (lat, lon) float32 61kB 9.437e+09 9.437e+09 9.437e+09 ... nan nan
+                Dimensions without coordinates: n2
+                Data variables:
+                    u        (lat, lon) float32 61kB -0.003229 -0.003186 -0.002711 ... nan nan
+                    v        (lat, lon) float32 61kB 0.0007711 0.000357 0.001531 ... nan nan
+                Attributes: (12/19)
+                    FESOM_model:                         FESOM2
+                    FESOM_website:                       fesom.de
+                    FESOM_git_SHA:                       02f7d080
+                    FESOM_MeshPath:                      /albedo/work/user/pscholz/mesh_fesom...
+                    FESOM_mesh_representative_checksum:  297ddf9c482ca68c86a979e1bd5d3c97
+                    FESOM_ClimateDataPath:               /albedo/work/projects/p_fesom/FROM-O...
+                    ...                                  ...
+                
+        :streaml_opt:   dict, (default: dict()) additional options that are given to 
+                        streamline plot routine
+        
+        :box:           None, list (default: None) regional limitation of plot. For ortho...
+                        box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = 
+                        [lonmin, lonmax, latmin, latmax]
+        
+        :which_transf:  ccrs.CRS (default=None) data starting projection usually ccrs.PlateCaree()
+    
+    Returns:
+    
+        :h0:            return matplotlib handle of streamline
+        
+    #___________________________________________________________________________
+    """
+    
+    h0=None
+    #___________________________________________________________________________
+    if do_streaml and streaml_dat is not None:
+        data_x, data_y = streaml_dat[ii]['lon'    ], streaml_dat[ii]['lat'    ]
+        vnm = list(streaml_dat[ii].data_vars)
+        data_u, data_v = streaml_dat[ii][vnm[0]].data.copy(), streaml_dat[ii][vnm[1]].data.copy()
+                
+        # limit data to regional box
+        if box is not None:
+            idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
+            data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
+            data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
+            data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
+            del(idx_x, idx_y)
+        
+        # vector norm --> speed
+        data_s = np.sqrt(data_u**2 + data_v**2)
+                
+        # compute scaled line width based on speed
+        lw_min, lw_max = 0.25, 5.0
+        if 'lw_min' in streaml_opt: 
+            lw_min = streaml_opt['lw_min']
+            del(streaml_opt['lw_min'])
+        if 'lw_max' in streaml_opt: 
+            lw_max = streaml_opt['lw_max']
+            del(streaml_opt['lw_max'])    
+                
+        lw = data_s.copy()
+        lw = (lw-np.nanmin(lw))/(np.nanmax(lw)-np.nanmin(lw))
+        lw = lw*(lw_max-lw_min)+lw_min
+        lw[np.isnan(data_s)] = 0
+        
+        # kick out nan values
+        data_u[np.isnan(data_s)] = 0.0
+        data_v[np.isnan(data_s)] = 0.0
+        data_s[np.isnan(data_s)] = 0.0
+                
+        plt_optdefault = dict({'density':10, 'color':'k'})
+        plt_optdefault.update(streaml_opt)
+        
+        # here do cartopy projection inside streamplot routine 
+        if isinstance(hax_ii.projection, ccrs.CRS): plt_optdefault.update({'transform':which_transf})
+                
+        h0=hax_ii.streamplot(data_x, data_y, data_u, data_v, 
+                            linewidth = lw, 
+                            **plt_optdefault)
+                
+        del(data_x, data_y, data_u, data_v, data_s, lw)
+    #___________________________________________________________________________
+    elif do_streaml and streaml_dat is None:
+        raise ValueError(' --> you need to provide regular gridded u,v data to plot streamlines')
+    
     return(h0)
 
 

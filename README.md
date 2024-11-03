@@ -69,6 +69,10 @@ vertice/element- resolution and area)
 * `hslice_clim_np`   - plot horizontal slices of temperature, salinity and density climatology in north polar stereographic projection
 * `hslice_clim_sp`   - plot horizontal slices of temperature, salinity and density climatology in south polar stereographic projection
 * `hslice_isotdep`   - plot horizontal slices of depth of distinct isotherm (default: 12°C isotherm)
+* `hslice_streaml`   - plot horizontal slices of scalar ocean variable and overlay streamline information from regular gridded coarse grained velocity data
+<p align="center" width="100%">
+  <img width=40% src="docs/images/tripyview_hslice_streaml.gif">
+</p>
 
 
 * `hslice_channel`   - plot horizontal slices of variables in the channel configuration (provide routine to make channel movie)
