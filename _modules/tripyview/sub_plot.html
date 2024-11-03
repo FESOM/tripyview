@@ -94,7 +94,11 @@
                 <span class="n">pltcl_opt</span>  <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># contour line label options</span>
                 <span class="c1">#--- mesh -----------</span>
                 <span class="n">do_mesh</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
-                <span class="n">mesh_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
+                <span class="n">mesh_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
+                <span class="c1">#--- streamlines-----</span>
+                <span class="n">do_streaml</span> <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+                <span class="n">streaml_dat</span><span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
+                <span class="n">streaml_opt</span><span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
                 <span class="c1">#--- bottom mask ----</span>
                 <span class="n">do_bot</span>     <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
                 <span class="n">bot_opt</span>    <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
@@ -327,6 +331,8 @@
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># --&gt; check if input data is a list</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">data</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">do_streaml</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">streaml_dat</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span> <span class="n">streaml_dat</span> <span class="o">=</span> <span class="p">[</span><span class="n">streaml_dat</span><span class="p">]</span>
     <span class="n">ndat</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
     
     <span class="c1">#___________________________________________________________________________</span>
@@ -390,7 +396,7 @@
         
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># --&gt; loop over axes</span>
-    <span class="n">hp</span><span class="p">,</span> <span class="n">hbot</span><span class="p">,</span> <span class="n">hmsh</span><span class="p">,</span> <span class="n">hlsm</span><span class="p">,</span> <span class="n">hgrd</span><span class="p">,</span> <span class="n">hall</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">hp</span><span class="p">,</span> <span class="n">hbot</span><span class="p">,</span> <span class="n">hmsh</span><span class="p">,</span> <span class="n">hlsm</span><span class="p">,</span> <span class="n">hgrd</span><span class="p">,</span> <span class="n">hstrm</span><span class="p">,</span> <span class="n">hall</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">hcb_ii</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">hax</span><span class="p">,</span> <span class="n">hcb</span><span class="p">)):</span>
         <span class="c1"># if there are no ddatra to fill axes, make it invisible </span>
         <span class="k">if</span> <span class="n">ii</span><span class="o">&gt;=</span><span class="n">ndat</span><span class="p">:</span> 
@@ -441,7 +447,8 @@
                 <span class="n">data_plot</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">vname</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
                 <span class="k">if</span>   <span class="n">do_plt</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;tpc&#39;</span><span class="p">,</span><span class="s1">&#39;pc&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="p">(</span><span class="s1">&#39;lon_bnd&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="ow">and</span> <span class="s1">&#39;lat_bnd&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span> <span class="p">:</span> 
                     <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lon_bnd&#39;</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lat_bnd&#39;</span><span class="p">]</span>
-                <span class="k">else</span>               <span class="p">:</span> <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lon&#39;</span>    <span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lat&#39;</span>    <span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span> 
+                    <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lon&#39;</span>    <span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lat&#39;</span>    <span class="p">]</span>
                 
                 <span class="c1">#_______________________________________________________________</span>
                 <span class="c1"># add tripcolor or tricontourf plot </span>
@@ -454,7 +461,15 @@
                                 <span class="n">plt_contr</span><span class="o">=</span><span class="n">plt_contr</span><span class="p">,</span> <span class="n">pltcr_opt</span><span class="o">=</span><span class="n">pltcr_opt</span><span class="p">,</span>
                                 <span class="n">plt_contl</span><span class="o">=</span><span class="n">plt_contl</span><span class="p">,</span> <span class="n">pltcl_opt</span><span class="o">=</span><span class="n">pltcl_opt</span><span class="p">)</span>
                 <span class="n">hp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span>
-                
+            
+            <span class="c1">#___________________________________________________________________</span>
+            <span class="c1"># add streamline data if available </span>
+            <span class="n">h0</span> <span class="o">=</span> <span class="n">do_plt_streaml</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> 
+                                <span class="n">box</span>         <span class="o">=</span> <span class="n">box</span><span class="p">,</span> 
+                                <span class="n">streaml_dat</span> <span class="o">=</span> <span class="n">streaml_dat</span><span class="p">,</span> 
+                                <span class="n">streaml_opt</span> <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">)</span>
+            <span class="n">hstrm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span>
+            
             <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># add mesh land-sea mask</span>
             <span class="n">h0</span> <span class="o">=</span> <span class="n">do_plt_lsmask</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_lsm</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">lsm_opt</span><span class="o">=</span><span class="n">lsm_opt</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="n">lsm_res</span><span class="p">)</span>
@@ -4730,7 +4745,6 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-
 <div class="viewcode-block" id="do_plt_quiver">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_quiver">[docs]</a>
 <span class="k">def</span> <span class="nf">do_plt_quiver</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_quiv</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">data_plot_u</span><span class="p">,</span> <span class="n">data_plot_v</span><span class="p">,</span> 
@@ -4903,6 +4917,123 @@
         
         <span class="n">h0</span><span class="o">.</span><span class="n">set_clim</span><span class="p">([</span><span class="n">cinfo_plot</span><span class="p">[</span><span class="s1">&#39;clevel&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span><span class="n">cinfo_plot</span><span class="p">[</span><span class="s1">&#39;clevel&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
         <span class="k">del</span><span class="p">(</span><span class="n">tri0x</span><span class="p">,</span> <span class="n">tri0y</span><span class="p">)</span>    
+    <span class="k">return</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span></div>
+
+
+
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#_______________________________________________________________________________</span>
+<div class="viewcode-block" id="do_plt_streaml">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_streaml">[docs]</a>
+<span class="k">def</span> <span class="nf">do_plt_streaml</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> <span class="n">streaml_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">streaml_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
+                   <span class="n">box</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">()):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; plot streamlines over scalar data, based on regular gridded lon,lat vector </span>
+<span class="sd">        data. Data can originate either from corase graining or interpolation</span>
+<span class="sd">        </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">    </span>
+<span class="sd">        :hax_ii:        handle of axes ii</span>
+<span class="sd">    </span>
+<span class="sd">        :ii:            int, index of handle ii</span>
+<span class="sd">    </span>
+<span class="sd">        :do_streaml:    bool, do cartopy streaml plot</span>
+<span class="sd">    </span>
+<span class="sd">        :streaml_dat:   list of xr.Datasets with u,v data in it (default=None)</span>
+<span class="sd">    </span>
+<span class="sd">            ::</span>
+<span class="sd">    </span>
+<span class="sd">                Dimensions:  (lat: 85, lon: 180, n2: 2)</span>
+<span class="sd">                Coordinates:</span>
+<span class="sd">                * lat      (lat) float32 340B -79.0 -77.0 -75.0 -73.0 ... 83.0 85.0 87.0 89.0</span>
+<span class="sd">                * lon      (lon) float32 720B -179.0 -177.0 -175.0 ... 175.0 177.0 179.0</span>
+<span class="sd">                    nzi      float64 8B 15.89</span>
+<span class="sd">                    nz1      int64 8B 250</span>
+<span class="sd">                    lat_bnd  (lat, n2) float32 680B -80.0 -78.0 -78.0 -76.0 ... 88.0 nan nan</span>
+<span class="sd">                    lon_bnd  (lon, n2) float32 1kB -180.0 -178.0 -178.0 ... 178.0 178.0 180.0</span>
+<span class="sd">                    w_A      (lat, lon) float32 61kB 9.437e+09 9.437e+09 9.437e+09 ... nan nan</span>
+<span class="sd">                Dimensions without coordinates: n2</span>
+<span class="sd">                Data variables:</span>
+<span class="sd">                    u        (lat, lon) float32 61kB -0.003229 -0.003186 -0.002711 ... nan nan</span>
+<span class="sd">                    v        (lat, lon) float32 61kB 0.0007711 0.000357 0.001531 ... nan nan</span>
+<span class="sd">                Attributes: (12/19)</span>
+<span class="sd">                    FESOM_model:                         FESOM2</span>
+<span class="sd">                    FESOM_website:                       fesom.de</span>
+<span class="sd">                    FESOM_git_SHA:                       02f7d080</span>
+<span class="sd">                    FESOM_MeshPath:                      /albedo/work/user/pscholz/mesh_fesom...</span>
+<span class="sd">                    FESOM_mesh_representative_checksum:  297ddf9c482ca68c86a979e1bd5d3c97</span>
+<span class="sd">                    FESOM_ClimateDataPath:               /albedo/work/projects/p_fesom/FROM-O...</span>
+<span class="sd">                    ...                                  ...</span>
+<span class="sd">                </span>
+<span class="sd">        :streaml_opt:   dict, (default: dict()) additional options that are given to </span>
+<span class="sd">                        streamline plot routine</span>
+<span class="sd">        </span>
+<span class="sd">        :box:           None, list (default: None) regional limitation of plot. For ortho...</span>
+<span class="sd">                        box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = </span>
+<span class="sd">                        [lonmin, lonmax, latmin, latmax]</span>
+<span class="sd">        </span>
+<span class="sd">        :which_transf:  ccrs.CRS (default=None) data starting projection usually ccrs.PlateCaree()</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">    </span>
+<span class="sd">        :h0:            return matplotlib handle of streamline</span>
+<span class="sd">        </span>
+<span class="sd">    #___________________________________________________________________________</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">h0</span><span class="o">=</span><span class="kc">None</span>
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">if</span> <span class="n">do_streaml</span> <span class="ow">and</span> <span class="n">streaml_dat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">streaml_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lon&#39;</span>    <span class="p">],</span> <span class="n">streaml_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lat&#39;</span>    <span class="p">]</span>
+        <span class="n">vnm</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">streaml_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span>
+        <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">streaml_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">vnm</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">streaml_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">vnm</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                
+        <span class="c1"># limit data to regional box</span>
+        <span class="k">if</span> <span class="n">box</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">idx_x</span> <span class="p">,</span> <span class="n">idx_y</span>  <span class="o">=</span> <span class="p">(</span><span class="n">data_x</span><span class="o">&gt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">data_x</span><span class="o">&lt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="p">(</span><span class="n">data_y</span><span class="o">&gt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">data_y</span><span class="o">&lt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">data_x</span><span class="p">[</span><span class="n">idx_x</span>  <span class="p">],</span> <span class="n">data_y</span><span class="p">[</span><span class="n">idx_y</span>  <span class="p">]</span>
+            <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">data_u</span><span class="p">[</span><span class="n">idx_y</span><span class="p">,:],</span> <span class="n">data_v</span><span class="p">[</span><span class="n">idx_y</span><span class="p">,:]</span>
+            <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">data_u</span><span class="p">[:,</span><span class="n">idx_x</span><span class="p">],</span> <span class="n">data_v</span><span class="p">[:,</span><span class="n">idx_x</span><span class="p">]</span>
+            <span class="k">del</span><span class="p">(</span><span class="n">idx_x</span><span class="p">,</span> <span class="n">idx_y</span><span class="p">)</span>
+        
+        <span class="c1"># vector norm --&gt; speed</span>
+        <span class="n">data_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">data_u</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">data_v</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+                
+        <span class="c1"># compute scaled line width based on speed</span>
+        <span class="n">lw_min</span><span class="p">,</span> <span class="n">lw_max</span> <span class="o">=</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">5.0</span>
+        <span class="k">if</span> <span class="s1">&#39;lw_min&#39;</span> <span class="ow">in</span> <span class="n">streaml_opt</span><span class="p">:</span> 
+            <span class="n">lw_min</span> <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_min&#39;</span><span class="p">]</span>
+            <span class="k">del</span><span class="p">(</span><span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_min&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s1">&#39;lw_max&#39;</span> <span class="ow">in</span> <span class="n">streaml_opt</span><span class="p">:</span> 
+            <span class="n">lw_max</span> <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_max&#39;</span><span class="p">]</span>
+            <span class="k">del</span><span class="p">(</span><span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_max&#39;</span><span class="p">])</span>    
+                
+        <span class="n">lw</span> <span class="o">=</span> <span class="n">data_s</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">lw</span> <span class="o">=</span> <span class="p">(</span><span class="n">lw</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">lw</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">lw</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">lw</span><span class="p">))</span>
+        <span class="n">lw</span> <span class="o">=</span> <span class="n">lw</span><span class="o">*</span><span class="p">(</span><span class="n">lw_max</span><span class="o">-</span><span class="n">lw_min</span><span class="p">)</span><span class="o">+</span><span class="n">lw_min</span>
+        <span class="n">lw</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_s</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+        
+        <span class="c1"># kick out nan values</span>
+        <span class="n">data_u</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_s</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">data_v</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_s</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">data_s</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_s</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.0</span>
+                
+        <span class="n">plt_optdefault</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">({</span><span class="s1">&#39;density&#39;</span><span class="p">:</span><span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;color&#39;</span><span class="p">:</span><span class="s1">&#39;k&#39;</span><span class="p">})</span>
+        <span class="n">plt_optdefault</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">streaml_opt</span><span class="p">)</span>
+        
+        <span class="c1"># here do cartopy projection inside streamplot routine </span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">CRS</span><span class="p">):</span> <span class="n">plt_optdefault</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;transform&#39;</span><span class="p">:</span><span class="n">which_transf</span><span class="p">})</span>
+                
+        <span class="n">h0</span><span class="o">=</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">streamplot</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> 
+                            <span class="n">linewidth</span> <span class="o">=</span> <span class="n">lw</span><span class="p">,</span> 
+                            <span class="o">**</span><span class="n">plt_optdefault</span><span class="p">)</span>
+                
+        <span class="k">del</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> <span class="n">data_s</span><span class="p">,</span> <span class="n">lw</span><span class="p">)</span>
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">elif</span> <span class="n">do_streaml</span> <span class="ow">and</span> <span class="n">streaml_dat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39; --&gt; you need to provide regular gridded u,v data to plot streamlines&#39;</span><span class="p">)</span>
+    
     <span class="k">return</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span></div>
 
 
