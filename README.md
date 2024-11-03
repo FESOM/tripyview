@@ -71,7 +71,7 @@ vertice/element- resolution and area)
 * `hslice_isotdep`   - plot horizontal slices of depth of distinct isotherm (default: 12°C isotherm)
 * `hslice_streaml`   - plot horizontal slices of scalar ocean variable and overlay streamline information from regular gridded coarse grained velocity data
 <p align="center" width="100%">
-  <img width=50% src="docs/images/tripyview_hslice_streaml.png">
+  <img width=75% src="docs/images/tripyview_hslice_streaml.png">
 </p>
 
 
