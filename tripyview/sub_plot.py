@@ -425,11 +425,11 @@ def plot_hslice(mesh                   ,
             
             #___________________________________________________________________
             # add streamline data if available 
-            h0 = do_plt_streaml(hax_ii, ii, do_streaml, 
+            h0 = do_plt_streaml_reg(hax_ii, ii, do_streaml, 
                                 box         = box, 
                                 streaml_dat = streaml_dat, 
                                 streaml_opt = streaml_opt)
-            hstrm.append(h0)
+            hstrm.append(h0)            
             
             #___________________________________________________________________
             # add mesh land-sea mask
@@ -4833,7 +4833,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
 #
 #
 #_______________________________________________________________________________
-def do_plt_streaml(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dict(), 
+def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dict(), 
                    box=None, which_transf=ccrs.PlateCarree()):
     """
     --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
