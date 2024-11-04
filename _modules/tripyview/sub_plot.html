@@ -464,11 +464,11 @@
             
             <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># add streamline data if available </span>
-            <span class="n">h0</span> <span class="o">=</span> <span class="n">do_plt_streaml</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> 
+            <span class="n">h0</span> <span class="o">=</span> <span class="n">do_plt_streaml_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> 
                                 <span class="n">box</span>         <span class="o">=</span> <span class="n">box</span><span class="p">,</span> 
                                 <span class="n">streaml_dat</span> <span class="o">=</span> <span class="n">streaml_dat</span><span class="p">,</span> 
                                 <span class="n">streaml_opt</span> <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">)</span>
-            <span class="n">hstrm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span>
+            <span class="n">hstrm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span>            
             
             <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># add mesh land-sea mask</span>
@@ -4924,9 +4924,9 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-<div class="viewcode-block" id="do_plt_streaml">
-<a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_streaml">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_streaml</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> <span class="n">streaml_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">streaml_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
+<div class="viewcode-block" id="do_plt_streaml_reg">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_streaml_reg">[docs]</a>
+<span class="k">def</span> <span class="nf">do_plt_streaml_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> <span class="n">streaml_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">streaml_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                    <span class="n">box</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot streamlines over scalar data, based on regular gridded lon,lat vector </span>
