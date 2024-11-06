@@ -99,6 +99,8 @@
                 <span class="n">do_streaml</span> <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
                 <span class="n">streaml_dat</span><span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">streaml_opt</span><span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
+                <span class="n">do_streaml_leg</span> <span class="o">=</span> <span class="kc">True</span>  <span class="p">,</span>
+                <span class="n">streaml_leg_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()</span> <span class="p">,</span> 
                 <span class="c1">#--- bottom mask ----</span>
                 <span class="n">do_bot</span>     <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
                 <span class="n">bot_opt</span>    <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
@@ -217,6 +219,27 @@
 
 <span class="sd">        :mesh_opt:  dict, (default: dict()) additional options that are given to the mesh plotting via kwarg</span>
 
+<span class="sd">        ___plot streamlines_________________________________</span>
+
+<span class="sd">        :do_streaml:   bool, (default: False), overlay streamline plot based on regular gridded u,v data</span>
+
+<span class="sd">        :streaml_dat:  list, (default: None), list with u,v regular gridded velocity data</span>
+
+<span class="sd">        :streaml_opt:  dict, (default: dict()), additional options that can be given to hter streamline plot_hline</span>
+<span class="sd">        </span>
+<span class="sd">        :do_streaml_leg: bool, (default: False) overlay legend for streamline plot, keep in mind that the position for </span>
+<span class="sd">                               legend is somewhat pre setted by hand </span>
+
+<span class="sd">        :streaml_leg_opt: dict, (default=dict()) additional option for the position of the streamline legend </span>
+<span class="sd">        </span>
+<span class="sd">            ::</span>
+<span class="sd">            </span>
+<span class="sd">                streaml_leg_opt = dict({&#39;x&#39;:75, # lon position of legend in deg</span>
+<span class="sd">                                        &#39;y&#39;:60, # lat position of legend in deg </span>
+<span class="sd">                                        &#39;dy&#39;:5, # vertical distance of legend labels in deg</span>
+<span class="sd">                                        &#39;dw&#39;:10, # width of lines in deg</span>
+<span class="sd">                                        &#39;arr_s&#39;: [0.05, 0.1, 0.2, 0.3, 0.4]  })</span>
+<span class="sd">                </span>
 <span class="sd">        ___plot bottom mask_________________________________</span>
 
 <span class="sd">        :do_bot:    bool, (default: True), overlay topographic bottom mask</span>
@@ -465,9 +488,11 @@
             <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># add streamline data if available </span>
             <span class="n">h0</span> <span class="o">=</span> <span class="n">do_plt_streaml_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> 
-                                <span class="n">box</span>         <span class="o">=</span> <span class="n">box</span><span class="p">,</span> 
-                                <span class="n">streaml_dat</span> <span class="o">=</span> <span class="n">streaml_dat</span><span class="p">,</span> 
-                                <span class="n">streaml_opt</span> <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">)</span>
+                                <span class="n">box</span>             <span class="o">=</span> <span class="n">box</span><span class="p">,</span> 
+                                <span class="n">streaml_dat</span>     <span class="o">=</span> <span class="n">streaml_dat</span><span class="p">,</span> 
+                                <span class="n">streaml_opt</span>     <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">,</span>
+                                <span class="n">do_streaml_leg</span>  <span class="o">=</span> <span class="n">do_streaml_leg</span><span class="p">,</span> 
+                                <span class="n">streaml_leg_opt</span> <span class="o">=</span> <span class="n">streaml_leg_opt</span><span class="p">)</span>
             <span class="n">hstrm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span>            
             
             <span class="c1">#___________________________________________________________________</span>
@@ -4927,6 +4952,7 @@
 <div class="viewcode-block" id="do_plt_streaml_reg">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_streaml_reg">[docs]</a>
 <span class="k">def</span> <span class="nf">do_plt_streaml_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> <span class="n">streaml_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">streaml_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
+                   <span class="n">do_streaml_leg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">streaml_leg_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
                    <span class="n">box</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot streamlines over scalar data, based on regular gridded lon,lat vector </span>
@@ -4968,6 +4994,11 @@
 <span class="sd">                </span>
 <span class="sd">        :streaml_opt:   dict, (default: dict()) additional options that are given to </span>
 <span class="sd">                        streamline plot routine</span>
+<span class="sd">                        </span>
+<span class="sd">        :do_streaml_leg: bool, (default: False) overlay legend for streamline plot, keep in mind that the position for </span>
+<span class="sd">                               legend is somewhat pre setted by hand </span>
+
+<span class="sd">        :streaml_leg_opt: dict, (default=dict()) additional option for the position of the streamline legend</span>
 <span class="sd">        </span>
 <span class="sd">        :box:           None, list (default: None) regional limitation of plot. For ortho...</span>
 <span class="sd">                        box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = </span>
@@ -4999,6 +5030,7 @@
         
         <span class="c1"># vector norm --&gt; speed</span>
         <span class="n">data_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">data_u</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">data_v</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">speed_min</span><span class="p">,</span> <span class="n">speed_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">data_s</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">data_s</span><span class="p">)</span>
                 
         <span class="c1"># compute scaled line width based on speed</span>
         <span class="n">lw_min</span><span class="p">,</span> <span class="n">lw_max</span> <span class="o">=</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">5.0</span>
@@ -5008,11 +5040,14 @@
         <span class="k">if</span> <span class="s1">&#39;lw_max&#39;</span> <span class="ow">in</span> <span class="n">streaml_opt</span><span class="p">:</span> 
             <span class="n">lw_max</span> <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_max&#39;</span><span class="p">]</span>
             <span class="k">del</span><span class="p">(</span><span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_max&#39;</span><span class="p">])</span>    
-                
-        <span class="n">lw</span> <span class="o">=</span> <span class="n">data_s</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">lw</span> <span class="o">=</span> <span class="p">(</span><span class="n">lw</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">lw</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">lw</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">lw</span><span class="p">))</span>
-        <span class="n">lw</span> <span class="o">=</span> <span class="n">lw</span><span class="o">*</span><span class="p">(</span><span class="n">lw_max</span><span class="o">-</span><span class="n">lw_min</span><span class="p">)</span><span class="o">+</span><span class="n">lw_min</span>
-        <span class="n">lw</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_s</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">def</span> <span class="nf">speed2lw</span><span class="p">(</span><span class="n">speed</span><span class="p">,</span> <span class="n">speed_min</span><span class="p">,</span> <span class="n">speed_max</span><span class="p">,</span> <span class="n">lw_min</span><span class="p">,</span> <span class="n">lw_max</span><span class="p">):</span>
+            <span class="c1">#lw = speed</span>
+            <span class="n">lw</span> <span class="o">=</span> <span class="p">(</span><span class="n">speed</span><span class="o">-</span><span class="n">speed_min</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">speed_max</span><span class="o">-</span><span class="n">speed_min</span><span class="p">)</span>
+            <span class="n">lw</span> <span class="o">=</span> <span class="n">lw</span><span class="o">*</span><span class="p">(</span><span class="n">lw_max</span><span class="o">-</span><span class="n">lw_min</span><span class="p">)</span><span class="o">+</span><span class="n">lw_min</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">speed</span><span class="p">)):</span> 
+                <span class="n">lw</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">speed</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">return</span><span class="p">(</span><span class="n">lw</span><span class="p">)</span>
         
         <span class="c1"># kick out nan values</span>
         <span class="n">data_u</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_s</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.0</span>
@@ -5026,10 +5061,39 @@
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">CRS</span><span class="p">):</span> <span class="n">plt_optdefault</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;transform&#39;</span><span class="p">:</span><span class="n">which_transf</span><span class="p">})</span>
                 
         <span class="n">h0</span><span class="o">=</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">streamplot</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> 
-                            <span class="n">linewidth</span> <span class="o">=</span> <span class="n">lw</span><span class="p">,</span> 
+                            <span class="n">linewidth</span> <span class="o">=</span> <span class="n">speed2lw</span><span class="p">(</span><span class="n">data_s</span><span class="p">,</span> <span class="n">speed_min</span><span class="p">,</span> <span class="n">speed_max</span><span class="p">,</span> <span class="n">lw_min</span><span class="p">,</span> <span class="n">lw_max</span><span class="p">),</span> 
                             <span class="o">**</span><span class="n">plt_optdefault</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># make a streamline legend</span>
+        <span class="k">if</span> <span class="n">do_streaml_leg</span><span class="p">:</span>
+            <span class="n">leg_optdefault</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">({</span><span class="s1">&#39;x&#39;</span><span class="p">:</span><span class="mi">75</span><span class="p">,</span> <span class="c1"># lon position of legend in deg</span>
+                                   <span class="s1">&#39;y&#39;</span><span class="p">:</span><span class="mi">60</span><span class="p">,</span> <span class="c1"># lat position of legend in deg </span>
+                                   <span class="s1">&#39;dy&#39;</span><span class="p">:</span><span class="mi">5</span><span class="p">,</span> <span class="c1"># vertical distance of legend labels in deg</span>
+                                   <span class="s1">&#39;dw&#39;</span><span class="p">:</span><span class="mi">10</span><span class="p">,</span> <span class="c1"># width of lines in deg</span>
+                                   <span class="s1">&#39;arr_s&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">]</span>  <span class="p">})</span>
+            <span class="n">leg_optdefault</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">streaml_leg_opt</span><span class="p">)</span>
+            
+            <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span><span class="p">,</span> <span class="n">dw</span>   <span class="o">=</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">],</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">],</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;dy&#39;</span><span class="p">],</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;dw&#39;</span><span class="p">]</span>
+            <span class="n">x01</span><span class="p">,</span> <span class="n">y01</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">dw</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+            <span class="n">x02</span><span class="p">,</span> <span class="n">y02</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span>  <span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+            <span class="n">x03</span><span class="p">,</span> <span class="n">y03</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">2</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">speed</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;arr_s&#39;</span><span class="p">]):</span>
+                <span class="c1"># This linewidth</span>
+                <span class="n">lw</span> <span class="o">=</span> <span class="n">speed2lw</span><span class="p">(</span><span class="n">speed</span><span class="p">,</span> <span class="n">speed_min</span><span class="p">,</span> <span class="n">speed_max</span><span class="p">,</span> <span class="n">lw_min</span><span class="p">,</span> <span class="n">lw_max</span><span class="p">)</span>
+
+                <span class="c1"># Plot a line in the legend, of the correct length</span>
+                <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span>   <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+                <span class="n">hax_ii</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="n">x01</span> <span class="p">,</span><span class="n">x02</span><span class="p">],</span> <span class="p">[</span><span class="n">y1</span><span class="p">,</span><span class="n">y1</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="n">lw</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
                 
-        <span class="k">del</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> <span class="n">data_s</span><span class="p">,</span> <span class="n">lw</span><span class="p">)</span>
+                <span class="c1"># Add a text label, after converting the lw back to a speed</span>
+                <span class="n">hax_ii</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">x03</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">{:2.2f}</span><span class="s1"> $m{{</span><span class="se">\\</span><span class="s1">cdot}}s^{{-1}}$&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">speed</span><span class="p">),</span> 
+                            <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">)</span>
+                <span class="n">y</span><span class="o">=</span><span class="n">y</span><span class="o">-</span><span class="n">dy</span>
+            
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> <span class="n">data_s</span><span class="p">)</span>
+        
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">elif</span> <span class="n">do_streaml</span> <span class="ow">and</span> <span class="n">streaml_dat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39; --&gt; you need to provide regular gridded u,v data to plot streamlines&#39;</span><span class="p">)</span>
