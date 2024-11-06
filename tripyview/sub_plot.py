@@ -60,6 +60,8 @@ def plot_hslice(mesh                   ,
                 do_streaml = False     , 
                 streaml_dat= None      , 
                 streaml_opt= dict()    , 
+                do_streaml_leg = True  ,
+                streaml_leg_opt=dict() , 
                 #--- bottom mask ----
                 do_bot     = True      , 
                 bot_opt    = dict()    ,
@@ -178,6 +180,27 @@ def plot_hslice(mesh                   ,
 
         :mesh_opt:  dict, (default: dict()) additional options that are given to the mesh plotting via kwarg
 
+        ___plot streamlines_________________________________
+
+        :do_streaml:   bool, (default: False), overlay streamline plot based on regular gridded u,v data
+
+        :streaml_dat:  list, (default: None), list with u,v regular gridded velocity data
+
+        :streaml_opt:  dict, (default: dict()), additional options that can be given to hter streamline plot_hline
+        
+        :do_streaml_leg: bool, (default: False) overlay legend for streamline plot, keep in mind that the position for 
+                               legend is somewhat pre setted by hand 
+
+        :streaml_leg_opt: dict, (default=dict()) additional option for the position of the streamline legend 
+        
+            ::
+            
+                streaml_leg_opt = dict({'x':75, # lon position of legend in deg
+                                        'y':60, # lat position of legend in deg 
+                                        'dy':5, # vertical distance of legend labels in deg
+                                        'dw':10, # width of lines in deg
+                                        'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
+                
         ___plot bottom mask_________________________________
 
         :do_bot:    bool, (default: True), overlay topographic bottom mask
@@ -426,9 +449,11 @@ def plot_hslice(mesh                   ,
             #___________________________________________________________________
             # add streamline data if available 
             h0 = do_plt_streaml_reg(hax_ii, ii, do_streaml, 
-                                box         = box, 
-                                streaml_dat = streaml_dat, 
-                                streaml_opt = streaml_opt)
+                                box             = box, 
+                                streaml_dat     = streaml_dat, 
+                                streaml_opt     = streaml_opt,
+                                do_streaml_leg  = do_streaml_leg, 
+                                streaml_leg_opt = streaml_leg_opt)
             hstrm.append(h0)            
             
             #___________________________________________________________________
@@ -4834,6 +4859,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
 #
 #_______________________________________________________________________________
 def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dict(), 
+                   do_streaml_leg=True, streaml_leg_opt=dict(),
                    box=None, which_transf=ccrs.PlateCarree()):
     """
     --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
@@ -4875,6 +4901,11 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
                 
         :streaml_opt:   dict, (default: dict()) additional options that are given to 
                         streamline plot routine
+                        
+        :do_streaml_leg: bool, (default: False) overlay legend for streamline plot, keep in mind that the position for 
+                               legend is somewhat pre setted by hand 
+
+        :streaml_leg_opt: dict, (default=dict()) additional option for the position of the streamline legend
         
         :box:           None, list (default: None) regional limitation of plot. For ortho...
                         box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = 
@@ -4906,6 +4937,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
         
         # vector norm --> speed
         data_s = np.sqrt(data_u**2 + data_v**2)
+        speed_min, speed_max = np.nanmin(data_s), np.nanmax(data_s)
                 
         # compute scaled line width based on speed
         lw_min, lw_max = 0.25, 5.0
@@ -4915,11 +4947,14 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
         if 'lw_max' in streaml_opt: 
             lw_max = streaml_opt['lw_max']
             del(streaml_opt['lw_max'])    
-                
-        lw = data_s.copy()
-        lw = (lw-np.nanmin(lw))/(np.nanmax(lw)-np.nanmin(lw))
-        lw = lw*(lw_max-lw_min)+lw_min
-        lw[np.isnan(data_s)] = 0
+
+        def speed2lw(speed, speed_min, speed_max, lw_min, lw_max):
+            #lw = speed
+            lw = (speed-speed_min)/(speed_max-speed_min)
+            lw = lw*(lw_max-lw_min)+lw_min
+            if np.any(np.isnan(speed)): 
+                lw[np.isnan(speed)] = 0
+            return(lw)
         
         # kick out nan values
         data_u[np.isnan(data_s)] = 0.0
@@ -4933,10 +4968,39 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
         if isinstance(hax_ii.projection, ccrs.CRS): plt_optdefault.update({'transform':which_transf})
                 
         h0=hax_ii.streamplot(data_x, data_y, data_u, data_v, 
-                            linewidth = lw, 
+                            linewidth = speed2lw(data_s, speed_min, speed_max, lw_min, lw_max), 
                             **plt_optdefault)
+        
+        #_______________________________________________________________________
+        # make a streamline legend
+        if do_streaml_leg:
+            leg_optdefault = dict({'x':75, # lon position of legend in deg
+                                   'y':60, # lat position of legend in deg 
+                                   'dy':5, # vertical distance of legend labels in deg
+                                   'dw':10, # width of lines in deg
+                                   'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
+            leg_optdefault.update(streaml_leg_opt)
+            
+            x, y, dy, dw   = leg_optdefault['x'], leg_optdefault['y'], leg_optdefault['dy'], leg_optdefault['dw']
+            x01, y01 = hax_ii.projection.transform_point(x-dw, y, ccrs.PlateCarree())
+            x02, y02 = hax_ii.projection.transform_point(x  , y, ccrs.PlateCarree())
+            x03, y03 = hax_ii.projection.transform_point(x+2, y, ccrs.PlateCarree())
+            for i, speed in enumerate(leg_optdefault['arr_s']):
+                # This linewidth
+                lw = speed2lw(speed, speed_min, speed_max, lw_min, lw_max)
+
+                # Plot a line in the legend, of the correct length
+                x1, y1   = hax_ii.projection.transform_point(x, y, ccrs.PlateCarree())
+                hax_ii.plot([x01 ,x02], [y1,y1], c='k', lw=lw, zorder=10)
                 
-        del(data_x, data_y, data_u, data_v, data_s, lw)
+                # Add a text label, after converting the lw back to a speed
+                hax_ii.text(x03, y1, '{:2.2f} $m{{\\cdot}}s^{{-1}}$'.format(speed), 
+                            va='center', zorder=10, fontweight='normal')
+                y=y-dy
+            
+        #_______________________________________________________________________
+        del(data_x, data_y, data_u, data_v, data_s)
+        
     #___________________________________________________________________________
     elif do_streaml and streaml_dat is None:
         raise ValueError(' --> you need to provide regular gridded u,v data to plot streamlines')
