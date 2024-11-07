@@ -197,6 +197,7 @@
     <span class="n">is_data</span> <span class="o">=</span> <span class="s1">&#39;scalar&#39;</span>
     <span class="n">is_ie2n</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">do_vec</span>  <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">do_sclrv</span><span class="o">=</span> <span class="kc">None</span> <span class="c1"># do scalar velocity compononent</span>
     <span class="n">do_norm</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">do_pdens</span><span class="o">=</span> <span class="kc">False</span>
     <span class="n">str_adep</span><span class="p">,</span> <span class="n">str_atim</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span> <span class="c1"># string for arithmetic</span>
@@ -309,11 +310,22 @@
     <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;vec&#39;</span> <span class="ow">in</span> <span class="n">vname</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="s1">&#39;norm&#39;</span> <span class="ow">in</span> <span class="n">vname</span><span class="p">):</span>
         <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;vec&#39;</span>  <span class="ow">in</span> <span class="n">vname</span><span class="p">):</span> <span class="n">do_vec</span> <span class="o">=</span><span class="kc">True</span>
         <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;norm&#39;</span> <span class="ow">in</span> <span class="n">vname</span><span class="p">):</span> <span class="n">do_norm</span><span class="o">=</span><span class="kc">True</span>
+        
+        <span class="c1"># in case you want to plot a single scalar velocity component, the velocities</span>
+        <span class="c1"># might still need to be rotated depending what are the settings in the model</span>
+        <span class="c1"># for the rotation you still need both components. After rotation the unnecessary </span>
+        <span class="c1"># component can be kicked out. The component that needs to be keept is </span>
+        <span class="c1"># defined by &quot;:&quot; vname = &#39;vec+u+v:v&#39;, the variable thast is kept</span>
+        <span class="c1"># is written into do_sclrv</span>
+        <span class="k">if</span> <span class="s1">&#39;:&#39;</span> <span class="ow">in</span> <span class="n">vname</span><span class="p">:</span> <span class="n">vname</span><span class="p">,</span> <span class="n">do_sclrv</span> <span class="o">=</span> <span class="n">vname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>    
+        
+        <span class="c1"># determine the varaibles for the two vector component separated by &quot;+&quot;</span>
         <span class="n">aux</span> <span class="o">=</span> <span class="n">vname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;+&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">aux</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span> <span class="ow">or</span> <span class="n">aux</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="s1">&#39;&#39;</span><span class="p">:</span> 
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot; to load vector or norm of data two variables need to be defined: vec+u+v&quot;</span><span class="p">)</span>
         <span class="n">vname</span><span class="p">,</span> <span class="n">vname2</span> <span class="o">=</span> <span class="n">aux</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">aux</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
         <span class="k">del</span> <span class="n">aux</span>
+        
     <span class="k">elif</span> <span class="p">(</span><span class="s1">&#39;sigma&#39;</span> <span class="ow">in</span> <span class="n">vname</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="s1">&#39;pdens&#39;</span> <span class="ow">in</span> <span class="n">vname</span><span class="p">):</span>
         <span class="n">do_pdens</span><span class="o">=</span><span class="kc">True</span> 
         <span class="n">vname_tmp</span> <span class="o">=</span> <span class="n">vname</span>
@@ -415,7 +427,7 @@
            <span class="p">(</span><span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
            <span class="p">(</span><span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;nod2&#39;</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span><span class="p">)</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unify_chunks</span><span class="p">()</span>
-        
+   
     <span class="c1">#___________________________________________________________________________    </span>
     <span class="c1"># add depth axes since its not included in restart and blowup files</span>
     <span class="c1"># also add weights</span>
@@ -489,7 +501,7 @@
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># rotate the vectors if do_vecrot=True and do_vec=True</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">do_vector_rotation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_vec</span><span class="p">,</span> <span class="n">do_vecrot</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">do_vector_rotation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_vec</span><span class="p">,</span> <span class="n">do_vecrot</span><span class="p">,</span> <span class="n">do_sclrv</span><span class="p">)</span>
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># compute norm of the vectors if do_norm=True    </span>
@@ -1441,7 +1453,7 @@
 <span class="c1"># ___COMPUTE GRID ROTATION OF VECTOR DATA______________________________________</span>
 <div class="viewcode-block" id="do_vector_rotation">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_vector_rotation">[docs]</a>
-<span class="k">def</span> <span class="nf">do_vector_rotation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_vec</span><span class="p">,</span> <span class="n">do_vecrot</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">do_vector_rotation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_vec</span><span class="p">,</span> <span class="n">do_vecrot</span><span class="p">,</span> <span class="n">do_sclrv</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute roration of vector: vname=&#39;vec+u+v&#39;</span>
 <span class="sd">    </span>
@@ -1482,6 +1494,16 @@
                                         <span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> 
                                         <span class="n">data</span><span class="p">[</span><span class="n">vname</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="n">vname</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> 
                                         <span class="n">gridis</span><span class="o">=</span><span class="s1">&#39;geo&#39;</span> <span class="p">)</span>  
+        
+        <span class="c1"># in case only a scalar vector component is needed, rotation might still </span>
+        <span class="c1"># need to be done. After rotation the other vector component can be dropped</span>
+        <span class="k">if</span> <span class="n">do_sclrv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">vname_drop</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span>
+            <span class="n">vname_drop</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">do_sclrv</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; &gt; keep vector component: &#39;</span><span class="p">,</span> <span class="n">do_sclrv</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; &gt; drop vector component: &#39;</span><span class="p">,</span> <span class="n">vname_drop</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">(</span><span class="n">vname_drop</span><span class="p">)</span>
+            
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">return</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
 
