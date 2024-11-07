@@ -158,6 +158,7 @@ def load_data_fesom2(mesh,
     is_data = 'scalar'
     is_ie2n = False
     do_vec  = False
+    do_sclrv= None # do scalar velocity compononent
     do_norm = False
     do_pdens= False
     str_adep, str_atim = '', '' # string for arithmetic
@@ -270,11 +271,22 @@ def load_data_fesom2(mesh,
     if ('vec' in vname) or ('norm' in vname):
         if ('vec'  in vname): do_vec =True
         if ('norm' in vname): do_norm=True
+        
+        # in case you want to plot a single scalar velocity component, the velocities
+        # might still need to be rotated depending what are the settings in the model
+        # for the rotation you still need both components. After rotation the unnecessary 
+        # component can be kicked out. The component that needs to be keept is 
+        # defined by ":" vname = 'vec+u+v:v', the variable thast is kept
+        # is written into do_sclrv
+        if ':' in vname: vname, do_sclrv = vname.split(':')    
+        
+        # determine the varaibles for the two vector component separated by "+"
         aux = vname.split('+')
         if len(aux)==2 or aux[-1]=='': 
             raise ValueError(" to load vector or norm of data two variables need to be defined: vec+u+v")
         vname, vname2 = aux[1], aux[2]
         del aux
+        
     elif ('sigma' in vname) or ('pdens' in vname):
         do_pdens=True 
         vname_tmp = vname
@@ -376,7 +388,7 @@ def load_data_fesom2(mesh,
            ('nod2' in data.dims) and \
            ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
         data = data.unify_chunks()
-        
+   
     #___________________________________________________________________________    
     # add depth axes since its not included in restart and blowup files
     # also add weights
@@ -450,7 +462,7 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________
     # rotate the vectors if do_vecrot=True and do_vec=True
-    data = do_vector_rotation(data, mesh, do_vec, do_vecrot)
+    data = do_vector_rotation(data, mesh, do_vec, do_vecrot, do_sclrv)
     
     #___________________________________________________________________________
     # compute norm of the vectors if do_norm=True    
@@ -1369,7 +1381,7 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
 #
 #
 # ___COMPUTE GRID ROTATION OF VECTOR DATA______________________________________
-def do_vector_rotation(data, mesh, do_vec, do_vecrot):
+def do_vector_rotation(data, mesh, do_vec, do_vecrot, do_sclrv):
     """
     --> compute roration of vector: vname='vec+u+v'
     
@@ -1410,6 +1422,16 @@ def do_vector_rotation(data, mesh, do_vec, do_vecrot):
                                         mesh.n_y[mesh.e_i].sum(axis=1)/3, 
                                         data[vname[0]].data, data[vname[1]].data, 
                                         gridis='geo' )  
+        
+        # in case only a scalar vector component is needed, rotation might still 
+        # need to be done. After rotation the other vector component can be dropped
+        if do_sclrv is not None:
+            vname_drop = list(data.data_vars)
+            vname_drop.remove(do_sclrv)
+            print(' > keep vector component: ', do_sclrv)
+            print(' > drop vector component: ', vname_drop[-1])
+            data = data.drop_vars(vname_drop)
+            
     #___________________________________________________________________________
     return(data)
 
