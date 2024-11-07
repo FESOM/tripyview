@@ -2014,10 +2014,8 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
         
         #_______________________________________________________________________
         # compute vector in geo coordinates 
-        vgeo= np.array(vxg*-np.sin(lat)*np.cos(lon) - 
-                       vyg* np.sin(lat)*np.sin(lon) + 
-                       vzg* np.cos(lat))
-        ugeo= np.array(vxg*-np.sin(lon) + vyg*np.cos(lon))
+        vgeo= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
+        ugeo= vxg*-np.sin(lon) + vyg*np.cos(lon)
         
     #___________________________________________________________________________
     # rotation of two dimensional vector data    
@@ -2031,27 +2029,31 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
             if do_info: 
                 print('{:02d}|'.format(nd2i), end='')
                 if np.mod(nd2i+1,10)==0: print('')
+            
             #___________________________________________________________________
+            t1=clock.time()
             aux_urot, aux_vrot = urot[:,nd2i], vrot[:,nd2i]
+            
             #___________________________________________________________________
             # compute vector in rotated cartesian coordinates
+            t1=clock.time()
             vxr = -aux_vrot*np.sin(rlat)*np.cos(rlon) - aux_urot*np.sin(rlon)
             vyr = -aux_vrot*np.sin(rlat)*np.sin(rlon) + aux_urot*np.cos(rlon)
             vzr =  aux_vrot*np.cos(rlat)
             
             #___________________________________________________________________
             # compute vector in geo cartesian coordinates
+            t1=clock.time()
             vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
             vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
             vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
             
             #___________________________________________________________________
             # compute vector in geo coordinates 
-            vgeo[:,nd2i]= np.array(vxg*-np.sin(lat)*np.cos(lon) - 
-                                   vyg* np.sin(lat)*np.sin(lon) + 
-                                   vzg* np.cos(lat))
-            ugeo[:,nd2i]= np.array(vxg*-np.sin(lon) + vyg*np.cos(lon))
-        
+            t1=clock.time()
+            vgeo[:,nd2i]= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
+            ugeo[:,nd2i]= vxg*-np.sin(lon) + vyg*np.cos(lon)
+            
     #___________________________________________________________________________    
     else: raise ValueError('This number of dimensions is in moment not supported for vector rotation')    
     #___________________________________________________________________________

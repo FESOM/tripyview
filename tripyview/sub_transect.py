@@ -1103,7 +1103,7 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 #       \ /   \ /  
                 #        o-----o  
                 #
-                elem_i_P = nodeinelem[:,transects[0]['edge_cut_ni'][:,0]]
+                elem_i_P = nodeinelem[:,transect['edge_cut_ni'][:,0]]
                 elem_A_P = mesh.e_area[elem_i_P]
                 elem_A_P[elem_i_P<0]=0.0
                 scalarP1 = data[vname].isel(elem=elem_i_P.flatten()).load().values.T #.reshape(elem_i_P.shape)
@@ -1128,7 +1128,7 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                     for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[mesh.n_iz[ni]+1:,ii] = np.nan
                     
                 # average elemental values to edge node 2
-                elem_i_P = nodeinelem[:,transects[0]['edge_cut_ni'][:,1]]
+                elem_i_P = nodeinelem[:,transect['edge_cut_ni'][:,1]]
                 elem_A_P = mesh.e_area[elem_i_P]
                 elem_A_P[elem_i_P<0]=0.0
                 scalarP2 = data[vname].isel(elem=elem_i_P.flatten()).load().values.T #.reshape(elem_i_P.shape)
