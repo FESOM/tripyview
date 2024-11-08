@@ -2265,6 +2265,20 @@ def compute_boundary_edges(e_i):
 #
 # ___COMPUTE LIST/ARRAY NODE_IN_ELEM____________________________________________
 def compute_nod_in_elem2D(n2dn, e_i, do_arr=False):
+    """
+    --> compute element indices list that contribute to cetain vertice
+    
+    Parameters:
+    
+        :n2dn:      int, number of vertices
+        :e_i:       np.array([n2de x 3]), elemental array
+        :do_arr:    bool (default=False) shut output be list or numpy array
+    
+    Returns:
+    
+        :nod_in_elem2D:
+    
+    """
     t1=clock.time()
     # allocate list of size n2dn, create independent empty lists for each entry, 
     nod_in_elem2D     = [[] for _ in range(n2dn)]
