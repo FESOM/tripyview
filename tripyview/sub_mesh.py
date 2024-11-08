@@ -2166,78 +2166,59 @@ def grid_interp_e2n(mesh,data_e):
     
     """
     #___________________________________________________________________________
+    # compute area weights if not already exist    
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
-    if data_e.ndim==1:
-        # print('~~ >-)))°> .°oO A')
-        aux  = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
-        aux  = aux * np.vstack((data_e,data_e,data_e)).transpose().flatten()
         
-        #___________________________________________________________________________
+    #___________________________________________________________________________    
+    if data_e.ndim==1:
+        
+        # compute data on elements times area of elements
+        data_exa = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)) * data_e
+        data_exa = data_exa.transpose().flatten()
+        
         # single loop over self.e_i.flat is ~4 times faster than douple loop 
         # over for i in range(3): ,for j in range(self.n2de):
-        data_n = np.zeros((mesh.n2dn,))
-        count = 0
-        for idx in mesh.e_i.flat:
-            data_n[idx]=data_n[idx] + aux[count]
-            count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-        del aux, count
-        #with np.errstate(divide='ignore',invalid='ignore'):
-        data_n=data_n/mesh.n_area[0,:]/3.0
+        data_n = np.zeros(mesh.n2dn)
+        for e_i, n_i in enumerate(mesh.e_i.flat): data_n[n_i] = data_n[n_i] + data_exa[e_i]
+        data_n=data_n/mesh.n_area[0,:]/3.0        
+        del data_exa
         
+    #___________________________________________________________________________        
     elif data_e.ndim==2:
-        #print('~~ >-)))°> .°oO B')
-        nd     = data_e.shape[1]
-        data_n = np.zeros((mesh.n2dn, nd))
-        data_a = np.zeros((mesh.n2dn,   ))
-        aux1   = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
+        
+        nd        = data_e.shape[1]
+        data_n    = np.zeros((mesh.n2dn, nd))
+        data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
         
         #_______________________________________________________________________
         def e2n_di(di, data_e, area_e, e_i_flat, n_iz):
-            data_exa = area_e * np.vstack((data_e[:,di],data_e[:,di],data_e[:,di])).transpose().flatten()
-            suma     = np.zeros(n_iz.shape)
-            data_n   = np.zeros(n_iz.shape)
-            #___________________________________________________________________
+            data_exa  = area_e * np.vstack((data_e[:,di],data_e[:,di],data_e[:,di])).transpose().flatten()
+            data_n_di = np.zeros(n_iz.shape)
+            data_a_di = np.zeros(n_iz.shape)
+        
             # single loop over self.e_i.flat is ~4 times faster than douple loop 
             # over for i in range(3): ,for j in range(self.n2de):
-            for count, idx in enumerate(e_i_flat):
-                if n_iz[idx]<di: continue
-                data_n[idx]=data_n[idx] + data_exa[ count]
-                data_a[idx]=data_a[idx] + area_e[   count]
+            for e_i, n_i in enumerate(e_i_flat):
+                if n_iz[n_i]<di: continue
+                data_n_di[n_i] = data_n_di[n_i] + data_exa[ e_i]
+                data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
             with np.errstate(divide='ignore',invalid='ignore'):    
-                data_n=data_n/data_a
-            return(data_n)
+                data_n_di = data_n_di/data_a_di
+            return(data_n_di)
         
-        
+        #_______________________________________________________________________
         #t1 = clock.time()
         #for di in range(0,nd):
             #data_n[:, di] = e2n_di(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) 
         #print(clock.time()-t1)
         
-        
         t1 = clock.time()
         from joblib import Parallel, delayed
-        results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
+        results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
         data_n = np.vstack(results).transpose()
         print(' --> elapsed time:', clock.time()-t1)
         
-        #t1 = clock.time()
-        ##_______________________________________________________________________
-        #for ndi in range(0,nd):
-            #aux  = aux1 * np.vstack((data_e[:,ndi],data_e[:,ndi],data_e[:,ndi])).transpose().flatten()
-            ##___________________________________________________________________
-            ## single loop over self.e_i.flat is ~4 times faster than douple loop 
-            ## over for i in range(3): ,for j in range(self.n2de):
-            #data_a[:] = 0
-            #for count, idx in enumerate(mesh.e_i.flatten()):
-                #if ndi<=mesh.n_iz[idx]:
-                    #data_n[idx, ndi]=data_n[idx, ndi] + aux[ count]
-                    #data_a[idx     ]=data_a[idx     ] + aux1[count]
-            #del aux
-            ##with np.errstate(divide='ignore',invalid='ignore'):
-            ##data_n[:, ndi]=data_n[:, ndi]/mesh.n_area[ndi, :]/3.0
-            #data_n[:, ndi]=data_n[:, ndi]/data_a
-        #print(clock.time()-t1)    
     #___________________________________________________________________________
     return(data_n)
 
@@ -2277,3 +2258,31 @@ def compute_boundary_edges(e_i):
     bnde    = edge[idx==False,:]
     
     return(bnde)
+
+
+
+#
+#
+# ___COMPUTE LIST/ARRAY NODE_IN_ELEM____________________________________________
+def compute_nod_in_elem2D(n2dn, e_i, do_arr=False):
+    t1=clock.time()
+    # allocate list of size n2dn, create independent empty lists for each entry, 
+    nod_in_elem2D     = [[] for _ in range(n2dn)]
+    nod_in_elem2D_num = [0]*n2dn
+    
+    # append element index to each vertice list entry where it appears
+    for e_i, n_i in enumerate(e_i.flatten()): 
+        nod_in_elem2D[    n_i].append(np.int32(e_i/3))
+        nod_in_elem2D_num[n_i] += 1
+    
+    # convert list into numpy array
+    if do_arr:
+        nod_in_elem2D_arr = np.full((n2dn, max(nod_in_elem2D_num)), -1, dtype=np.int32)
+        for ii, lst_ii in enumerate(nod_in_elem2D):
+            nod_in_elem2D_arr[ii, :len(lst_ii)] = lst_ii
+        nod_in_elem2D = nod_in_elem2D_arr    
+        print(' --> elapsed time for nod_in_elem2D:', clock.time()-t1)
+        return(nod_in_elem2D, nod_in_elem2D_num)
+    else:   
+        print(' --> elapsed time for nod_in_elem2D:', clock.time()-t1)
+        return(nod_in_elem2D)
