@@ -2379,6 +2379,20 @@
 <div class="viewcode-block" id="compute_nod_in_elem2D">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.compute_nod_in_elem2D">[docs]</a>
 <span class="k">def</span> <span class="nf">compute_nod_in_elem2D</span><span class="p">(</span><span class="n">n2dn</span><span class="p">,</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">do_arr</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; compute element indices list that contribute to cetain vertice</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">    </span>
+<span class="sd">        :n2dn:      int, number of vertices</span>
+<span class="sd">        :e_i:       np.array([n2de x 3]), elemental array</span>
+<span class="sd">        :do_arr:    bool (default=False) shut output be list or numpy array</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">    </span>
+<span class="sd">        :nod_in_elem2D:</span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">t1</span><span class="o">=</span><span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
     <span class="c1"># allocate list of size n2dn, create independent empty lists for each entry, </span>
     <span class="n">nod_in_elem2D</span>     <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n2dn</span><span class="p">)]</span>

@@ -63,7 +63,29 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_mesh.compute_nod_in_elem2D">
 <span class="sig-prename descclassname"><span class="pre">tripyview.sub_mesh.</span></span><span class="sig-name descname"><span class="pre">compute_nod_in_elem2D</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n2dn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">e_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_arr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_mesh.html#compute_nod_in_elem2D"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_mesh.compute_nod_in_elem2D" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>–&gt; compute element indices list that contribute to cetain vertice</p>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">n2dn<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int, number of vertices</p>
+</dd>
+<dt class="field-even">e_i<span class="colon">:</span></dt>
+<dd class="field-even"><p>np.array([n2de x 3]), elemental array</p>
+</dd>
+<dt class="field-odd">do_arr<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool (default=False) shut output be list or numpy array</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">nod_in_elem2D<span class="colon">:</span></dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</div></blockquote>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_mesh.grid_cart3d">
