@@ -2274,78 +2274,59 @@
 <span class="sd">    </span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># compute area weights if not already exist    </span>
     <span class="n">mesh</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">compute_e_area</span><span class="p">()</span>
     <span class="n">mesh</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">compute_n_area</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">data_e</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
-        <span class="c1"># print(&#39;~~ &gt;-)))°&gt; .°oO A&#39;)</span>
-        <span class="n">aux</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-        <span class="n">aux</span>  <span class="o">=</span> <span class="n">aux</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">data_e</span><span class="p">,</span><span class="n">data_e</span><span class="p">,</span><span class="n">data_e</span><span class="p">))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
         
-        <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1">#___________________________________________________________________________    </span>
+    <span class="k">if</span> <span class="n">data_e</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+        
+        <span class="c1"># compute data on elements times area of elements</span>
+        <span class="n">data_exa</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">))</span> <span class="o">*</span> <span class="n">data_e</span>
+        <span class="n">data_exa</span> <span class="o">=</span> <span class="n">data_exa</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        
         <span class="c1"># single loop over self.e_i.flat is ~4 times faster than douple loop </span>
         <span class="c1"># over for i in range(3): ,for j in range(self.n2de):</span>
-        <span class="n">data_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2dn</span><span class="p">,))</span>
-        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="o">.</span><span class="n">flat</span><span class="p">:</span>
-            <span class="n">data_n</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">=</span><span class="n">data_n</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="n">aux</span><span class="p">[</span><span class="n">count</span><span class="p">]</span>
-            <span class="n">count</span><span class="o">=</span><span class="n">count</span><span class="o">+</span><span class="mi">1</span> <span class="c1"># count triangle index for aux_area[count] --&gt; aux_area =[n2de*3,]</span>
-        <span class="k">del</span> <span class="n">aux</span><span class="p">,</span> <span class="n">count</span>
-        <span class="c1">#with np.errstate(divide=&#39;ignore&#39;,invalid=&#39;ignore&#39;):</span>
-        <span class="n">data_n</span><span class="o">=</span><span class="n">data_n</span><span class="o">/</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_area</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span><span class="o">/</span><span class="mf">3.0</span>
+        <span class="n">data_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2dn</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">n_i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="o">.</span><span class="n">flat</span><span class="p">):</span> <span class="n">data_n</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span> <span class="o">=</span> <span class="n">data_n</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span> <span class="o">+</span> <span class="n">data_exa</span><span class="p">[</span><span class="n">e_i</span><span class="p">]</span>
+        <span class="n">data_n</span><span class="o">=</span><span class="n">data_n</span><span class="o">/</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_area</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span><span class="o">/</span><span class="mf">3.0</span>        
+        <span class="k">del</span> <span class="n">data_exa</span>
         
+    <span class="c1">#___________________________________________________________________________        </span>
     <span class="k">elif</span> <span class="n">data_e</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
-        <span class="c1">#print(&#39;~~ &gt;-)))°&gt; .°oO B&#39;)</span>
-        <span class="n">nd</span>     <span class="o">=</span> <span class="n">data_e</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">data_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2dn</span><span class="p">,</span> <span class="n">nd</span><span class="p">))</span>
-        <span class="n">data_a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2dn</span><span class="p">,</span>   <span class="p">))</span>
-        <span class="n">aux1</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        
+        <span class="n">nd</span>        <span class="o">=</span> <span class="n">data_e</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">data_n</span>    <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2dn</span><span class="p">,</span> <span class="n">nd</span><span class="p">))</span>
+        <span class="n">data_area</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
         
         <span class="c1">#_______________________________________________________________________</span>
         <span class="k">def</span> <span class="nf">e2n_di</span><span class="p">(</span><span class="n">di</span><span class="p">,</span> <span class="n">data_e</span><span class="p">,</span> <span class="n">area_e</span><span class="p">,</span> <span class="n">e_i_flat</span><span class="p">,</span> <span class="n">n_iz</span><span class="p">):</span>
-            <span class="n">data_exa</span> <span class="o">=</span> <span class="n">area_e</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">],</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">],</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">]))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-            <span class="n">suma</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_iz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-            <span class="n">data_n</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_iz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-            <span class="c1">#___________________________________________________________________</span>
+            <span class="n">data_exa</span>  <span class="o">=</span> <span class="n">area_e</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">],</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">],</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">]))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">data_n_di</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_iz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">data_a_di</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_iz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        
             <span class="c1"># single loop over self.e_i.flat is ~4 times faster than douple loop </span>
             <span class="c1"># over for i in range(3): ,for j in range(self.n2de):</span>
-            <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">e_i_flat</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">n_iz</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">&lt;</span><span class="n">di</span><span class="p">:</span> <span class="k">continue</span>
-                <span class="n">data_n</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">=</span><span class="n">data_n</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="n">data_exa</span><span class="p">[</span> <span class="n">count</span><span class="p">]</span>
-                <span class="n">data_a</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">=</span><span class="n">data_a</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="n">area_e</span><span class="p">[</span>   <span class="n">count</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">n_i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">e_i_flat</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">n_iz</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span><span class="o">&lt;</span><span class="n">di</span><span class="p">:</span> <span class="k">continue</span>
+                <span class="n">data_n_di</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span> <span class="o">=</span> <span class="n">data_n_di</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span> <span class="o">+</span> <span class="n">data_exa</span><span class="p">[</span> <span class="n">e_i</span><span class="p">]</span>
+                <span class="n">data_a_di</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span> <span class="o">=</span> <span class="n">data_a_di</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span> <span class="o">+</span> <span class="n">area_e</span><span class="p">[</span>   <span class="n">e_i</span><span class="p">]</span>
             <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>    
-                <span class="n">data_n</span><span class="o">=</span><span class="n">data_n</span><span class="o">/</span><span class="n">data_a</span>
-            <span class="k">return</span><span class="p">(</span><span class="n">data_n</span><span class="p">)</span>
+                <span class="n">data_n_di</span> <span class="o">=</span> <span class="n">data_n_di</span><span class="o">/</span><span class="n">data_a_di</span>
+            <span class="k">return</span><span class="p">(</span><span class="n">data_n_di</span><span class="p">)</span>
         
-        
+        <span class="c1">#_______________________________________________________________________</span>
         <span class="c1">#t1 = clock.time()</span>
         <span class="c1">#for di in range(0,nd):</span>
             <span class="c1">#data_n[:, di] = e2n_di(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) </span>
         <span class="c1">#print(clock.time()-t1)</span>
         
-        
         <span class="n">t1</span> <span class="o">=</span> <span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
         <span class="kn">from</span> <span class="nn">joblib</span> <span class="kn">import</span> <span class="n">Parallel</span><span class="p">,</span> <span class="n">delayed</span>
-        <span class="n">results</span> <span class="o">=</span> <span class="n">Parallel</span><span class="p">(</span><span class="n">n_jobs</span><span class="o">=</span><span class="mi">20</span><span class="p">)(</span><span class="n">delayed</span><span class="p">(</span><span class="n">e2n_di</span><span class="p">)(</span><span class="n">di</span><span class="p">,</span> <span class="n">data_e</span><span class="p">,</span> <span class="n">aux1</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_iz</span><span class="p">)</span> <span class="k">for</span> <span class="n">di</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">nd</span><span class="p">))</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">Parallel</span><span class="p">(</span><span class="n">n_jobs</span><span class="o">=</span><span class="mi">20</span><span class="p">)(</span><span class="n">delayed</span><span class="p">(</span><span class="n">e2n_di</span><span class="p">)(</span><span class="n">di</span><span class="p">,</span> <span class="n">data_e</span><span class="p">,</span> <span class="n">data_area</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_iz</span><span class="p">)</span> <span class="k">for</span> <span class="n">di</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">nd</span><span class="p">))</span>
         <span class="n">data_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; --&gt; elapsed time:&#39;</span><span class="p">,</span> <span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">-</span><span class="n">t1</span><span class="p">)</span>
         
-        <span class="c1">#t1 = clock.time()</span>
-        <span class="c1">##_______________________________________________________________________</span>
-        <span class="c1">#for ndi in range(0,nd):</span>
-            <span class="c1">#aux  = aux1 * np.vstack((data_e[:,ndi],data_e[:,ndi],data_e[:,ndi])).transpose().flatten()</span>
-            <span class="c1">##___________________________________________________________________</span>
-            <span class="c1">## single loop over self.e_i.flat is ~4 times faster than douple loop </span>
-            <span class="c1">## over for i in range(3): ,for j in range(self.n2de):</span>
-            <span class="c1">#data_a[:] = 0</span>
-            <span class="c1">#for count, idx in enumerate(mesh.e_i.flatten()):</span>
-                <span class="c1">#if ndi&lt;=mesh.n_iz[idx]:</span>
-                    <span class="c1">#data_n[idx, ndi]=data_n[idx, ndi] + aux[ count]</span>
-                    <span class="c1">#data_a[idx     ]=data_a[idx     ] + aux1[count]</span>
-            <span class="c1">#del aux</span>
-            <span class="c1">##with np.errstate(divide=&#39;ignore&#39;,invalid=&#39;ignore&#39;):</span>
-            <span class="c1">##data_n[:, ndi]=data_n[:, ndi]/mesh.n_area[ndi, :]/3.0</span>
-            <span class="c1">#data_n[:, ndi]=data_n[:, ndi]/data_a</span>
-        <span class="c1">#print(clock.time()-t1)    </span>
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">return</span><span class="p">(</span><span class="n">data_n</span><span class="p">)</span></div>
 
@@ -2388,6 +2369,37 @@
     <span class="n">bnde</span>    <span class="o">=</span> <span class="n">edge</span><span class="p">[</span><span class="n">idx</span><span class="o">==</span><span class="kc">False</span><span class="p">,:]</span>
     
     <span class="k">return</span><span class="p">(</span><span class="n">bnde</span><span class="p">)</span></div>
+
+
+
+
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1"># ___COMPUTE LIST/ARRAY NODE_IN_ELEM____________________________________________</span>
+<div class="viewcode-block" id="compute_nod_in_elem2D">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.compute_nod_in_elem2D">[docs]</a>
+<span class="k">def</span> <span class="nf">compute_nod_in_elem2D</span><span class="p">(</span><span class="n">n2dn</span><span class="p">,</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">do_arr</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">t1</span><span class="o">=</span><span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="c1"># allocate list of size n2dn, create independent empty lists for each entry, </span>
+    <span class="n">nod_in_elem2D</span>     <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n2dn</span><span class="p">)]</span>
+    <span class="n">nod_in_elem2D_num</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">n2dn</span>
+    
+    <span class="c1"># append element index to each vertice list entry where it appears</span>
+    <span class="k">for</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">n_i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">e_i</span><span class="o">.</span><span class="n">flatten</span><span class="p">()):</span> 
+        <span class="n">nod_in_elem2D</span><span class="p">[</span>    <span class="n">n_i</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">e_i</span><span class="o">/</span><span class="mi">3</span><span class="p">))</span>
+        <span class="n">nod_in_elem2D_num</span><span class="p">[</span><span class="n">n_i</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    
+    <span class="c1"># convert list into numpy array</span>
+    <span class="k">if</span> <span class="n">do_arr</span><span class="p">:</span>
+        <span class="n">nod_in_elem2D_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n2dn</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">nod_in_elem2D_num</span><span class="p">)),</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">lst_ii</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nod_in_elem2D</span><span class="p">):</span>
+            <span class="n">nod_in_elem2D_arr</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">lst_ii</span><span class="p">)]</span> <span class="o">=</span> <span class="n">lst_ii</span>
+        <span class="n">nod_in_elem2D</span> <span class="o">=</span> <span class="n">nod_in_elem2D_arr</span>    
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; --&gt; elapsed time for nod_in_elem2D:&#39;</span><span class="p">,</span> <span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">-</span><span class="n">t1</span><span class="p">)</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">nod_in_elem2D</span><span class="p">,</span> <span class="n">nod_in_elem2D_num</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>   
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; --&gt; elapsed time for nod_in_elem2D:&#39;</span><span class="p">,</span> <span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">-</span><span class="n">t1</span><span class="p">)</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">nod_in_elem2D</span><span class="p">)</span></div>
 
 </pre></div>
 
