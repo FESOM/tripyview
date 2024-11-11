@@ -388,8 +388,19 @@ def load_data_fesom2(mesh,
            ('nod2' in data.dims) and \
            ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
         data = data.unify_chunks()
-   
-    #___________________________________________________________________________    
+    
+    #___________________________________________________________________________
+    # check if mesh and data fit together
+    if   'nod2' in data.dims: 
+        if data.sizes['nod2'] != mesh.n2dn  : raise ValueError(' --> vertice length of mesh and data does not fit togeather')
+    elif 'elem' in data.dims: 
+        if data.sizes['elem'] != mesh.n2de  : raise ValueError(' --> element length of mesh and data does not fit togeather')
+    if   'nz1' in data.dims: 
+        if data.sizes['nz1' ] != mesh.nlev-1: raise ValueError(' --> zmid length of mesh and data does not fit togeather')
+    elif 'nz'  in data.dims: 
+        if data.sizes['nz' ]  != mesh.nlev  : raise ValueError(' --> zlev length of mesh and data does not fit togeather')
+    
+    #___________________________________________________________________________
     # add depth axes since its not included in restart and blowup files
     # also add weights
     if do_zarithm == 'wmean': do_zweight=True
