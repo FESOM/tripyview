@@ -868,12 +868,43 @@ ___________________________________________""".format(
         boundary
         
         """
+        # identify the polar triangle
+        #self.e_pbnd_p = np.argmin(90.0-self.n_y[self.e_i].sum(axis=1)/3.0)
+        #self.n_x  = np.hstack((self.n_x , self.n_x[self.e_i[self.e_pbnd_p, :]].sum()/3.0))
+        #self.n_y  = np.hstack((self.n_y , 90.0))
+        #self.n_i  = np.hstack((self.n_i , 0))
+        #self.n_iz = np.hstack((self.n_iz, self.n_iz[self.e_i[self.e_pbnd_p, :]].max() ))
+        #self.n_z  = np.hstack((self.n_z , self.n_z[self.e_i[self.e_pbnd_p, :]].min() ))
+        #if isinstance(self.n_ic, np.ndarray):
+            #self.n_ic = np.hstack((self.n_ic , self.n_ic[self.e_i[self.e_pbnd_p, :]].min() ))
+        #if isinstance(self.n_c , np.ndarray):
+            #self.n_c  = np.hstack((self.n_c , self.n_c[self.e_i[self.e_pbnd_p, :]].min() ))
+        
+        ## replace with 3 new augmeted polar triangles
+        #e_i_p = np.vstack( [self.e_i[self.e_pbnd_p, :]]*3 )
+        #e_i_p[0,0], e_i_p[1,1], e_i_p[2,2] = self.n2dn, self.n2dn, self.n2dn
+        #self.e_i  = np.vstack((self.e_i, e_i_p))
+        #self.e_iz = np.hstack((self.e_iz, [self.e_iz[self.e_pbnd_p]]*3 ))
+        #if isinstance(self.e_ic , np.ndarray): 
+            #self.e_ic = np.hstack((self.e_ic, [self.e_ic[self.e_pbnd_p]]*3 ))
+            
+        ## delete orignal polar triangle elemental row 
+        #self.e_i  = np.delete(self.e_i , self.e_pbnd_p, axis=0)
+        #self.e_iz = np.delete(self.e_iz, self.e_pbnd_p, axis=0)
+        #if isinstance(self.e_ic , np.ndarray): 
+            #self.e_ic = np.delete(self.e_ic, self.e_pbnd_p, axis=0)
+        
+        #self.e_pbnd_p = np.arange(self.n2de-1, self.n2de+2,1)
+        #self.n2dn +=1
+        #self.n2de +=2
+        
         #_______________________________________________________________________
         # find out 1st which element contribute to periodic boundary and 2nd
         # which nodes are involed in periodic boundary
         dx = self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1)
-        self.e_pbnd_1 = np.argwhere(dx > self.cyclic/2).ravel()
-        self.e_pbnd_0 = np.argwhere(dx < self.cyclic/2).ravel()
+        self.e_pbnd_1 = np.argwhere(dx > self.cyclic*2/3).ravel()
+        self.e_pbnd_0 = np.argwhere(dx < self.cyclic*2/3).ravel()
+        #self.e_pbnd_1 = np.unique(np.hstack((self.e_pbnd_1, self.e_pbnd_p)))
         
         #_______________________________________________________________________
         return(self)
@@ -893,21 +924,36 @@ ___________________________________________""".format(
         """
         self.do_augmpbnd = True
         #_______________________________________________________________________
-        # find which nodes are involed in periodic boundary
-        n_pbnd_i = np.array(self.e_i[self.e_pbnd_1,:]).flatten()
-        n_pbnd_i = np.unique(n_pbnd_i)
+        # this are all the periodic boundary element
+        e_i_pbnd   = self.e_i[self.e_pbnd_1,:]
+        e_i_pbnd_x = self.n_x[e_i_pbnd]
         
-        #_______________________________________________________________________
-        # find out node indices that contribute to the left side of the periodic 
-        # boundary (pbndn_l_2d_i) and to the right side (pbndn_r_2d_i)
-        xmin, xmax = self.n_x.min(), self.n_x.max()
-        aux_i      = np.argwhere(self.n_x[n_pbnd_i]>(xmin+(xmax-xmin)/2) ).ravel()
-        n_pbnd_i_r = n_pbnd_i[aux_i]
-        aux_i      = np.argwhere(self.n_x[n_pbnd_i]<(xmin+(xmax-xmin)/2) ).ravel()
-        n_pbnd_i_l = n_pbnd_i[aux_i]
+        # in each periodic boundary element look what is the vertices indices with 
+        # max lon value for the right boundary
+        nidxine_l, nidxine_m, nidxine_r = np.squeeze(np.split(np.argsort(e_i_pbnd_x, axis=1), 3, axis=1))
+        
+        eidx       = np.arange(e_i_pbnd.shape[0])
+        n_pbnd_i_l = e_i_pbnd[eidx, nidxine_l.squeeze()]
+        n_pbnd_i_m = e_i_pbnd[eidx, nidxine_m.squeeze()]
+        n_pbnd_i_r = e_i_pbnd[eidx, nidxine_r.squeeze()]
+        del(e_i_pbnd_x, eidx)
+        
+        # now decide if the remaining "middle" point should be attributet to left 
+        # or right periodic boundary by its distance to the already known min left and 
+        # max right vertic points
+        is_pbnd_i_m_lr = np.abs(self.n_x[n_pbnd_i_r]-self.n_x[n_pbnd_i_m]) < np.abs(self.n_x[n_pbnd_i_l]-self.n_x[n_pbnd_i_m])
+        
+        # remaining "middle" point becomes part of right boundary
+        n_pbnd_i_r = np.hstack((n_pbnd_i_r, n_pbnd_i_m[is_pbnd_i_m_lr==True]))
+        n_pbnd_i_r = np.unique(n_pbnd_i_r)
+        
+        # remaining "middle" point becomes part of left boundary
+        n_pbnd_i_l = np.hstack((n_pbnd_i_l, n_pbnd_i_m[is_pbnd_i_m_lr==False]))
+        n_pbnd_i_l = np.unique(n_pbnd_i_l)        
+        
+        # total array of left and augmented periodic boundary nodes         
         self.n_pbnd_a   = np.hstack((n_pbnd_i_r,n_pbnd_i_l))
         nn_il,nn_ir= n_pbnd_i_l.size, n_pbnd_i_r.size
-        del aux_i
         
         #_______________________________________________________________________
         # calculate augmentation positions for new left and right periodic boundaries
@@ -916,7 +962,7 @@ ___________________________________________""".format(
         aux_pos[n_pbnd_i_r] =aux_i
         aux_i      = np.linspace(self.n2dn+nn_ir,self.n2dn+nn_ir+nn_il-1,nn_il,dtype='uint32')
         aux_pos[n_pbnd_i_l]= aux_i 
-        del aux_i, n_pbnd_i_l, n_pbnd_i_r
+        del(aux_i, n_pbnd_i_l, n_pbnd_i_r, n_pbnd_i_m)
         
         #_______________________________________________________________________
         # Augment the vertices on the right and left side 
@@ -925,39 +971,44 @@ ___________________________________________""".format(
             xmin, xmax= -self.cyclic/2+self.focus, self.cyclic/2+self.focus
         else:    
             xmin, xmax = 0, self.cyclic
-        
-        self.n_xa = np.concatenate((np.zeros(nn_ir)+xmin, np.zeros(nn_il)+xmax))
-        self.n_ya = self.n_y[self.n_pbnd_a]
-        self.n_za = self.n_z[self.n_pbnd_a]
+        self.n_xa  = np.concatenate((np.zeros(nn_ir)+xmin, np.zeros(nn_il)+xmax))
+        self.n_ya  = self.n_y[self.n_pbnd_a]
+        self.n_za  = self.n_z[self.n_pbnd_a]
         # self.n_ia = self.n_i[self.n_pbnd_a]
-        self.n_iza= self.n_iz[self.n_pbnd_a]
+        self.n_iza = self.n_iz[self.n_pbnd_a]
         
         # if there is cavity information
         if isinstance(self.n_c , np.ndarray): self.n_ca  = self.n_c[self.n_pbnd_a]
         if isinstance(self.n_ic, np.ndarray): self.n_ica = self.n_ic[self.n_pbnd_a]
         
+        # length of augmented vertice array
         self.n2dna = self.n2dn + self.n_pbnd_a.size
         
         #_______________________________________________________________________
         # (ii.a) 2d elements:
         # List all triangles that touch the cyclic boundary segments
         #_______________________________________________________________________
-        elem_pbnd_l = np.copy(self.e_i[self.e_pbnd_1,:])
-        elem_pbnd_r = np.copy(elem_pbnd_l)
-        
+        elem_pbnd_l = np.copy(e_i_pbnd)
+        elem_pbnd_r = np.copy(e_i_pbnd)
         for ei in range(0,self.e_pbnd_1.size):
             # node indices of periodic boundary triangle
-            tri  = np.array(self.e_i[self.e_pbnd_1[ei],:]).squeeze()
+            tri  = e_i_pbnd[ei,:]
             
             # which triangle points belong to left periodic bnde or right periodic
             # boundary
-            idx_l = np.where(self.n_x[tri].squeeze()<xmin+(xmax-xmin)/2)[0]
-            idx_r = np.where(self.n_x[tri].squeeze()>xmin+(xmax-xmin)/2)[0]
+            idx_l, idx_r, idx_m = nidxine_l[ei], nidxine_r[ei], nidxine_m[ei]
             
             # change indices to left and right augmented boundary points
             elem_pbnd_l[ei,idx_r]=aux_pos[tri[idx_r]]
             elem_pbnd_r[ei,idx_l]=aux_pos[tri[idx_l]]
-        del idx_l, idx_r, tri, aux_pos
+            
+            # change indices of point beteen left and right vertices depending 
+            # if it will be attributet to left or the right boundary
+            if is_pbnd_i_m_lr[ei]: elem_pbnd_l[ei,idx_m]=aux_pos[tri[idx_m]]
+            else                 : elem_pbnd_r[ei,idx_m]=aux_pos[tri[idx_m]]
+                
+        del idx_l, idx_r, idx_m, tri, aux_pos
+        del nidxine_l, nidxine_m, nidxine_r, is_pbnd_i_m_lr
         
         #_______________________________________________________________________
         # change existing periodic boundary triangles in elem_2d_i to augmented 
