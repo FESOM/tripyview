@@ -921,12 +921,43 @@
 <span class="sd">        boundary</span>
 <span class="sd">        </span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># identify the polar triangle</span>
+        <span class="c1">#self.e_pbnd_p = np.argmin(90.0-self.n_y[self.e_i].sum(axis=1)/3.0)</span>
+        <span class="c1">#self.n_x  = np.hstack((self.n_x , self.n_x[self.e_i[self.e_pbnd_p, :]].sum()/3.0))</span>
+        <span class="c1">#self.n_y  = np.hstack((self.n_y , 90.0))</span>
+        <span class="c1">#self.n_i  = np.hstack((self.n_i , 0))</span>
+        <span class="c1">#self.n_iz = np.hstack((self.n_iz, self.n_iz[self.e_i[self.e_pbnd_p, :]].max() ))</span>
+        <span class="c1">#self.n_z  = np.hstack((self.n_z , self.n_z[self.e_i[self.e_pbnd_p, :]].min() ))</span>
+        <span class="c1">#if isinstance(self.n_ic, np.ndarray):</span>
+            <span class="c1">#self.n_ic = np.hstack((self.n_ic , self.n_ic[self.e_i[self.e_pbnd_p, :]].min() ))</span>
+        <span class="c1">#if isinstance(self.n_c , np.ndarray):</span>
+            <span class="c1">#self.n_c  = np.hstack((self.n_c , self.n_c[self.e_i[self.e_pbnd_p, :]].min() ))</span>
+        
+        <span class="c1">## replace with 3 new augmeted polar triangles</span>
+        <span class="c1">#e_i_p = np.vstack( [self.e_i[self.e_pbnd_p, :]]*3 )</span>
+        <span class="c1">#e_i_p[0,0], e_i_p[1,1], e_i_p[2,2] = self.n2dn, self.n2dn, self.n2dn</span>
+        <span class="c1">#self.e_i  = np.vstack((self.e_i, e_i_p))</span>
+        <span class="c1">#self.e_iz = np.hstack((self.e_iz, [self.e_iz[self.e_pbnd_p]]*3 ))</span>
+        <span class="c1">#if isinstance(self.e_ic , np.ndarray): </span>
+            <span class="c1">#self.e_ic = np.hstack((self.e_ic, [self.e_ic[self.e_pbnd_p]]*3 ))</span>
+            
+        <span class="c1">## delete orignal polar triangle elemental row </span>
+        <span class="c1">#self.e_i  = np.delete(self.e_i , self.e_pbnd_p, axis=0)</span>
+        <span class="c1">#self.e_iz = np.delete(self.e_iz, self.e_pbnd_p, axis=0)</span>
+        <span class="c1">#if isinstance(self.e_ic , np.ndarray): </span>
+            <span class="c1">#self.e_ic = np.delete(self.e_ic, self.e_pbnd_p, axis=0)</span>
+        
+        <span class="c1">#self.e_pbnd_p = np.arange(self.n2de-1, self.n2de+2,1)</span>
+        <span class="c1">#self.n2dn +=1</span>
+        <span class="c1">#self.n2de +=2</span>
+        
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># find out 1st which element contribute to periodic boundary and 2nd</span>
         <span class="c1"># which nodes are involed in periodic boundary</span>
         <span class="n">dx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">e_i</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">e_i</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">dx</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">dx</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">dx</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span><span class="o">*</span><span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">dx</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span><span class="o">*</span><span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+        <span class="c1">#self.e_pbnd_1 = np.unique(np.hstack((self.e_pbnd_1, self.e_pbnd_p)))</span>
         
         <span class="c1">#_______________________________________________________________________</span>
         <span class="k">return</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
@@ -949,21 +980,36 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">do_augmpbnd</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="c1">#_______________________________________________________________________</span>
-        <span class="c1"># find which nodes are involed in periodic boundary</span>
-        <span class="n">n_pbnd_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_1</span><span class="p">,:])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-        <span class="n">n_pbnd_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">n_pbnd_i</span><span class="p">)</span>
+        <span class="c1"># this are all the periodic boundary element</span>
+        <span class="n">e_i_pbnd</span>   <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_1</span><span class="p">,:]</span>
+        <span class="n">e_i_pbnd_x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">e_i_pbnd</span><span class="p">]</span>
         
-        <span class="c1">#_______________________________________________________________________</span>
-        <span class="c1"># find out node indices that contribute to the left side of the periodic </span>
-        <span class="c1"># boundary (pbndn_l_2d_i) and to the right side (pbndn_r_2d_i)</span>
-        <span class="n">xmin</span><span class="p">,</span> <span class="n">xmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
-        <span class="n">aux_i</span>      <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">n_pbnd_i</span><span class="p">]</span><span class="o">&gt;</span><span class="p">(</span><span class="n">xmin</span><span class="o">+</span><span class="p">(</span><span class="n">xmax</span><span class="o">-</span><span class="n">xmin</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span> <span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
-        <span class="n">n_pbnd_i_r</span> <span class="o">=</span> <span class="n">n_pbnd_i</span><span class="p">[</span><span class="n">aux_i</span><span class="p">]</span>
-        <span class="n">aux_i</span>      <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">n_pbnd_i</span><span class="p">]</span><span class="o">&lt;</span><span class="p">(</span><span class="n">xmin</span><span class="o">+</span><span class="p">(</span><span class="n">xmax</span><span class="o">-</span><span class="n">xmin</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span> <span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
-        <span class="n">n_pbnd_i_l</span> <span class="o">=</span> <span class="n">n_pbnd_i</span><span class="p">[</span><span class="n">aux_i</span><span class="p">]</span>
+        <span class="c1"># in each periodic boundary element look what is the vertices indices with </span>
+        <span class="c1"># max lon value for the right boundary</span>
+        <span class="n">nidxine_l</span><span class="p">,</span> <span class="n">nidxine_m</span><span class="p">,</span> <span class="n">nidxine_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">e_i_pbnd_x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="mi">3</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+        
+        <span class="n">eidx</span>       <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">e_i_pbnd</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">n_pbnd_i_l</span> <span class="o">=</span> <span class="n">e_i_pbnd</span><span class="p">[</span><span class="n">eidx</span><span class="p">,</span> <span class="n">nidxine_l</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()]</span>
+        <span class="n">n_pbnd_i_m</span> <span class="o">=</span> <span class="n">e_i_pbnd</span><span class="p">[</span><span class="n">eidx</span><span class="p">,</span> <span class="n">nidxine_m</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()]</span>
+        <span class="n">n_pbnd_i_r</span> <span class="o">=</span> <span class="n">e_i_pbnd</span><span class="p">[</span><span class="n">eidx</span><span class="p">,</span> <span class="n">nidxine_r</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()]</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">e_i_pbnd_x</span><span class="p">,</span> <span class="n">eidx</span><span class="p">)</span>
+        
+        <span class="c1"># now decide if the remaining &quot;middle&quot; point should be attributet to left </span>
+        <span class="c1"># or right periodic boundary by its distance to the already known min left and </span>
+        <span class="c1"># max right vertic points</span>
+        <span class="n">is_pbnd_i_m_lr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">n_pbnd_i_r</span><span class="p">]</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">n_pbnd_i_m</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">n_pbnd_i_l</span><span class="p">]</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">n_pbnd_i_m</span><span class="p">])</span>
+        
+        <span class="c1"># remaining &quot;middle&quot; point becomes part of right boundary</span>
+        <span class="n">n_pbnd_i_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">n_pbnd_i_r</span><span class="p">,</span> <span class="n">n_pbnd_i_m</span><span class="p">[</span><span class="n">is_pbnd_i_m_lr</span><span class="o">==</span><span class="kc">True</span><span class="p">]))</span>
+        <span class="n">n_pbnd_i_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">n_pbnd_i_r</span><span class="p">)</span>
+        
+        <span class="c1"># remaining &quot;middle&quot; point becomes part of left boundary</span>
+        <span class="n">n_pbnd_i_l</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">n_pbnd_i_l</span><span class="p">,</span> <span class="n">n_pbnd_i_m</span><span class="p">[</span><span class="n">is_pbnd_i_m_lr</span><span class="o">==</span><span class="kc">False</span><span class="p">]))</span>
+        <span class="n">n_pbnd_i_l</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">n_pbnd_i_l</span><span class="p">)</span>        
+        
+        <span class="c1"># total array of left and augmented periodic boundary nodes         </span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">n_pbnd_i_r</span><span class="p">,</span><span class="n">n_pbnd_i_l</span><span class="p">))</span>
         <span class="n">nn_il</span><span class="p">,</span><span class="n">nn_ir</span><span class="o">=</span> <span class="n">n_pbnd_i_l</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">n_pbnd_i_r</span><span class="o">.</span><span class="n">size</span>
-        <span class="k">del</span> <span class="n">aux_i</span>
         
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># calculate augmentation positions for new left and right periodic boundaries</span>
@@ -972,7 +1018,7 @@
         <span class="n">aux_pos</span><span class="p">[</span><span class="n">n_pbnd_i_r</span><span class="p">]</span> <span class="o">=</span><span class="n">aux_i</span>
         <span class="n">aux_i</span>      <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n2dn</span><span class="o">+</span><span class="n">nn_ir</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">n2dn</span><span class="o">+</span><span class="n">nn_ir</span><span class="o">+</span><span class="n">nn_il</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="n">nn_il</span><span class="p">,</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint32&#39;</span><span class="p">)</span>
         <span class="n">aux_pos</span><span class="p">[</span><span class="n">n_pbnd_i_l</span><span class="p">]</span><span class="o">=</span> <span class="n">aux_i</span> 
-        <span class="k">del</span> <span class="n">aux_i</span><span class="p">,</span> <span class="n">n_pbnd_i_l</span><span class="p">,</span> <span class="n">n_pbnd_i_r</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">aux_i</span><span class="p">,</span> <span class="n">n_pbnd_i_l</span><span class="p">,</span> <span class="n">n_pbnd_i_r</span><span class="p">,</span> <span class="n">n_pbnd_i_m</span><span class="p">)</span>
         
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># Augment the vertices on the right and left side </span>
@@ -981,39 +1027,44 @@
             <span class="n">xmin</span><span class="p">,</span> <span class="n">xmax</span><span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span><span class="o">/</span><span class="mi">2</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">focus</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span><span class="o">/</span><span class="mi">2</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">focus</span>
         <span class="k">else</span><span class="p">:</span>    
             <span class="n">xmin</span><span class="p">,</span> <span class="n">xmax</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span>
-        
-        <span class="bp">self</span><span class="o">.</span><span class="n">n_xa</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nn_ir</span><span class="p">)</span><span class="o">+</span><span class="n">xmin</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nn_il</span><span class="p">)</span><span class="o">+</span><span class="n">xmax</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">n_ya</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">n_za</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_z</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_xa</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nn_ir</span><span class="p">)</span><span class="o">+</span><span class="n">xmin</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nn_il</span><span class="p">)</span><span class="o">+</span><span class="n">xmax</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_ya</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_za</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_z</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
         <span class="c1"># self.n_ia = self.n_i[self.n_pbnd_a]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">n_iza</span><span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_iz</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_iza</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_iz</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
         
         <span class="c1"># if there is cavity information</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_c</span> <span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_ca</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_c</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_ic</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_ica</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_ic</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="p">]</span>
         
+        <span class="c1"># length of augmented vertice array</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n2dna</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n2dn</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_pbnd_a</span><span class="o">.</span><span class="n">size</span>
         
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># (ii.a) 2d elements:</span>
         <span class="c1"># List all triangles that touch the cyclic boundary segments</span>
         <span class="c1">#_______________________________________________________________________</span>
-        <span class="n">elem_pbnd_l</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_1</span><span class="p">,:])</span>
-        <span class="n">elem_pbnd_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">elem_pbnd_l</span><span class="p">)</span>
-        
+        <span class="n">elem_pbnd_l</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">e_i_pbnd</span><span class="p">)</span>
+        <span class="n">elem_pbnd_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">e_i_pbnd</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_1</span><span class="o">.</span><span class="n">size</span><span class="p">):</span>
             <span class="c1"># node indices of periodic boundary triangle</span>
-            <span class="n">tri</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">e_pbnd_1</span><span class="p">[</span><span class="n">ei</span><span class="p">],:])</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+            <span class="n">tri</span>  <span class="o">=</span> <span class="n">e_i_pbnd</span><span class="p">[</span><span class="n">ei</span><span class="p">,:]</span>
             
             <span class="c1"># which triangle points belong to left periodic bnde or right periodic</span>
             <span class="c1"># boundary</span>
-            <span class="n">idx_l</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">tri</span><span class="p">]</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">&lt;</span><span class="n">xmin</span><span class="o">+</span><span class="p">(</span><span class="n">xmax</span><span class="o">-</span><span class="n">xmin</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="n">idx_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">tri</span><span class="p">]</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">&gt;</span><span class="n">xmin</span><span class="o">+</span><span class="p">(</span><span class="n">xmax</span><span class="o">-</span><span class="n">xmin</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">idx_l</span><span class="p">,</span> <span class="n">idx_r</span><span class="p">,</span> <span class="n">idx_m</span> <span class="o">=</span> <span class="n">nidxine_l</span><span class="p">[</span><span class="n">ei</span><span class="p">],</span> <span class="n">nidxine_r</span><span class="p">[</span><span class="n">ei</span><span class="p">],</span> <span class="n">nidxine_m</span><span class="p">[</span><span class="n">ei</span><span class="p">]</span>
             
             <span class="c1"># change indices to left and right augmented boundary points</span>
             <span class="n">elem_pbnd_l</span><span class="p">[</span><span class="n">ei</span><span class="p">,</span><span class="n">idx_r</span><span class="p">]</span><span class="o">=</span><span class="n">aux_pos</span><span class="p">[</span><span class="n">tri</span><span class="p">[</span><span class="n">idx_r</span><span class="p">]]</span>
             <span class="n">elem_pbnd_r</span><span class="p">[</span><span class="n">ei</span><span class="p">,</span><span class="n">idx_l</span><span class="p">]</span><span class="o">=</span><span class="n">aux_pos</span><span class="p">[</span><span class="n">tri</span><span class="p">[</span><span class="n">idx_l</span><span class="p">]]</span>
-        <span class="k">del</span> <span class="n">idx_l</span><span class="p">,</span> <span class="n">idx_r</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">aux_pos</span>
+            
+            <span class="c1"># change indices of point beteen left and right vertices depending </span>
+            <span class="c1"># if it will be attributet to left or the right boundary</span>
+            <span class="k">if</span> <span class="n">is_pbnd_i_m_lr</span><span class="p">[</span><span class="n">ei</span><span class="p">]:</span> <span class="n">elem_pbnd_l</span><span class="p">[</span><span class="n">ei</span><span class="p">,</span><span class="n">idx_m</span><span class="p">]</span><span class="o">=</span><span class="n">aux_pos</span><span class="p">[</span><span class="n">tri</span><span class="p">[</span><span class="n">idx_m</span><span class="p">]]</span>
+            <span class="k">else</span>                 <span class="p">:</span> <span class="n">elem_pbnd_r</span><span class="p">[</span><span class="n">ei</span><span class="p">,</span><span class="n">idx_m</span><span class="p">]</span><span class="o">=</span><span class="n">aux_pos</span><span class="p">[</span><span class="n">tri</span><span class="p">[</span><span class="n">idx_m</span><span class="p">]]</span>
+                
+        <span class="k">del</span> <span class="n">idx_l</span><span class="p">,</span> <span class="n">idx_r</span><span class="p">,</span> <span class="n">idx_m</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">aux_pos</span>
+        <span class="k">del</span> <span class="n">nidxine_l</span><span class="p">,</span> <span class="n">nidxine_m</span><span class="p">,</span> <span class="n">nidxine_r</span><span class="p">,</span> <span class="n">is_pbnd_i_m_lr</span>
         
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># change existing periodic boundary triangles in elem_2d_i to augmented </span>
