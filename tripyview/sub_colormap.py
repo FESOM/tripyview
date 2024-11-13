@@ -139,7 +139,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
     
     #___________________________________________________________________________
     # if the cmap_arr is not already predifined from the outside
-    if cmap_arr is not None:
+    if cmap_arr is None:
         if   'matplotlib' in cname:
             dum, cstr = cname.rsplit('.')
             if '_i' in cname: cstr, dum = cstr.rsplit('_i')
