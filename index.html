@@ -5313,8 +5313,153 @@ for very large meshes</p>
 </div></blockquote>
 </dd></dl>
 
-</section>
 <hr class="docutils" />
+<dl class="py function" id="module-tripyview.sub_colormap">
+<dt class="sig sig-object py" id="tripyview.sub_colormap.categorical_cmap">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_colormap.</span></span><span class="sig-name descname"><span class="pre">categorical_cmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nsc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'tab10'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmap2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nipy_spectral'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continuous</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">light2dark</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_colormap.html#categorical_cmap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_colormap.categorical_cmap" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>–&gt; build a categorical colormap, based on the predefined standard matplotlib</dt><dd><p>colormap e.g. tab10 and split each color into a number subcolors from light 
+to dark</p>
+</dd>
+</dl>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">nc<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int, number of colors in colormap</p>
+</dd>
+<dt class="field-even">nsc<span class="colon">:</span></dt>
+<dd class="field-even"><p>int, number of sub-colors in each color</p>
+</dd>
+<dt class="field-odd">cmap<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str, (default=”tab10”) name of matplotlib colormap</p>
+</dd>
+<dt class="field-even">cmap2<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, (default=”nipy_spectral”) replacement colormap when the 
+number of colors nc exceed the number of colors in the actual colormap</p>
+</dd>
+<dt class="field-odd">continuous<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool, (default=False)</p>
+</dd>
+<dt class="field-even">light2dark<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool, (default=True), True: do subcategorigal color interpolation from 
+lighttgrey–&gt;color, False: do subcategorigal color interpolation from 
+color –&gt; darkgrey</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">cmap<span class="colon">:</span></dt>
+<dd class="field-odd"><p>matplotlib.colors.ListedColormap computed based on the input 
+parameters</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>#___________________________________________________________________________</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="tripyview.sub_colormap.colormap_c2c">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_colormap.</span></span><span class="sig-name descname"><span class="pre">colormap_c2c</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cref</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cnumb</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cstep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_slog</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_rescal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rescal_ref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmap_arr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_colormap.html#colormap_c2c"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_colormap.colormap_c2c" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>–&gt; create reference value centered colormap with distinct colorsteps based </dt><dd><p>on an rgb matrix</p>
+</dd>
+</dl>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list">
+<dt class="field-odd">cmin<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, value of minimum color</p>
+</dd>
+<dt class="field-even">cmax<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, value of maximum color</p>
+</dd>
+<dt class="field-odd">cref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, value of reference color</p>
+</dd>
+<dt class="field-even">cnumb<span class="colon">:</span></dt>
+<dd class="field-even"><p>int, minimum number of colors that should be at least in 
+the  colormap</p>
+</dd>
+<dt class="field-odd">cname<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str, name of colormap —&gt; see colormap definition, this can 
+be extended by everyone. If you have have nice new colormap 
+definition, come back to me and lets add it to the default!</p>
+<ul class="simple">
+<li><p>blue2red, red2blue</p></li>
+<li><p>dblue2dred, dred2dblue</p></li>
+<li><p>green2orange, orange2green</p></li>
+<li><p>grads</p></li>
+<li><p>rainbow</p></li>
+<li><p>heat</p></li>
+<li><p>jet</p></li>
+<li><p>jetw (white reference color)</p></li>
+<li><p>hsv</p></li>
+<li><p>gnuplot</p></li>
+<li><p>arc</p></li>
+<li><p>wbgyr, rygbw (white, blue, green ,yellow,red)</p></li>
+<li><p>odv</p></li>
+<li><p>odvw (white reference color)</p></li>
+<li><p>wvt</p></li>
+<li><p>wvt1</p></li>
+<li><p>wvt2</p></li>
+<li><p>wvt3</p></li>
+<li><p>seaice</p></li>
+<li><p>precip</p></li>
+<li><p>drought</p></li>
+<li><p>ars</p></li>
+</ul>
+<p>If you put a “_i” behind the color name string, the colormap will 
+be inverted</p>
+</dd>
+<dt class="field-even">cstep<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, (default=None) provide fixed color step instead of computing it 
+based on the covered value range and the minimum number of colors</p>
+</dd>
+<dt class="field-odd">do_slog<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool, (default=False) provide colormap for symmetric logarithmic 
+scaling</p>
+</dd>
+<dt class="field-even">do_rescal<span class="colon">:</span></dt>
+<dd class="field-even"><p>np.array, (default=None) provide np.array with non linear colorstep
+values</p>
+</dd>
+<dt class="field-odd">rescal_ref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, (default=None) provide the reference value in the non-linear
+colorstep array</p>
+</dd>
+<dt class="field-even">cmap_arr<span class="colon">:</span></dt>
+<dd class="field-even"><p>np.array, (default=None) provide a (nc x 3) rgb value colormap 
+definition array from the outside beside the predefined ones. 
+nc must be an odd number. The index of np.ceil(nc/2) will represent 
+the color of the reference value</p>
+</dd>
+</dl>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">cmap<span class="colon">:</span></dt>
+<dd class="field-odd"><p>matplotlib.colors.ListedColormap computed based on the input 
+parameters</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>:clevel:np.array() with chosen clevel values, needed for contours and </dt><dd><p>colorbar definition</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">cref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float, returns used cref value</p>
+</dd>
+</dl>
+</div></blockquote>
+</div></blockquote>
+<p>#___________________________________________________________________________</p>
+</dd></dl>
+
+</section>
 <section id="indices-and-tables">
 <h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">¶</a></h1>
 <ul class="simple">
