@@ -139,7 +139,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
     
     #___________________________________________________________________________
     # if the cmap_arr is not already predifined from the outside
-    if cmap_arr is not None:
+    if cmap_arr is None:
         if   'matplotlib' in cname:
             dum, cstr = cname.rsplit('.')
             if '_i' in cname: cstr, dum = cstr.rsplit('_i')
@@ -147,7 +147,6 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
             #cmap_arr = get_cmap(cstr)(np.linspace(0,1,cnumb+1))
             #cmap_arr = get_cmap(cstr)(np.linspace(0,1,len(clevel)+1))
             cmap_arr = cmap_arr[:,:-1]
-            if '_i' in cname: cmap_arr = np.flipud(cmap_arr)
             
         elif 'cmocean' in cname:
             dum, cstr = cname.rsplit('.')
@@ -156,11 +155,11 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
             cmap_arr = cmap(np.linspace(0,1,11))
             #cmap_arr = cmap(np.linspace(0,1,cnumb))
             cmap_arr = cmap_arr[:,:-1]    
-            if '_i' in cname: cmap_arr = np.flipud(cmap_arr)
+        
         else:
-            #___________________________________________________________________________
+            #___________________________________________________________________
             # MY different colormap definitions
-            #---------------------------------------------------------------------------
+            #-------------------------------------------------------------------
             if   cname in ['blue2red', 'red2blue']: 
                 cmap_arr = np.array([[0.0, 0.19, 1.0], # blue
                                     [0.0, 0.72, 1.0],
@@ -168,7 +167,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0, 0.6 , 0.0],
                                     [1.0, 0.19, 0.0]])# red
                 if cname == 'red2blue': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------    
+            #-------------------------------------------------------------------
             elif cname in ['dblue2dred', 'dred2dblue']:
                 cmap_arr = np.array([[0.0, 0.19, 0.5],
                                     [0.0, 0.19, 1.0],
@@ -178,7 +177,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0, 0.19, 0.0],
                                     [0.5, 0.19, 0.0]])        
                 if cname == 'dred2dblue': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------    
+            #-------------------------------------------------------------------
             elif cname in ['green2orange', 'orange2green']:    
                 cmap_arr = np.array([
                                     [0.6039,    0.8039,      0.0],
@@ -187,8 +186,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0000,    0.6000,      0.0],
                                     [0.6000,    0.2000,      0.0]]) #[0.2196,    0.4196,      0.0],
                 if cname == 'orange2green': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------    
-            elif cname in ['grads', 'grads_i']:    
+                
+            #-------------------------------------------------------------------
+            elif cname in ['grads']:    
                 cmap_arr = np.array([[0.6275, 0.0   , 0.7843],
                                     [0.1176, 0.2353, 1.0000],
                                     [0.0   , 0.6275, 1.0000],
@@ -198,9 +198,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [0.9412, 0.5098, 0.1569],
                                     [0.9804, 0.2353, 0.2353],
                                     [0.9412, 0.0   , 0.5098]])
-                if cname == 'grads_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------
-            elif cname in ['rainbow', 'rainbow_i']:  
+                
+            #-------------------------------------------------------------------
+            elif cname in ['rainbow']:  
                 cmap_arr = np.array([[0.5   , 0.0   , 1.0   ],
                                     [0.25  , 0.3826, 0.9807],
                                     [0.0   , 0.7071, 0.9238],
@@ -210,9 +210,16 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0   , 0.7071, 0.3826],
                                     [1.0   , 0.3826, 0.1950],
                                     [1.0   , 0.0   , 0.0   ]])
-                if cname == 'rainbow_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------
-            elif cname in ['heat', 'heat_i']:  
+            #-------------------------------------------------------------------
+            elif   cname in ['curl']: 
+                cmap_arr = np.array([[  0, 200,  50], # green
+                                     [  0, 200, 167],
+                                     [255, 255, 255], # white 
+                                     [200,   0, 140], 
+                                     [120,   0, 200]])# purple
+                                    
+            #-------------------------------------------------------------------
+            elif cname in ['heat']:  
                 cmap_arr = np.array([[1.0   , 1.0   , 1.0],
                                     [1.0   , 0.75  , 0.5],
                                     [1.0   , 0.5   , 0.0],
@@ -222,9 +229,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [0.375 , 0.0   , 0.0],
                                     [0.1875, 0.0   , 0.0],
                                     [0.0   , 0.0   , 0.0]])
-                if cname == 'heat_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------
-            elif cname in ['jet', 'jet_i']:    
+                
+            #-------------------------------------------------------------------
+            elif cname in ['jet']:    
                 cmap_arr = np.array([[0.0   , 0.0   , 0.5   ],
                                     [0.0   , 0.0   , 1.0   ],
                                     [0.0   , 0.5   , 1.0   ],
@@ -234,9 +241,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0   , 0.5925, 0.0   ],
                                     [1.0   , 0.1296, 0.0   ],
                                     [0.5   , 0.0   , 0.0  ]])
-                if cname == 'jet_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------    
-            elif cname in ['jetw', 'jetw_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['jetw']:    
                 cmap_arr = np.array([[0.0   , 0.0   , 0.5   ],
                                     [0.0   , 0.0   , 1.0   ],
                                     [0.0   , 0.5   , 1.0   ],
@@ -246,9 +253,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0   , 0.5925, 0.0   ],
                                     [1.0   , 0.1296, 0.0   ],
                                     [0.5   , 0.0   , 0.0  ]])
-                if cname == 'jetw_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------    
-            elif cname in ['hsv', 'hsv_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['hsv']:    
                 cmap_arr = np.array([[1.0   , 0.0   , 0.0   ],
                                     [1.0   , 0.7382, 0.0   ],
                                     [0.5236, 1.0   , 0.0   ],
@@ -258,9 +265,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [0.4291, 0.0   , 1.0   ],
                                     [1.0   , 0.0   , 0.8320],
                                     [1.0   , 0.0   , 0.0937]])
-                if cname == 'hsv_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------    
-            elif cname in ['gnuplot', 'gnuplot_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['gnuplot']:    
                 cmap_arr = np.array([[1.0   , 1.0   , 1.0    ],
                                     [1.0   , 1.0   , 0.0    ],
                                     [0.9354, 0.6699, 0.0    ],
@@ -270,9 +277,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [0.6123, 0.0527, 0.7071 ],
                                     [0.5   , 0.0156, 1.0    ],
                                     [0.3535, 0.0019, 0.7071]])
-                if cname == 'gnuplot_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------        
-            elif cname in ['arc', 'arc_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['arc']:    
                 cmap_arr = np.array([[1.0000,    1.0000,    1.0000],
                                     [0.6035,    0.8614,    0.7691],
                                     [0.2462,    0.7346,    0.4610],
@@ -282,17 +289,18 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [0.9830,    0.7386,    0.0353],
                                     [0.9451,    0.2963,    0.1098],
                                     [0.9603,    0.4562,    0.5268]])
-                if cname == 'arc_i': cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------        
-            elif cname in ['wbgyr', 'wbgyr_i', 'rygbw', 'rygbw_i']:
+            
+            #-------------------------------------------------------------------
+            elif cname in ['wbgyr', 'rygbw']:
                 cmap_arr = np.array([[1.0000,    1.0000,    1.0000],
                                     [0.2000,    0.6000,    1.0000],
                                     [0.0   ,    1.0000,    0.6000],
                                     [1.0000,    1.0000,       0.0],
                                     [1.0000,       0.0,       0.0]])
-                if cname in ['wbgyr_i', 'rygbw']: cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------
-            elif cname in ['odv', 'odv_i']:    
+                if cname in ['rygbw']: cmap_arr = np.flipud(cmap_arr)
+                
+            #-------------------------------------------------------------------
+            elif cname in ['odv']:    
                 cmap_arr = np.array([[0.9373,    0.7765,    0.9373],
                                     [0.7804,    0.3647,    0.7490],
                                     [0.1922,    0.2235,    1.0000],
@@ -302,9 +310,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0000,       0.0,       0.0],
                                     [0.8392,    0.0627,    0.1922],
                                     [1.0000,    0.7765,    0.5804]])
-                if cname in ['odv_i']: cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------
-            elif cname in ['odvw', 'odvw_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['odvw']:    
                 cmap_arr = np.array([[0.9373,    0.7765,    0.9373],
                                     [0.7804,    0.3647,    0.7490],
                                     [0.1922,    0.2235,    1.0000],
@@ -314,9 +322,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0000,       0.0,       0.0],
                                     [0.8392,    0.0627,    0.1922],
                                     [1.0000,    0.7765,    0.5804]])
-                if cname in ['odvw_i']: cmap_arr = np.flipud(cmap_arr)    
-            #---------------------------------------------------------------------------
-            elif cname in ['wvt', 'wvt_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['wvt']:    
                 cmap_arr = np.array([[255, 255, 255],
                                     [255, 255, 153],
                                     [255, 204,  51],
@@ -325,8 +333,8 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [255,  51,  51],
                                     [153,   0,  51]])
                 
-            #---------------------------------------------------------------------------
-            elif cname in ['seaice', 'seaice_i']:    
+            #-------------------------------------------------------------------
+            elif cname in ['seaice']:    
                 cmap_arr = np.array([[153,   0,  51],
                                     [204,   0,   0],
                                     [255, 102, 102],
@@ -336,9 +344,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [  0, 153, 204],
                                     [  0,  51, 204],
                                     [  0,  51, 153]])
-                if cname in ['seaice_i']: cmap_arr = np.flipud(cmap_arr)      
-            #---------------------------------------------------------------------------
-            elif cname in ['precip', 'precip_i']:
+            
+            #-------------------------------------------------------------------
+            elif cname in ['precip']:
                 cmap_arr = np.array([[ 64,   0,  75],
                                     [118,  42, 131],
                                     [153, 112, 171],
@@ -350,9 +358,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [ 90, 174,  97],
                                     [ 27, 120,  55],
                                     [  0,  68,  27]])
-                if cname in ['precip_i']: cmap_arr = np.flipud(cmap_arr)      
-            #---------------------------------------------------------------------------
-            elif cname in ['drought', 'drought_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['drought']:    
                 cmap_arr = np.array([[165,   0,  38],
                                     [215,  48,  39],
                                     [244, 109,  67],
@@ -364,9 +372,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [102, 189,  99],
                                     [ 26, 152,  80],
                                     [  0, 104,  55]])
-                if cname in ['drought_i']: cmap_arr = np.flipud(cmap_arr)      
-            #---------------------------------------------------------------------------
-            elif cname in ['wvt1', 'wvt1_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['wvt1']:    
                 cmap_arr = np.array([[255, 255, 255],
                                     [161, 218, 180],
                                     [ 65, 182, 196],
@@ -378,9 +386,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [240,  59,  32],
                                     [189,   0,  38],
                                     [165,  15,  21]])
-                if cname in ['wvt1_i']: cmap_arr = np.flipud(cmap_arr)      
-            #---------------------------------------------------------------------------
-            elif cname in ['wvt2', 'wvt2_i']:    
+            
+            #-------------------------------------------------------------------
+            elif cname in ['wvt2']:    
                 cmap_arr = np.array([[255, 255, 255],
                                     [236, 226, 240],
                                     [208, 209, 230],
@@ -390,9 +398,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [  2, 129, 138],
                                     [  1, 108,  89],
                                     [  1,  70,  54]])
-                if cname in ['wvt2_i']: cmap_arr = np.flipud(cmap_arr)      
-            #---------------------------------------------------------------------------
-            elif cname in ['wvt3', 'wvt3_i']:        
+            
+            #-------------------------------------------------------------------
+            elif cname in ['wvt3']:        
                 cmap_arr = np.array([[247, 247, 247],
                                     [ 50, 136, 189],
                                     [102, 194, 165],
@@ -404,9 +412,9 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [244, 109,  67],
                                     [213,  62,  79],
                                     [158,   1,  66]]);
-                if cname in ['wvt3_i']: cmap_arr = np.flipud(cmap_arr)
-            #---------------------------------------------------------------------------
-            elif cname in ['ars', 'ars_i']:        
+            
+            #-------------------------------------------------------------------
+            elif cname in ['ars']:        
                 cmap_arr = np.array([[255, 255, 255],
                                     [ 25, 175, 255],
                                     [ 68, 202, 255],
@@ -420,10 +428,13 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [255, 158, 158],
                                     [255, 196, 196],
                                     [255, 235, 235]])
-                if cname in ['ars_i']: cmap_arr = np.flipud(cmap_arr)      
             
-            #---------------------------------------------------------------------------
+            #-------------------------------------------------------------------
             else: raise ValueError('this colormap name is not supported')    
+        
+        #_______________________________________________________________________
+        # invert colormap if "_i" in cname
+        if '_i' in cname: cmap_arr = np.flipud(cmap_arr)
         
     #___________________________________________________________________________
     if np.any(cmap_arr>1.0): cmap_arr = cmap_arr/255

@@ -492,11 +492,11 @@ def plot_hslice(mesh                   ,
         if hcb_ii != 0 and hp[-1] is not None: 
             if isinstance(do_rescale, list):
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
-                                cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
             else:    
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                                cb_label, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #___________________________________________________________________
@@ -1679,8 +1679,10 @@ def plot_vslice(mesh                   ,
             cinfo_optdefault.update({'do_moc':True})
         elif hax[0].projection == 'dmoc+depth' or hax[0].projection == 'dmoc+dens':
             cinfo_optdefault.update({'do_dmoc':True})
-            
-        if isinstance(cinfo, list):
+        
+        if   isinstance(cinfo, list) and isinstance(do_rescale, list):
+            cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale[ii-1], **cinfo_optdefault) )
+        elif isinstance(cinfo, list):
             cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale, **cinfo_optdefault) )
         else:    
             cinfo_plot.append( do_setupcinfo(cinfo, [data[jj] for jj in idsel], do_rescale, **cinfo_optdefault) )
@@ -1808,10 +1810,17 @@ def plot_vslice(mesh                   ,
         if hcb_ii != 0 and hp[-1] is not None: 
             if isinstance(cb_label,list): cb_label2 = cb_label[count_cb]
             else: cb_label2 = cb_label
-            hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
+            
+            if isinstance(do_rescale, list):
+                hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
                              cb_label2, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                              box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
             
+            else:    
+                hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
+                                cb_label2, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
+                
             count_cb=count_cb+1
         #_______________________________________________________________________
         # hfig.canvas.draw()   
@@ -6076,6 +6085,7 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cinfo['cref']   = np.power(10.0,cinfo['cref'])
             
         elif do_rescale=='slog10':
+            
             if (np.abs(cinfo['cmax'])<=np.abs(cinfo['cref'])) or  \
                (np.abs(cinfo['cmin'])<=np.abs(cinfo['cref'])) :
                 raise ValueError (' --> For slog10 scaled colormaps it must be cmin<cref<cmax, e.g crange=[cmin,cmax,cref]=[-1e-1,1e-1,1e-7] \n' + \
