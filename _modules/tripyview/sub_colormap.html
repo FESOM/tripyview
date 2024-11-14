@@ -178,7 +178,7 @@
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># if the cmap_arr is not already predifined from the outside</span>
-    <span class="k">if</span> <span class="n">cmap_arr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">cmap_arr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span>   <span class="s1">&#39;matplotlib&#39;</span> <span class="ow">in</span> <span class="n">cname</span><span class="p">:</span>
             <span class="n">dum</span><span class="p">,</span> <span class="n">cstr</span> <span class="o">=</span> <span class="n">cname</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="s1">&#39;_i&#39;</span> <span class="ow">in</span> <span class="n">cname</span><span class="p">:</span> <span class="n">cstr</span><span class="p">,</span> <span class="n">dum</span> <span class="o">=</span> <span class="n">cstr</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;_i&#39;</span><span class="p">)</span>
@@ -186,7 +186,6 @@
             <span class="c1">#cmap_arr = get_cmap(cstr)(np.linspace(0,1,cnumb+1))</span>
             <span class="c1">#cmap_arr = get_cmap(cstr)(np.linspace(0,1,len(clevel)+1))</span>
             <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">cmap_arr</span><span class="p">[:,:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-            <span class="k">if</span> <span class="s1">&#39;_i&#39;</span> <span class="ow">in</span> <span class="n">cname</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
             
         <span class="k">elif</span> <span class="s1">&#39;cmocean&#39;</span> <span class="ow">in</span> <span class="n">cname</span><span class="p">:</span>
             <span class="n">dum</span><span class="p">,</span> <span class="n">cstr</span> <span class="o">=</span> <span class="n">cname</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
@@ -195,11 +194,11 @@
             <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">cmap</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">11</span><span class="p">))</span>
             <span class="c1">#cmap_arr = cmap(np.linspace(0,1,cnumb))</span>
             <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">cmap_arr</span><span class="p">[:,:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>    
-            <span class="k">if</span> <span class="s1">&#39;_i&#39;</span> <span class="ow">in</span> <span class="n">cname</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
+        
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1">#___________________________________________________________________________</span>
+            <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># MY different colormap definitions</span>
-            <span class="c1">#---------------------------------------------------------------------------</span>
+            <span class="c1">#-------------------------------------------------------------------</span>
             <span class="k">if</span>   <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;blue2red&#39;</span><span class="p">,</span> <span class="s1">&#39;red2blue&#39;</span><span class="p">]:</span> 
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.19</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="c1"># blue</span>
                                     <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.72</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
@@ -207,7 +206,7 @@
                                     <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.6</span> <span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.19</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]])</span><span class="c1"># red</span>
                 <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;red2blue&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------    </span>
+            <span class="c1">#-------------------------------------------------------------------</span>
             <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;dblue2dred&#39;</span><span class="p">,</span> <span class="s1">&#39;dred2dblue&#39;</span><span class="p">]:</span>
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.19</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.19</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
@@ -217,7 +216,7 @@
                                     <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.19</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.19</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]])</span>        
                 <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;dred2dblue&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------    </span>
+            <span class="c1">#-------------------------------------------------------------------</span>
             <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;green2orange&#39;</span><span class="p">,</span> <span class="s1">&#39;orange2green&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
                                     <span class="p">[</span><span class="mf">0.6039</span><span class="p">,</span>    <span class="mf">0.8039</span><span class="p">,</span>      <span class="mf">0.0</span><span class="p">],</span>
@@ -226,8 +225,9 @@
                                     <span class="p">[</span><span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">0.6000</span><span class="p">,</span>      <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.6000</span><span class="p">,</span>    <span class="mf">0.2000</span><span class="p">,</span>      <span class="mf">0.0</span><span class="p">]])</span> <span class="c1">#[0.2196,    0.4196,      0.0],</span>
                 <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;orange2green&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------    </span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;grads&#39;</span><span class="p">,</span> <span class="s1">&#39;grads_i&#39;</span><span class="p">]:</span>    
+                
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;grads&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.6275</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.7843</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.1176</span><span class="p">,</span> <span class="mf">0.2353</span><span class="p">,</span> <span class="mf">1.0000</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.6275</span><span class="p">,</span> <span class="mf">1.0000</span><span class="p">],</span>
@@ -237,9 +237,9 @@
                                     <span class="p">[</span><span class="mf">0.9412</span><span class="p">,</span> <span class="mf">0.5098</span><span class="p">,</span> <span class="mf">0.1569</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.9804</span><span class="p">,</span> <span class="mf">0.2353</span><span class="p">,</span> <span class="mf">0.2353</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.9412</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.5098</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;grads_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;rainbow&#39;</span><span class="p">,</span> <span class="s1">&#39;rainbow_i&#39;</span><span class="p">]:</span>  
+                
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;rainbow&#39;</span><span class="p">]:</span>  
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.5</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.25</span>  <span class="p">,</span> <span class="mf">0.3826</span><span class="p">,</span> <span class="mf">0.9807</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.7071</span><span class="p">,</span> <span class="mf">0.9238</span><span class="p">],</span>
@@ -249,9 +249,16 @@
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.7071</span><span class="p">,</span> <span class="mf">0.3826</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.3826</span><span class="p">,</span> <span class="mf">0.1950</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;rainbow_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="s1">&#39;heat_i&#39;</span><span class="p">]:</span>  
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span>   <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;curl&#39;</span><span class="p">]:</span> 
+                <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span>  <span class="mi">0</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span>  <span class="mi">50</span><span class="p">],</span> <span class="c1"># green</span>
+                                     <span class="p">[</span>  <span class="mi">0</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">167</span><span class="p">],</span>
+                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span> <span class="c1"># white </span>
+                                     <span class="p">[</span><span class="mi">200</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span> <span class="mi">140</span><span class="p">],</span> 
+                                     <span class="p">[</span><span class="mi">120</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span> <span class="mi">200</span><span class="p">]])</span><span class="c1"># purple</span>
+                                    
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;heat&#39;</span><span class="p">]:</span>  
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.75</span>  <span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.5</span>   <span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
@@ -261,9 +268,9 @@
                                     <span class="p">[</span><span class="mf">0.375</span> <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.1875</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;heat_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;jet&#39;</span><span class="p">,</span> <span class="s1">&#39;jet_i&#39;</span><span class="p">]:</span>    
+                
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;jet&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.5</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.5</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">],</span>
@@ -273,9 +280,9 @@
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.5925</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.1296</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.5</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>  <span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;jet_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------    </span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;jetw&#39;</span><span class="p">,</span> <span class="s1">&#39;jetw_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;jetw&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.5</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.5</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">],</span>
@@ -285,9 +292,9 @@
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.5925</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.1296</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.5</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>  <span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;jetw_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------    </span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;hsv&#39;</span><span class="p">,</span> <span class="s1">&#39;hsv_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;hsv&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.7382</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.5236</span><span class="p">,</span> <span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">],</span>
@@ -297,9 +304,9 @@
                                     <span class="p">[</span><span class="mf">0.4291</span><span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.8320</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.0</span>   <span class="p">,</span> <span class="mf">0.0937</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;hsv_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------    </span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;gnuplot&#39;</span><span class="p">,</span> <span class="s1">&#39;gnuplot_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;gnuplot&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">1.0</span>    <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">1.0</span>   <span class="p">,</span> <span class="mf">0.0</span>    <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.9354</span><span class="p">,</span> <span class="mf">0.6699</span><span class="p">,</span> <span class="mf">0.0</span>    <span class="p">],</span>
@@ -309,9 +316,9 @@
                                     <span class="p">[</span><span class="mf">0.6123</span><span class="p">,</span> <span class="mf">0.0527</span><span class="p">,</span> <span class="mf">0.7071</span> <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.5</span>   <span class="p">,</span> <span class="mf">0.0156</span><span class="p">,</span> <span class="mf">1.0</span>    <span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.3535</span><span class="p">,</span> <span class="mf">0.0019</span><span class="p">,</span> <span class="mf">0.7071</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;gnuplot_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------        </span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;arc&#39;</span><span class="p">,</span> <span class="s1">&#39;arc_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;arc&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.6035</span><span class="p">,</span>    <span class="mf">0.8614</span><span class="p">,</span>    <span class="mf">0.7691</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.2462</span><span class="p">,</span>    <span class="mf">0.7346</span><span class="p">,</span>    <span class="mf">0.4610</span><span class="p">],</span>
@@ -321,17 +328,18 @@
                                     <span class="p">[</span><span class="mf">0.9830</span><span class="p">,</span>    <span class="mf">0.7386</span><span class="p">,</span>    <span class="mf">0.0353</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.9451</span><span class="p">,</span>    <span class="mf">0.2963</span><span class="p">,</span>    <span class="mf">0.1098</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.9603</span><span class="p">,</span>    <span class="mf">0.4562</span><span class="p">,</span>    <span class="mf">0.5268</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="o">==</span> <span class="s1">&#39;arc_i&#39;</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------        </span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wbgyr&#39;</span><span class="p">,</span> <span class="s1">&#39;wbgyr_i&#39;</span><span class="p">,</span> <span class="s1">&#39;rygbw&#39;</span><span class="p">,</span> <span class="s1">&#39;rygbw_i&#39;</span><span class="p">]:</span>
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wbgyr&#39;</span><span class="p">,</span> <span class="s1">&#39;rygbw&#39;</span><span class="p">]:</span>
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.2000</span><span class="p">,</span>    <span class="mf">0.6000</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.0</span>   <span class="p">,</span>    <span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">0.6000</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">,</span>       <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0000</span><span class="p">,</span>       <span class="mf">0.0</span><span class="p">,</span>       <span class="mf">0.0</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wbgyr_i&#39;</span><span class="p">,</span> <span class="s1">&#39;rygbw&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;odv&#39;</span><span class="p">,</span> <span class="s1">&#39;odv_i&#39;</span><span class="p">]:</span>    
+                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;rygbw&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
+                
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;odv&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.9373</span><span class="p">,</span>    <span class="mf">0.7765</span><span class="p">,</span>    <span class="mf">0.9373</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.7804</span><span class="p">,</span>    <span class="mf">0.3647</span><span class="p">,</span>    <span class="mf">0.7490</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.1922</span><span class="p">,</span>    <span class="mf">0.2235</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">],</span>
@@ -341,9 +349,9 @@
                                     <span class="p">[</span><span class="mf">1.0000</span><span class="p">,</span>       <span class="mf">0.0</span><span class="p">,</span>       <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.8392</span><span class="p">,</span>    <span class="mf">0.0627</span><span class="p">,</span>    <span class="mf">0.1922</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">0.7765</span><span class="p">,</span>    <span class="mf">0.5804</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;odv_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;odvw&#39;</span><span class="p">,</span> <span class="s1">&#39;odvw_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;odvw&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.9373</span><span class="p">,</span>    <span class="mf">0.7765</span><span class="p">,</span>    <span class="mf">0.9373</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.7804</span><span class="p">,</span>    <span class="mf">0.3647</span><span class="p">,</span>    <span class="mf">0.7490</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.1922</span><span class="p">,</span>    <span class="mf">0.2235</span><span class="p">,</span>    <span class="mf">1.0000</span><span class="p">],</span>
@@ -353,9 +361,9 @@
                                     <span class="p">[</span><span class="mf">1.0000</span><span class="p">,</span>       <span class="mf">0.0</span><span class="p">,</span>       <span class="mf">0.0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">0.8392</span><span class="p">,</span>    <span class="mf">0.0627</span><span class="p">,</span>    <span class="mf">0.1922</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mf">1.0000</span><span class="p">,</span>    <span class="mf">0.7765</span><span class="p">,</span>    <span class="mf">0.5804</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;odvw_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>    
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt&#39;</span><span class="p">,</span> <span class="s1">&#39;wvt_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">153</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">204</span><span class="p">,</span>  <span class="mi">51</span><span class="p">],</span>
@@ -364,8 +372,8 @@
                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span>  <span class="mi">51</span><span class="p">,</span>  <span class="mi">51</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">153</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span>  <span class="mi">51</span><span class="p">]])</span>
                 
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;seaice&#39;</span><span class="p">,</span> <span class="s1">&#39;seaice_i&#39;</span><span class="p">]:</span>    
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;seaice&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">153</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span>  <span class="mi">51</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">204</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span>   <span class="mi">0</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">102</span><span class="p">,</span> <span class="mi">102</span><span class="p">],</span>
@@ -375,9 +383,9 @@
                                     <span class="p">[</span>  <span class="mi">0</span><span class="p">,</span> <span class="mi">153</span><span class="p">,</span> <span class="mi">204</span><span class="p">],</span>
                                     <span class="p">[</span>  <span class="mi">0</span><span class="p">,</span>  <span class="mi">51</span><span class="p">,</span> <span class="mi">204</span><span class="p">],</span>
                                     <span class="p">[</span>  <span class="mi">0</span><span class="p">,</span>  <span class="mi">51</span><span class="p">,</span> <span class="mi">153</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;seaice_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>      
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;precip&#39;</span><span class="p">,</span> <span class="s1">&#39;precip_i&#39;</span><span class="p">]:</span>
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;precip&#39;</span><span class="p">]:</span>
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span> <span class="mi">64</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span>  <span class="mi">75</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">118</span><span class="p">,</span>  <span class="mi">42</span><span class="p">,</span> <span class="mi">131</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">153</span><span class="p">,</span> <span class="mi">112</span><span class="p">,</span> <span class="mi">171</span><span class="p">],</span>
@@ -389,9 +397,9 @@
                                     <span class="p">[</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">174</span><span class="p">,</span>  <span class="mi">97</span><span class="p">],</span>
                                     <span class="p">[</span> <span class="mi">27</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span>  <span class="mi">55</span><span class="p">],</span>
                                     <span class="p">[</span>  <span class="mi">0</span><span class="p">,</span>  <span class="mi">68</span><span class="p">,</span>  <span class="mi">27</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;precip_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>      
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;drought&#39;</span><span class="p">,</span> <span class="s1">&#39;drought_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;drought&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">165</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span>  <span class="mi">38</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">215</span><span class="p">,</span>  <span class="mi">48</span><span class="p">,</span>  <span class="mi">39</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">244</span><span class="p">,</span> <span class="mi">109</span><span class="p">,</span>  <span class="mi">67</span><span class="p">],</span>
@@ -403,9 +411,9 @@
                                     <span class="p">[</span><span class="mi">102</span><span class="p">,</span> <span class="mi">189</span><span class="p">,</span>  <span class="mi">99</span><span class="p">],</span>
                                     <span class="p">[</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">152</span><span class="p">,</span>  <span class="mi">80</span><span class="p">],</span>
                                     <span class="p">[</span>  <span class="mi">0</span><span class="p">,</span> <span class="mi">104</span><span class="p">,</span>  <span class="mi">55</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;drought_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>      
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt1&#39;</span><span class="p">,</span> <span class="s1">&#39;wvt1_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt1&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">161</span><span class="p">,</span> <span class="mi">218</span><span class="p">,</span> <span class="mi">180</span><span class="p">],</span>
                                     <span class="p">[</span> <span class="mi">65</span><span class="p">,</span> <span class="mi">182</span><span class="p">,</span> <span class="mi">196</span><span class="p">],</span>
@@ -417,9 +425,9 @@
                                     <span class="p">[</span><span class="mi">240</span><span class="p">,</span>  <span class="mi">59</span><span class="p">,</span>  <span class="mi">32</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">189</span><span class="p">,</span>   <span class="mi">0</span><span class="p">,</span>  <span class="mi">38</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">165</span><span class="p">,</span>  <span class="mi">15</span><span class="p">,</span>  <span class="mi">21</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt1_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>      
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt2&#39;</span><span class="p">,</span> <span class="s1">&#39;wvt2_i&#39;</span><span class="p">]:</span>    
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt2&#39;</span><span class="p">]:</span>    
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">236</span><span class="p">,</span> <span class="mi">226</span><span class="p">,</span> <span class="mi">240</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">208</span><span class="p">,</span> <span class="mi">209</span><span class="p">,</span> <span class="mi">230</span><span class="p">],</span>
@@ -429,9 +437,9 @@
                                     <span class="p">[</span>  <span class="mi">2</span><span class="p">,</span> <span class="mi">129</span><span class="p">,</span> <span class="mi">138</span><span class="p">],</span>
                                     <span class="p">[</span>  <span class="mi">1</span><span class="p">,</span> <span class="mi">108</span><span class="p">,</span>  <span class="mi">89</span><span class="p">],</span>
                                     <span class="p">[</span>  <span class="mi">1</span><span class="p">,</span>  <span class="mi">70</span><span class="p">,</span>  <span class="mi">54</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt2_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>      
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt3&#39;</span><span class="p">,</span> <span class="s1">&#39;wvt3_i&#39;</span><span class="p">]:</span>        
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt3&#39;</span><span class="p">]:</span>        
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">247</span><span class="p">,</span> <span class="mi">247</span><span class="p">,</span> <span class="mi">247</span><span class="p">],</span>
                                     <span class="p">[</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">136</span><span class="p">,</span> <span class="mi">189</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">102</span><span class="p">,</span> <span class="mi">194</span><span class="p">,</span> <span class="mi">165</span><span class="p">],</span>
@@ -443,9 +451,9 @@
                                     <span class="p">[</span><span class="mi">244</span><span class="p">,</span> <span class="mi">109</span><span class="p">,</span>  <span class="mi">67</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">213</span><span class="p">,</span>  <span class="mi">62</span><span class="p">,</span>  <span class="mi">79</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">158</span><span class="p">,</span>   <span class="mi">1</span><span class="p">,</span>  <span class="mi">66</span><span class="p">]]);</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;wvt3_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
-            <span class="c1">#---------------------------------------------------------------------------</span>
-            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ars&#39;</span><span class="p">,</span> <span class="s1">&#39;ars_i&#39;</span><span class="p">]:</span>        
+            
+            <span class="c1">#-------------------------------------------------------------------</span>
+            <span class="k">elif</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ars&#39;</span><span class="p">]:</span>        
                 <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span>
                                     <span class="p">[</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">175</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span>
                                     <span class="p">[</span> <span class="mi">68</span><span class="p">,</span> <span class="mi">202</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span>
@@ -459,10 +467,13 @@
                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">158</span><span class="p">,</span> <span class="mi">158</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">196</span><span class="p">,</span> <span class="mi">196</span><span class="p">],</span>
                                     <span class="p">[</span><span class="mi">255</span><span class="p">,</span> <span class="mi">235</span><span class="p">,</span> <span class="mi">235</span><span class="p">]])</span>
-                <span class="k">if</span> <span class="n">cname</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ars_i&#39;</span><span class="p">]:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>      
             
-            <span class="c1">#---------------------------------------------------------------------------</span>
+            <span class="c1">#-------------------------------------------------------------------</span>
             <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;this colormap name is not supported&#39;</span><span class="p">)</span>    
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># invert colormap if &quot;_i&quot; in cname</span>
+        <span class="k">if</span> <span class="s1">&#39;_i&#39;</span> <span class="ow">in</span> <span class="n">cname</span><span class="p">:</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">cmap_arr</span><span class="p">)</span>
         
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">cmap_arr</span><span class="o">&gt;</span><span class="mf">1.0</span><span class="p">):</span> <span class="n">cmap_arr</span> <span class="o">=</span> <span class="n">cmap_arr</span><span class="o">/</span><span class="mi">255</span>
