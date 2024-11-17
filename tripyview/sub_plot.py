@@ -42,6 +42,7 @@ def plot_hslice(mesh                   ,
                 proj       = 'pc'      ,
                 do_ie2n    = False     , # interpolate element data to vertices
                 do_rescale = False     ,
+                
                 #--- data -----------
                 do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
@@ -53,26 +54,39 @@ def plot_hslice(mesh                   ,
                 pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
+                
                 #--- mesh -----------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    ,
-                #--- streamlines-----
+                
+                #--- streamlines ----
                 do_streaml = False     , 
                 streaml_dat= None      , 
                 streaml_opt= dict()    , 
                 do_streaml_leg = True  ,
                 streaml_leg_opt=dict() , 
+                
+                #--- quiver ---------
+                do_quiver  = False     , 
+                quiver_dat = None      , 
+                quiver_opt = dict()    , 
+                do_quiver_leg = True   ,
+                quiver_leg_opt=dict()  , 
+                
                 #--- bottom mask ----
                 do_bot     = True      , 
                 bot_opt    = dict()    ,
+                
                 #--- landsea mask ---
                 do_lsm     = 'fesom'   , 
                 lsm_opt    = dict()    , 
                 lsm_res    = 'low'     ,
+                
                 #--- gridlines ------
                 do_grid    = True      , 
                 do_boundbox= True      , 
                 grid_opt   = dict()    ,
+                
                 #--- colorbar -------
                 cb_label   = None      ,
                 cb_lunit   = None      ,
@@ -81,10 +95,12 @@ def plot_hslice(mesh                   ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
+                
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_opt     = dict()    ,
                 axl_opt    = dict()    ,# dictionary that defines axes and colorbar arangement
+                
                 #--- enumerate axes -
                 do_enum    = False     ,
                 enum_opt   = dict()    , 
@@ -92,10 +108,12 @@ def plot_hslice(mesh                   ,
                 enum_x     = [0.005]   , 
                 enum_y     = [1.00]    ,
                 enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                
                 #--- save figure ----
                 do_save    = None      , 
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
+                
                 #--- set output -----
                 nargout    =['hfig', 'hax', 'hcb'],
                 ):
@@ -186,7 +204,7 @@ def plot_hslice(mesh                   ,
 
         :streaml_dat:  list, (default: None), list with u,v regular gridded velocity data
 
-        :streaml_opt:  dict, (default: dict()), additional options that can be given to hter streamline plot_hline
+        :streaml_opt:  dict, (default: dict()), additional options that can be given to the streamline plot
         
         :do_streaml_leg: bool, (default: False) overlay legend for streamline plot, keep in mind that the position for 
                                legend is somewhat pre setted by hand 
@@ -200,7 +218,20 @@ def plot_hslice(mesh                   ,
                                         'dy':5, # vertical distance of legend labels in deg
                                         'dw':10, # width of lines in deg
                                         'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
-                
+        
+        ___plot quivers-----_________________________________
+
+        :do_quiver:   bool, (default: False), overlay quivers based on regular gridded u,v data
+
+        :quiver_dat:  list, (default: None), list with u,v regular gridded velocity data
+
+        :quiver_opt:  dict, (default: dict()), additional options that can be given to the quiver plot
+        
+        :do_quiver_leg: bool, (default: False) overlay legend for quiver plot, keep in mind that the position for 
+                               legend is somewhat pre setted by hand 
+
+        :quiver_leg_opt: dict, (default=dict()) additional option for the position of the quiver legend
+        
         ___plot bottom mask_________________________________
 
         :do_bot:    bool, (default: True), overlay topographic bottom mask
@@ -319,6 +350,8 @@ def plot_hslice(mesh                   ,
         if not isinstance(streaml_dat, list): streaml_dat = [streaml_dat]
     ndat = len(data)
     
+    if not isinstance(cb_label, list): cb_label=[cb_label]
+    
     #___________________________________________________________________________
     # --> create projection
     proj_to = None
@@ -380,7 +413,7 @@ def plot_hslice(mesh                   ,
         
     #___________________________________________________________________________
     # --> loop over axes
-    hp, hbot, hmsh, hlsm, hgrd, hstrm, hall = list(), list(), list(), list(), list(), list(), list()
+    hp, hbot, hmsh, hlsm, hgrd, hstrm, hquiv, hall = list(), list(), list(), list(), list(), list(), list(), list()
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
@@ -455,6 +488,16 @@ def plot_hslice(mesh                   ,
                                 do_streaml_leg  = do_streaml_leg, 
                                 streaml_leg_opt = streaml_leg_opt)
             hstrm.append(h0)            
+            
+            #___________________________________________________________________
+            # add streamline data if available 
+            h0 = do_plt_quiver_reg(hax_ii, ii, do_quiver, 
+                                   box            = box, 
+                                   quiver_dat     = quiver_dat, 
+                                   quiver_opt     = quiver_opt,
+                                   do_quiver_leg  = do_quiver_leg, 
+                                   quiver_leg_opt = quiver_leg_opt)
+            hquiv.append(h0)            
             
             #___________________________________________________________________
             # add mesh land-sea mask
@@ -5015,6 +5058,194 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
         raise ValueError(' --> you need to provide regular gridded u,v data to plot streamlines')
     
     return(h0)
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(), 
+                   do_quiver_leg=True, quiver_leg_opt=dict(),
+                   box=None, which_transf=ccrs.PlateCarree(), 
+                   quiv_scalfac=1, quiv_arrwidth=0.25):
+    """
+    --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
+        data. Data can originate either from corase graining or interpolation
+        
+    Parameters:
+    
+        :hax_ii:        handle of axes ii
+    
+        :ii:            int, index of handle ii
+    
+        :do_quiver:    bool, do cartopy quiver plot
+    
+        :quiver_dat:   list of xr.Datasets with u,v data in it (default=None)
+    
+            ::
+    
+                Dimensions:  (lat: 85, lon: 180, n2: 2)
+                Coordinates:
+                * lat      (lat) float32 340B -79.0 -77.0 -75.0 -73.0 ... 83.0 85.0 87.0 89.0
+                * lon      (lon) float32 720B -179.0 -177.0 -175.0 ... 175.0 177.0 179.0
+                    nzi      float64 8B 15.89
+                    nz1      int64 8B 250
+                    lat_bnd  (lat, n2) float32 680B -80.0 -78.0 -78.0 -76.0 ... 88.0 nan nan
+                    lon_bnd  (lon, n2) float32 1kB -180.0 -178.0 -178.0 ... 178.0 178.0 180.0
+                    w_A      (lat, lon) float32 61kB 9.437e+09 9.437e+09 9.437e+09 ... nan nan
+                Dimensions without coordinates: n2
+                Data variables:
+                    u        (lat, lon) float32 61kB -0.003229 -0.003186 -0.002711 ... nan nan
+                    v        (lat, lon) float32 61kB 0.0007711 0.000357 0.001531 ... nan nan
+                Attributes: (12/19)
+                    FESOM_model:                         FESOM2
+                    FESOM_website:                       fesom.de
+                    FESOM_git_SHA:                       02f7d080
+                    FESOM_MeshPath:                      /albedo/work/user/pscholz/mesh_fesom...
+                    FESOM_mesh_representative_checksum:  297ddf9c482ca68c86a979e1bd5d3c97
+                    FESOM_ClimateDataPath:               /albedo/work/projects/p_fesom/FROM-O...
+                    ...                                  ...
+                
+        :quiver_opt:   dict, (default: dict()) additional options that are given to 
+                        quiver plot routine
+                        
+        :do_quiver_leg: bool, (default: False) overlay legend for quiver plot, keep in mind that the position for 
+                               legend is somewhat pre setted by hand 
+
+        :quiver_leg_opt: dict, (default=dict()) additional option for the position of the streamline legend
+        
+        :box:           None, list (default: None) regional limitation of plot. For ortho...
+                        box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = 
+                        [lonmin, lonmax, latmin, latmax]
+        
+        :which_transf:  ccrs.CRS (default=None) data starting projection usually ccrs.PlateCaree()
+    
+    Returns:
+    
+        :h0:            return matplotlib handle of streamline
+        
+    #___________________________________________________________________________
+    """
+    
+    h0=None
+    #___________________________________________________________________________
+    if do_quiver and quiver_dat is not None:
+        data_x, data_y = quiver_dat[ii]['lon'    ].data.copy(), quiver_dat[ii]['lat'    ].data.copy()
+        vnm = list(quiver_dat[ii].data_vars)
+        data_u, data_v = quiver_dat[ii][vnm[0]].data.copy(), quiver_dat[ii][vnm[1]].data.copy()
+                
+        # limit data to regional box
+        if box is not None:
+            idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
+            data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
+            data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
+            data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
+            del(idx_x, idx_y)
+        
+        # vector norm --> speed
+        data_s = np.sqrt(data_u**2 + data_v**2)
+        
+        # kick out nan values
+        data_x, data_y = np.meshgrid(data_x, data_y)
+        mask_nan = np.isnan(data_s) == False
+        data_x, data_y = data_x[mask_nan], data_y[mask_nan]
+        data_u, data_v, data_s = data_u[mask_nan], data_v[mask_nan], data_s[mask_nan]
+        
+        ##_______________________________________________________________________
+        ## try to do scaling projection space dependent
+        ## Define the geographic coordinates bounding the area of interest
+        #min_x, max_x = hax_ii.get_xlim()
+        #min_y, max_y = hax_ii.get_ylim()
+        #ddx  , ddy   = max_x-min_x , max_y-min_y
+          
+        #min_x += ddx*0.025  
+        #min_y += ddy*0.025
+        #max_x -= ddx*0.025  
+        #max_y -= ddy*0.025
+        
+        ## Transform the minimum and maximum points
+        #min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+        #max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+        #dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
+        #dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
+        
+        ## Calculate the distance in kilometers using the scale factor
+        #dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
+        #dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
+        
+        #dy   = dlat*np.pi*6371/180
+        #dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
+        
+        #_______________________________________________________________________
+        # add quiver plot 
+        #max_dim = np.min([dx,dy])*10
+        #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
+        #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+        
+        quiv_optdefault=dict({})
+        #quiv_optdefault=dict({'edgecolor':'k', 
+                              #'linewidth':0.10, 
+                              #'width': quiv_arrwidth , 
+                              #'units':'xy', 
+                              #'scale_units':'xy', 
+                              #'angles':'xy', 
+                              #'scale': quiv_scalfac}) 
+        
+        quiv_optdefault=dict({
+            #'angles':"xy", 'scale_units':"xy",
+                            'scale':4,
+                            'minshaft':2,
+                            'minlength':0.5,
+                            'width':0.002})
+        
+        quiv_optdefault.update(quiver_opt)
+        
+        data_u, data_v = hax_ii.projection.transform_vectors(which_transf, data_x, data_y, data_u, data_v)
+        data_x, data_y = hax_ii.projection.transform_points( which_transf, data_x, data_y)[:,0:2].T
+        h0=hax_ii.quiver(data_x, data_y, 
+                         data_u, data_v, 
+                         color = 'k', 
+                         zorder=10,
+                         **quiv_optdefault, 
+                        )
+        
+        #_______________________________________________________________________
+        # make a streamline legend
+        if do_quiver_leg:
+            leg_optdefault = dict({'x':75, # lon position of legend in deg
+                                   'y':60, # lat position of legend in deg 
+                                   'dy':5, # vertical distance of legend labels in deg
+                                   'dw':10, # width of lines in deg
+                                   'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
+            leg_optdefault.update(quiver_leg_opt)
+            
+            x, y, dy, dw   = leg_optdefault['x'], leg_optdefault['y'], leg_optdefault['dy'], leg_optdefault['dw']
+            x01, y01 = hax_ii.projection.transform_point(x-dw, y, ccrs.PlateCarree())
+            x02, y02 = hax_ii.projection.transform_point(x  , y, ccrs.PlateCarree())
+            x03, y03 = hax_ii.projection.transform_point(x+2, y, ccrs.PlateCarree())
+            for i, speed in enumerate(leg_optdefault['arr_s']):
+                # This linewidth
+                
+                # Plot a line in the legend, of the correct length
+                x1, y1   = hax_ii.projection.transform_point(x, y, ccrs.PlateCarree())
+                u1, v1   = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), np.array([0]) , np.array([0]), np.array([speed]), np.array([0]))
+                h0=hax_ii.quiver(x02, y1, u1, v1, color = 'k', zorder=10,
+                         pivot='tip', 
+                         **quiv_optdefault, 
+                        )
+                # Add a text label, after converting the lw back to a speed
+                hax_ii.text(x03, y1, '{:2.2f} $m{{\\cdot}}s^{{-1}}$'.format(speed), 
+                            va='center', zorder=10, fontweight='normal')
+                y=y-dy
+            
+        #_______________________________________________________________________
+        del(data_x, data_y, data_u, data_v, data_s)
+        
+    #___________________________________________________________________________
+    elif do_streaml and streaml_dat is None:
+        raise ValueError(' --> you need to provide regular gridded u,v data to plot streamlines')
+    
+    return(h0)
+
 
 
 
