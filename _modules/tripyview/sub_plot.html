@@ -81,6 +81,7 @@
                 <span class="n">proj</span>       <span class="o">=</span> <span class="s1">&#39;pc&#39;</span>      <span class="p">,</span>
                 <span class="n">do_ie2n</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> <span class="c1"># interpolate element data to vertices</span>
                 <span class="n">do_rescale</span> <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                
                 <span class="c1">#--- data -----------</span>
                 <span class="n">do_plt</span>     <span class="o">=</span> <span class="s1">&#39;tpc&#39;</span>     <span class="p">,</span> <span class="c1"># tpc:tripcolor, tcf:tricontourf</span>
                 <span class="n">plt_opt</span>    <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
@@ -92,26 +93,39 @@
                 <span class="n">pltcr_opt</span>  <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># reference contour line option</span>
                 <span class="n">plt_contl</span>  <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> <span class="c1"># do contourline labels </span>
                 <span class="n">pltcl_opt</span>  <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># contour line label options</span>
+                
                 <span class="c1">#--- mesh -----------</span>
                 <span class="n">do_mesh</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
                 <span class="n">mesh_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
-                <span class="c1">#--- streamlines-----</span>
+                
+                <span class="c1">#--- streamlines ----</span>
                 <span class="n">do_streaml</span> <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
                 <span class="n">streaml_dat</span><span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">streaml_opt</span><span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
                 <span class="n">do_streaml_leg</span> <span class="o">=</span> <span class="kc">True</span>  <span class="p">,</span>
                 <span class="n">streaml_leg_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()</span> <span class="p">,</span> 
+                
+                <span class="c1">#--- quiver ---------</span>
+                <span class="n">do_quiver</span>  <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
+                <span class="n">quiver_dat</span> <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
+                <span class="n">quiver_opt</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
+                <span class="n">do_quiver_leg</span> <span class="o">=</span> <span class="kc">True</span>   <span class="p">,</span>
+                <span class="n">quiver_leg_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()</span>  <span class="p">,</span> 
+                
                 <span class="c1">#--- bottom mask ----</span>
                 <span class="n">do_bot</span>     <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
                 <span class="n">bot_opt</span>    <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
+                
                 <span class="c1">#--- landsea mask ---</span>
                 <span class="n">do_lsm</span>     <span class="o">=</span> <span class="s1">&#39;fesom&#39;</span>   <span class="p">,</span> 
                 <span class="n">lsm_opt</span>    <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
                 <span class="n">lsm_res</span>    <span class="o">=</span> <span class="s1">&#39;low&#39;</span>     <span class="p">,</span>
+                
                 <span class="c1">#--- gridlines ------</span>
                 <span class="n">do_grid</span>    <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
                 <span class="n">do_boundbox</span><span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span> 
                 <span class="n">grid_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
+                
                 <span class="c1">#--- colorbar -------</span>
                 <span class="n">cb_label</span>   <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
                 <span class="n">cb_lunit</span>   <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
@@ -120,10 +134,12 @@
                 <span class="n">cb_opt</span>     <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># colorbar option</span>
                 <span class="n">cbl_opt</span>    <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># colorbar label option, fontsize ,...</span>
                 <span class="n">cbtl_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># colorbar ticklabel option, fontsize ,...</span>
+                
                 <span class="c1">#--- axes -----------</span>
                 <span class="n">ax_title</span>   <span class="o">=</span> <span class="s1">&#39;descript&#39;</span><span class="p">,</span>
                 <span class="n">ax_opt</span>     <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
                 <span class="n">axl_opt</span>    <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span><span class="c1"># dictionary that defines axes and colorbar arangement</span>
+                
                 <span class="c1">#--- enumerate axes -</span>
                 <span class="n">do_enum</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
                 <span class="n">enum_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
@@ -131,10 +147,12 @@
                 <span class="n">enum_x</span>     <span class="o">=</span> <span class="p">[</span><span class="mf">0.005</span><span class="p">]</span>   <span class="p">,</span> 
                 <span class="n">enum_y</span>     <span class="o">=</span> <span class="p">[</span><span class="mf">1.00</span><span class="p">]</span>    <span class="p">,</span>
                 <span class="n">enum_dir</span>   <span class="o">=</span> <span class="s1">&#39;lr&#39;</span>    <span class="p">,</span><span class="c1"># prescribed list of enumeration strings</span>
+                
                 <span class="c1">#--- save figure ----</span>
                 <span class="n">do_save</span>    <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">save_dpi</span>   <span class="o">=</span> <span class="mi">300</span>       <span class="p">,</span>
                 <span class="n">save_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span>
+                
                 <span class="c1">#--- set output -----</span>
                 <span class="n">nargout</span>    <span class="o">=</span><span class="p">[</span><span class="s1">&#39;hfig&#39;</span><span class="p">,</span> <span class="s1">&#39;hax&#39;</span><span class="p">,</span> <span class="s1">&#39;hcb&#39;</span><span class="p">],</span>
                 <span class="p">):</span>
@@ -225,7 +243,7 @@
 
 <span class="sd">        :streaml_dat:  list, (default: None), list with u,v regular gridded velocity data</span>
 
-<span class="sd">        :streaml_opt:  dict, (default: dict()), additional options that can be given to hter streamline plot_hline</span>
+<span class="sd">        :streaml_opt:  dict, (default: dict()), additional options that can be given to the streamline plot</span>
 <span class="sd">        </span>
 <span class="sd">        :do_streaml_leg: bool, (default: False) overlay legend for streamline plot, keep in mind that the position for </span>
 <span class="sd">                               legend is somewhat pre setted by hand </span>
@@ -239,7 +257,20 @@
 <span class="sd">                                        &#39;dy&#39;:5, # vertical distance of legend labels in deg</span>
 <span class="sd">                                        &#39;dw&#39;:10, # width of lines in deg</span>
 <span class="sd">                                        &#39;arr_s&#39;: [0.05, 0.1, 0.2, 0.3, 0.4]  })</span>
-<span class="sd">                </span>
+<span class="sd">        </span>
+<span class="sd">        ___plot quivers-----_________________________________</span>
+
+<span class="sd">        :do_quiver:   bool, (default: False), overlay quivers based on regular gridded u,v data</span>
+
+<span class="sd">        :quiver_dat:  list, (default: None), list with u,v regular gridded velocity data</span>
+
+<span class="sd">        :quiver_opt:  dict, (default: dict()), additional options that can be given to the quiver plot</span>
+<span class="sd">        </span>
+<span class="sd">        :do_quiver_leg: bool, (default: False) overlay legend for quiver plot, keep in mind that the position for </span>
+<span class="sd">                               legend is somewhat pre setted by hand </span>
+
+<span class="sd">        :quiver_leg_opt: dict, (default=dict()) additional option for the position of the quiver legend</span>
+<span class="sd">        </span>
 <span class="sd">        ___plot bottom mask_________________________________</span>
 
 <span class="sd">        :do_bot:    bool, (default: True), overlay topographic bottom mask</span>
@@ -358,6 +389,8 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">streaml_dat</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span> <span class="n">streaml_dat</span> <span class="o">=</span> <span class="p">[</span><span class="n">streaml_dat</span><span class="p">]</span>
     <span class="n">ndat</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
     
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cb_label</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span> <span class="n">cb_label</span><span class="o">=</span><span class="p">[</span><span class="n">cb_label</span><span class="p">]</span>
+    
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># --&gt; create projection</span>
     <span class="n">proj_to</span> <span class="o">=</span> <span class="kc">None</span>
@@ -419,7 +452,7 @@
         
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># --&gt; loop over axes</span>
-    <span class="n">hp</span><span class="p">,</span> <span class="n">hbot</span><span class="p">,</span> <span class="n">hmsh</span><span class="p">,</span> <span class="n">hlsm</span><span class="p">,</span> <span class="n">hgrd</span><span class="p">,</span> <span class="n">hstrm</span><span class="p">,</span> <span class="n">hall</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">hp</span><span class="p">,</span> <span class="n">hbot</span><span class="p">,</span> <span class="n">hmsh</span><span class="p">,</span> <span class="n">hlsm</span><span class="p">,</span> <span class="n">hgrd</span><span class="p">,</span> <span class="n">hstrm</span><span class="p">,</span> <span class="n">hquiv</span><span class="p">,</span> <span class="n">hall</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">(),</span> <span class="nb">list</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">hcb_ii</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">hax</span><span class="p">,</span> <span class="n">hcb</span><span class="p">)):</span>
         <span class="c1"># if there are no ddatra to fill axes, make it invisible </span>
         <span class="k">if</span> <span class="n">ii</span><span class="o">&gt;=</span><span class="n">ndat</span><span class="p">:</span> 
@@ -494,6 +527,16 @@
                                 <span class="n">do_streaml_leg</span>  <span class="o">=</span> <span class="n">do_streaml_leg</span><span class="p">,</span> 
                                 <span class="n">streaml_leg_opt</span> <span class="o">=</span> <span class="n">streaml_leg_opt</span><span class="p">)</span>
             <span class="n">hstrm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span>            
+            
+            <span class="c1">#___________________________________________________________________</span>
+            <span class="c1"># add streamline data if available </span>
+            <span class="n">h0</span> <span class="o">=</span> <span class="n">do_plt_quiver_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_quiver</span><span class="p">,</span> 
+                                   <span class="n">box</span>            <span class="o">=</span> <span class="n">box</span><span class="p">,</span> 
+                                   <span class="n">quiver_dat</span>     <span class="o">=</span> <span class="n">quiver_dat</span><span class="p">,</span> 
+                                   <span class="n">quiver_opt</span>     <span class="o">=</span> <span class="n">quiver_opt</span><span class="p">,</span>
+                                   <span class="n">do_quiver_leg</span>  <span class="o">=</span> <span class="n">do_quiver_leg</span><span class="p">,</span> 
+                                   <span class="n">quiver_leg_opt</span> <span class="o">=</span> <span class="n">quiver_leg_opt</span><span class="p">)</span>
+            <span class="n">hquiv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span>            
             
             <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># add mesh land-sea mask</span>
@@ -5108,6 +5151,197 @@
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39; --&gt; you need to provide regular gridded u,v data to plot streamlines&#39;</span><span class="p">)</span>
     
     <span class="k">return</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span></div>
+
+
+
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#_______________________________________________________________________________</span>
+<div class="viewcode-block" id="do_plt_quiver_reg">
+<a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_quiver_reg">[docs]</a>
+<span class="k">def</span> <span class="nf">do_plt_quiver_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_quiver</span><span class="p">,</span> <span class="n">quiver_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quiver_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
+                   <span class="n">do_quiver_leg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">quiver_leg_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
+                   <span class="n">box</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">(),</span> 
+                   <span class="n">quiv_scalfac</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">quiv_arrwidth</span><span class="o">=</span><span class="mf">0.25</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    --&gt; plot streamlines over scalar data, based on regular gridded lon,lat vector </span>
+<span class="sd">        data. Data can originate either from corase graining or interpolation</span>
+<span class="sd">        </span>
+<span class="sd">    Parameters:</span>
+<span class="sd">    </span>
+<span class="sd">        :hax_ii:        handle of axes ii</span>
+<span class="sd">    </span>
+<span class="sd">        :ii:            int, index of handle ii</span>
+<span class="sd">    </span>
+<span class="sd">        :do_quiver:    bool, do cartopy quiver plot</span>
+<span class="sd">    </span>
+<span class="sd">        :quiver_dat:   list of xr.Datasets with u,v data in it (default=None)</span>
+<span class="sd">    </span>
+<span class="sd">            ::</span>
+<span class="sd">    </span>
+<span class="sd">                Dimensions:  (lat: 85, lon: 180, n2: 2)</span>
+<span class="sd">                Coordinates:</span>
+<span class="sd">                * lat      (lat) float32 340B -79.0 -77.0 -75.0 -73.0 ... 83.0 85.0 87.0 89.0</span>
+<span class="sd">                * lon      (lon) float32 720B -179.0 -177.0 -175.0 ... 175.0 177.0 179.0</span>
+<span class="sd">                    nzi      float64 8B 15.89</span>
+<span class="sd">                    nz1      int64 8B 250</span>
+<span class="sd">                    lat_bnd  (lat, n2) float32 680B -80.0 -78.0 -78.0 -76.0 ... 88.0 nan nan</span>
+<span class="sd">                    lon_bnd  (lon, n2) float32 1kB -180.0 -178.0 -178.0 ... 178.0 178.0 180.0</span>
+<span class="sd">                    w_A      (lat, lon) float32 61kB 9.437e+09 9.437e+09 9.437e+09 ... nan nan</span>
+<span class="sd">                Dimensions without coordinates: n2</span>
+<span class="sd">                Data variables:</span>
+<span class="sd">                    u        (lat, lon) float32 61kB -0.003229 -0.003186 -0.002711 ... nan nan</span>
+<span class="sd">                    v        (lat, lon) float32 61kB 0.0007711 0.000357 0.001531 ... nan nan</span>
+<span class="sd">                Attributes: (12/19)</span>
+<span class="sd">                    FESOM_model:                         FESOM2</span>
+<span class="sd">                    FESOM_website:                       fesom.de</span>
+<span class="sd">                    FESOM_git_SHA:                       02f7d080</span>
+<span class="sd">                    FESOM_MeshPath:                      /albedo/work/user/pscholz/mesh_fesom...</span>
+<span class="sd">                    FESOM_mesh_representative_checksum:  297ddf9c482ca68c86a979e1bd5d3c97</span>
+<span class="sd">                    FESOM_ClimateDataPath:               /albedo/work/projects/p_fesom/FROM-O...</span>
+<span class="sd">                    ...                                  ...</span>
+<span class="sd">                </span>
+<span class="sd">        :quiver_opt:   dict, (default: dict()) additional options that are given to </span>
+<span class="sd">                        quiver plot routine</span>
+<span class="sd">                        </span>
+<span class="sd">        :do_quiver_leg: bool, (default: False) overlay legend for quiver plot, keep in mind that the position for </span>
+<span class="sd">                               legend is somewhat pre setted by hand </span>
+
+<span class="sd">        :quiver_leg_opt: dict, (default=dict()) additional option for the position of the streamline legend</span>
+<span class="sd">        </span>
+<span class="sd">        :box:           None, list (default: None) regional limitation of plot. For ortho...</span>
+<span class="sd">                        box=[lonc, latc], nears...box=[lonc, latc, zoom], for all others box = </span>
+<span class="sd">                        [lonmin, lonmax, latmin, latmax]</span>
+<span class="sd">        </span>
+<span class="sd">        :which_transf:  ccrs.CRS (default=None) data starting projection usually ccrs.PlateCaree()</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">    </span>
+<span class="sd">        :h0:            return matplotlib handle of streamline</span>
+<span class="sd">        </span>
+<span class="sd">    #___________________________________________________________________________</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">h0</span><span class="o">=</span><span class="kc">None</span>
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">if</span> <span class="n">do_quiver</span> <span class="ow">and</span> <span class="n">quiver_dat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">quiver_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lon&#39;</span>    <span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">quiver_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="s1">&#39;lat&#39;</span>    <span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">vnm</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">quiver_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span>
+        <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">quiver_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">vnm</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">quiver_dat</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">vnm</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                
+        <span class="c1"># limit data to regional box</span>
+        <span class="k">if</span> <span class="n">box</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">idx_x</span> <span class="p">,</span> <span class="n">idx_y</span>  <span class="o">=</span> <span class="p">(</span><span class="n">data_x</span><span class="o">&gt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">data_x</span><span class="o">&lt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="p">(</span><span class="n">data_y</span><span class="o">&gt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">data_y</span><span class="o">&lt;=</span><span class="n">box</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">data_x</span><span class="p">[</span><span class="n">idx_x</span>  <span class="p">],</span> <span class="n">data_y</span><span class="p">[</span><span class="n">idx_y</span>  <span class="p">]</span>
+            <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">data_u</span><span class="p">[</span><span class="n">idx_y</span><span class="p">,:],</span> <span class="n">data_v</span><span class="p">[</span><span class="n">idx_y</span><span class="p">,:]</span>
+            <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">data_u</span><span class="p">[:,</span><span class="n">idx_x</span><span class="p">],</span> <span class="n">data_v</span><span class="p">[:,</span><span class="n">idx_x</span><span class="p">]</span>
+            <span class="k">del</span><span class="p">(</span><span class="n">idx_x</span><span class="p">,</span> <span class="n">idx_y</span><span class="p">)</span>
+        
+        <span class="c1"># vector norm --&gt; speed</span>
+        <span class="n">data_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">data_u</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">data_v</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        
+        <span class="c1"># kick out nan values</span>
+        <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">)</span>
+        <span class="n">mask_nan</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_s</span><span class="p">)</span> <span class="o">==</span> <span class="kc">False</span>
+        <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">data_x</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">],</span> <span class="n">data_y</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">]</span>
+        <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> <span class="n">data_s</span> <span class="o">=</span> <span class="n">data_u</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">],</span> <span class="n">data_v</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">],</span> <span class="n">data_s</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">]</span>
+        
+        <span class="c1">##_______________________________________________________________________</span>
+        <span class="c1">## try to do scaling projection space dependent</span>
+        <span class="c1">## Define the geographic coordinates bounding the area of interest</span>
+        <span class="c1">#min_x, max_x = hax_ii.get_xlim()</span>
+        <span class="c1">#min_y, max_y = hax_ii.get_ylim()</span>
+        <span class="c1">#ddx  , ddy   = max_x-min_x , max_y-min_y</span>
+          
+        <span class="c1">#min_x += ddx*0.025  </span>
+        <span class="c1">#min_y += ddy*0.025</span>
+        <span class="c1">#max_x -= ddx*0.025  </span>
+        <span class="c1">#max_y -= ddy*0.025</span>
+        
+        <span class="c1">## Transform the minimum and maximum points</span>
+        <span class="c1">#min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)</span>
+        <span class="c1">#max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)</span>
+        <span class="c1">#dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)</span>
+        <span class="c1">#dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)</span>
+        
+        <span class="c1">## Calculate the distance in kilometers using the scale factor</span>
+        <span class="c1">#dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers</span>
+        <span class="c1">#dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers</span>
+        
+        <span class="c1">#dy   = dlat*np.pi*6371/180</span>
+        <span class="c1">#dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># add quiver plot </span>
+        <span class="c1">#max_dim = np.min([dx,dy])*10</span>
+        <span class="c1">#if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac</span>
+        <span class="c1">#if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth</span>
+        
+        <span class="n">quiv_optdefault</span><span class="o">=</span><span class="nb">dict</span><span class="p">({})</span>
+        <span class="c1">#quiv_optdefault=dict({&#39;edgecolor&#39;:&#39;k&#39;, </span>
+                              <span class="c1">#&#39;linewidth&#39;:0.10, </span>
+                              <span class="c1">#&#39;width&#39;: quiv_arrwidth , </span>
+                              <span class="c1">#&#39;units&#39;:&#39;xy&#39;, </span>
+                              <span class="c1">#&#39;scale_units&#39;:&#39;xy&#39;, </span>
+                              <span class="c1">#&#39;angles&#39;:&#39;xy&#39;, </span>
+                              <span class="c1">#&#39;scale&#39;: quiv_scalfac}) </span>
+        
+        <span class="n">quiv_optdefault</span><span class="o">=</span><span class="nb">dict</span><span class="p">({</span>
+            <span class="c1">#&#39;angles&#39;:&quot;xy&quot;, &#39;scale_units&#39;:&quot;xy&quot;,</span>
+                            <span class="s1">&#39;scale&#39;</span><span class="p">:</span><span class="mi">4</span><span class="p">,</span>
+                            <span class="s1">&#39;minshaft&#39;</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span>
+                            <span class="s1">&#39;minlength&#39;</span><span class="p">:</span><span class="mf">0.5</span><span class="p">,</span>
+                            <span class="s1">&#39;width&#39;</span><span class="p">:</span><span class="mf">0.002</span><span class="p">})</span>
+        
+        <span class="n">quiv_optdefault</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">quiver_opt</span><span class="p">)</span>
+        
+        <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_vectors</span><span class="p">(</span><span class="n">which_transf</span><span class="p">,</span> <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">)</span>
+        <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_points</span><span class="p">(</span> <span class="n">which_transf</span><span class="p">,</span> <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">)[:,</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">h0</span><span class="o">=</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">quiver</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> 
+                         <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> 
+                         <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> 
+                         <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+                         <span class="o">**</span><span class="n">quiv_optdefault</span><span class="p">,</span> 
+                        <span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># make a streamline legend</span>
+        <span class="k">if</span> <span class="n">do_quiver_leg</span><span class="p">:</span>
+            <span class="n">leg_optdefault</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">({</span><span class="s1">&#39;x&#39;</span><span class="p">:</span><span class="mi">75</span><span class="p">,</span> <span class="c1"># lon position of legend in deg</span>
+                                   <span class="s1">&#39;y&#39;</span><span class="p">:</span><span class="mi">60</span><span class="p">,</span> <span class="c1"># lat position of legend in deg </span>
+                                   <span class="s1">&#39;dy&#39;</span><span class="p">:</span><span class="mi">5</span><span class="p">,</span> <span class="c1"># vertical distance of legend labels in deg</span>
+                                   <span class="s1">&#39;dw&#39;</span><span class="p">:</span><span class="mi">10</span><span class="p">,</span> <span class="c1"># width of lines in deg</span>
+                                   <span class="s1">&#39;arr_s&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">]</span>  <span class="p">})</span>
+            <span class="n">leg_optdefault</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">quiver_leg_opt</span><span class="p">)</span>
+            
+            <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span><span class="p">,</span> <span class="n">dw</span>   <span class="o">=</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">],</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">],</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;dy&#39;</span><span class="p">],</span> <span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;dw&#39;</span><span class="p">]</span>
+            <span class="n">x01</span><span class="p">,</span> <span class="n">y01</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">dw</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+            <span class="n">x02</span><span class="p">,</span> <span class="n">y02</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span>  <span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+            <span class="n">x03</span><span class="p">,</span> <span class="n">y03</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">2</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">speed</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">leg_optdefault</span><span class="p">[</span><span class="s1">&#39;arr_s&#39;</span><span class="p">]):</span>
+                <span class="c1"># This linewidth</span>
+                
+                <span class="c1"># Plot a line in the legend, of the correct length</span>
+                <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span>   <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_point</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">())</span>
+                <span class="n">u1</span><span class="p">,</span> <span class="n">v1</span>   <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_vectors</span><span class="p">(</span><span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">(),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span> <span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">speed</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">]))</span>
+                <span class="n">h0</span><span class="o">=</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">quiver</span><span class="p">(</span><span class="n">x02</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="n">u1</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+                         <span class="n">pivot</span><span class="o">=</span><span class="s1">&#39;tip&#39;</span><span class="p">,</span> 
+                         <span class="o">**</span><span class="n">quiv_optdefault</span><span class="p">,</span> 
+                        <span class="p">)</span>
+                <span class="c1"># Add a text label, after converting the lw back to a speed</span>
+                <span class="n">hax_ii</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">x03</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">{:2.2f}</span><span class="s1"> $m{{</span><span class="se">\\</span><span class="s1">cdot}}s^{{-1}}$&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">speed</span><span class="p">),</span> 
+                            <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">)</span>
+                <span class="n">y</span><span class="o">=</span><span class="n">y</span><span class="o">-</span><span class="n">dy</span>
+            
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> <span class="n">data_s</span><span class="p">)</span>
+        
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="k">elif</span> <span class="n">do_streaml</span> <span class="ow">and</span> <span class="n">streaml_dat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39; --&gt; you need to provide regular gridded u,v data to plot streamlines&#39;</span><span class="p">)</span>
+    
+    <span class="k">return</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span></div>
+
 
 
 
