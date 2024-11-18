@@ -5150,48 +5150,8 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
         data_x, data_y = data_x[mask_nan], data_y[mask_nan]
         data_u, data_v, data_s = data_u[mask_nan], data_v[mask_nan], data_s[mask_nan]
         
-        ##_______________________________________________________________________
-        ## try to do scaling projection space dependent
-        ## Define the geographic coordinates bounding the area of interest
-        #min_x, max_x = hax_ii.get_xlim()
-        #min_y, max_y = hax_ii.get_ylim()
-        #ddx  , ddy   = max_x-min_x , max_y-min_y
-          
-        #min_x += ddx*0.025  
-        #min_y += ddy*0.025
-        #max_x -= ddx*0.025  
-        #max_y -= ddy*0.025
-        
-        ## Transform the minimum and maximum points
-        #min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
-        #max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
-        #dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
-        #dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
-        
-        ## Calculate the distance in kilometers using the scale factor
-        #dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
-        #dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
-        
-        #dy   = dlat*np.pi*6371/180
-        #dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
-        
         #_______________________________________________________________________
-        # add quiver plot 
-        #max_dim = np.min([dx,dy])*10
-        #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
-        #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
-        
-        quiv_optdefault=dict({})
-        #quiv_optdefault=dict({'edgecolor':'k', 
-                              #'linewidth':0.10, 
-                              #'width': quiv_arrwidth , 
-                              #'units':'xy', 
-                              #'scale_units':'xy', 
-                              #'angles':'xy', 
-                              #'scale': quiv_scalfac}) 
-        
         quiv_optdefault=dict({
-            #'angles':"xy", 'scale_units':"xy",
                             'scale':4,
                             'minshaft':2,
                             'minlength':0.5,
@@ -5201,12 +5161,8 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
         
         data_u, data_v = hax_ii.projection.transform_vectors(which_transf, data_x, data_y, data_u, data_v)
         data_x, data_y = hax_ii.projection.transform_points( which_transf, data_x, data_y)[:,0:2].T
-        h0=hax_ii.quiver(data_x, data_y, 
-                         data_u, data_v, 
-                         color = 'k', 
-                         zorder=10,
-                         **quiv_optdefault, 
-                        )
+        h0=hax_ii.quiver(data_x, data_y, data_u, data_v, 
+                         color = 'k', zorder=10, **quiv_optdefault, )
         
         #_______________________________________________________________________
         # make a streamline legend
