@@ -5246,48 +5246,8 @@
         <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">data_x</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">],</span> <span class="n">data_y</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">]</span>
         <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> <span class="n">data_s</span> <span class="o">=</span> <span class="n">data_u</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">],</span> <span class="n">data_v</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">],</span> <span class="n">data_s</span><span class="p">[</span><span class="n">mask_nan</span><span class="p">]</span>
         
-        <span class="c1">##_______________________________________________________________________</span>
-        <span class="c1">## try to do scaling projection space dependent</span>
-        <span class="c1">## Define the geographic coordinates bounding the area of interest</span>
-        <span class="c1">#min_x, max_x = hax_ii.get_xlim()</span>
-        <span class="c1">#min_y, max_y = hax_ii.get_ylim()</span>
-        <span class="c1">#ddx  , ddy   = max_x-min_x , max_y-min_y</span>
-          
-        <span class="c1">#min_x += ddx*0.025  </span>
-        <span class="c1">#min_y += ddy*0.025</span>
-        <span class="c1">#max_x -= ddx*0.025  </span>
-        <span class="c1">#max_y -= ddy*0.025</span>
-        
-        <span class="c1">## Transform the minimum and maximum points</span>
-        <span class="c1">#min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)</span>
-        <span class="c1">#max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)</span>
-        <span class="c1">#dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)</span>
-        <span class="c1">#dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)</span>
-        
-        <span class="c1">## Calculate the distance in kilometers using the scale factor</span>
-        <span class="c1">#dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers</span>
-        <span class="c1">#dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers</span>
-        
-        <span class="c1">#dy   = dlat*np.pi*6371/180</span>
-        <span class="c1">#dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))</span>
-        
         <span class="c1">#_______________________________________________________________________</span>
-        <span class="c1"># add quiver plot </span>
-        <span class="c1">#max_dim = np.min([dx,dy])*10</span>
-        <span class="c1">#if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac</span>
-        <span class="c1">#if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth</span>
-        
-        <span class="n">quiv_optdefault</span><span class="o">=</span><span class="nb">dict</span><span class="p">({})</span>
-        <span class="c1">#quiv_optdefault=dict({&#39;edgecolor&#39;:&#39;k&#39;, </span>
-                              <span class="c1">#&#39;linewidth&#39;:0.10, </span>
-                              <span class="c1">#&#39;width&#39;: quiv_arrwidth , </span>
-                              <span class="c1">#&#39;units&#39;:&#39;xy&#39;, </span>
-                              <span class="c1">#&#39;scale_units&#39;:&#39;xy&#39;, </span>
-                              <span class="c1">#&#39;angles&#39;:&#39;xy&#39;, </span>
-                              <span class="c1">#&#39;scale&#39;: quiv_scalfac}) </span>
-        
         <span class="n">quiv_optdefault</span><span class="o">=</span><span class="nb">dict</span><span class="p">({</span>
-            <span class="c1">#&#39;angles&#39;:&quot;xy&quot;, &#39;scale_units&#39;:&quot;xy&quot;,</span>
                             <span class="s1">&#39;scale&#39;</span><span class="p">:</span><span class="mi">4</span><span class="p">,</span>
                             <span class="s1">&#39;minshaft&#39;</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span>
                             <span class="s1">&#39;minlength&#39;</span><span class="p">:</span><span class="mf">0.5</span><span class="p">,</span>
@@ -5297,12 +5257,8 @@
         
         <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_vectors</span><span class="p">(</span><span class="n">which_transf</span><span class="p">,</span> <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">)</span>
         <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span> <span class="o">=</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">transform_points</span><span class="p">(</span> <span class="n">which_transf</span><span class="p">,</span> <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">)[:,</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
-        <span class="n">h0</span><span class="o">=</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">quiver</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> 
-                         <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> 
-                         <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> 
-                         <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-                         <span class="o">**</span><span class="n">quiv_optdefault</span><span class="p">,</span> 
-                        <span class="p">)</span>
+        <span class="n">h0</span><span class="o">=</span><span class="n">hax_ii</span><span class="o">.</span><span class="n">quiver</span><span class="p">(</span><span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_u</span><span class="p">,</span> <span class="n">data_v</span><span class="p">,</span> 
+                         <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="o">**</span><span class="n">quiv_optdefault</span><span class="p">,</span> <span class="p">)</span>
         
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># make a streamline legend</span>
