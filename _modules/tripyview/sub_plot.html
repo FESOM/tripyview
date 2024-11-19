@@ -6008,10 +6008,14 @@
     <span class="c1">#cb_label = &#39;\n&#39;.join(textwrap.wrap(cb_label, width=max_chars_per_line))</span>
     
     <span class="c1">#___________________________________________________________________________</span>
-    
+    <span class="c1"># change fontsize of colorbar label</span>
     <span class="n">hcb_ii</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="n">cb_label</span><span class="p">,</span> <span class="o">**</span><span class="n">cbl_optdefault</span><span class="p">)</span>
-    <span class="c1">#___________________________________________________________________________</span>
     
+    <span class="c1"># change fontsize of scientific noation string x10^⁻7 at the top of the colorbar</span>
+    <span class="n">offset_text</span> <span class="o">=</span> <span class="n">hcb_ii</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">get_offset_text</span><span class="p">()</span>
+    <span class="n">offset_text</span><span class="o">.</span><span class="n">set_fontsize</span><span class="p">(</span><span class="n">cbl_optdefault</span><span class="p">[</span><span class="s1">&#39;fontsize&#39;</span><span class="p">])</span>
+    
+    <span class="c1">#___________________________________________________________________________</span>
     <span class="k">return</span><span class="p">(</span><span class="n">hcb_ii</span><span class="p">)</span></div>
 
 
@@ -6087,21 +6091,51 @@
         <span class="k">if</span> <span class="s1">&#39;clab&#39;</span> <span class="ow">in</span> <span class="n">cinfo</span><span class="p">:</span>
             <span class="n">cbar</span><span class="o">.</span><span class="n">set_ticks</span><span class="p">(</span><span class="n">cinfo</span><span class="p">[</span><span class="s1">&#39;clab&#39;</span><span class="p">])</span>
             <span class="n">cbar</span><span class="o">.</span><span class="n">update_ticks</span><span class="p">()</span>    
+            <span class="n">carr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cinfo</span><span class="p">[</span><span class="s1">&#39;clab&#39;</span><span class="p">])</span>
+            
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cbar</span><span class="o">.</span><span class="n">locator</span>  <span class="o">=</span> <span class="n">mticker</span><span class="o">.</span><span class="n">FixedLocator</span><span class="p">(</span><span class="n">cinfo</span><span class="p">[</span><span class="s1">&#39;clevel&#39;</span><span class="p">],</span> <span class="n">nbins</span><span class="o">=</span><span class="n">cinfo</span><span class="p">[</span><span class="s1">&#39;cnlab&#39;</span><span class="p">])</span>
             <span class="n">cbar</span><span class="o">.</span><span class="n">update_ticks</span><span class="p">()</span>    
+            <span class="n">carr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cinfo</span><span class="p">[</span><span class="s1">&#39;clevel&#39;</span><span class="p">])</span>
+        
+        <span class="c1"># when do_rescale=np.ndarray(...), nonlinear colorbar </span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">do_rescale</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="c1"># Subclass ScalarFormatter:</span>
+            <span class="c1"># Overriding _set_format ensures that the main tick labels use scientific </span>
+            <span class="c1"># notation with your specified precision. The self.format string </span>
+            <span class="c1"># controls the label precision.</span>
+            <span class="k">class</span> <span class="nc">PreciseScalarFormatter</span><span class="p">(</span><span class="n">mticker</span><span class="o">.</span><span class="n">ScalarFormatter</span><span class="p">):</span>
+                <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">precision</span> <span class="o">=</span> <span class="n">precision</span>  <span class="c1"># Desired precision</span>
+
+                <span class="k">def</span> <span class="nf">_set_format</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                    <span class="c1"># Override internal method to control label precision</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;%2.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">precision</span><span class="si">}</span><span class="s2">f&quot;</span>  <span class="c1"># Scientific notation with specified decimals</span>
             
-        <span class="n">formatter</span>     <span class="o">=</span> <span class="n">mticker</span><span class="o">.</span><span class="n">ScalarFormatter</span><span class="p">(</span><span class="n">useOffset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">useMathText</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">useLocale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span> <span class="o">=</span> <span class="n">carr</span><span class="p">[</span><span class="n">carr</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">],</span> <span class="n">carr</span><span class="p">[</span><span class="n">carr</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">]</span>
+            <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">cmin</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">cmax</span><span class="p">)</span>
+            <span class="n">precision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">cmax</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">cmin</span><span class="p">)</span>
+            <span class="n">precision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">precision</span><span class="p">))</span><span class="o">+</span><span class="mi">1</span>
+            
+            <span class="n">formatter</span>     <span class="o">=</span> <span class="n">PreciseScalarFormatter</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">,</span> <span class="n">useOffset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">useMathText</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">useLocale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">formatter</span>     <span class="o">=</span> <span class="n">mticker</span><span class="o">.</span><span class="n">ScalarFormatter</span><span class="p">(</span><span class="n">useOffset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">useMathText</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">useLocale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        
+        <span class="c1"># do scientific notation: 10^⁻6</span>
         <span class="n">formatter</span><span class="o">.</span><span class="n">set_scientific</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
-        <span class="n">formatter</span><span class="o">.</span><span class="n">set_powerlimits</span><span class="p">((</span><span class="n">pw_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pw_lim</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>      
-        <span class="n">cbar</span><span class="o">.</span><span class="n">formatter</span><span class="o">=</span> <span class="n">formatter</span>
+        
+        <span class="c1"># set powerlimits at which point scientifc notation should kick in </span>
+        <span class="n">formatter</span><span class="o">.</span><span class="n">set_powerlimits</span><span class="p">((</span><span class="n">pw_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pw_lim</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+       
+        <span class="n">cbar</span><span class="o">.</span><span class="n">formatter</span> <span class="o">=</span> <span class="n">formatter</span>
+        
         <span class="c1">#cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment=&#39;center&#39;)</span>
         <span class="n">cbar</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">get_offset_text</span><span class="p">()</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">horizontalalignment</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
+        
         <span class="n">cbar</span><span class="o">.</span><span class="n">update_ticks</span><span class="p">()</span>
         
-    <span class="c1">#cbar.ax.tick_params(labelsize=fontsize)</span>
-    <span class="c1">#STOP</span>
-    
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">return</span><span class="p">(</span><span class="n">cbar</span><span class="p">)</span></div>
 
