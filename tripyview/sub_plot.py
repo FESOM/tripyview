@@ -5894,10 +5894,14 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     #cb_label = '\n'.join(textwrap.wrap(cb_label, width=max_chars_per_line))
     
     #___________________________________________________________________________
-    
+    # change fontsize of colorbar label
     hcb_ii.set_label(cb_label, **cbl_optdefault)
-    #___________________________________________________________________________
     
+    # change fontsize of scientific noation string x10^⁻7 at the top of the colorbar
+    offset_text = hcb_ii.ax.yaxis.get_offset_text()
+    offset_text.set_fontsize(cbl_optdefault['fontsize'])
+    
+    #___________________________________________________________________________
     return(hcb_ii)
 
 
@@ -5970,21 +5974,51 @@ def do_cbar_formatting(cbar, do_rescale, cinfo, pw_lim=[-3,4], cbtl_opt=dict()):
         if 'clab' in cinfo:
             cbar.set_ticks(cinfo['clab'])
             cbar.update_ticks()    
+            carr = np.abs(cinfo['clab'])
+            
         else:
             cbar.locator  = mticker.FixedLocator(cinfo['clevel'], nbins=cinfo['cnlab'])
             cbar.update_ticks()    
+            carr = np.abs(cinfo['clevel'])
+        
+        # when do_rescale=np.ndarray(...), nonlinear colorbar 
+        if isinstance(do_rescale, np.ndarray):
+            # Subclass ScalarFormatter:
+            # Overriding _set_format ensures that the main tick labels use scientific 
+            # notation with your specified precision. The self.format string 
+            # controls the label precision.
+            class PreciseScalarFormatter(mticker.ScalarFormatter):
+                def __init__(self, precision=5, **kwargs):
+                    super().__init__(**kwargs)
+                    self.precision = precision  # Desired precision
+
+                def _set_format(self):
+                    # Override internal method to control label precision
+                    self.format = f"%2.{self.precision}f"  # Scientific notation with specified decimals
             
-        formatter     = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
+            cmin, cmax = carr[carr != 0.0], carr[carr != 0.0]
+            cmin, cmax = np.min(cmin), np.max(cmax)
+            precision = np.log10(cmax)-np.log10(cmin)
+            precision = np.int16(np.ceil(precision))+1
+            
+            formatter     = PreciseScalarFormatter(precision=precision, useOffset=True, useMathText=True, useLocale=True)
+
+        else:
+            formatter     = mticker.ScalarFormatter(useOffset=True, useMathText=True, useLocale=True)
+        
+        # do scientific notation: 10^⁻6
         formatter.set_scientific(True)
-        formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))      
-        cbar.formatter= formatter
+        
+        # set powerlimits at which point scientifc notation should kick in 
+        formatter.set_powerlimits((pw_lim[0], pw_lim[-1]))
+       
+        cbar.formatter = formatter
+        
         #cbar.ax.yaxis.get_offset_text().set(size=fontsize, horizontalalignment='center')
         cbar.ax.yaxis.get_offset_text().set(horizontalalignment='center')
+        
         cbar.update_ticks()
         
-    #cbar.ax.tick_params(labelsize=fontsize)
-    #STOP
-    
     #___________________________________________________________________________
     return(cbar)
 
