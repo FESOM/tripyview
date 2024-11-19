@@ -5057,6 +5057,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
     elif do_streaml and streaml_dat is None:
         raise ValueError(' --> you need to provide regular gridded u,v data to plot streamlines')
     
+    
     return(h0)
 
 
@@ -5197,7 +5198,7 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
         del(data_x, data_y, data_u, data_v, data_s)
         
     #___________________________________________________________________________
-    elif do_streaml and streaml_dat is None:
+    elif do_quiver and quiver_dat is None:
         raise ValueError(' --> you need to provide regular gridded u,v data to plot streamlines')
     
     return(h0)
