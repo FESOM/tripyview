@@ -124,6 +124,9 @@ def load_data_fesom2(mesh,
                         
         :do_f14cmip6:   bool, (default=False), Set to true when loading cmorized 
                         FESOM1.4 CMIP6 data when computing AMOC
+                        
+        :do_multiio:    bool, (default=False), Set to true when loading FESOM2 
+                        data processed with MULTIIO when computing AMOC
         
         :do_compute:    bool (default=False), do xarray dataset compute() at the end
                         data = data.compute(), creates a new dataobject the original
