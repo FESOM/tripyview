@@ -39,6 +39,7 @@ def load_data_fesom2(mesh,
                      runid          = 'fesom'   ,
                      do_prec        = 'float32' ,
                      do_f14cmip6    = False     ,
+                     do_multiio     = False     ,
                      do_compute     = False     ,
                      do_load        = True      ,
                      do_persist     = False     ,
@@ -388,6 +389,25 @@ def load_data_fesom2(mesh,
            ('nod2' in data.dims) and \
            ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
         data = data.unify_chunks()
+        
+    # convert dimensions name from multiio --> fesom2    
+    if do_multiio: 
+        data = data.drop_vars(['time_bnds'])
+        if ('ncells' in data.dims  ): data = data.rename_dims({'ncells':'nod2'})
+        
+        # rename coordinate: depth --> nz, do this first than rename dimension otherwise
+        # it triggers a warning message
+        if ('lev'  in data.coords): 
+            data = data.rename({'lev' :'nz'  })
+            if 'nz' not in data.indexes:
+                data = data.set_index(nz='nz')
+        
+        if ('lev'  in data.dims  ): data = data.swap_dims({'lev': 'nz'})
+        
+        if ('time' in data.dims) and \
+           ('nod2' in data.dims) and \
+           ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
+        data = data.unify_chunks()
     
     #___________________________________________________________________________
     # check if mesh and data fit together
@@ -410,7 +430,7 @@ def load_data_fesom2(mesh,
     # years are selected by the files that are open, need to select mon or day 
     # or record 
     data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
-
+    
     # do time arithmetic on data
     if 'time' in data.dims:
         data, str_atim = do_time_arithmetic(data, do_tarithm)
@@ -899,6 +919,7 @@ def do_select_time(data, mon, day, record, str_mtim):
     
     ____________________________________________________________________________
     """
+    
     #___________________________________________________________________________
     # select no time use entire yearly file
     if (mon is None) and (day is None) and (record is None):
