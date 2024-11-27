@@ -78,6 +78,7 @@
                      <span class="n">runid</span>          <span class="o">=</span> <span class="s1">&#39;fesom&#39;</span>   <span class="p">,</span>
                      <span class="n">do_prec</span>        <span class="o">=</span> <span class="s1">&#39;float32&#39;</span> <span class="p">,</span>
                      <span class="n">do_f14cmip6</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
+                     <span class="n">do_multiio</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
                      <span class="n">do_compute</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
                      <span class="n">do_load</span>        <span class="o">=</span> <span class="kc">True</span>      <span class="p">,</span>
                      <span class="n">do_persist</span>     <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span>
@@ -162,6 +163,9 @@
 <span class="sd">                        </span>
 <span class="sd">        :do_f14cmip6:   bool, (default=False), Set to true when loading cmorized </span>
 <span class="sd">                        FESOM1.4 CMIP6 data when computing AMOC</span>
+<span class="sd">                        </span>
+<span class="sd">        :do_multiio:    bool, (default=False), Set to true when loading FESOM2 </span>
+<span class="sd">                        data processed with MULTIIO when computing AMOC</span>
 <span class="sd">        </span>
 <span class="sd">        :do_compute:    bool (default=False), do xarray dataset compute() at the end</span>
 <span class="sd">                        data = data.compute(), creates a new dataobject the original</span>
@@ -335,6 +339,7 @@
     <span class="c1"># create path name list that needs to be loaded</span>
     <span class="k">if</span> <span class="s1">&#39;~/&#39;</span> <span class="ow">in</span> <span class="n">datapath</span><span class="p">:</span> <span class="n">datapath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">datapath</span><span class="p">))</span>
     <span class="n">pathlist</span><span class="p">,</span> <span class="n">str_ltim</span> <span class="o">=</span> <span class="n">do_pathlist</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="n">datapath</span><span class="p">,</span> <span class="n">do_filename</span><span class="p">,</span> <span class="n">do_file</span><span class="p">,</span> <span class="n">vname</span><span class="p">,</span> <span class="n">runid</span><span class="p">)</span>
+    
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pathlist</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span> 
         <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">return</span> <span class="n">data</span>
@@ -427,6 +432,25 @@
            <span class="p">(</span><span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
            <span class="p">(</span><span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;nod2&#39;</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span><span class="p">)</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unify_chunks</span><span class="p">()</span>
+        
+    <span class="c1"># convert dimensions name from multiio --&gt; fesom2    </span>
+    <span class="k">if</span> <span class="n">do_multiio</span><span class="p">:</span> 
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;time_bnds&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;ncells&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;ncells&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
+        
+        <span class="c1"># rename coordinate: depth --&gt; nz, do this first than rename dimension otherwise</span>
+        <span class="c1"># it triggers a warning message</span>
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;lev&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span> 
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;lev&#39;</span> <span class="p">:</span><span class="s1">&#39;nz&#39;</span>  <span class="p">})</span>
+            <span class="k">if</span> <span class="s1">&#39;nz&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">indexes</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">nz</span><span class="o">=</span><span class="s1">&#39;nz&#39;</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;lev&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">swap_dims</span><span class="p">({</span><span class="s1">&#39;lev&#39;</span><span class="p">:</span> <span class="s1">&#39;nz&#39;</span><span class="p">})</span>
+        
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
+           <span class="p">(</span><span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
+           <span class="p">(</span><span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;nod2&#39;</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unify_chunks</span><span class="p">()</span>
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># check if mesh and data fit together</span>
@@ -449,7 +473,7 @@
     <span class="c1"># years are selected by the files that are open, need to select mon or day </span>
     <span class="c1"># or record </span>
     <span class="n">data</span><span class="p">,</span> <span class="n">mon</span><span class="p">,</span> <span class="n">day</span><span class="p">,</span> <span class="n">str_ltim</span> <span class="o">=</span> <span class="n">do_select_time</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mon</span><span class="p">,</span> <span class="n">day</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">str_ltim</span><span class="p">)</span>
-
+    
     <span class="c1"># do time arithmetic on data</span>
     <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>
         <span class="n">data</span><span class="p">,</span> <span class="n">str_atim</span> <span class="o">=</span> <span class="n">do_time_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_tarithm</span><span class="p">)</span>
@@ -659,7 +683,12 @@
     <span class="k">if</span>  <span class="n">do_filename</span><span class="p">:</span> 
         <span class="n">pathlist</span> <span class="o">=</span> <span class="n">datapath</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">datapath</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-            <span class="n">str_mtim</span> <span class="o">=</span> <span class="s1">&#39;y:</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">year</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">year</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+                <span class="n">str_mtim</span> <span class="o">=</span> <span class="s1">&#39;y:</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">year</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">str</span><span class="p">(</span><span class="n">year</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+                
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">str_mtim</span> <span class="o">=</span> <span class="s1">&#39;y:</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">year</span><span class="p">)</span>    
+                
         <span class="k">else</span><span class="p">:</span>
             <span class="n">str_mtim</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">datapath</span><span class="p">)</span>
         
@@ -953,6 +982,7 @@
 <span class="sd">    </span>
 <span class="sd">    ____________________________________________________________________________</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># select no time use entire yearly file</span>
     <span class="k">if</span> <span class="p">(</span><span class="n">mon</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">day</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">record</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
