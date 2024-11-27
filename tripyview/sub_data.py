@@ -39,6 +39,7 @@ def load_data_fesom2(mesh,
                      runid          = 'fesom'   ,
                      do_prec        = 'float32' ,
                      do_f14cmip6    = False     ,
+                     do_multiio     = False     ,
                      do_compute     = False     ,
                      do_load        = True      ,
                      do_persist     = False     ,
@@ -123,6 +124,9 @@ def load_data_fesom2(mesh,
                         
         :do_f14cmip6:   bool, (default=False), Set to true when loading cmorized 
                         FESOM1.4 CMIP6 data when computing AMOC
+                        
+        :do_multiio:    bool, (default=False), Set to true when loading FESOM2 
+                        data processed with MULTIIO when computing AMOC
         
         :do_compute:    bool (default=False), do xarray dataset compute() at the end
                         data = data.compute(), creates a new dataobject the original
@@ -296,6 +300,7 @@ def load_data_fesom2(mesh,
     # create path name list that needs to be loaded
     if '~/' in datapath: datapath = os.path.abspath(os.path.expanduser(datapath))
     pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
+    
     if len(pathlist)==0: 
         data = None
         return data
@@ -388,6 +393,25 @@ def load_data_fesom2(mesh,
            ('nod2' in data.dims) and \
            ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
         data = data.unify_chunks()
+        
+    # convert dimensions name from multiio --> fesom2    
+    if do_multiio: 
+        data = data.drop_vars(['time_bnds'])
+        if ('ncells' in data.dims  ): data = data.rename_dims({'ncells':'nod2'})
+        
+        # rename coordinate: depth --> nz, do this first than rename dimension otherwise
+        # it triggers a warning message
+        if ('lev'  in data.coords): 
+            data = data.rename({'lev' :'nz'  })
+            if 'nz' not in data.indexes:
+                data = data.set_index(nz='nz')
+        
+        if ('lev'  in data.dims  ): data = data.swap_dims({'lev': 'nz'})
+        
+        if ('time' in data.dims) and \
+           ('nod2' in data.dims) and \
+           ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
+        data = data.unify_chunks()
     
     #___________________________________________________________________________
     # check if mesh and data fit together
@@ -410,7 +434,7 @@ def load_data_fesom2(mesh,
     # years are selected by the files that are open, need to select mon or day 
     # or record 
     data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
-
+    
     # do time arithmetic on data
     if 'time' in data.dims:
         data, str_atim = do_time_arithmetic(data, do_tarithm)
@@ -614,7 +638,12 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     if  do_filename: 
         pathlist = datapath
         if isinstance(datapath, list):
-            str_mtim = 'y:{}'.format(year)
+            if isinstance(year, list) and len(year)==2:
+                str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
+                
+            elif isinstance(year, int):
+                str_mtim = 'y:{}'.format(year)    
+                
         else:
             str_mtim = os.path.basename(datapath)
         
@@ -899,6 +928,7 @@ def do_select_time(data, mon, day, record, str_mtim):
     
     ____________________________________________________________________________
     """
+    
     #___________________________________________________________________________
     # select no time use entire yearly file
     if (mon is None) and (day is None) and (record is None):
