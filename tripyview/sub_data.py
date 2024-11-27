@@ -300,6 +300,7 @@ def load_data_fesom2(mesh,
     # create path name list that needs to be loaded
     if '~/' in datapath: datapath = os.path.abspath(os.path.expanduser(datapath))
     pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
+    
     if len(pathlist)==0: 
         data = None
         return data
@@ -637,7 +638,12 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     if  do_filename: 
         pathlist = datapath
         if isinstance(datapath, list):
-            str_mtim = 'y:{}'.format(year)
+            if isinstance(year, list) and len(year)==2:
+                str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
+                
+            elif isinstance(year, int):
+                str_mtim = 'y:{}'.format(year)    
+                
         else:
             str_mtim = os.path.basename(datapath)
         
