@@ -289,7 +289,7 @@
         <span class="c1"># create meridional bins --&gt; this trick is from Nils Brückemann (ICON)</span>
         <span class="n">lat</span>     <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mf">3.0</span>
         <span class="n">lat_bin</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">DataArray</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">lat</span><span class="p">[</span><span class="n">idxin</span><span class="p">]</span><span class="o">/</span><span class="n">dlat</span><span class="p">)</span><span class="o">*</span><span class="n">dlat</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="s1">&#39;elem&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>  
-    
+        
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># compute area weighted vertical velocities on vertices</span>
     <span class="k">else</span><span class="p">:</span>    
@@ -350,7 +350,7 @@
     <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;aamoc&#39;</span><span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Atlantic-Arctic &#39;</span>
     <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;pmoc&#39;</span> <span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Pacific &#39;</span>
     <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;ipmoc&#39;</span><span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Indo-Pacific &#39;</span>
-    <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;pmoc&#39;</span> <span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Indo &#39;</span>
+    <span class="k">elif</span> <span class="n">which_moc_name</span><span class="o">==</span><span class="s1">&#39;imoc&#39;</span> <span class="p">:</span> <span class="n">str_region</span><span class="o">=</span><span class="s1">&#39;Indo &#39;</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">which_moc</span><span class="p">,</span><span class="n">shp</span><span class="o">.</span><span class="n">Reader</span><span class="p">):</span> <span class="n">str_region</span><span class="o">=</span><span class="n">which_moc_region</span>
     
     <span class="c1"># for the choice of vertical plotting mode</span>
