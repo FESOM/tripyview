@@ -250,7 +250,7 @@ def calc_zmoc(mesh,
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
         lat     = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
         lat_bin = xr.DataArray(data=np.round(lat[idxin]/dlat)*dlat, dims='elem', name='lat')  
-    
+        
     #___________________________________________________________________________
     # compute area weighted vertical velocities on vertices
     else:    
@@ -311,7 +311,7 @@ def calc_zmoc(mesh,
     elif which_moc_name=='aamoc': str_region='Atlantic-Arctic '
     elif which_moc_name=='pmoc' : str_region='Pacific '
     elif which_moc_name=='ipmoc': str_region='Indo-Pacific '
-    elif which_moc_name=='pmoc' : str_region='Indo '
+    elif which_moc_name=='imoc' : str_region='Indo '
     elif isinstance(which_moc,shp.Reader): str_region=which_moc_region
     
     # for the choice of vertical plotting mode

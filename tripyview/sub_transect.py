@@ -868,7 +868,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             
             # here rotate the velocities from roted frame to geo frame 
             if do_rot:
-                for nti in range(data.dims['time']):
+                for nti in range(data.sizes['time']):
                     vel_u[nti,:,:], vel_v[nti,:,:] = vec_r2g(mesh.abg, 
                                         mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
                                         mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
@@ -916,7 +916,7 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         # define dimensions
         list_dimname, list_dimsize, list_dimval = dict(), dict(), dict()
         if   'time' in data.dims: 
-            list_dimname['time'] , list_dimsize['time'] , list_dimval['time']  = 'time', data.dims['time'], data.time.data #pd.to_datetime(data.time)            
+            list_dimname['time'] , list_dimsize['time'] , list_dimval['time']  = 'time', data.sizes['time'], data.time.data #pd.to_datetime(data.time)            
         if   'nz1'  in data.dims: 
             list_dimname['depth'], list_dimsize['depth'], list_dimval['depth'] = 'nz1' , mesh.zmid.size   , mesh.zmid
         elif 'nz'   in data.dims: 
