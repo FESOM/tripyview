@@ -888,25 +888,36 @@ def plot_hmesh( mesh                   ,
                     if len(mesh[ii].n_resol)==0: mesh[ii]=mesh[ii].compute_n_resol()
                     data_plot = mesh[ii].n_resol/1000
                     #data_plot = mesh[ii].n_resol[0,:]/1000
-                    cb_label, cb_lunit = 'vertice resolution', 'km'
+                    if cb_label is None: cb_label = 'vertice resolution'
+                    if cb_lunit is None: cb_lunit = 'km'
+                    
                 elif data in ['narea', 'n_area', 'clusterarea', 'scalararea']:    
                     if len(mesh[ii].n_area)==0: mesh[ii]=mesh[ii].compute_n_area()
                     data_plot = mesh[ii].n_area[0,:]
-                    cb_label, cb_lunit = 'vertice area', 'm^2'
+                    if cb_label is None: cb_label = 'vertice area'
+                    if cb_lunit is None: cb_lunit = 'm^2'
+                    
                 elif data in ['eresol', 'e_resol', 'triresolution', 'triresol']:
                     if len(mesh[ii].e_resol)==0: mesh[ii]=mesh[ii].compute_e_resol()
                     data_plot = mesh[ii].e_resol/1000
-                    cb_label, cb_lunit = 'element resolution', 'km'
+                    if cb_label is None: cb_label = 'element resolution'
+                    if cb_lunit is None: cb_lunit = 'km'
+                    
                 elif data in ['earea', 'e_area', 'triarea']:
                     if len(mesh[ii].e_area)==0: mesh[ii]=mesh[ii].compute_e_area()
                     data_plot =  mesh[ii].e_area
-                    cb_label, cb_lunit = 'element area', 'm^2'
+                    if cb_label is None: cb_label = 'element area'
+                    if cb_lunit is None: cb_lunit = 'm^2'
+                    
                 elif data in ['ndepth', 'ntopo', 'n_depth', 'n_topo', 'topography', 'zcoord']:
                     data_plot =  np.abs(mesh[ii].n_z)
-                    cb_label, cb_lunit = 'vertice depth', 'm'
+                    if cb_label is None: cb_label = 'vertice depth'
+                    if cb_lunit is None: cb_lunit = 'm'
+                    
                 elif data in ['edepth', 'etopo', 'e_depth', 'e_topo' ]:
                     data_plot = np.abs(mesh[ii].zlev[mesh[ii].e_iz])
-                    cb_label, cb_lunit = 'element depth', 'm'
+                    if cb_label is None: cb_label = 'element depth'
+                    if cb_lunit is None: cb_lunit = 'm'
                 
                 #_______________________________________________________________
                 cinfo_plot = do_setupcinfo(cinfo, [data_plot], do_rescale, mesh=mesh[ii], tri=tri)
@@ -4500,10 +4511,10 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
         plt_optdefault = dict({'shading':'gouraud', 'zorder':1})
         plt_optdefault.update(plt_opt)
         
-        # pcolor plot in combination with shading :gouraud and orthographic projection
-        # leads to an blow up of the plotting therefor change to flat shading 
-        if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
-            plt_optdefault.update({'shading':'flat'})
+        ## pcolor plot in combination with shading :gouraud and orthographic projection
+        ## leads to an blow up of the plotting therefor change to flat shading 
+        #if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
+            #plt_optdefault.update({'shading':'flat'})
         
         # if which_normplot is specified like in case of log10 and slog10 scaling
         # vmin and vmax argumetns are not allows
@@ -5552,7 +5563,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
         #_______________________________________________________________________
         elif isinstance(hax_ii.projection, ccrs.CRS):
             #___________________________________________________________________
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':5})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':10})
             grid_optdefault.update(grid_opt)
             
             #___________________________________________________________________
