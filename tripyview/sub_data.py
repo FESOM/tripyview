@@ -374,6 +374,12 @@ def load_data_fesom2(mesh,
     if ('node' in data.dims): data = data.rename_dims({'node':'nod2'})
     if ('nz_1' in data.dims): data = data.rename_dims({'nz_1':'nz1'})
     
+    # Solution for Dmitry Stupak --> rechange dimension naming after various cdo
+    # operations 
+    if ('x' in data.dims):
+        if data.sizes['x']==mesh.n2dn: data = data.rename_dims({'x':'nod2'})
+        if data.sizes['x']==mesh.n2de: data = data.rename_dims({'x':'elem'})
+    
     # convert dimensions name from fesom14cmip6 --> fesom2
     if do_f14cmip6: 
         data = data.drop_vars(['lon_bnds','lat_bnds', 'time_bnds'])
