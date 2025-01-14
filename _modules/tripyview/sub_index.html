@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tripyview.sub_index &#8212; tripyview 0.3.0 documentation</title>
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
     <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
@@ -36,29 +36,29 @@
             
   <h1>Source code for tripyview.sub_index</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Patrick Scholz, 23.01.2018</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">copy</span> <span class="k">as</span>  <span class="nn">cp</span>
-<span class="kn">from</span>   <span class="nn">shapely.geometry</span>   <span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">shape</span>
-<span class="kn">import</span> <span class="nn">shapefile</span> <span class="k">as</span> <span class="nn">shp</span>
-<span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pylab</span> <span class="k">as</span> <span class="nn">plt</span>
-<span class="kn">from</span>   <span class="nn">matplotlib.ticker</span> <span class="kn">import</span> <span class="n">MultipleLocator</span><span class="p">,</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">ScalarFormatter</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="k">as</span><span class="w">  </span><span class="nn">cp</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">shapely.geometry</span><span class="w">   </span><span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">shape</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shapefile</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">shp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pylab</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.ticker</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultipleLocator</span><span class="p">,</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">ScalarFormatter</span>
 
-<span class="kn">from</span>   <span class="nn">.sub_mesh</span>           <span class="kn">import</span> <span class="o">*</span> 
-<span class="kn">from</span>   <span class="nn">.sub_data</span>           <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span>   <span class="nn">.sub_utility</span>        <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span>   <span class="nn">.sub_plot</span>           <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span>   <span class="nn">.sub_colormap</span>       <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_mesh</span><span class="w">           </span><span class="kn">import</span> <span class="o">*</span> 
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_data</span><span class="w">           </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_utility</span><span class="w">        </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_plot</span><span class="w">           </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_colormap</span><span class="w">       </span><span class="kn">import</span> <span class="o">*</span>
 
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#___COMPUTE INDEX OVER REGION 2D AND 3D_________________________________________</span>
 <div class="viewcode-block" id="load_index_fesom2">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_index.load_index_fesom2">[docs]</a>
-<span class="k">def</span> <span class="nf">load_index_fesom2</span><span class="p">(</span><span class="n">mesh</span>                  <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">load_index_fesom2</span><span class="p">(</span><span class="n">mesh</span>                  <span class="p">,</span> 
                       <span class="n">data</span>                  <span class="p">,</span> 
                       <span class="n">box_list</span>              <span class="p">,</span> 
                       <span class="n">boxname</span>       <span class="o">=</span> <span class="kc">None</span>  <span class="p">,</span> 
@@ -157,7 +157,7 @@
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># check basin selection</span>
         <span class="k">if</span> <span class="n">do_checkbasin</span><span class="p">:</span>
-            <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.tri</span><span class="w"> </span><span class="kn">import</span> <span class="n">Triangulation</span>
             <span class="n">tri</span> <span class="o">=</span> <span class="n">Triangulation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_xa</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_ya</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_0</span><span class="p">,:],</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_ia</span><span class="p">)))</span>
             <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
             <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span>
@@ -265,7 +265,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="plot_index_region">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_index.plot_index_region">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_index_region</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">idx_IN</span><span class="p">,</span> <span class="n">box_list</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;hard&#39;</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_index_region</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">idx_IN</span><span class="p">,</span> <span class="n">box_list</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;hard&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot index definition region </span>
 <span class="sd">    </span>
@@ -296,7 +296,7 @@
 <span class="sd">    ____________________________________________________________________________</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     
-    <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.tri</span><span class="w"> </span><span class="kn">import</span> <span class="n">Triangulation</span>
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># make triangulation</span>
@@ -369,7 +369,7 @@
 <span class="c1">#___DO INDEX ANOMALY____________________________________________________________</span>
 <div class="viewcode-block" id="do_indexanomaly">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_index.do_indexanomaly">[docs]</a>
-<span class="k">def</span> <span class="nf">do_indexanomaly</span><span class="p">(</span><span class="n">index1</span><span class="p">,</span><span class="n">index2</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_indexanomaly</span><span class="p">(</span><span class="n">index1</span><span class="p">,</span><span class="n">index2</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute anomaly between two index xarray Datasets</span>
 <span class="sd">    </span>

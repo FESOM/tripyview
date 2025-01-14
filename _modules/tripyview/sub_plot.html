@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tripyview.sub_plot &#8212; tripyview 0.3.0 documentation</title>
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
     <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
@@ -35,34 +35,34 @@
           <div class="body" role="main">
             
   <h1>Source code for tripyview.sub_plot</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">import</span> <span class="nn">numpy</span>                    <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">time</span>                     <span class="k">as</span> <span class="nn">clock</span>
-<span class="kn">import</span> <span class="nn">xarray</span>                   <span class="k">as</span> <span class="nn">xr</span>
-<span class="kn">import</span> <span class="nn">cartopy.crs</span>              <span class="k">as</span> <span class="nn">ccrs</span>
-<span class="kn">import</span> <span class="nn">cartopy.feature</span>          <span class="k">as</span> <span class="nn">cfeature</span>
-<span class="kn">from</span>   <span class="nn">cartopy.mpl.ticker</span>       <span class="kn">import</span> <span class="p">(</span><span class="n">LongitudeFormatter</span><span class="p">,</span> <span class="n">LatitudeFormatter</span><span class="p">)</span>
-<span class="kn">from</span>   <span class="nn">cartopy.mpl.gridliner</span>    <span class="kn">import</span> <span class="n">Gridliner</span>
-<span class="kn">from</span>   <span class="nn">mpl_toolkits.axes_grid1</span>  <span class="kn">import</span> <span class="n">make_axes_locatable</span>
-<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w">                    </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="w">                     </span><span class="k">as</span><span class="w"> </span><span class="nn">clock</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xarray</span><span class="w">                   </span><span class="k">as</span><span class="w"> </span><span class="nn">xr</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">cartopy.crs</span><span class="w">              </span><span class="k">as</span><span class="w"> </span><span class="nn">ccrs</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">cartopy.feature</span><span class="w">          </span><span class="k">as</span><span class="w"> </span><span class="nn">cfeature</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">cartopy.mpl.ticker</span><span class="w">       </span><span class="kn">import</span> <span class="p">(</span><span class="n">LongitudeFormatter</span><span class="p">,</span> <span class="n">LatitudeFormatter</span><span class="p">)</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">cartopy.mpl.gridliner</span><span class="w">    </span><span class="kn">import</span> <span class="n">Gridliner</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">mpl_toolkits.axes_grid1</span><span class="w">  </span><span class="kn">import</span> <span class="n">make_axes_locatable</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib</span>
 <span class="c1">#import matplotlib.pylab         as plt</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span>        <span class="k">as</span> <span class="nn">plt</span>
-<span class="kn">from</span>   <span class="nn">matplotlib.tri</span>           <span class="kn">import</span> <span class="n">Triangulation</span><span class="p">,</span><span class="n">TriAnalyzer</span>
-<span class="kn">import</span> <span class="nn">matplotlib.ticker</span>        <span class="k">as</span> <span class="nn">mticker</span>
-<span class="kn">import</span> <span class="nn">matplotlib.path</span>          <span class="k">as</span> <span class="nn">mpath</span>
-<span class="kn">import</span> <span class="nn">matplotlib.colors</span>        <span class="k">as</span> <span class="nn">mcolors</span>
-<span class="kn">from</span>   <span class="nn">matplotlib.colors</span>        <span class="kn">import</span> <span class="n">ListedColormap</span>
-<span class="kn">from</span>   <span class="nn">matplotlib.ticker</span>        <span class="kn">import</span> <span class="n">MultipleLocator</span><span class="p">,</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">ScalarFormatter</span><span class="p">,</span> <span class="n">LogLocator</span><span class="p">,</span> <span class="n">LogFormatter</span><span class="p">,</span> <span class="n">SymmetricalLogLocator</span>
-<span class="kn">from</span>   <span class="nn">scipy.signal</span>             <span class="kn">import</span> <span class="n">convolve2d</span>
-<span class="kn">from</span>   <span class="nn">scipy.interpolate</span>        <span class="kn">import</span> <span class="n">interp1d</span>
-<span class="kn">import</span> <span class="nn">textwrap</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
-<span class="kn">import</span> <span class="nn">copy</span>                     <span class="k">as</span> <span class="nn">cp</span>
-<span class="kn">from</span> <span class="nn">.sub_mesh</span>     <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">.sub_data</span>     <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">.sub_colormap</span> <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">.sub_utility</span>  <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w">        </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.tri</span><span class="w">           </span><span class="kn">import</span> <span class="n">Triangulation</span><span class="p">,</span><span class="n">TriAnalyzer</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.ticker</span><span class="w">        </span><span class="k">as</span><span class="w"> </span><span class="nn">mticker</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.path</span><span class="w">          </span><span class="k">as</span><span class="w"> </span><span class="nn">mpath</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.colors</span><span class="w">        </span><span class="k">as</span><span class="w"> </span><span class="nn">mcolors</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.colors</span><span class="w">        </span><span class="kn">import</span> <span class="n">ListedColormap</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.ticker</span><span class="w">        </span><span class="kn">import</span> <span class="n">MultipleLocator</span><span class="p">,</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">ScalarFormatter</span><span class="p">,</span> <span class="n">LogLocator</span><span class="p">,</span> <span class="n">LogFormatter</span><span class="p">,</span> <span class="n">SymmetricalLogLocator</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">scipy.signal</span><span class="w">             </span><span class="kn">import</span> <span class="n">convolve2d</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">scipy.interpolate</span><span class="w">        </span><span class="kn">import</span> <span class="n">interp1d</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">textwrap</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span><span class="w">                     </span><span class="k">as</span><span class="w"> </span><span class="nn">cp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_mesh</span><span class="w">     </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_data</span><span class="w">     </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_colormap</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_utility</span><span class="w">  </span><span class="kn">import</span> <span class="o">*</span>
 
 
 
@@ -72,7 +72,7 @@
 <span class="c1"># --&gt; do plotting of horizontal slices</span>
 <div class="viewcode-block" id="plot_hslice">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.plot_hslice">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_hslice</span><span class="p">(</span><span class="n">mesh</span>                   <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_hslice</span><span class="p">(</span><span class="n">mesh</span>                   <span class="p">,</span> 
                 <span class="n">data</span>                   <span class="p">,</span> 
                 <span class="n">box</span>        <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">cinfo</span>      <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> <span class="c1"># colormap info and defintion</span>
@@ -614,7 +614,7 @@
 <span class="c1"># --&gt; do plotting of horizontal meshes</span>
 <div class="viewcode-block" id="plot_hmesh">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.plot_hmesh">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_hmesh</span><span class="p">(</span> <span class="n">mesh</span>                   <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_hmesh</span><span class="p">(</span> <span class="n">mesh</span>                   <span class="p">,</span> 
                 <span class="n">data</span>       <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> <span class="c1"># None, resolution, depth</span>
                 <span class="n">box</span>        <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">cinfo</span>      <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> <span class="c1"># colormap info and defintion</span>
@@ -1042,7 +1042,7 @@
 <span class="c1"># --&gt; do plotting of horizontal slices</span>
 <div class="viewcode-block" id="plot_hquiver">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.plot_hquiver">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_hquiver</span><span class="p">(</span><span class="n">mesh</span>                  <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_hquiver</span><span class="p">(</span><span class="n">mesh</span>                  <span class="p">,</span> 
                 <span class="n">data</span>                   <span class="p">,</span> 
                 <span class="n">box</span>        <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">cinfo</span>      <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> <span class="c1"># colormap info and defintion</span>
@@ -1478,7 +1478,7 @@
 <span class="c1"># --&gt; do plotting of horizontal slices</span>
 <div class="viewcode-block" id="plot_vslice">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.plot_vslice">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_vslice</span><span class="p">(</span><span class="n">mesh</span>                   <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_vslice</span><span class="p">(</span><span class="n">mesh</span>                   <span class="p">,</span> 
                 <span class="n">data</span>                   <span class="p">,</span> 
                 <span class="n">box</span>        <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">box_idx</span>    <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
@@ -1952,7 +1952,7 @@
 <span class="c1"># --&gt; do plotting of horizontal lines over index region (e.g. heatflux vs lon, lat)</span>
 <div class="viewcode-block" id="plot_hline">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.plot_hline">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_hline</span><span class="p">(</span><span class="n">data</span>                   <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_hline</span><span class="p">(</span><span class="n">data</span>                   <span class="p">,</span> 
                 <span class="n">box</span>        <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">box_idx</span>    <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
                 <span class="n">box_label</span>  <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
@@ -2301,7 +2301,7 @@
                     <span class="n">hax_ii</span><span class="o">.</span><span class="n">add_artist</span><span class="p">(</span><span class="n">legend1</span><span class="p">)</span>
                     
                     <span class="c1"># make box list legend:</span>
-                    <span class="kn">import</span> <span class="nn">copy</span> <span class="k">as</span> <span class="nn">cp</span>
+                    <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cp</span>
                     <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">cp</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">hp</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">ndat</span><span class="o">*</span><span class="n">nbox</span><span class="p">,</span> <span class="n">ndat</span><span class="p">)]</span>
                     <span class="c1"># make legend box lines always black, just show linestyle </span>
                     <span class="k">for</span> <span class="n">li</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)):</span> <span class="n">lines</span><span class="p">[</span><span class="n">li</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
@@ -2346,7 +2346,7 @@
 <span class="c1"># --&gt; do plotting of mean indices over depth (e.g. vertical profiles)</span>
 <div class="viewcode-block" id="plot_vline">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.plot_vline">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_vline</span><span class="p">(</span><span class="n">data</span>                   <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_vline</span><span class="p">(</span><span class="n">data</span>                   <span class="p">,</span> 
                 <span class="n">box</span>        <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
                 <span class="n">box_idx</span>    <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
                 <span class="n">box_label</span>  <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
@@ -2716,7 +2716,7 @@
                     <span class="n">hax_ii</span><span class="o">.</span><span class="n">add_artist</span><span class="p">(</span><span class="n">legend1</span><span class="p">)</span>
                     
                     <span class="c1"># make box list legend:</span>
-                    <span class="kn">import</span> <span class="nn">copy</span> <span class="k">as</span> <span class="nn">cp</span>
+                    <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cp</span>
                     <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">cp</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">hp</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">ndat</span><span class="o">*</span><span class="n">nbox</span><span class="p">,</span> <span class="n">ndat</span><span class="p">)]</span>
                     <span class="c1"># make legend box lines always black, just show linestyle </span>
                     <span class="k">for</span> <span class="n">li</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)):</span> <span class="n">lines</span><span class="p">[</span><span class="n">li</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
@@ -2760,7 +2760,7 @@
 <span class="c1"># --&gt; do plot timeseries of mean index</span>
 <div class="viewcode-block" id="plot_tline">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.plot_tline">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_tline</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_tline</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> 
                 <span class="n">box</span><span class="p">,</span> 
                 <span class="n">box_idx</span>    <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
                 <span class="n">box_label</span>  <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span> 
@@ -2929,8 +2929,8 @@
 <span class="sd">    </span>
 <span class="sd">    ____________________________________________________________________________</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">import</span> <span class="nn">matplotlib.patheffects</span> <span class="k">as</span> <span class="nn">path_effects</span>
-    <span class="kn">from</span> <span class="nn">matplotlib.ticker</span> <span class="kn">import</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">MultipleLocator</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.patheffects</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">path_effects</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.ticker</span><span class="w"> </span><span class="kn">import</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">MultipleLocator</span>
 
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># --&gt; check if input data is a list</span>
@@ -3175,7 +3175,7 @@
                     <span class="n">hax_ii</span><span class="o">.</span><span class="n">add_artist</span><span class="p">(</span><span class="n">legend1</span><span class="p">)</span>
                     
                     <span class="c1"># make box list legend:</span>
-                    <span class="kn">import</span> <span class="nn">copy</span> <span class="k">as</span> <span class="nn">cp</span>
+                    <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cp</span>
                     <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">cp</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">hp</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">ndat</span><span class="o">*</span><span class="n">nbox</span><span class="p">,</span> <span class="n">ndat</span><span class="p">)]</span>
                     <span class="c1"># make legend box lines always black, just show linestyle </span>
                     <span class="k">for</span> <span class="n">li</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)):</span> <span class="n">lines</span><span class="p">[</span><span class="n">li</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
@@ -3220,7 +3220,7 @@
 <span class="c1"># --&gt; setup cartopy projections     </span>
 <div class="viewcode-block" id="do_projection">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_projection">[docs]</a>
-<span class="k">def</span> <span class="nf">do_projection</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">proj</span><span class="p">,</span> <span class="n">box</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_projection</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">proj</span><span class="p">,</span> <span class="n">box</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; set cartopy target projection </span>
 <span class="sd">    </span>
@@ -3339,7 +3339,7 @@
 <span class="c1"># --&gt; do triangulation</span>
 <div class="viewcode-block" id="do_triangulation">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_triangulation">[docs]</a>
-<span class="k">def</span> <span class="nf">do_triangulation</span><span class="p">(</span><span class="n">hax</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">proj_to</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">proj_from</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_triangulation</span><span class="p">(</span><span class="n">hax</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">proj_to</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">proj_from</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
                      <span class="n">do_triorig</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_narea</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_earea</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; create matplotlib triangulation object</span>
@@ -3459,7 +3459,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_reindex_vert_and_elem">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_reindex_vert_and_elem">[docs]</a>
-<span class="k">def</span> <span class="nf">do_reindex_vert_and_elem</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">e_box_mask</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_reindex_vert_and_elem</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">e_box_mask</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; reindex element index in case of exluded triangles and unused vertices</span>
 <span class="sd">    </span>
@@ -3510,7 +3510,7 @@
 <span class="c1"># comparison paper</span>
 <div class="viewcode-block" id="do_axes_arrange">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_axes_arrange">[docs]</a>
-<span class="k">def</span> <span class="nf">do_axes_arrange</span><span class="p">(</span><span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_axes_arrange</span><span class="p">(</span><span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span>
                     <span class="c1">#---LABEL OPTION--------------------------------------------</span>
                     <span class="n">xlabel</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">ylabel</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tlabel</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> 
                      <span class="c1"># font sizes of labels, titles, ticks</span>
@@ -4186,7 +4186,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_axes_enum">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_axes_enum">[docs]</a>
-<span class="k">def</span> <span class="nf">do_axes_enum</span><span class="p">(</span><span class="n">hax</span><span class="p">,</span> <span class="n">do_enum</span><span class="p">,</span> <span class="n">nrow</span><span class="p">,</span> <span class="n">ncol</span><span class="p">,</span> <span class="n">enum_dir</span><span class="o">=</span><span class="s1">&#39;lr&#39;</span><span class="p">,</span> <span class="n">enum_str</span><span class="o">=</span><span class="p">[],</span> <span class="n">enum_x</span><span class="o">=</span><span class="p">[</span><span class="mf">0.005</span><span class="p">],</span> <span class="n">enum_y</span><span class="o">=</span><span class="p">[</span><span class="mf">1.00</span><span class="p">],</span> <span class="n">enum_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_axes_enum</span><span class="p">(</span><span class="n">hax</span><span class="p">,</span> <span class="n">do_enum</span><span class="p">,</span> <span class="n">nrow</span><span class="p">,</span> <span class="n">ncol</span><span class="p">,</span> <span class="n">enum_dir</span><span class="o">=</span><span class="s1">&#39;lr&#39;</span><span class="p">,</span> <span class="n">enum_str</span><span class="o">=</span><span class="p">[],</span> <span class="n">enum_x</span><span class="o">=</span><span class="p">[</span><span class="mf">0.005</span><span class="p">],</span> <span class="n">enum_y</span><span class="o">=</span><span class="p">[</span><span class="mf">1.00</span><span class="p">],</span> <span class="n">enum_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; do enumeration of axes</span>
 <span class="sd">    </span>
@@ -4262,7 +4262,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_data_prepare_unstruct">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_data_prepare_unstruct">[docs]</a>
-<span class="k">def</span> <span class="nf">do_data_prepare_unstruct</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">data_plot</span><span class="p">,</span> <span class="n">do_ie2n</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_data_prepare_unstruct</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">data_plot</span><span class="p">,</span> <span class="n">do_ie2n</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; prepare data for plotting, augment periodic boundaries, interpolate from elements</span>
 <span class="sd">        to nodes, kick out nan values from plotting </span>
@@ -4338,7 +4338,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_data_prepare_vslice">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_data_prepare_vslice">[docs]</a>
-<span class="k">def</span> <span class="nf">do_data_prepare_vslice</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">data_ii</span><span class="p">,</span> <span class="n">box_idx</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_data_prepare_vslice</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">data_ii</span><span class="p">,</span> <span class="n">box_idx</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; prepare data for plotting, augment periodic boundaries, interpolate from elements</span>
 <span class="sd">        to nodes, kick out nan values from plotting </span>
@@ -4470,7 +4470,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_data_norm">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_data_norm">[docs]</a>
-<span class="k">def</span> <span class="nf">do_data_norm</span><span class="p">(</span><span class="n">cinfo</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_data_norm</span><span class="p">(</span><span class="n">cinfo</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; prepare renormation object, for log10 or slog10  </span>
 <span class="sd">    </span>
@@ -4527,7 +4527,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_data">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_data">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_data</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_plt</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">data_plot</span><span class="p">,</span> <span class="n">cinfo_plot</span><span class="p">,</span> <span class="n">which_norm_plot</span><span class="p">,</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_data</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_plt</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">data_plot</span><span class="p">,</span> <span class="n">cinfo_plot</span><span class="p">,</span> <span class="n">which_norm_plot</span><span class="p">,</span>
                 <span class="n">plt_opt</span>  <span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                 <span class="n">plt_contb</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pltcb_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                 <span class="n">plt_contf</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pltcf_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
@@ -4674,7 +4674,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_datareg">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_datareg">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_datareg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_plt</span><span class="p">,</span> <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_plot</span><span class="p">,</span> <span class="n">cinfo_plot</span><span class="p">,</span> <span class="n">which_norm_plot</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_datareg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_plt</span><span class="p">,</span> <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_plot</span><span class="p">,</span> <span class="n">cinfo_plot</span><span class="p">,</span> <span class="n">which_norm_plot</span><span class="p">,</span> 
                 <span class="n">plt_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> <span class="n">which_transf</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
                 <span class="n">plt_contb</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pltcb_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                 <span class="n">plt_contf</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pltcf_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
@@ -4835,7 +4835,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_quiver">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_quiver">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_quiver</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_quiv</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">data_plot_u</span><span class="p">,</span> <span class="n">data_plot_v</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_quiver</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_quiv</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">data_plot_u</span><span class="p">,</span> <span class="n">data_plot_v</span><span class="p">,</span> 
                   <span class="n">cinfo_plot</span><span class="p">,</span> <span class="n">norm_plot</span><span class="p">,</span> <span class="n">quiv_scalfac</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">quiv_arrwidth</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">quiv_dens</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> 
                   <span class="n">quiv_smax</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">quiv_shiftL</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">quiv_smooth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> 
                   <span class="n">quiv_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
@@ -5014,7 +5014,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_streaml_reg">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_streaml_reg">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_streaml_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> <span class="n">streaml_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">streaml_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_streaml_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_streaml</span><span class="p">,</span> <span class="n">streaml_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">streaml_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                    <span class="n">do_streaml_leg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">streaml_leg_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
                    <span class="n">box</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -5104,7 +5104,7 @@
             <span class="n">lw_max</span> <span class="o">=</span> <span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_max&#39;</span><span class="p">]</span>
             <span class="k">del</span><span class="p">(</span><span class="n">streaml_opt</span><span class="p">[</span><span class="s1">&#39;lw_max&#39;</span><span class="p">])</span>    
 
-        <span class="k">def</span> <span class="nf">speed2lw</span><span class="p">(</span><span class="n">speed</span><span class="p">,</span> <span class="n">speed_min</span><span class="p">,</span> <span class="n">speed_max</span><span class="p">,</span> <span class="n">lw_min</span><span class="p">,</span> <span class="n">lw_max</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">speed2lw</span><span class="p">(</span><span class="n">speed</span><span class="p">,</span> <span class="n">speed_min</span><span class="p">,</span> <span class="n">speed_max</span><span class="p">,</span> <span class="n">lw_min</span><span class="p">,</span> <span class="n">lw_max</span><span class="p">):</span>
             <span class="c1">#lw = speed</span>
             <span class="n">lw</span> <span class="o">=</span> <span class="p">(</span><span class="n">speed</span><span class="o">-</span><span class="n">speed_min</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">speed_max</span><span class="o">-</span><span class="n">speed_min</span><span class="p">)</span>
             <span class="n">lw</span> <span class="o">=</span> <span class="n">lw</span><span class="o">*</span><span class="p">(</span><span class="n">lw_max</span><span class="o">-</span><span class="n">lw_min</span><span class="p">)</span><span class="o">+</span><span class="n">lw_min</span>
@@ -5171,7 +5171,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_quiver_reg">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_quiver_reg">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_quiver_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_quiver</span><span class="p">,</span> <span class="n">quiver_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quiver_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_quiver_reg</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">do_quiver</span><span class="p">,</span> <span class="n">quiver_dat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quiver_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                    <span class="n">do_quiver_leg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">quiver_leg_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
                    <span class="n">box</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">which_transf</span><span class="o">=</span><span class="n">ccrs</span><span class="o">.</span><span class="n">PlateCarree</span><span class="p">(),</span> 
                    <span class="n">quiv_scalfac</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">quiv_arrwidth</span><span class="o">=</span><span class="mf">0.25</span><span class="p">):</span>
@@ -5319,7 +5319,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_bot">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_bot">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_bot</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_bot</span><span class="p">,</span> <span class="n">tri</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_plot</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ylim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bot_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_bot</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_bot</span><span class="p">,</span> <span class="n">tri</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_plot</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ylim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bot_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot bottom mask</span>
 
@@ -5349,7 +5349,7 @@
 <span class="sd">    </span>
 <span class="sd">    ____________________________________________________________________________</span>
 <span class="sd">    &quot;&quot;&quot;</span>      
-    <span class="kn">from</span> <span class="nn">matplotlib.colors</span> <span class="kn">import</span> <span class="n">ListedColormap</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.colors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ListedColormap</span>
     <span class="n">h0</span><span class="o">=</span><span class="kc">None</span>
     
     <span class="c1"># plot bottom mask for cartopy plot</span>
@@ -5422,7 +5422,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_topo">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_topo">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_topo</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_topo</span><span class="p">,</span> <span class="n">data_topo</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_topo</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_topo</span><span class="p">,</span> <span class="n">data_topo</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> 
                 <span class="n">plt_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                 <span class="n">plt_contb</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="n">pltcb_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                 <span class="n">plt_contl</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pltcl_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
@@ -5491,7 +5491,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_mesh">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_mesh">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_mesh</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_mesh</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">mesh_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_mesh</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_mesh</span><span class="p">,</span> <span class="n">tri</span><span class="p">,</span> <span class="n">mesh_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot overlaying triangular mesh</span>
 
@@ -5529,7 +5529,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_lsmask">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_lsmask">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_lsmask</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_lsm</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">lsm_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> <span class="n">resolution</span><span class="o">=</span><span class="s1">&#39;low&#39;</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_lsmask</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_lsm</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">lsm_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> <span class="n">resolution</span><span class="o">=</span><span class="s1">&#39;low&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot fesom mesh inverted land sea mask</span>
 
@@ -5567,7 +5567,7 @@
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">if</span> <span class="n">do_lsm</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;bluemarble&#39;</span><span class="p">,</span> <span class="s1">&#39;etopo&#39;</span><span class="p">]:</span>
-        <span class="kn">import</span> <span class="nn">tripyview</span> <span class="k">as</span> <span class="nn">tpv</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">tripyview</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tpv</span>
         <span class="n">bckgrndir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tpv</span><span class="o">.</span><span class="n">__path__</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;backgrounds/&#39;</span><span class="p">)</span>
     
     <span class="c1">#___________________________________________________________________________</span>
@@ -5617,7 +5617,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_plt_gridlines">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_plt_gridlines">[docs]</a>
-<span class="k">def</span> <span class="nf">do_plt_gridlines</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_grid</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">ndat</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_plt_gridlines</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">do_grid</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">ndat</span><span class="p">,</span> 
                      <span class="n">data_x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">xlim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ylim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">grid_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> 
                      <span class="n">proj</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_rescale</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -5771,10 +5771,10 @@
             <span class="c1"># do exponential depth axis scaling</span>
             <span class="k">if</span> <span class="n">do_yexp</span> <span class="ow">and</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;dmoc+dens&#39;</span><span class="p">]:</span> 
                 <span class="c1"># Define your custom transformation function</span>
-                <span class="k">def</span> <span class="nf">forward_yexp</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+                <span class="k">def</span><span class="w"> </span><span class="nf">forward_yexp</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
                     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="mf">1.0</span><span class="o">/</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
                 
-                <span class="k">def</span> <span class="nf">inverse_yexp</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+                <span class="k">def</span><span class="w"> </span><span class="nf">inverse_yexp</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
                     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
                 
                 <span class="n">hax_ii</span><span class="o">.</span><span class="n">set_yscale</span><span class="p">(</span> <span class="s1">&#39;function&#39;</span><span class="p">,</span> <span class="n">functions</span><span class="o">=</span><span class="p">(</span><span class="k">lambda</span> <span class="n">y</span><span class="p">:</span> <span class="n">forward_yexp</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">yexp_fac</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">y</span><span class="p">:</span> <span class="n">inverse_yexp</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">yexp_fac</span><span class="p">))</span> <span class="p">)</span>
@@ -5784,7 +5784,7 @@
             <span class="c1"># do nonlinear sigma2 scaling for dmoc in density space</span>
             <span class="k">elif</span> <span class="n">do_ysig</span> <span class="ow">and</span> <span class="n">hax_ii</span><span class="o">.</span><span class="n">projection</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;dmoc+dens&#39;</span><span class="p">]:</span>
                 <span class="c1"># Define your custom transformation function</span>
-                <span class="k">def</span> <span class="nf">forward_ysig</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+                <span class="k">def</span><span class="w"> </span><span class="nf">forward_ysig</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
                     <span class="n">reg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
                     <span class="n">dens2reg</span> <span class="o">=</span> <span class="n">interp1d</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">reg</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">)</span>
                     <span class="n">y1</span>       <span class="o">=</span> <span class="n">dens2reg</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
@@ -5792,7 +5792,7 @@
                     <span class="n">y1</span><span class="p">[</span><span class="n">y1</span><span class="o">&gt;</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">reg</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">reg</span><span class="p">)</span>
                     <span class="k">return</span> <span class="n">y1</span>
                 
-                <span class="k">def</span> <span class="nf">inverse_ysig</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+                <span class="k">def</span><span class="w"> </span><span class="nf">inverse_ysig</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
                     <span class="n">reg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
                     <span class="n">reg2dens</span> <span class="o">=</span> <span class="n">interp1d</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">)</span>
                     <span class="n">y</span><span class="p">[</span><span class="n">y</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">]</span>   <span class="o">=</span> <span class="mi">0</span>
@@ -5894,7 +5894,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_cbar">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_cbar">[docs]</a>
-<span class="k">def</span> <span class="nf">do_cbar</span><span class="p">(</span><span class="n">hcb_ii</span><span class="p">,</span> <span class="n">hax_ii</span><span class="p">,</span> <span class="n">hp</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">cinfo</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">,</span> <span class="n">cb_label</span><span class="p">,</span> <span class="n">cb_lunit</span><span class="p">,</span> <span class="n">cb_ltime</span><span class="p">,</span> <span class="n">cb_ldep</span><span class="p">,</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_cbar</span><span class="p">(</span><span class="n">hcb_ii</span><span class="p">,</span> <span class="n">hax_ii</span><span class="p">,</span> <span class="n">hp</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">cinfo</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">,</span> <span class="n">cb_label</span><span class="p">,</span> <span class="n">cb_lunit</span><span class="p">,</span> <span class="n">cb_ltime</span><span class="p">,</span> <span class="n">cb_ldep</span><span class="p">,</span>
             <span class="n">box_idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cb_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> <span class="n">cbl_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span> <span class="n">cbtl_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; plot colorbars (tripyview allows also to have more than one colorbar within the </span>
@@ -6037,7 +6037,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_cbar_formatting">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_cbar_formatting">[docs]</a>
-<span class="k">def</span> <span class="nf">do_cbar_formatting</span><span class="p">(</span><span class="n">cbar</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">,</span> <span class="n">cinfo</span><span class="p">,</span> <span class="n">pw_lim</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">],</span> <span class="n">cbtl_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_cbar_formatting</span><span class="p">(</span><span class="n">cbar</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">,</span> <span class="n">cinfo</span><span class="p">,</span> <span class="n">pw_lim</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">],</span> <span class="n">cbtl_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; do formating of colorbar for logarithmic data and exponential data</span>
 
@@ -6115,12 +6115,12 @@
             <span class="c1"># Overriding _set_format ensures that the main tick labels use scientific </span>
             <span class="c1"># notation with your specified precision. The self.format string </span>
             <span class="c1"># controls the label precision.</span>
-            <span class="k">class</span> <span class="nc">PreciseScalarFormatter</span><span class="p">(</span><span class="n">mticker</span><span class="o">.</span><span class="n">ScalarFormatter</span><span class="p">):</span>
-                <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">class</span><span class="w"> </span><span class="nc">PreciseScalarFormatter</span><span class="p">(</span><span class="n">mticker</span><span class="o">.</span><span class="n">ScalarFormatter</span><span class="p">):</span>
+                <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
                     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">precision</span> <span class="o">=</span> <span class="n">precision</span>  <span class="c1"># Desired precision</span>
 
-                <span class="k">def</span> <span class="nf">_set_format</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">def</span><span class="w"> </span><span class="nf">_set_format</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
                     <span class="c1"># Override internal method to control label precision</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;%2.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">precision</span><span class="si">}</span><span class="s2">f&quot;</span>  <span class="c1"># Scientific notation with specified decimals</span>
             
@@ -6158,7 +6158,7 @@
 <span class="c1"># ___DO COLORMAP INFO__________________________________________________________</span>
 <div class="viewcode-block" id="do_setupcinfo">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_setupcinfo">[docs]</a>
-<span class="k">def</span> <span class="nf">do_setupcinfo</span><span class="p">(</span><span class="n">cinfo</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">,</span> <span class="n">mesh</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tri</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_vec</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_setupcinfo</span><span class="p">(</span><span class="n">cinfo</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">do_rescale</span><span class="p">,</span> <span class="n">mesh</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tri</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_vec</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
                   <span class="n">do_index</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_moc</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_dmoc</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_hbstf</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">box_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; build up colormap dictionary  </span>
@@ -6524,7 +6524,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_climit_hist">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_climit_hist">[docs]</a>
-<span class="k">def</span> <span class="nf">do_climit_hist</span><span class="p">(</span><span class="n">data_in</span><span class="p">,</span> <span class="n">ctresh</span><span class="o">=</span><span class="mf">0.99</span><span class="p">,</span> <span class="n">cbin</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">cweights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_climit_hist</span><span class="p">(</span><span class="n">data_in</span><span class="p">,</span> <span class="n">ctresh</span><span class="o">=</span><span class="mf">0.99</span><span class="p">,</span> <span class="n">cbin</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">cweights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute min/max value range by histogram, computation of cumulativ distribution</span>
 <span class="sd">    function at certain cutoff treshold</span>
@@ -6568,7 +6568,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="set_cinfo">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.set_cinfo">[docs]</a>
-<span class="k">def</span> <span class="nf">set_cinfo</span><span class="p">(</span><span class="n">cstr</span><span class="p">,</span> <span class="n">cnum</span><span class="p">,</span> <span class="n">crange</span><span class="p">,</span> <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span><span class="p">,</span> <span class="n">cref</span><span class="p">,</span> <span class="n">cfac</span><span class="p">,</span> <span class="n">climit</span><span class="p">,</span> <span class="n">chist</span><span class="p">,</span> <span class="n">ctresh</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_cinfo</span><span class="p">(</span><span class="n">cstr</span><span class="p">,</span> <span class="n">cnum</span><span class="p">,</span> <span class="n">crange</span><span class="p">,</span> <span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span><span class="p">,</span> <span class="n">cref</span><span class="p">,</span> <span class="n">cfac</span><span class="p">,</span> <span class="n">climit</span><span class="p">,</span> <span class="n">chist</span><span class="p">,</span> <span class="n">ctresh</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; initialise cinfo dictionary</span>
 <span class="sd">    </span>
@@ -6626,7 +6626,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_savefigure">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_savefigure">[docs]</a>
-<span class="k">def</span> <span class="nf">do_savefigure</span><span class="p">(</span><span class="n">do_save</span><span class="p">,</span> <span class="n">hfig</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">save_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_savefigure</span><span class="p">(</span><span class="n">do_save</span><span class="p">,</span> <span class="n">hfig</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">save_opt</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; save figure to file</span>
 <span class="sd">    </span>

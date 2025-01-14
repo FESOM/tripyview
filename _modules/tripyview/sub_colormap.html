@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tripyview.sub_colormap &#8212; tripyview 0.3.0 documentation</title>
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
     <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
@@ -44,7 +44,7 @@
 <span class="c1">#|_____________________________________________________________________________|</span>
 <div class="viewcode-block" id="colormap_c2c">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_colormap.colormap_c2c">[docs]</a>
-<span class="k">def</span> <span class="nf">colormap_c2c</span><span class="p">(</span><span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span><span class="p">,</span> <span class="n">cref</span><span class="p">,</span> <span class="n">cnumb</span><span class="p">,</span> <span class="n">cname</span><span class="p">,</span> <span class="n">cstep</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_slog</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">colormap_c2c</span><span class="p">(</span><span class="n">cmin</span><span class="p">,</span> <span class="n">cmax</span><span class="p">,</span> <span class="n">cref</span><span class="p">,</span> <span class="n">cnumb</span><span class="p">,</span> <span class="n">cname</span><span class="p">,</span> <span class="n">cstep</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_slog</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
                  <span class="n">do_rescal</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rescal_ref</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cmap_arr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; create reference value centered colormap with distinct colorsteps based </span>
@@ -126,11 +126,11 @@
     <span class="c1"># --&gt; cmap = plt.get_cmap(&#39;rainbow&#39;,9)</span>
     <span class="c1"># --&gt; cmaplist = [cmap(i) for i in range(cmap.N)]</span>
 
-    <span class="kn">import</span> <span class="nn">numpy</span>                <span class="k">as</span> <span class="nn">np</span>
-    <span class="kn">from</span>   <span class="nn">matplotlib.colors</span>    <span class="kn">import</span> <span class="n">ListedColormap</span>
-    <span class="kn">from</span>   <span class="nn">matplotlib.pyplot</span>    <span class="kn">import</span> <span class="n">get_cmap</span> <span class="c1"># for python ver&gt;=3.11</span>
-    <span class="kn">from</span>   <span class="nn">scipy</span>                <span class="kn">import</span> <span class="n">interpolate</span>
-    <span class="kn">import</span> <span class="nn">cmocean</span> 
+    <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w">                </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+    <span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.colors</span><span class="w">    </span><span class="kn">import</span> <span class="n">ListedColormap</span>
+    <span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.pyplot</span><span class="w">    </span><span class="kn">import</span> <span class="n">get_cmap</span> <span class="c1"># for python ver&gt;=3.11</span>
+    <span class="kn">from</span><span class="w">   </span><span class="nn">scipy</span><span class="w">                </span><span class="kn">import</span> <span class="n">interpolate</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">cmocean</span> 
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># calculate optimal color step size</span>
@@ -526,7 +526,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="categorical_cmap">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_colormap.categorical_cmap">[docs]</a>
-<span class="k">def</span> <span class="nf">categorical_cmap</span><span class="p">(</span><span class="n">nc</span><span class="p">,</span> <span class="n">nsc</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;tab10&quot;</span><span class="p">,</span> <span class="n">cmap2</span><span class="o">=</span><span class="s1">&#39;nipy_spectral&#39;</span><span class="p">,</span> <span class="n">continuous</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">light2dark</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">categorical_cmap</span><span class="p">(</span><span class="n">nc</span><span class="p">,</span> <span class="n">nsc</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;tab10&quot;</span><span class="p">,</span> <span class="n">cmap2</span><span class="o">=</span><span class="s1">&#39;nipy_spectral&#39;</span><span class="p">,</span> <span class="n">continuous</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">light2dark</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; build a categorical colormap, based on the predefined standard matplotlib</span>
 <span class="sd">        colormap e.g. tab10 and split each color into a number subcolors from light </span>
@@ -557,9 +557,9 @@
 <span class="sd">    #___________________________________________________________________________</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     
-    <span class="kn">from</span>   <span class="nn">matplotlib.colors</span> <span class="kn">import</span> <span class="n">ListedColormap</span><span class="p">,</span> <span class="n">rgb_to_hsv</span><span class="p">,</span> <span class="n">hsv_to_rgb</span>
-    <span class="kn">import</span> <span class="nn">matplotlib.pylab</span> <span class="k">as</span> <span class="nn">plt</span>
-    <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+    <span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.colors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ListedColormap</span><span class="p">,</span> <span class="n">rgb_to_hsv</span><span class="p">,</span> <span class="n">hsv_to_rgb</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pylab</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
     <span class="c1">#if nc &gt; plt.get_cmap(cmap).N: cmap = &quot;hsv&quot;</span>
         <span class="c1">#raise ValueError(&quot;Too many categories for colormap.&quot;)</span>
         

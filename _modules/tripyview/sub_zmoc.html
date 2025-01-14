@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tripyview.sub_zmoc &#8212; tripyview 0.3.0 documentation</title>
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
     <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
@@ -36,29 +36,29 @@
             
   <h1>Source code for tripyview.sub_zmoc</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Patrick, Scholz 02.09.2018</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">time</span> <span class="k">as</span> <span class="nn">clock</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">from</span> <span class="nn">netCDF4</span> <span class="kn">import</span> <span class="n">Dataset</span>
-<span class="kn">import</span> <span class="nn">xarray</span> <span class="k">as</span> <span class="nn">xr</span>
-<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">clock</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">netCDF4</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xarray</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">xr</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib</span>
 <span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;contour.negative_linestyle&#39;</span><span class="p">]</span><span class="o">=</span> <span class="s1">&#39;solid&#39;</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 <span class="c1">#import matplotlib.patches as Polygon</span>
 <span class="c1">#import matplotlib.path as mpltPath</span>
 <span class="c1">#from matplotlib.tri import Triangulation</span>
-<span class="kn">from</span> <span class="nn">numba</span> <span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">njit</span><span class="p">,</span> <span class="n">prange</span>
-<span class="kn">import</span> <span class="nn">shapefile</span> <span class="k">as</span> <span class="nn">shp</span>
-<span class="kn">from</span> <span class="nn">matplotlib.ticker</span> <span class="kn">import</span> <span class="n">FormatStrFormatter</span>
-<span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="kn">import</span> <span class="n">interp1d</span>
-<span class="kn">from</span> <span class="nn">numpy.matlib</span> <span class="kn">import</span> <span class="n">repmat</span>
-<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">interpolate</span>
-<span class="kn">import</span> <span class="nn">numpy.ma</span> <span class="k">as</span> <span class="nn">ma</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numba</span><span class="w"> </span><span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">njit</span><span class="p">,</span> <span class="n">prange</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shapefile</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">shp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.ticker</span><span class="w"> </span><span class="kn">import</span> <span class="n">FormatStrFormatter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.interpolate</span><span class="w"> </span><span class="kn">import</span> <span class="n">interp1d</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numpy.matlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">repmat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy</span><span class="w"> </span><span class="kn">import</span> <span class="n">interpolate</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy.ma</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ma</span>
 
-<span class="kn">from</span> <span class="nn">.sub_colormap</span> <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">.sub_utility</span>  <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">.sub_plot</span>     <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_colormap</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_utility</span><span class="w">  </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_plot</span><span class="w">     </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 
 <span class="c1"># ___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________</span>
 <span class="c1">#|                                                                             |</span>
@@ -66,7 +66,7 @@
 <span class="c1">#|_____________________________________________________________________________|</span>
 <div class="viewcode-block" id="calc_zmoc">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_zmoc.calc_zmoc">[docs]</a>
-<span class="k">def</span> <span class="nf">calc_zmoc</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">calc_zmoc</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> 
               <span class="n">data</span><span class="p">,</span> 
               <span class="n">dlat</span>          <span class="o">=</span> <span class="mf">1.0</span>       <span class="p">,</span> 
               <span class="n">which_moc</span>     <span class="o">=</span> <span class="s1">&#39;gmoc&#39;</span>    <span class="p">,</span> 
@@ -192,7 +192,7 @@
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">if</span> <span class="n">do_checkbasin</span><span class="p">:</span>
-        <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.tri</span><span class="w"> </span><span class="kn">import</span> <span class="n">Triangulation</span>
         <span class="n">tri</span> <span class="o">=</span> <span class="n">Triangulation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_xa</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_ya</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_0</span><span class="p">,:],</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_ia</span><span class="p">)))</span>
         <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
         <span class="n">plt</span><span class="o">.</span><span class="n">triplot</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
@@ -379,7 +379,7 @@
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># define subroutine for binning over latitudes, allows for parallelisation</span>
-    <span class="k">def</span> <span class="nf">moc_over_lat</span><span class="p">(</span><span class="n">lat_i</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">moc_over_lat</span><span class="p">(</span><span class="n">lat_i</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># compute which vertice is within the latitudinal bin</span>
         <span class="c1"># --&gt; groupby is here a factor 5-6 slower than using isel+np.where</span>
@@ -398,7 +398,7 @@
     <span class="c1"># do parallel loop over latitudinal bins</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">do_info</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1"> ___parallel loop over longitudinal bins___&#39;</span><span class="o">+</span><span class="s1">&#39;_&#39;</span><span class="o">*</span><span class="mi">1</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="kn">from</span> <span class="nn">joblib</span> <span class="kn">import</span> <span class="n">Parallel</span><span class="p">,</span> <span class="n">delayed</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">joblib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Parallel</span><span class="p">,</span> <span class="n">delayed</span>
         <span class="n">results</span> <span class="o">=</span> <span class="n">Parallel</span><span class="p">(</span><span class="n">n_jobs</span><span class="o">=</span><span class="n">n_workers</span><span class="p">)(</span><span class="n">delayed</span><span class="p">(</span><span class="n">moc_over_lat</span><span class="p">)(</span><span class="n">lat_i</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">lat_i</span> <span class="ow">in</span> <span class="n">zmoc</span><span class="o">.</span><span class="n">lat</span><span class="p">)</span>
         <span class="k">if</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span> <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">][:,:,:]</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span><span class="s1">&#39;nz&#39;</span><span class="p">,</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>
         <span class="k">else</span>                  <span class="p">:</span> <span class="n">zmoc</span><span class="p">[</span><span class="s1">&#39;zmoc&#39;</span><span class="p">][</span>  <span class="p">:,:]</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;nz&#39;</span><span class="p">,</span><span class="s1">&#39;lat&#39;</span><span class="p">)</span>
@@ -465,7 +465,7 @@
 <span class="c1">#|_____________________________________________________________________________|</span>
 <div class="viewcode-block" id="calc_bottom_patch">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_zmoc.calc_bottom_patch">[docs]</a>
-<span class="k">def</span> <span class="nf">calc_bottom_patch</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">idx_iz</span><span class="p">,</span> <span class="n">idxin</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">calc_bottom_patch</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">lat_bin</span><span class="p">,</span> <span class="n">idx_iz</span><span class="p">,</span> <span class="n">idxin</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute idealized AMOC bottom path based on 3d data bathymetry structure</span>
 <span class="sd">    </span>

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tripyview.sub_data &#8212; tripyview 0.3.0 documentation</title>
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
     <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
@@ -36,16 +36,16 @@
             
   <h1>Source code for tripyview.sub_data</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Patrick Scholz, 23.01.2018</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">time</span>  <span class="k">as</span> <span class="nn">clock</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
-<span class="kn">import</span> <span class="nn">xarray</span> <span class="k">as</span> <span class="nn">xr</span>
-<span class="kn">import</span> <span class="nn">netCDF4</span> <span class="k">as</span> <span class="nn">nc</span>
-<span class="kn">import</span> <span class="nn">seawater</span> <span class="k">as</span> <span class="nn">sw</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="w">  </span><span class="k">as</span><span class="w"> </span><span class="nn">clock</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xarray</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">xr</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">netCDF4</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">seawater</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sw</span>
 <span class="c1">#import gsw as gsw</span>
-<span class="kn">from</span> <span class="nn">.sub_mesh</span> <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_mesh</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 
 
 <span class="c1">#xr.set_options(enable_cftimeindex=False)</span>
@@ -56,7 +56,7 @@
 <span class="c1">#|_____________________________________________________________________________|</span>
 <div class="viewcode-block" id="load_data_fesom2">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.load_data_fesom2">[docs]</a>
-<span class="k">def</span> <span class="nf">load_data_fesom2</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">load_data_fesom2</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> 
                      <span class="n">datapath</span><span class="p">,</span> 
                      <span class="n">vname</span>          <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
                      <span class="n">year</span>           <span class="o">=</span> <span class="kc">None</span>      <span class="p">,</span>
@@ -214,8 +214,8 @@
     <span class="c1"># https://github.com/pydata/xarray/issues/7079</span>
     <span class="c1"># https://github.com/xCDAT/xcdat/issues/561</span>
     <span class="c1"># https://forum.access-hive.org.au/t/netcdf-not-a-valid-id-errors/389/24</span>
-    <span class="kn">import</span> <span class="nn">dask</span>
-    <span class="kn">import</span> <span class="nn">distributed</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">dask</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">distributed</span>
     <span class="k">if</span> <span class="n">distributed</span><span class="o">.</span><span class="n">worker_client</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">dask</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">scheduler</span><span class="o">=</span><span class="s2">&quot;single-threaded&quot;</span><span class="p">)</span>
 
@@ -346,8 +346,8 @@
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># set specfic type when loading --&gt; #convert to specific precision</span>
-    <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
-    <span class="k">def</span> <span class="nf">_preprocess</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">do_prec</span><span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_preprocess</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">do_prec</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">do_prec</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     
     <span class="c1">#def _preprocess(x, do_prec):</span>
@@ -412,6 +412,12 @@
     <span class="c1"># &#39;nz_1&#39; --&gt; &#39;nz1&#39;</span>
     <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;node&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;node&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
     <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;nz_1&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;nz_1&#39;</span><span class="p">:</span><span class="s1">&#39;nz1&#39;</span><span class="p">})</span>
+    
+    <span class="c1"># Solution for Dmitry Stupak --&gt; rechange dimension naming after various cdo</span>
+    <span class="c1"># operations </span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;x&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]</span><span class="o">==</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2dn</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;x&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]</span><span class="o">==</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2de</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;x&#39;</span><span class="p">:</span><span class="s1">&#39;elem&#39;</span><span class="p">})</span>
     
     <span class="c1"># convert dimensions name from fesom14cmip6 --&gt; fesom2</span>
     <span class="k">if</span> <span class="n">do_f14cmip6</span><span class="p">:</span> 
@@ -612,7 +618,7 @@
 <span class="c1"># ___CREATE FILENAME MASK FOR: RUN, RESTART AND BLOWUP FILES___________________</span>
 <div class="viewcode-block" id="do_fnamemask">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_fnamemask">[docs]</a>
-<span class="k">def</span> <span class="nf">do_fnamemask</span><span class="p">(</span><span class="n">do_file</span><span class="p">,</span><span class="n">vname</span><span class="p">,</span><span class="n">runid</span><span class="p">,</span><span class="n">year</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_fnamemask</span><span class="p">(</span><span class="n">do_file</span><span class="p">,</span><span class="n">vname</span><span class="p">,</span><span class="n">runid</span><span class="p">,</span><span class="n">year</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; contains filename mask to distinguish between run, restart and blowup file</span>
 <span class="sd">    that can be loaded    </span>
@@ -652,7 +658,7 @@
 <span class="c1"># ___CREATE PATHLIST TO DATAFILES______________________________________________</span>
 <div class="viewcode-block" id="do_pathlist">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_pathlist">[docs]</a>
-<span class="k">def</span> <span class="nf">do_pathlist</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="n">datapath</span><span class="p">,</span> <span class="n">do_filename</span><span class="p">,</span> <span class="n">do_file</span><span class="p">,</span> <span class="n">vname</span><span class="p">,</span> <span class="n">runid</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_pathlist</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="n">datapath</span><span class="p">,</span> <span class="n">do_filename</span><span class="p">,</span> <span class="n">do_file</span><span class="p">,</span> <span class="n">vname</span><span class="p">,</span> <span class="n">runid</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; create path/file list of data that should be loaded </span>
 <span class="sd">    </span>
@@ -734,7 +740,7 @@
 <span class="c1"># ___CREATE GRIDINFO AND AREA &amp;N DEPTH WEIGHTS__________________________________</span>
 <div class="viewcode-block" id="do_gridinfo_and_weights">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_gridinfo_and_weights">[docs]</a>
-<span class="k">def</span> <span class="nf">do_gridinfo_and_weights</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">do_hweight</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_zweight</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_gridinfo_and_weights</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">do_hweight</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_zweight</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; apply all coordinate information to the dataset. Apply vertice/ element centroids</span>
 <span class="sd">    lon/lat positions, horizontal area weights for the scalar and vector cell and </span>
@@ -891,7 +897,7 @@
 <span class="c1"># ___SET 3D BOTTOM VALUES TO NAN_______________________________________________</span>
 <div class="viewcode-block" id="do_setbottomnan">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_setbottomnan">[docs]</a>
-<span class="k">def</span> <span class="nf">do_setbottomnan</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">do_nan</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_setbottomnan</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">do_nan</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; replace bottom fill values with nan (default value is zero)</span>
 <span class="sd">    </span>
@@ -948,7 +954,7 @@
 <span class="c1"># ___DO TIME SELECTION_________________________________________________________</span>
 <div class="viewcode-block" id="do_select_time">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_select_time">[docs]</a>
-<span class="k">def</span> <span class="nf">do_select_time</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mon</span><span class="p">,</span> <span class="n">day</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">str_mtim</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_select_time</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mon</span><span class="p">,</span> <span class="n">day</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">str_mtim</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; select specific month, dayy or record number                             </span>
 <span class="sd">    </span>
@@ -1057,7 +1063,7 @@
 <span class="c1"># ___DO VERTICAL LEVEL SELECTION_______________________________________________</span>
 <div class="viewcode-block" id="do_select_levidx">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_select_levidx">[docs]</a>
-<span class="k">def</span> <span class="nf">do_select_levidx</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">depth</span><span class="p">,</span> <span class="n">depidx</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_select_levidx</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">depth</span><span class="p">,</span> <span class="n">depidx</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; select vertical levels based on depth list</span>
 <span class="sd">    </span>
@@ -1152,7 +1158,7 @@
 <span class="c1"># ___COMPUTE VERTICAL LEVEL SELECTION INDEX____________________________________</span>
 <div class="viewcode-block" id="do_comp_sel_levidx">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_comp_sel_levidx">[docs]</a>
-<span class="k">def</span> <span class="nf">do_comp_sel_levidx</span><span class="p">(</span><span class="n">zlev</span><span class="p">,</span> <span class="n">depth</span><span class="p">,</span> <span class="n">depidx</span><span class="p">,</span> <span class="n">ndimax</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_comp_sel_levidx</span><span class="p">(</span><span class="n">zlev</span><span class="p">,</span> <span class="n">depth</span><span class="p">,</span> <span class="n">depidx</span><span class="p">,</span> <span class="n">ndimax</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute level indices that are needed to interpolate the depth levels</span>
 <span class="sd">    </span>
@@ -1212,7 +1218,7 @@
 <span class="c1"># ___COMPUTE TIME ARITHMETICS ON DATA__________________________________________</span>
 <div class="viewcode-block" id="do_time_arithmetic">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_time_arithmetic">[docs]</a>
-<span class="k">def</span> <span class="nf">do_time_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_tarithm</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_time_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_tarithm</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; do arithmetic over time dimension</span>
 <span class="sd">    </span>
@@ -1273,7 +1279,7 @@
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># yearly means </span>
         <span class="k">elif</span> <span class="n">do_tarithm</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ymean&#39;</span><span class="p">,</span><span class="s1">&#39;annual&#39;</span><span class="p">]:</span>
-            <span class="kn">import</span> <span class="nn">datetime</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
             <span class="n">data</span>     <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;time.year&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">)</span>
             <span class="c1"># recreate time axes based on year</span>
             <span class="n">data</span>     <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;year&#39;</span><span class="p">:</span><span class="s1">&#39;time&#39;</span><span class="p">})</span>
@@ -1290,7 +1296,7 @@
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># monthly means --&gt; seasonal cycle </span>
         <span class="k">elif</span> <span class="n">do_tarithm</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;mmean&#39;</span><span class="p">,</span><span class="s1">&#39;monthly&#39;</span><span class="p">]:</span>
-            <span class="kn">import</span> <span class="nn">datetime</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
             <span class="n">data</span>     <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;time.month&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">)</span>
             <span class="c1"># recreate time axes based on year</span>
             <span class="n">data</span>     <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;month&#39;</span><span class="p">:</span><span class="s1">&#39;time&#39;</span><span class="p">})</span>
@@ -1307,7 +1313,7 @@
         <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># daily means --&gt; 1...365</span>
         <span class="k">elif</span> <span class="n">do_tarithm</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;dmean&#39;</span><span class="p">,</span><span class="s1">&#39;daily&#39;</span><span class="p">]:</span>
-            <span class="kn">import</span> <span class="nn">datetime</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
             <span class="n">data</span>     <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;time.day&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">)</span>
             <span class="c1"># recreate time axes based on year</span>
             <span class="n">data</span>     <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;day&#39;</span><span class="p">:</span><span class="s1">&#39;time&#39;</span><span class="p">})</span>
@@ -1338,7 +1344,7 @@
 <span class="c1"># ___COMPUTE HORIZONTAL ARITHMETICS ON DATA____________________________________</span>
 <div class="viewcode-block" id="do_horiz_arithmetic">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_horiz_arithmetic">[docs]</a>
-<span class="k">def</span> <span class="nf">do_horiz_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_harithm</span><span class="p">,</span> <span class="n">dim_name</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_horiz_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_harithm</span><span class="p">,</span> <span class="n">dim_name</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; do arithmetic on depth dimension</span>
 <span class="sd">    </span>
@@ -1422,7 +1428,7 @@
 <span class="c1"># ___COMPUTE DEPTH ARITHMETICS ON DATA_________________________________________</span>
 <div class="viewcode-block" id="do_depth_arithmetic">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_depth_arithmetic">[docs]</a>
-<span class="k">def</span> <span class="nf">do_depth_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_zarithm</span><span class="p">,</span> <span class="n">dim_name</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_depth_arithmetic</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_zarithm</span><span class="p">,</span> <span class="n">dim_name</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; do arithmetic on depth dimension</span>
 <span class="sd">    </span>
@@ -1494,7 +1500,7 @@
 <span class="c1"># ___COMPUTE GRID ROTATION OF VECTOR DATA______________________________________</span>
 <div class="viewcode-block" id="do_vector_rotation">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_vector_rotation">[docs]</a>
-<span class="k">def</span> <span class="nf">do_vector_rotation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_vec</span><span class="p">,</span> <span class="n">do_vecrot</span><span class="p">,</span> <span class="n">do_sclrv</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_vector_rotation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_vec</span><span class="p">,</span> <span class="n">do_vecrot</span><span class="p">,</span> <span class="n">do_sclrv</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute roration of vector: vname=&#39;vec+u+v&#39;</span>
 <span class="sd">    </span>
@@ -1556,7 +1562,7 @@
 <span class="c1"># ___COMPUTE NORM OF VECTOR DATA_______________________________________________</span>
 <div class="viewcode-block" id="do_vector_norm">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_vector_norm">[docs]</a>
-<span class="k">def</span> <span class="nf">do_vector_norm</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_norm</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_vector_norm</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_norm</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute vector norm: vname=&#39;vec+u+v&#39;</span>
 <span class="sd">    </span>
@@ -1649,7 +1655,7 @@
 <span class="c1"># ___COMPUTE NORM OF VECTOR DATA_______________________________________________</span>
 <div class="viewcode-block" id="do_potential_density">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_potential_density">[docs]</a>
-<span class="k">def</span> <span class="nf">do_potential_density</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_pdens</span><span class="p">,</span> <span class="n">vname</span><span class="p">,</span> <span class="n">vname2</span><span class="p">,</span> <span class="n">vname_tmp</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_potential_density</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">do_pdens</span><span class="p">,</span> <span class="n">vname</span><span class="p">,</span> <span class="n">vname2</span><span class="p">,</span> <span class="n">vname_tmp</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute potential density based on temp and salt</span>
 <span class="sd">    </span>
@@ -1716,7 +1722,7 @@
 <span class="c1"># ___INTERPOLATE ELEMENTAL DATA TO VERTICES____________________________________</span>
 <div class="viewcode-block" id="do_interp_e2n">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_interp_e2n">[docs]</a>
-<span class="k">def</span> <span class="nf">do_interp_e2n</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_ie2n</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_interp_e2n</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">do_ie2n</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; interpolate data on elements to vertices</span>
 <span class="sd">    </span>
@@ -1782,7 +1788,7 @@
 <span class="c1"># ___PUT ADDITIONAL VARIABLE INFORMATION INTO ATTRIBUTES_______________________</span>
 <div class="viewcode-block" id="do_additional_attrs">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_additional_attrs">[docs]</a>
-<span class="k">def</span> <span class="nf">do_additional_attrs</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">vname</span><span class="p">,</span> <span class="n">attr_dict</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_additional_attrs</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">vname</span><span class="p">,</span> <span class="n">attr_dict</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; write additional information to variable attributes</span>
 <span class="sd">    </span>
@@ -1821,7 +1827,7 @@
 <span class="c1"># ___DO ANOMALY________________________________________________________________</span>
 <div class="viewcode-block" id="do_anomaly">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_data.do_anomaly">[docs]</a>
-<span class="k">def</span> <span class="nf">do_anomaly</span><span class="p">(</span><span class="n">data1</span><span class="p">,</span><span class="n">data2</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_anomaly</span><span class="p">(</span><span class="n">data1</span><span class="p">,</span><span class="n">data2</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute anomaly between two xarray Datasets</span>
 <span class="sd">    </span>

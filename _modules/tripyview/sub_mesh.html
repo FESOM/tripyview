@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tripyview.sub_mesh &#8212; tripyview 0.3.0 documentation</title>
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
     <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
@@ -37,21 +37,21 @@
   <h1>Source code for tripyview.sub_mesh</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Patrick Scholz, 14.12.2017</span>
 
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">time</span> <span class="k">as</span> <span class="nn">clock</span>
-<span class="kn">import</span> <span class="nn">numpy</span>  <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pa</span>
-<span class="kn">import</span> <span class="nn">joblib</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">clock</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w">  </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="k">try</span><span class="p">:</span>
-    <span class="kn">import</span> <span class="nn">pickle5</span> <span class="k">as</span> <span class="nn">pickle</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pickle5</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pickle</span>
     <span class="n">foundmodpickle</span><span class="o">=</span><span class="kc">True</span>
 <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
     <span class="n">foundmodpickle</span><span class="o">=</span><span class="kc">False</span>
     <span class="k">pass</span>
-<span class="kn">from</span>   <span class="nn">netCDF4</span> <span class="kn">import</span> <span class="n">Dataset</span>
-<span class="kn">from</span> <span class="nn">.sub_mesh</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">netCDF4</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sub_mesh</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
 
 <span class="c1"># ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________</span>
 <span class="c1">#| IMPORTANT!!!:                                                               |                                         </span>
@@ -61,7 +61,7 @@
 <span class="c1">#|_____________________________________________________________________________|</span>
 <div class="viewcode-block" id="load_mesh_fesom2">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.load_mesh_fesom2">[docs]</a>
-<span class="k">def</span> <span class="nf">load_mesh_fesom2</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_mesh_fesom2</span><span class="p">(</span>
                     <span class="n">meshpath</span><span class="p">,</span> 
                     <span class="n">abg</span>         <span class="o">=</span> <span class="p">[</span><span class="mi">50</span> <span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="o">-</span><span class="mi">90</span><span class="p">]</span>        <span class="p">,</span> 
                     <span class="n">focus</span>       <span class="o">=</span> <span class="mi">0</span>                     <span class="p">,</span> 
@@ -403,7 +403,7 @@
 <span class="c1">#|_____________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2">[docs]</a>
-<span class="k">class</span> <span class="nc">mesh_fesom2</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">mesh_fesom2</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; Class that creates object that contains all information about FESOM2</span>
 <span class="sd">        mesh. As minimum requirement the mesh path to the files nod2d.out,</span>
@@ -528,7 +528,7 @@
     <span class="c1">#___INIT FESOM2.0 MESH OBJECT_______________________________________________</span>
     <span class="c1">#                                                                           </span>
     <span class="c1">#___________________________________________________________________________</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">meshpath</span><span class="p">,</span> <span class="n">abg</span><span class="o">=</span><span class="p">[</span><span class="mi">50</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span><span class="o">-</span><span class="mi">90</span><span class="p">],</span> <span class="n">focus</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">cyclic</span><span class="o">=</span><span class="mi">360</span><span class="p">,</span> <span class="n">focus_old</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">do_rot</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> 
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">meshpath</span><span class="p">,</span> <span class="n">abg</span><span class="o">=</span><span class="p">[</span><span class="mi">50</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span><span class="o">-</span><span class="mi">90</span><span class="p">],</span> <span class="n">focus</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">cyclic</span><span class="o">=</span><span class="mi">360</span><span class="p">,</span> <span class="n">focus_old</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">do_rot</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> 
                  <span class="n">do_augmpbnd</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_cavity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_earea</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">do_earea2</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
                  <span class="n">do_eresol</span><span class="o">=</span><span class="p">[</span><span class="kc">False</span><span class="p">,</span><span class="s1">&#39;mean&#39;</span><span class="p">],</span> <span class="n">do_narea</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_nresol</span><span class="o">=</span><span class="p">[</span><span class="kc">False</span><span class="p">,</span><span class="s1">&#39;n_area&#39;</span><span class="p">],</span> 
                  <span class="n">do_lsmask</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_lsmshp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_pickle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_loadraw</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -713,7 +713,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.read_mesh">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.read_mesh">[docs]</a>
-    <span class="k">def</span> <span class="nf">read_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">read_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, read mesh files nod2d.out, elem2d.out, </span>
 <span class="sd">        aux3d.out, nlvls.out and elvls.out   </span>
@@ -829,7 +829,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.read_cavity">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.read_cavity">[docs]</a>
-    <span class="k">def</span> <span class="nf">read_cavity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">read_cavity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, read cavity mesh files, cavity_nlvls.out</span>
 <span class="sd">        cavity_elvls.out and cavity_elvls_raw.out (if do_loadraw=True)</span>
@@ -877,7 +877,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.info">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.info">[docs]</a>
-    <span class="k">def</span> <span class="nf">info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">info_txt</span> <span class="o">=</span><span class="s2">&quot;&quot;&quot;___FESOM2 MESH INFO________________________</span>
 <span class="s2"> &gt; path            = </span><span class="si">{}</span>
 <span class="s2"> &gt; id              = </span><span class="si">{}</span>
@@ -902,10 +902,10 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">info_txt</span></div>
 
 
-    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">()</span>
     
     
@@ -915,7 +915,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.pbnd_find">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.pbnd_find">[docs]</a>
-    <span class="k">def</span> <span class="nf">pbnd_find</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pbnd_find</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, find elements that cross over the periodic</span>
 <span class="sd">        boundary</span>
@@ -971,7 +971,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.pbnd_augment">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.pbnd_augment">[docs]</a>
-    <span class="k">def</span> <span class="nf">pbnd_augment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pbnd_augment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, adds additional elements to augment the </span>
 <span class="sd">        periodic boundary on the left and right side for an even non_periodic </span>
@@ -1089,7 +1089,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.compute_e_area">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.compute_e_area">[docs]</a>
-    <span class="k">def</span> <span class="nf">compute_e_area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_e_area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, either load area of elements from </span>
 <span class="sd">        fesom.mesh.diag.nc if its found in meshpath or recompute it from </span>
@@ -1146,7 +1146,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.compute_e_resol">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.compute_e_resol">[docs]</a>
-    <span class="k">def</span> <span class="nf">compute_e_resol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_e_resol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, compute area of elements in [m], options:</span>
 
@@ -1226,7 +1226,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.compute_n_area">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.compute_n_area">[docs]</a>
-    <span class="k">def</span> <span class="nf">compute_n_area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_n_area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, either load clusterarea of vertices from </span>
 <span class="sd">        fesom.mesh.diag.nc if its found in meshpath or recompute it from scratch </span>
@@ -1308,7 +1308,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.compute_n_resol">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.compute_n_resol">[docs]</a>
-    <span class="k">def</span> <span class="nf">compute_n_resol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">which</span><span class="o">=</span><span class="s1">&#39;n_area&#39;</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_n_resol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">which</span><span class="o">=</span><span class="s1">&#39;n_area&#39;</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, compute resolution at vertices in m, options:</span>
 
@@ -1379,7 +1379,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.compute_lsmask">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.compute_lsmask">[docs]</a>
-    <span class="k">def</span> <span class="nf">compute_lsmask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_lsmask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, compute land-sea mask contourline with </span>
 <span class="sd">        periodic boundary based on boundary edges that contribute only to one triangle </span>
@@ -1486,7 +1486,7 @@
     <span class="c1">#|_________________________________________________________________________|</span>
 <div class="viewcode-block" id="mesh_fesom2.augment_lsmask">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.mesh_fesom2.augment_lsmask">[docs]</a>
-    <span class="k">def</span> <span class="nf">augment_lsmask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">augment_lsmask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        --&gt; part of fesom mesh class, split contourlines that span over the </span>
 <span class="sd">        periodic boundary into two separated countourlines for the left and </span>
@@ -1667,7 +1667,7 @@
 <span class="c1">#____COMPUTE POLYGON PATCH FROM LAND-SEA MASK CONTOUR___________________________</span>
 <div class="viewcode-block" id="lsmask_patch">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.lsmask_patch">[docs]</a>
-<span class="k">def</span> <span class="nf">lsmask_patch</span><span class="p">(</span><span class="n">lsmask</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">lsmask_patch</span><span class="p">(</span><span class="n">lsmask</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;    </span>
 <span class="sd">    --&gt; computes polygon collection that can be plotted as closed polygon patches</span>
 <span class="sd">    with ax.add_collection(PatchCollection(mesh.lsmask_p,</span>
@@ -1697,7 +1697,7 @@
 <span class="sd">          linewidth=0.5)</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span>
     <span class="c1">#___________________________________________________________________________</span>
     <span class="n">polygonlist</span><span class="o">=</span><span class="p">[]</span>
     <span class="k">for</span> <span class="n">xycoord</span> <span class="ow">in</span> <span class="n">lsmask</span><span class="p">:</span> <span class="n">polygonlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Polygon</span><span class="p">(</span><span class="n">xycoord</span><span class="p">))</span>
@@ -1714,7 +1714,7 @@
 <span class="c1">#___SAVE POLYGON LAND-SEA MASK CONTOUR TO SHAPEFILE_____________________________</span>
 <div class="viewcode-block" id="lsmask_2shapefile">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.lsmask_2shapefile">[docs]</a>
-<span class="k">def</span> <span class="nf">lsmask_2shapefile</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">lsmask</span><span class="o">=</span><span class="p">[],</span> <span class="n">path</span><span class="o">=</span><span class="p">[],</span> <span class="n">fname</span><span class="o">=</span><span class="p">[],</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">lsmask_2shapefile</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">lsmask</span><span class="o">=</span><span class="p">[],</span> <span class="n">path</span><span class="o">=</span><span class="p">[],</span> <span class="n">fname</span><span class="o">=</span><span class="p">[],</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; save FESOM2 grid land-sea mask polygons to shapefile</span>
 
@@ -1768,8 +1768,8 @@
 <span class="sd">        plt.show()</span>
 <span class="sd">        </span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
-    <span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="kn">import</span> <span class="n">Polygon</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Polygon</span>
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># Create an empty geopandas GeoDataFrame</span>
@@ -1844,7 +1844,7 @@
 <span class="c1"># ___COMPUTE EULER ROTATION MATRIX_____________________________________________</span>
 <div class="viewcode-block" id="grid_rotmat">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_rotmat">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_rotmat</span><span class="p">(</span><span class="n">abg</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_rotmat</span><span class="p">(</span><span class="n">abg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute euler rotation matrix based on alpha, beta and gamma angle</span>
 
@@ -1888,7 +1888,7 @@
 <span class="c1"># ___COMPUTE3D CARTESIAN COORDINAT_____________________________________________</span>
 <div class="viewcode-block" id="grid_cart3d">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_cart3d">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_cart3d</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span><span class="n">lat</span><span class="p">,</span><span class="n">R</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">is_deg</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_cart3d</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span><span class="n">lat</span><span class="p">,</span><span class="n">R</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">is_deg</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute 3d cartesian coordinates from spherical geo coordinates (lon, lat, R=1.0)                                                           |</span>
 <span class="sd">        </span>
@@ -1931,7 +1931,7 @@
 <span class="c1"># ___ROTATE GRID FROM: ROT--&gt;GEO_______________________________________________</span>
 <div class="viewcode-block" id="grid_r2g">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_r2g">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_r2g</span><span class="p">(</span><span class="n">abg</span><span class="p">,</span> <span class="n">rlon</span><span class="p">,</span> <span class="n">rlat</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_r2g</span><span class="p">(</span><span class="n">abg</span><span class="p">,</span> <span class="n">rlon</span><span class="p">,</span> <span class="n">rlat</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute grid rotation from sperical rotated frame back towards normal geo</span>
 <span class="sd">    frame using the euler angles alpha, beta, gamma</span>
@@ -1984,7 +1984,7 @@
 <span class="c1"># ___ROTATE GRID FROM: GEO--&gt;ROT_______________________________________________</span>
 <div class="viewcode-block" id="grid_g2r">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_g2r">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_g2r</span><span class="p">(</span><span class="n">abg</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_g2r</span><span class="p">(</span><span class="n">abg</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute grid rotation from normal geo frame towards sperical rotated</span>
 <span class="sd">    frame using the euler angles alpha, beta, gamma</span>
@@ -2039,7 +2039,7 @@
 <span class="c1"># ___ROTATE GRID FOCUS: 0--&gt;FOCUS______________________________________________</span>
 <div class="viewcode-block" id="grid_focus">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_focus">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_focus</span><span class="p">(</span><span class="n">focus</span><span class="p">,</span> <span class="n">rlon</span><span class="p">,</span> <span class="n">rlat</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_focus</span><span class="p">(</span><span class="n">focus</span><span class="p">,</span> <span class="n">rlon</span><span class="p">,</span> <span class="n">rlat</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute grid rotation around z-axis to change the focus center of the lon,</span>
 <span class="sd">    lat grid, by default focus=0--&gt;lon=[-180...180], if focus=180--&gt;lon[0..360] </span>
@@ -2095,7 +2095,7 @@
 <span class="c1"># ___ROTATE VECTOR FROM: ROT--&gt;GEO_____________________________________________</span>
 <div class="viewcode-block" id="vec_r2g">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.vec_r2g">[docs]</a>
-<span class="k">def</span> <span class="nf">vec_r2g</span><span class="p">(</span><span class="n">abg</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">urot</span><span class="p">,</span> <span class="n">vrot</span><span class="p">,</span> <span class="n">gridis</span><span class="o">=</span><span class="s1">&#39;geo&#39;</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">False</span> <span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">vec_r2g</span><span class="p">(</span><span class="n">abg</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">urot</span><span class="p">,</span> <span class="n">vrot</span><span class="p">,</span> <span class="n">gridis</span><span class="o">=</span><span class="s1">&#39;geo&#39;</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">False</span> <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; In FESOM2 the vector variables are usually given in the rotated coordinate </span>
 <span class="sd">    frame in which the model works and need to be rotated into normal geo    </span>
@@ -2217,7 +2217,7 @@
 <span class="c1"># ___CUTOUT REGION BASED ON BOX________________________________________________</span>
 <div class="viewcode-block" id="grid_cutbox_e">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_cutbox_e">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_cutbox_e</span><span class="p">(</span><span class="n">n_x</span><span class="p">,</span> <span class="n">n_y</span><span class="p">,</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;mid&#39;</span><span class="p">):</span><span class="c1"># , do_outTF=False):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_cutbox_e</span><span class="p">(</span><span class="n">n_x</span><span class="p">,</span> <span class="n">n_y</span><span class="p">,</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;mid&#39;</span><span class="p">):</span><span class="c1"># , do_outTF=False):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; cutout region based on box and return mesh elements indices that are</span>
 <span class="sd">    within the box                                                      </span>
@@ -2273,7 +2273,7 @@
 <span class="c1"># ___CUTOUT REGION BASED ON BOX________________________________________________</span>
 <div class="viewcode-block" id="grid_cutbox_n">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_cutbox_n">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_cutbox_n</span><span class="p">(</span><span class="n">n_x</span><span class="p">,</span> <span class="n">n_y</span><span class="p">,</span> <span class="n">box</span><span class="p">):</span><span class="c1"># , do_outTF=False):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_cutbox_n</span><span class="p">(</span><span class="n">n_x</span><span class="p">,</span> <span class="n">n_y</span><span class="p">,</span> <span class="n">box</span><span class="p">):</span><span class="c1"># , do_outTF=False):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; cutout region based on box and return mesh elements indices that are</span>
 <span class="sd">    within the box</span>
@@ -2308,7 +2308,7 @@
 <span class="c1">#|_____________________________________________________________________________|</span>
 <div class="viewcode-block" id="grid_interp_e2n">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.grid_interp_e2n">[docs]</a>
-<span class="k">def</span> <span class="nf">grid_interp_e2n</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span><span class="n">data_e</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_interp_e2n</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span><span class="n">data_e</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; interpolate data from elements to vertices e.g velocity from elements to </span>
 <span class="sd">    velocity on nodes</span>
@@ -2351,7 +2351,7 @@
         <span class="n">data_area</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_area</span><span class="p">))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
         
         <span class="c1">#_______________________________________________________________________</span>
-        <span class="k">def</span> <span class="nf">e2n_di</span><span class="p">(</span><span class="n">di</span><span class="p">,</span> <span class="n">data_e</span><span class="p">,</span> <span class="n">area_e</span><span class="p">,</span> <span class="n">e_i_flat</span><span class="p">,</span> <span class="n">n_iz</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">e2n_di</span><span class="p">(</span><span class="n">di</span><span class="p">,</span> <span class="n">data_e</span><span class="p">,</span> <span class="n">area_e</span><span class="p">,</span> <span class="n">e_i_flat</span><span class="p">,</span> <span class="n">n_iz</span><span class="p">):</span>
             <span class="n">data_exa</span>  <span class="o">=</span> <span class="n">area_e</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">],</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">],</span><span class="n">data_e</span><span class="p">[:,</span><span class="n">di</span><span class="p">]))</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
             <span class="n">data_n_di</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_iz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
             <span class="n">data_a_di</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_iz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
@@ -2373,7 +2373,7 @@
         <span class="c1">#print(clock.time()-t1)</span>
         
         <span class="n">t1</span> <span class="o">=</span> <span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-        <span class="kn">from</span> <span class="nn">joblib</span> <span class="kn">import</span> <span class="n">Parallel</span><span class="p">,</span> <span class="n">delayed</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">joblib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Parallel</span><span class="p">,</span> <span class="n">delayed</span>
         <span class="n">results</span> <span class="o">=</span> <span class="n">Parallel</span><span class="p">(</span><span class="n">n_jobs</span><span class="o">=</span><span class="mi">20</span><span class="p">)(</span><span class="n">delayed</span><span class="p">(</span><span class="n">e2n_di</span><span class="p">)(</span><span class="n">di</span><span class="p">,</span> <span class="n">data_e</span><span class="p">,</span> <span class="n">data_area</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">mesh</span><span class="o">.</span><span class="n">n_iz</span><span class="p">)</span> <span class="k">for</span> <span class="n">di</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">nd</span><span class="p">))</span>
         <span class="n">data_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39; --&gt; elapsed time:&#39;</span><span class="p">,</span> <span class="n">clock</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="o">-</span><span class="n">t1</span><span class="p">)</span>
@@ -2389,7 +2389,7 @@
 <span class="c1"># ___COMPUTE BOUNDARY EDGES____________________________________________________</span>
 <div class="viewcode-block" id="compute_boundary_edges">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.compute_boundary_edges">[docs]</a>
-<span class="k">def</span> <span class="nf">compute_boundary_edges</span><span class="p">(</span><span class="n">e_i</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_boundary_edges</span><span class="p">(</span><span class="n">e_i</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute edges that have only one adjacenbt triangle</span>
 <span class="sd">    </span>
@@ -2429,7 +2429,7 @@
 <span class="c1"># ___COMPUTE LIST/ARRAY NODE_IN_ELEM____________________________________________</span>
 <div class="viewcode-block" id="compute_nod_in_elem2D">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.compute_nod_in_elem2D">[docs]</a>
-<span class="k">def</span> <span class="nf">compute_nod_in_elem2D</span><span class="p">(</span><span class="n">n2dn</span><span class="p">,</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">do_arr</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_nod_in_elem2D</span><span class="p">(</span><span class="n">n2dn</span><span class="p">,</span> <span class="n">e_i</span><span class="p">,</span> <span class="n">do_arr</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute element indices list that contribute to cetain vertice</span>
 <span class="sd">    </span>

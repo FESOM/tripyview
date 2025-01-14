@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tripyview.sub_transect &#8212; tripyview 0.3.0 documentation</title>
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/agogo.css?v=8513425a" />
     <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
@@ -36,22 +36,22 @@
             
   <h1>Source code for tripyview.sub_transect</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Patrick Scholz, 23.01.2018</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">numpy</span>                    <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">time</span>                     <span class="k">as</span> <span class="nn">clock</span>
-<span class="kn">from</span>   <span class="nn">scipy.signal</span>             <span class="kn">import</span> <span class="n">convolve2d</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pylab</span>         <span class="k">as</span> <span class="nn">plt</span>
-<span class="kn">from</span>   <span class="nn">matplotlib.ticker</span>        <span class="kn">import</span> <span class="n">MultipleLocator</span><span class="p">,</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">ScalarFormatter</span>
-<span class="kn">from</span>   <span class="nn">matplotlib.colors</span>        <span class="kn">import</span> <span class="n">ListedColormap</span>
-<span class="kn">import</span> <span class="nn">matplotlib.patheffects</span>   <span class="k">as</span> <span class="nn">path_effects</span>
-<span class="kn">import</span> <span class="nn">fnmatch</span>
-<span class="kn">from</span>   <span class="nn">.sub_mesh</span>                <span class="kn">import</span> <span class="o">*</span> 
-<span class="kn">from</span>   <span class="nn">.sub_data</span>                <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span>   <span class="nn">.sub_plot</span>                <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span>   <span class="nn">.sub_utility</span>             <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span>   <span class="nn">.sub_colormap</span>            <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w">                    </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="w">                     </span><span class="k">as</span><span class="w"> </span><span class="nn">clock</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">scipy.signal</span><span class="w">             </span><span class="kn">import</span> <span class="n">convolve2d</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pylab</span><span class="w">         </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.ticker</span><span class="w">        </span><span class="kn">import</span> <span class="n">MultipleLocator</span><span class="p">,</span> <span class="n">AutoMinorLocator</span><span class="p">,</span> <span class="n">ScalarFormatter</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">matplotlib.colors</span><span class="w">        </span><span class="kn">import</span> <span class="n">ListedColormap</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.patheffects</span><span class="w">   </span><span class="k">as</span><span class="w"> </span><span class="nn">path_effects</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">fnmatch</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_mesh</span><span class="w">                </span><span class="kn">import</span> <span class="o">*</span> 
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_data</span><span class="w">                </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_plot</span><span class="w">                </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_utility</span><span class="w">             </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w">   </span><span class="nn">.sub_colormap</span><span class="w">            </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 <span class="c1">#xr.set_options(enable_cftimeindex=True)</span>
 
 <span class="c1">#</span>
@@ -60,7 +60,7 @@
 <span class="c1"># --&gt; pre-analyse defined tranects</span>
 <div class="viewcode-block" id="do_analyse_transects">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_transect.do_analyse_transects">[docs]</a>
-<span class="k">def</span> <span class="nf">do_analyse_transects</span><span class="p">(</span><span class="n">input_transect</span>     <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">do_analyse_transects</span><span class="p">(</span><span class="n">input_transect</span>     <span class="p">,</span> 
                         <span class="n">mesh</span>                <span class="p">,</span> 
                         <span class="n">edge</span>                <span class="p">,</span> 
                         <span class="n">edge_tri</span>            <span class="p">,</span> 
@@ -264,7 +264,7 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-<span class="k">def</span> <span class="nf">_do_init_transect</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_init_transect</span><span class="p">():</span>
     <span class="n">transect</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># arrays that define cross-section </span>
@@ -308,7 +308,7 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-<span class="k">def</span> <span class="nf">_do_concat_subtransects</span><span class="p">(</span><span class="n">sub_transect</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_concat_subtransects</span><span class="p">(</span><span class="n">sub_transect</span><span class="p">):</span>
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># combine all cross-ection sub segments into a single cross-section</span>
     <span class="n">transect</span> <span class="o">=</span> <span class="n">sub_transect</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
@@ -359,7 +359,7 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-<span class="k">def</span> <span class="nf">_do_calc_csect_vec</span><span class="p">(</span><span class="n">transect</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_calc_csect_vec</span><span class="p">(</span><span class="n">transect</span><span class="p">):</span>
     <span class="c1"># unit and norm vector of cross-section line</span>
     <span class="n">evec</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;Px&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;Px&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> 
                       <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;Py&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;Py&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]])</span>
@@ -410,7 +410,7 @@
 <span class="c1">#                 A[2x2] * X[2x1] = P[2x1] --&gt; solve for X = inv(A)*P</span>
 <span class="c1">#                 X[0,0] --&gt; norm of vectors until the points where its </span>
 <span class="c1">#                 intersected. If |X[0,0]| &gt; |vec_a| than edge is not intersected</span>
-<span class="k">def</span> <span class="nf">_do_find_intersected_edges</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edge</span><span class="p">,</span> <span class="n">idx_ed</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_find_intersected_edges</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edge</span><span class="p">,</span> <span class="n">idx_ed</span><span class="p">):</span>
     <span class="c1">#___________________________________________________________________________</span>
     <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;edge_cut_i&#39;</span>   <span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">())</span>
     <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;edge_cut_evec&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">())</span>
@@ -485,7 +485,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <span class="c1"># compute distance of cutting points from cross-section start point --&gt; than </span>
 <span class="c1"># sort cutted edges after this distance</span>
-<span class="k">def</span> <span class="nf">_do_sort_intersected_edges</span><span class="p">(</span><span class="n">transect</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_sort_intersected_edges</span><span class="p">(</span><span class="n">transect</span><span class="p">):</span>
     <span class="c1">#___________________________________________________________________________</span>
     <span class="n">idx_sort</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">((</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;edge_cut_P&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][:,</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;Px&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span>
                           <span class="p">(</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;edge_cut_P&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][:,</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;Py&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
@@ -507,7 +507,7 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-<span class="k">def</span> <span class="nf">_do_build_path</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edge_tri</span><span class="p">,</span> <span class="n">edge_dxdy_l</span><span class="p">,</span> <span class="n">edge_dxdy_r</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_build_path</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edge_tri</span><span class="p">,</span> <span class="n">edge_dxdy_l</span><span class="p">,</span> <span class="n">edge_dxdy_r</span><span class="p">):</span>
 
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># allocate path arrays</span>
@@ -599,7 +599,7 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-<span class="k">def</span> <span class="nf">__add_downsection_elem2path</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edi</span><span class="p">,</span> <span class="n">nced</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">edge_elem</span><span class="p">,</span> <span class="n">edge_dxdy_l</span><span class="p">,</span> <span class="n">edge_dxdy_r</span><span class="p">,</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">__add_downsection_elem2path</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edi</span><span class="p">,</span> <span class="n">nced</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">edge_elem</span><span class="p">,</span> <span class="n">edge_dxdy_l</span><span class="p">,</span> <span class="n">edge_dxdy_r</span><span class="p">,</span>
                                 <span class="n">path_xy</span><span class="p">,</span> <span class="n">path_ei</span><span class="p">,</span> <span class="n">path_ni</span><span class="p">,</span> <span class="n">path_dx</span><span class="p">,</span> <span class="n">path_dy</span><span class="p">):</span>
     
     <span class="c1">#___________________________________________________________________________</span>
@@ -667,7 +667,7 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________</span>
-<span class="k">def</span> <span class="nf">__add_upsection_elem2path</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edi</span><span class="p">,</span> <span class="n">nced</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">edge_elem</span><span class="p">,</span> <span class="n">edge_dxdy_l</span><span class="p">,</span> <span class="n">edge_dxdy_r</span><span class="p">,</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">__add_upsection_elem2path</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edi</span><span class="p">,</span> <span class="n">nced</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">edge_elem</span><span class="p">,</span> <span class="n">edge_dxdy_l</span><span class="p">,</span> <span class="n">edge_dxdy_r</span><span class="p">,</span>
                             <span class="n">path_xy</span><span class="p">,</span> <span class="n">path_ei</span><span class="p">,</span> <span class="n">path_ni</span><span class="p">,</span> <span class="n">path_dx</span><span class="p">,</span> <span class="n">path_dy</span><span class="p">):</span>
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># if theta&gt;0 edge shows to the left</span>
@@ -769,7 +769,7 @@
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________   </span>
 <span class="c1"># insert land pts (nan) when there are 2 consecutive cutted boundary </span>
-<span class="k">def</span> <span class="nf">_do_insert_landpts</span><span class="p">(</span><span class="n">transect</span><span class="p">,</span> <span class="n">edge_tri</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_insert_landpts</span><span class="p">(</span><span class="n">transect</span><span class="p">,</span> <span class="n">edge_tri</span><span class="p">):</span>
     <span class="c1"># edges edge_tri[1,:] = -1</span>
     <span class="n">edge_cut_ei</span> <span class="o">=</span> <span class="n">edge_tri</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;edge_cut_i&#39;</span><span class="p">]]</span>
     
@@ -821,7 +821,7 @@
 <span class="c1">#</span>
 <span class="c1">#</span>
 <span class="c1">#_______________________________________________________________________________    </span>
-<span class="k">def</span> <span class="nf">_do_compute_distance_from_startpoint</span><span class="p">(</span><span class="n">transect</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_do_compute_distance_from_startpoint</span><span class="p">(</span><span class="n">transect</span><span class="p">):</span>
     <span class="c1"># build distance from start point for transport path [km]</span>
     <span class="n">Rearth</span> <span class="o">=</span> <span class="mf">6367.5</span>  <span class="c1"># [km]</span>
     <span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span>  <span class="o">=</span> <span class="n">grid_cart3d</span><span class="p">(</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;path_xy&#39;</span><span class="p">][:,</span><span class="mi">0</span><span class="p">],</span> <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;path_xy&#39;</span><span class="p">][:,</span><span class="mi">1</span><span class="p">],</span> <span class="n">is_deg</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -851,7 +851,7 @@
 <span class="c1">#___COMPUTE VOLUME TRANSPORT THROUGH TRANSECT___________________________________</span>
 <div class="viewcode-block" id="calc_transect_transp">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_transect.calc_transect_transp">[docs]</a>
-<span class="k">def</span> <span class="nf">calc_transect_transp</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">transects</span><span class="p">,</span> <span class="n">do_transectattr</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_rot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">calc_transect_transp</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">transects</span><span class="p">,</span> <span class="n">do_transectattr</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_rot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; Compute fesom2 modell accurate transport through defined transect</span>
 <span class="sd">    </span>
@@ -1041,7 +1041,7 @@
 <span class="c1">#___COMPUTE TRANSECT OF SCALAR VERTICE/ELEMENTAL VARIABLE_______________________</span>
 <div class="viewcode-block" id="calc_transect_scalar">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_transect.calc_transect_scalar">[docs]</a>
-<span class="k">def</span> <span class="nf">calc_transect_scalar</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">transects</span><span class="p">,</span> <span class="n">nodeinelem</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">calc_transect_scalar</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">transects</span><span class="p">,</span> <span class="n">nodeinelem</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
                          <span class="n">do_transectattr</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">do_info</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; interpolate scalar vertice values onto cutting point position where</span>
@@ -1278,7 +1278,7 @@
 <span class="c1">#___PLOT TRANSECT POSITION______________________________________________________</span>
 <div class="viewcode-block" id="plot_transect_position">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_transect.plot_transect_position">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_transect_position</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edge</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">zoom</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fig</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">10</span><span class="p">,</span><span class="mi">10</span><span class="p">],</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_transect_position</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">transect</span><span class="p">,</span> <span class="n">edge</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">zoom</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fig</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">10</span><span class="p">,</span><span class="mi">10</span><span class="p">],</span> 
                            <span class="n">proj</span><span class="o">=</span><span class="s1">&#39;nears&#39;</span><span class="p">,</span> <span class="n">box</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">180</span><span class="p">,</span> <span class="mi">180</span><span class="p">,</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">],</span> 
                            <span class="n">resolution</span><span class="o">=</span><span class="s1">&#39;low&#39;</span><span class="p">,</span> <span class="n">do_path</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_title</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                            <span class="n">do_grid</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ax_pos</span><span class="o">=</span><span class="p">[</span><span class="mf">0.90</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.45</span><span class="p">,</span> <span class="mf">0.45</span><span class="p">]):</span>
@@ -1434,7 +1434,7 @@
 <span class="c1">#___COMPUTE ZONAL MEAN SECTION BASED ON BINNING_________________________________</span>
 <div class="viewcode-block" id="load_zmeantransect_fesom2">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_transect.load_zmeantransect_fesom2">[docs]</a>
-<span class="k">def</span> <span class="nf">load_zmeantransect_fesom2</span><span class="p">(</span><span class="n">mesh</span>                  <span class="p">,</span> 
+<span class="k">def</span><span class="w"> </span><span class="nf">load_zmeantransect_fesom2</span><span class="p">(</span><span class="n">mesh</span>                  <span class="p">,</span> 
                               <span class="n">data</span>                  <span class="p">,</span> 
                               <span class="n">box_list</span>              <span class="p">,</span> 
                               <span class="n">dlat</span>          <span class="o">=</span><span class="mf">0.5</span>    <span class="p">,</span> 
@@ -1521,7 +1521,7 @@
             
         <span class="c1">#___________________________________________________________________________</span>
         <span class="k">if</span> <span class="n">do_checkbasin</span><span class="p">:</span>
-            <span class="kn">from</span> <span class="nn">matplotlib.tri</span> <span class="kn">import</span> <span class="n">Triangulation</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.tri</span><span class="w"> </span><span class="kn">import</span> <span class="n">Triangulation</span>
             <span class="n">tri</span> <span class="o">=</span> <span class="n">Triangulation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_x</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_xa</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_y</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">n_ya</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_i</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_pbnd_0</span><span class="p">,:],</span><span class="n">mesh</span><span class="o">.</span><span class="n">e_ia</span><span class="p">)))</span>
             <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
             <span class="n">plt</span><span class="o">.</span><span class="n">triplot</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
@@ -1720,7 +1720,7 @@
 <span class="c1">#____DO ANOMALY_________________________________________________________________</span>
 <div class="viewcode-block" id="do_transect_anomaly">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_transect.do_transect_anomaly">[docs]</a>
-<span class="k">def</span> <span class="nf">do_transect_anomaly</span><span class="p">(</span><span class="n">index1</span><span class="p">,</span><span class="n">index2</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_transect_anomaly</span><span class="p">(</span><span class="n">index1</span><span class="p">,</span><span class="n">index2</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; compute anomaly between two transect list xarray Datasets</span>
 <span class="sd">    </span>
