@@ -368,56 +368,94 @@ def load_data_fesom2(mesh,
     if ('ncat' in data.dims): depidx = True
     
     #___________________________________________________________________________    
-    # rename old vertices dimension name to new
+    # rename all dimension naming that do not agree with actual fesom2 standard
     # 'node' --> 'nod2'
     # 'nz_1' --> 'nz1'
-    if ('node' in data.dims): data = data.rename_dims({'node':'nod2'})
-    if ('nz_1' in data.dims): data = data.rename_dims({'nz_1':'nz1'})
+    if ('node'      in data.dims     ): data = data.rename_dims({'node':'nod2'})
+    if ('nz_1'      in data.dims     ): data = data.rename_dims({'nz_1':'nz1'})
     
     # Solution for Dmitry Stupak --> rechange dimension naming after various cdo
     # operations 
-    if ('x' in data.dims):
+    if ('x'         in      data.dims):
         if   data.sizes['x']==mesh.n2dn: data = data.rename_dims({'x':'nod2'})
         elif data.sizes['x']==mesh.n2de: data = data.rename_dims({'x':'elem'})
     
-    # convert dimensions name from fesom14cmip6 --> fesom2
-    if do_f14cmip6: 
-        data = data.drop_vars(['lon_bnds','lat_bnds', 'time_bnds'])
+    # convert ncells dimension if found to nod2 (happens for fesom14cmip6 and 
+    # MULTIIO)
+    if ('ncells'    in data.dims     ): data = data.rename_dims({'ncells':'nod2'})
+    
+    # kick out *_bnds variables if found we dont need them in moment in tripyview
+    # and it makes the dataset smaller
+    if ('lon_bnds'  in data.data_vars): data = data.drop_vars(['lon_bnds' ])
+    if ('lat_bnds'  in data.data_vars): data = data.drop_vars(['lat_bnds' ])
+    if ('time_bnds' in data.data_vars): data = data.drop_vars(['time_bnds'])
+    
+    # change depth dimension naming in case of fesom14cmip6 and MULTIIO data to 
+    # fesom2 convention
+    if ('depth' in data.coords) or ('lev' in data.coords): 
         
-        if ('ncells' in data.dims  ): data = data.rename_dims({'ncells':'nod2'})
+        if   ('depth' in data.coords): dimn_vold='depth' 
+        elif ('lev'   in data.coords): dimn_vold='lev'
         
-        # rename coordinate: depth --> nz, do this first than rename dimension otherwise
-        # it triggers a warning message
-        if ('depth'  in data.coords): 
-            data = data.rename({'depth' :'nz'  })
-            if 'nz' not in data.indexes:
-                data = data.set_index(nz='nz')
-        # rename dimension: depth --> nz
-        if ('depth'  in data.dims  ): data = data.swap_dims({'depth': 'nz'})
+        if   (data.sizes[dimn_vold]==mesh.nlev):
+            data = data.rename({dimn_vold :'nz'  })
+            if 'nz' not in data.indexes: data = data.set_index(nz='nz')
+            
+            # rename dimension: depth --> nz
+            if (dimn_vold in data.dims  ): data = data.swap_dims({dimn_vold: 'nz'})
+            
+        elif (data.sizes[dimn_vold]==mesh.nlev-1):
+            data = data.rename({dimn_vold :'nz1'  })
+            if 'nz1' not in data.indexes: data = data.set_index(nz1='nz1')
         
-        if ('time' in data.dims) and \
-           ('nod2' in data.dims) and \
-           ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
-        data = data.unify_chunks()
+            # rename dimension: depth --> nz
+            if (dimn_vold  in data.dims  ): data = data.swap_dims({dimn_vold: 'nz1'})
         
-    # convert dimensions name from multiio --> fesom2    
-    if do_multiio: 
-        data = data.drop_vars(['time_bnds'])
-        if ('ncells' in data.dims  ): data = data.rename_dims({'ncells':'nod2'})
+        del dimn_vold
+    
+    # ensure proper dimnesion permutation for data it must be [time, nod2, nz]
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h = 'nod2'
+    elif ('elem' in data.dims): dimn_h = 'elem'
+    if   ('nz'   in data.dims): dimn_v = 'nz'
+    elif ('nz1'  in data.dims): dimn_v = 'nz1'
+    # check dimension ordering
+    if ( len(data.dims)==3 and list(data.dims) != ['time', dimn_h, dimn_v]): data = data.transpose('time', dimn_h, dimn_v)
+    del dimn_h, dimn_v
+    
+    ## convert dimensions name from fesom14cmip6 --> fesom2
+    #if do_f14cmip6: 
+        ## rename coordinate: depth --> nz, do this first than rename dimension otherwise
+        ## it triggers a warning message
+        #if ('depth'  in data.coords): 
+            #data = data.rename({'depth' :'nz'  })
+            #if 'nz' not in data.indexes:
+                #data = data.set_index(nz='nz')
+        ## rename dimension: depth --> nz
+        #if ('depth'  in data.dims  ): data = data.swap_dims({'depth': 'nz'})
         
-        # rename coordinate: depth --> nz, do this first than rename dimension otherwise
-        # it triggers a warning message
-        if ('lev'  in data.coords): 
-            data = data.rename({'lev' :'nz'  })
-            if 'nz' not in data.indexes:
-                data = data.set_index(nz='nz')
+        #if ('time' in data.dims) and \
+           #('nod2' in data.dims) and \
+           #('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
         
-        if ('lev'  in data.dims  ): data = data.swap_dims({'lev': 'nz'})
+    ## convert dimensions name from multiio --> fesom2    
+    #if do_multiio: 
+        ## rename coordinate: depth --> nz, do this first than rename dimension otherwise
+        ## it triggers a warning message
+        #if ('lev'  in data.coords): 
+            #data = data.rename({'lev' :'nz'  })
+            #if 'nz' not in data.indexes:
+                #data = data.set_index(nz='nz')
         
-        if ('time' in data.dims) and \
-           ('nod2' in data.dims) and \
-           ('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
-        data = data.unify_chunks()
+        #if ('lev'  in data.dims  ): data = data.swap_dims({'lev': 'nz'})
+        
+        #if ('time' in data.dims) and \
+           #('nod2' in data.dims) and \
+           #('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
+        #data = data.unify_chunks()
+    
+    #___________________________________________________________________________    
+    data = data.unify_chunks()
     
     #___________________________________________________________________________
     # check if mesh and data fit together
