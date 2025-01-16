@@ -407,56 +407,94 @@
     <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;ncat&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">depidx</span> <span class="o">=</span> <span class="kc">True</span>
     
     <span class="c1">#___________________________________________________________________________    </span>
-    <span class="c1"># rename old vertices dimension name to new</span>
+    <span class="c1"># rename all dimension naming that do not agree with actual fesom2 standard</span>
     <span class="c1"># &#39;node&#39; --&gt; &#39;nod2&#39;</span>
     <span class="c1"># &#39;nz_1&#39; --&gt; &#39;nz1&#39;</span>
-    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;node&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;node&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
-    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;nz_1&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;nz_1&#39;</span><span class="p">:</span><span class="s1">&#39;nz1&#39;</span><span class="p">})</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;node&#39;</span>      <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>     <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;node&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;nz_1&#39;</span>      <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>     <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;nz_1&#39;</span><span class="p">:</span><span class="s1">&#39;nz1&#39;</span><span class="p">})</span>
     
     <span class="c1"># Solution for Dmitry Stupak --&gt; rechange dimension naming after various cdo</span>
     <span class="c1"># operations </span>
-    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;x&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;x&#39;</span>         <span class="ow">in</span>      <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span>
         <span class="k">if</span>   <span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]</span><span class="o">==</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2dn</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;x&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
         <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]</span><span class="o">==</span><span class="n">mesh</span><span class="o">.</span><span class="n">n2de</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;x&#39;</span><span class="p">:</span><span class="s1">&#39;elem&#39;</span><span class="p">})</span>
     
-    <span class="c1"># convert dimensions name from fesom14cmip6 --&gt; fesom2</span>
-    <span class="k">if</span> <span class="n">do_f14cmip6</span><span class="p">:</span> 
-        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;lon_bnds&#39;</span><span class="p">,</span><span class="s1">&#39;lat_bnds&#39;</span><span class="p">,</span> <span class="s1">&#39;time_bnds&#39;</span><span class="p">])</span>
+    <span class="c1"># convert ncells dimension if found to nod2 (happens for fesom14cmip6 and </span>
+    <span class="c1"># MULTIIO)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;ncells&#39;</span>    <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>     <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;ncells&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
+    
+    <span class="c1"># kick out *_bnds variables if found we dont need them in moment in tripyview</span>
+    <span class="c1"># and it makes the dataset smaller</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;lon_bnds&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;lon_bnds&#39;</span> <span class="p">])</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;lat_bnds&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;lat_bnds&#39;</span> <span class="p">])</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;time_bnds&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;time_bnds&#39;</span><span class="p">])</span>
+    
+    <span class="c1"># change depth dimension naming in case of fesom14cmip6 and MULTIIO data to </span>
+    <span class="c1"># fesom2 convention</span>
+    <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;depth&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="s1">&#39;lev&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span> 
         
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;ncells&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;ncells&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
+        <span class="k">if</span>   <span class="p">(</span><span class="s1">&#39;depth&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span> <span class="n">dimn_vold</span><span class="o">=</span><span class="s1">&#39;depth&#39;</span> 
+        <span class="k">elif</span> <span class="p">(</span><span class="s1">&#39;lev&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span> <span class="n">dimn_vold</span><span class="o">=</span><span class="s1">&#39;lev&#39;</span>
         
-        <span class="c1"># rename coordinate: depth --&gt; nz, do this first than rename dimension otherwise</span>
-        <span class="c1"># it triggers a warning message</span>
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;depth&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span> 
-            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;depth&#39;</span> <span class="p">:</span><span class="s1">&#39;nz&#39;</span>  <span class="p">})</span>
-            <span class="k">if</span> <span class="s1">&#39;nz&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">indexes</span><span class="p">:</span>
-                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">nz</span><span class="o">=</span><span class="s1">&#39;nz&#39;</span><span class="p">)</span>
-        <span class="c1"># rename dimension: depth --&gt; nz</span>
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;depth&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">swap_dims</span><span class="p">({</span><span class="s1">&#39;depth&#39;</span><span class="p">:</span> <span class="s1">&#39;nz&#39;</span><span class="p">})</span>
+        <span class="k">if</span>   <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="n">dimn_vold</span><span class="p">]</span><span class="o">==</span><span class="n">mesh</span><span class="o">.</span><span class="n">nlev</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="n">dimn_vold</span> <span class="p">:</span><span class="s1">&#39;nz&#39;</span>  <span class="p">})</span>
+            <span class="k">if</span> <span class="s1">&#39;nz&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">indexes</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">nz</span><span class="o">=</span><span class="s1">&#39;nz&#39;</span><span class="p">)</span>
+            
+            <span class="c1"># rename dimension: depth --&gt; nz</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">dimn_vold</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">swap_dims</span><span class="p">({</span><span class="n">dimn_vold</span><span class="p">:</span> <span class="s1">&#39;nz&#39;</span><span class="p">})</span>
+            
+        <span class="k">elif</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">sizes</span><span class="p">[</span><span class="n">dimn_vold</span><span class="p">]</span><span class="o">==</span><span class="n">mesh</span><span class="o">.</span><span class="n">nlev</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="n">dimn_vold</span> <span class="p">:</span><span class="s1">&#39;nz1&#39;</span>  <span class="p">})</span>
+            <span class="k">if</span> <span class="s1">&#39;nz1&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">indexes</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">nz1</span><span class="o">=</span><span class="s1">&#39;nz1&#39;</span><span class="p">)</span>
         
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
-           <span class="p">(</span><span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
-           <span class="p">(</span><span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;nod2&#39;</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span><span class="p">)</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unify_chunks</span><span class="p">()</span>
+            <span class="c1"># rename dimension: depth --&gt; nz</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">dimn_vold</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">swap_dims</span><span class="p">({</span><span class="n">dimn_vold</span><span class="p">:</span> <span class="s1">&#39;nz1&#39;</span><span class="p">})</span>
         
-    <span class="c1"># convert dimensions name from multiio --&gt; fesom2    </span>
-    <span class="k">if</span> <span class="n">do_multiio</span><span class="p">:</span> 
-        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">([</span><span class="s1">&#39;time_bnds&#39;</span><span class="p">])</span>
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;ncells&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename_dims</span><span class="p">({</span><span class="s1">&#39;ncells&#39;</span><span class="p">:</span><span class="s1">&#39;nod2&#39;</span><span class="p">})</span>
+        <span class="k">del</span> <span class="n">dimn_vold</span>
+    
+    <span class="c1"># ensure proper dimnesion permutation for data it must be [time, nod2, nz]</span>
+    <span class="n">dimn_h</span><span class="p">,</span> <span class="n">dimn_v</span> <span class="o">=</span> <span class="s1">&#39;dum&#39;</span><span class="p">,</span> <span class="s1">&#39;dum&#39;</span>
+    <span class="k">if</span>   <span class="p">(</span><span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dimn_h</span> <span class="o">=</span> <span class="s1">&#39;nod2&#39;</span>
+    <span class="k">elif</span> <span class="p">(</span><span class="s1">&#39;elem&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dimn_h</span> <span class="o">=</span> <span class="s1">&#39;elem&#39;</span>
+    <span class="k">if</span>   <span class="p">(</span><span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dimn_v</span> <span class="o">=</span> <span class="s1">&#39;nz&#39;</span>
+    <span class="k">elif</span> <span class="p">(</span><span class="s1">&#39;nz1&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">dimn_v</span> <span class="o">=</span> <span class="s1">&#39;nz1&#39;</span>
+    <span class="c1"># check dimension ordering</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span> <span class="ow">and</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="o">!=</span> <span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="n">dimn_h</span><span class="p">,</span> <span class="n">dimn_v</span><span class="p">]):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="n">dimn_h</span><span class="p">,</span> <span class="n">dimn_v</span><span class="p">)</span>
+    <span class="k">del</span> <span class="n">dimn_h</span><span class="p">,</span> <span class="n">dimn_v</span>
+    
+    <span class="c1">## convert dimensions name from fesom14cmip6 --&gt; fesom2</span>
+    <span class="c1">#if do_f14cmip6: </span>
+        <span class="c1">## rename coordinate: depth --&gt; nz, do this first than rename dimension otherwise</span>
+        <span class="c1">## it triggers a warning message</span>
+        <span class="c1">#if (&#39;depth&#39;  in data.coords): </span>
+            <span class="c1">#data = data.rename({&#39;depth&#39; :&#39;nz&#39;  })</span>
+            <span class="c1">#if &#39;nz&#39; not in data.indexes:</span>
+                <span class="c1">#data = data.set_index(nz=&#39;nz&#39;)</span>
+        <span class="c1">## rename dimension: depth --&gt; nz</span>
+        <span class="c1">#if (&#39;depth&#39;  in data.dims  ): data = data.swap_dims({&#39;depth&#39;: &#39;nz&#39;})</span>
         
-        <span class="c1"># rename coordinate: depth --&gt; nz, do this first than rename dimension otherwise</span>
-        <span class="c1"># it triggers a warning message</span>
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;lev&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">coords</span><span class="p">):</span> 
-            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s1">&#39;lev&#39;</span> <span class="p">:</span><span class="s1">&#39;nz&#39;</span>  <span class="p">})</span>
-            <span class="k">if</span> <span class="s1">&#39;nz&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">indexes</span><span class="p">:</span>
-                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">nz</span><span class="o">=</span><span class="s1">&#39;nz&#39;</span><span class="p">)</span>
+        <span class="c1">#if (&#39;time&#39; in data.dims) and \</span>
+           <span class="c1">#(&#39;nod2&#39; in data.dims) and \</span>
+           <span class="c1">#(&#39;nz&#39;   in data.dims): data = data.transpose(&#39;time&#39;, &#39;nod2&#39;, &#39;nz&#39;)</span>
         
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;lev&#39;</span>  <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span>  <span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">swap_dims</span><span class="p">({</span><span class="s1">&#39;lev&#39;</span><span class="p">:</span> <span class="s1">&#39;nz&#39;</span><span class="p">})</span>
+    <span class="c1">## convert dimensions name from multiio --&gt; fesom2    </span>
+    <span class="c1">#if do_multiio: </span>
+        <span class="c1">## rename coordinate: depth --&gt; nz, do this first than rename dimension otherwise</span>
+        <span class="c1">## it triggers a warning message</span>
+        <span class="c1">#if (&#39;lev&#39;  in data.coords): </span>
+            <span class="c1">#data = data.rename({&#39;lev&#39; :&#39;nz&#39;  })</span>
+            <span class="c1">#if &#39;nz&#39; not in data.indexes:</span>
+                <span class="c1">#data = data.set_index(nz=&#39;nz&#39;)</span>
         
-        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
-           <span class="p">(</span><span class="s1">&#39;nod2&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span> <span class="ow">and</span> \
-           <span class="p">(</span><span class="s1">&#39;nz&#39;</span>   <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dims</span><span class="p">):</span> <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;nod2&#39;</span><span class="p">,</span> <span class="s1">&#39;nz&#39;</span><span class="p">)</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unify_chunks</span><span class="p">()</span>
+        <span class="c1">#if (&#39;lev&#39;  in data.dims  ): data = data.swap_dims({&#39;lev&#39;: &#39;nz&#39;})</span>
+        
+        <span class="c1">#if (&#39;time&#39; in data.dims) and \</span>
+           <span class="c1">#(&#39;nod2&#39; in data.dims) and \</span>
+           <span class="c1">#(&#39;nz&#39;   in data.dims): data = data.transpose(&#39;time&#39;, &#39;nod2&#39;, &#39;nz&#39;)</span>
+        <span class="c1">#data = data.unify_chunks()</span>
+    
+    <span class="c1">#___________________________________________________________________________    </span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unify_chunks</span><span class="p">()</span>
     
     <span class="c1">#___________________________________________________________________________</span>
     <span class="c1"># check if mesh and data fit together</span>
