@@ -854,37 +854,84 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
     for transect in transects:
         #_______________________________________________________________________
         # select only necessary elements 
-        data_uv = data.isel(elem=transect['path_ei']).load()
+        if 'elem' in data.dims:
+            data_uv = data.isel(elem=transect['path_ei']).load()
+            
+        elif 'nod2' in data.dims:    
+            data_uv = data.isel(nod2=xr.DataArray(transect['edge_cut_ni'], dims=['nod2', 'n2'])).load()
+            
+        else:
+            raise ValueError("--> Could not find proper dimension in uv velocity data")
         vel_u   = data_uv[vname ].values
         vel_v   = data_uv[vname2].values
+        del(data_uv)
         
         #_______________________________________________________________________
         # rotate vectors insert topography as nan
         if 'time' in list(data.dims):
-            # Here i introduce the vertical topography, we replace the zeros that
-            # describe the topography with nan
-            for ii, ei in enumerate(transect['path_ei']):
-                vel_u[:,ii,mesh.e_iz[ei]:], vel_v[:,ii,mesh.e_iz[ei]:] = np.nan, np.nan
+            #___________________________________________________________________
+            if 'elem' in data.dims:
+                # Here i introduce the vertical topography, we replace the zeros that
+                # describe the topography with nan
+                for ii, ei in enumerate(transect['path_ei']):
+                    vel_u[:,ii,mesh.e_iz[ei]:], vel_v[:,ii,mesh.e_iz[ei]:] = np.nan, np.nan
+                
+                # here rotate the velocities from roted frame to geo frame 
+                if do_rot:
+                    for nti in range(data.sizes['time']):
+                        vel_u[nti,:,:], vel_v[nti,:,:] = vec_r2g(mesh.abg, 
+                                            mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
+                                            mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
+                                            vel_u[nti,:,:], vel_v[nti,:,:])
             
-            # here rotate the velocities from roted frame to geo frame 
-            if do_rot:
-                for nti in range(data.sizes['time']):
-                    vel_u[nti,:,:], vel_v[nti,:,:] = vec_r2g(mesh.abg, 
+            #___________________________________________________________________        
+            elif 'nod2' in data.dims:
+                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                    vel_u[:, ii, 0, mesh.n_iz[ni0]:], vel_v[:, ii, 0, mesh.n_iz[ni0]:] = np.nan, np.nan
+                    vel_u[:, ii, 1, mesh.n_iz[ni1]:], vel_v[:, ii, 0, mesh.n_iz[ni1]:] = np.nan, np.nan
+                    
+                # average vertice velocities to the edge centers
+                vel_u, vel_v = vel_u.sum(axis=2)*0.5, vel_v.sum(axis=2)*0.5
+                
+                # here rotate the velocities from roted frame to geo frame 
+                if do_rot:
+                    for nti in range(data.sizes['time']):
+                        vel_u[nti,:,:], vel_v[nti,:,:] = vec_r2g(mesh.abg, 
+                                            mesh.n_x[transect['edge_cut_ni']].sum(axis=1)*0.5, 
+                                            mesh.n_y[transect['edge_cut_ni']].sum(axis=1)*0.5,
+                                            vel_u[nti,:,:], vel_v[nti,:,:])
+                
+        else: 
+            #___________________________________________________________________
+            if 'elem' in data.dims:
+                # Here i introduce the vertical topography, we replace the zeros that
+                # describe the topography with nan's
+                for ii, ei in enumerate(transect['path_ei']):
+                    vel_u[ii, mesh.e_iz[ei]:], vel_v[ii,mesh.e_iz[ei]:] = np.nan, np.nan
+                
+                # here rotate the velocities from roted frame to geo frame 
+                if do_rot:
+                    vel_u, vel_v = vec_r2g(mesh.abg, 
                                         mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
                                         mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
-                                        vel_u[nti,:,:], vel_v[nti,:,:])            
-        else: 
-            # Here i introduce the vertical topography, we replace the zeros that
-            # describe the topography with nan's
-            for ii, ei in enumerate(transect['path_ei']):
-                vel_u[ii, mesh.e_iz[ei]:], vel_v[ii,mesh.e_iz[ei]:] = np.nan, np.nan
-            
-            # here rotate the velocities from roted frame to geo frame 
-            if do_rot:
-                vel_u, vel_v = vec_r2g(mesh.abg, 
-                                    mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
-                                    mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
-                                    vel_u, vel_v)
+                                        vel_u, vel_v)
+                
+            #___________________________________________________________________        
+            elif 'nod2' in data.dims:
+                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                    vel_u[ii, 0, mesh.n_iz[ni0]:], vel_v[ii, 0, mesh.n_iz[ni0]:] = np.nan, np.nan
+                    vel_u[ii, 1, mesh.n_iz[ni1]:], vel_v[ii, 0, mesh.n_iz[ni1]:] = np.nan, np.nan
+                    
+                # average vertice velocities to the edge centers
+                vel_u, vel_v = vel_u.sum(axis=1)*0.5, vel_v.sum(axis=1)*0.5
+                
+                # here rotate the velocities from roted frame to geo frame 
+                if do_rot:
+                    vel_u, vel_v = vec_r2g(mesh.abg, 
+                                        mesh.n_x[transect['edge_cut_ni']].sum(axis=1)*0.5, 
+                                        mesh.n_y[transect['edge_cut_ni']].sum(axis=1)*0.5,
+                                        vel_u, vel_v)
+                    
         
         #_______________________________________________________________________
         # multiply with dz
@@ -896,14 +943,27 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         #_______________________________________________________________________
         # multiple u*dy and v*(-dx) --> vec_v * vec_n
         dx, dy     = transect['path_dx'], transect['path_dy']
-        
+            
         # proper transport sign with respect to normal vector of section 
         # normal vector definition --> norm vector definition (-dy,dx) --> shows 
         # to the left of the e_vec
-        if 'time' in list(data.dims):
-            aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))*1e-6 
-        else:
-            aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))*1e-6
+        if 'elem' in data.dims:
+            # use velocities located at left and rights handside elements with 
+            # respect to the edge
+            if 'time' in list(data.dims):
+                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))*1e-6 
+            else:
+                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))*1e-6
+                
+        elif 'nod2' in data.dims:
+            # use edge centered averaged velocities, thats why this velocity needs 
+            # to be dublicated with np.repeat along the horizontal dimension
+            if 'time' in list(data.dims):
+                vel_u, vel_v = np.repeat(vel_u, 2, axis=1), np.repeat(vel_v, 2, axis=1)
+                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))*1e-6 
+            else:    
+                vel_u, vel_v = np.repeat(vel_u, 2, axis=0), np.repeat(vel_v, 2, axis=0)
+                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))*1e-6
             
         #_______________________________________________________________________
         lon = transect['path_xy'][:-1,0]
