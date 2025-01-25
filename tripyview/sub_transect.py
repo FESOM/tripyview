@@ -15,6 +15,7 @@ from   .sub_plot                import *
 from   .sub_utility             import *
 from   .sub_colormap            import *
 import pandas as pd
+import warnings
 #xr.set_options(enable_cftimeindex=True)
 
 #
@@ -858,6 +859,13 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             data_uv = data.isel(elem=transect['path_ei']).load()
             
         elif 'nod2' in data.dims:    
+            warnings.warn("\n"+
+                          "--> It should be mentioned that a transport computed based on \n"
+                          "    vertice velocity data is less accurate since the model operates \n"+
+                          "    on element velocities. So there can be quite a big amplitude offset \n"+
+                          "    between the transport based on u+v or unod+vnod. Although the variability \n"+
+                          "    seems to be unaffected. So if you have the data try to compute the \n"+
+                          "    transport based on velocities on elements. \n")
             data_uv = data.isel(nod2=xr.DataArray(transect['edge_cut_ni'], dims=['nod2', 'n2'])).load()
             
         else:
