@@ -419,6 +419,7 @@ def load_data_fesom2(mesh,
     elif ('elem' in data.dims): dimn_h = 'elem'
     if   ('nz'   in data.dims): dimn_v = 'nz'
     elif ('nz1'  in data.dims): dimn_v = 'nz1'
+    elif ('ndens'in data.dims): dimn_v = 'ndens'
     # check dimension ordering
     if ( len(data.dims)==3 and list(data.dims) != ['time', dimn_h, dimn_v]): data = data.transpose('time', dimn_h, dimn_v)
     del dimn_h, dimn_v
