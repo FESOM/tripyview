@@ -40,7 +40,9 @@ def do_analyse_transects(input_transect     ,
     Parameters:   
     
         :input_transect:    list, to define transects, transects= [[[lon pts], 
-                            [lat pts], name], [...]]
+                            [lat pts], name, inverse_flowdir], [...]]. With inverse_flowdir
+                            = True you can inverse the flowdirection if it doesnt 
+                            agree with your in/out flow direction
         
         :mesh:              fesom2 mesh object, with all mesh information
         
@@ -117,7 +119,16 @@ def do_analyse_transects(input_transect     ,
     """
     transect_list = []
     # loop over transects in list
-    for transec_lon, transec_lat, transec_name in input_transect:
+    for transec_ii in input_transect:
+        #_______________________________________________________________________
+        if len(transec_ii)==3: 
+            transec_lon, transec_lat, transec_name = transec_ii
+            transec_flowdir = False
+        elif len(transec_ii)==4: 
+            transec_lon, transec_lat, transec_name, transec_flowdir = transec_ii
+        else:
+            raise ValueError('--> trasect definition must be: [ [lon], [lat], transect-name, inverse_flowdir(optional) ] ')
+        
         #_______________________________________________________________________
         # allocate dictionary for total cross-section 
         sub_transect = _do_init_transect()
@@ -189,7 +200,12 @@ def do_analyse_transects(input_transect     ,
                                                         mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
                                                         mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
                                                         transect['path_dx'], transect['path_dy'])
-            
+        
+        #_______________________________________________________________________    
+        # rotate path_dx and path_dy from rot --> geo coordinates
+        if transec_flowdir:
+             transect['path_dx'], transect['path_dy'] =  -transect['path_dx'], -transect['path_dy']
+             
         #_______________________________________________________________________ 
         # buld distance from start point array [km]
         transect = _do_compute_distance_from_startpoint(transect)
@@ -489,9 +505,10 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     #        alpha=[-90...-180]  |   alpha=[0...-90]  
     #                            v
     #                            S
-    alpha = -np.arctan2(transect['e_vec'][-1][1], transect['e_vec'][-1][0])
+    #alpha = -np.arctan2(transect['e_vec'][-1][1], transect['e_vec'][-1][0])
+    alpha = np.arctan2(transect['e_vec'][-1][1], transect['e_vec'][-1][0])
     transect['alpha'].append(alpha*180/np.pi)
-    
+    #print('> alpha:', alpha*180/np.pi)
     #___________________________________________________________________________
     # loop over intersected edges 
     nced = transect['edge_cut_i'][-1].size
@@ -505,9 +522,16 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
         # in this case use [L]eft triangle, if theta>0 edge shows to the left
         # in this case use right triangle (its that the "downstream" triangle
         # with respect to cross-section direction)
-        auxx = transect['edge_cut_evec'][-1][edi,0]*np.cos(alpha)-transect['edge_cut_evec'][-1][edi,1]*np.sin(alpha)
-        auxy = transect['edge_cut_evec'][-1][edi,0]*np.sin(alpha)+transect['edge_cut_evec'][-1][edi,1]*np.cos(alpha)
+        # --> rotate edge by minus alpha angle
+        # use Rotationmatrixs R_alpha = | cos(-alpha) -sin(-alpha) |
+        #                               | sin(-alpha)  cos(-alpha) |
+        #   
+        # R_alpha * |ed_x | = | ed_x*cos(-alpha)-ed_y*sin(-alpha) | 
+        #           |ed_y |   | ed_x*sin(-alpha)+ed_y*cos(-alpha) | 
+        auxx = transect['edge_cut_evec'][-1][edi,0]*np.cos(-alpha)-transect['edge_cut_evec'][-1][edi,1]*np.sin(-alpha)
+        auxy = transect['edge_cut_evec'][-1][edi,0]*np.sin(-alpha)+transect['edge_cut_evec'][-1][edi,1]*np.cos(-alpha)
         theta= np.arctan2(auxy,auxx)
+        #print('--> theta:', theta*180/np.pi)
         del(auxx, auxy)
                 
         # indices of [L]eft and [R]ight triangle with respect to the edge
@@ -544,14 +568,10 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     # !!! Make sure positive Transport is defined S-->N and W-->E
     # --> Preliminary --> not 100% sure its universal
     rad = np.pi/180
-    #print(alpha/rad)
-    #if (alpha/rad>90 and alpha/rad<180 ) or (alpha/rad>=-180 and alpha/rad<=-90 ):
-    if (alpha/rad>=-180 and alpha/rad<=-90 ) or (alpha/rad>90 and alpha/rad<=180 ):
-        #print(' >-))))°>.°oO :1')
+    if (-alpha/rad>=-180 and -alpha/rad<=-90 ) or (-alpha/rad>90 and -alpha/rad<=180 ):
         transect['path_dx'][-1] = -transect['path_dx'][-1]
         transect['path_dy'][-1] = -transect['path_dy'][-1]
         
-        transect['path_nvec_cs'][-1] = transect['path_nvec_cs'][-1]
     del(path_xy, path_ei, path_ni, path_dx, path_dy, edge_elem)
 
     #___________________________________________________________________________
