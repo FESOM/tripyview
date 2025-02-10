@@ -35,6 +35,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     #___________________________________________________________________________
     # assemble total strings
     str_all1 = f"{params_vname['tripyrun_name']}_{params_vname['tripyrun_analysis']}{str_vname1}"
+    str_all2 = ''
     if exec_template in ['hslice', 'hslice_clim', 'hquiver']:
         str_all1 = f"{str_all1}{str_proj1}{str_dep1}{str_mon1}"
         str_all2 = f"{str_vname2}{str_proj2}{str_dep2}{str_mon2}"
@@ -66,7 +67,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
             str_all1 = f"{str_all1}"
             str_all2 = f"{str_vname2}"
         
-    elif exec_template in ['transect', 'transect_clim', 'transect_transp', 'transect_transp_t']:
+    elif exec_template in ['transect', 'transect_clim', 'transect_transp', 'transect_transp_t', 'transect_hflx', 'transect_hflx_t']:
         str_tra1, str_tra2 = '', ''
         if 'input_transect' in params_vname: 
             auxtra = params_vname['input_transect'][0][2].replace(' ','_').replace(',','').replace('°','')
