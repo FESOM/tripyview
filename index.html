@@ -4522,6 +4522,58 @@ for very large meshes</p>
 
 <hr class="docutils" />
 <dl class="py function" id="module-tripyview.sub_transect">
+<dt class="sig sig-object py" id="tripyview.sub_transect.calc_transect_Xtransp">
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_transect.</span></span><span class="sig-name descname"><span class="pre">calc_transect_Xtransp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transects</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataX</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_Xref</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_transectattr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_rot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_transect.html#calc_transect_Xtransp"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_transect.calc_transect_Xtransp" title="Link to this definition">¶</a></dt>
+<dd><p>–&gt; Compute fesom2 modell accurate transport through defined transect</p>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">mesh<span class="colon">:</span></dt>
+<dd class="field-odd"><p>fesom2 tripyview mesh object,  with all mesh information</p>
+</dd>
+<dt class="field-even">data<span class="colon">:</span></dt>
+<dd class="field-even"><p>object, with xarray dataset object with 3d element zonal and meridional
+velocities</p>
+</dd>
+<dt class="field-odd">transects<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list with analysed transect dictionary information computed by 
+do_analyse _trasnsects</p>
+</dd>
+<dt class="field-even">dataX<span class="colon">:</span></dt>
+<dd class="field-even"><p>object (default=None), with xarray dataset object with 3d 
+vertice temperature or salinity data to compute heatflux/
+saltflux through section</p>
+</dd>
+<dt class="field-odd">data_Xref<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float (default=0.0) reference temperature or salinity to 
+compute flux</p>
+</dd>
+<dt class="field-even">do_transectattr<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool, (default=True) write full transect info into return
+xarray dataset attribute</p>
+</dd>
+<dt class="field-odd">do_rot<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool, (default=True), do rotation of velocities from rotated
+to geo coordinates</p>
+</dd>
+<dt class="field-even">do_info<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool, (default=True), write info</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Return:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">data<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list with returned xarray dataset object that contain volume 
+transport through every section of the transport path</p>
+</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<hr class="docutils" />
+<dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_transect.calc_transect_scalar">
 <span class="sig-prename descclassname"><span class="pre">tripyview.sub_transect.</span></span><span class="sig-name descname"><span class="pre">calc_transect_scalar</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transects</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeinelem</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_transectattr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_transect.html#calc_transect_scalar"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_transect.calc_transect_scalar" title="Link to this definition">¶</a></dt>
 <dd><dl class="simple">
@@ -4568,51 +4620,8 @@ the cutting point interpolated scalar values of transect</p>
 
 <hr class="docutils" />
 <dl class="py function">
-<dt class="sig sig-object py" id="tripyview.sub_transect.calc_transect_transp">
-<span class="sig-prename descclassname"><span class="pre">tripyview.sub_transect.</span></span><span class="sig-name descname"><span class="pre">calc_transect_transp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transects</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_transectattr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_rot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_transect.html#calc_transect_transp"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_transect.calc_transect_transp" title="Link to this definition">¶</a></dt>
-<dd><p>–&gt; Compute fesom2 modell accurate transport through defined transect</p>
-<p>Parameters:</p>
-<blockquote>
-<div><dl class="field-list simple">
-<dt class="field-odd">mesh<span class="colon">:</span></dt>
-<dd class="field-odd"><p>fesom2 tripyview mesh object,  with all mesh information</p>
-</dd>
-<dt class="field-even">data<span class="colon">:</span></dt>
-<dd class="field-even"><p>object, with xarray dataset object with 3d element zonal and meridional
-velocities</p>
-</dd>
-<dt class="field-odd">transects<span class="colon">:</span></dt>
-<dd class="field-odd"><p>list with analysed transect dictionary information computed by 
-do_analyse _trasnsects</p>
-</dd>
-<dt class="field-even">do_transectattr<span class="colon">:</span></dt>
-<dd class="field-even"><p>bool, (default=True) write full transect info into return
-xarray dataset attribute</p>
-</dd>
-<dt class="field-odd">do_rot<span class="colon">:</span></dt>
-<dd class="field-odd"><p>bool, (default=True), do rotation of velocities from rotated
-to geo coordinates</p>
-</dd>
-<dt class="field-even">do_info<span class="colon">:</span></dt>
-<dd class="field-even"><p>bool, (default=True), write info</p>
-</dd>
-</dl>
-</div></blockquote>
-<p>Return:</p>
-<blockquote>
-<div><dl class="field-list simple">
-<dt class="field-odd">data<span class="colon">:</span></dt>
-<dd class="field-odd"><p>list with returned xarray dataset object that contain volume 
-transport through every section of the transport path</p>
-</dd>
-</dl>
-</div></blockquote>
-</dd></dl>
-
-<hr class="docutils" />
-<dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_transect.do_analyse_transects">
-<span class="sig-prename descclassname"><span class="pre">tripyview.sub_transect.</span></span><span class="sig-name descname"><span class="pre">do_analyse_transects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_transect</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_tri</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_dxdy_l</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_dxdy_r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_rot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Pdxy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_transect.html#do_analyse_transects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_transect.do_analyse_transects" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_transect.</span></span><span class="sig-name descname"><span class="pre">do_analyse_transects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_transect</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_tri</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_dxdy_l</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_dxdy_r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_rot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Pdxy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_transect.html#do_analyse_transects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_transect.do_analyse_transects" title="Link to this definition">¶</a></dt>
 <dd><dl class="simple">
 <dt>–&gt; pre-analyse defined transects, with respect to which triangles and edges </dt><dd><p>are crossed by the transect line. Create transport path edge to compute 
 modell accurate volume transports.</p>
