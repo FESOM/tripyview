@@ -91,8 +91,10 @@ vertice/element- resolution and area)
 ### General vertical plots: 
 * `transect`         - plot point wise transects of 3d ocean variables
 * `transect_clim`    - plot point wise transects of 3d temperature, salinity and density climatology
-* `transect_transp`  - plot volume transport through arbitrary transects (model accurate transport)
-* `transect_transp_t`- plot time-series of volume transport through arbitrary transects (fesom2 model accurate transport)
+* `transect_transp`  - plot volume transport through arbitrary transects 
+* `transect_transp_t`- plot time-series of volume transport through arbitrary transects 
+* `transect_hflx`    - plot heat transport through arbitrary transects 
+* `transect_hflx_t`  - plot time-series of heat transport through arbitrary transects 
 * `transect_zmean`   - plot zonally averaged transects of 3d ocean variables
 * `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
 <p align="center" width="100%">

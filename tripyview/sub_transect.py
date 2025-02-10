@@ -28,7 +28,7 @@ def do_analyse_transects(input_transect     ,
                         edge_tri            , 
                         edge_dxdy_l         , 
                         edge_dxdy_r         , 
-                        do_rot      = True  , 
+                        do_rot      = False , 
                         do_info     = False , 
                         Pdxy        = 10.0  
                         ):
@@ -810,7 +810,8 @@ def _do_compute_distance_from_startpoint(transect):
 #
 #
 #___COMPUTE VOLUME TRANSPORT THROUGH TRANSECT___________________________________
-def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=True, do_info=True):
+def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
+                          do_transectattr=False, do_rot=False, do_info=True):
     """
     --> Compute fesom2 modell accurate transport through defined transect
     
@@ -824,6 +825,13 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         :transects:     list with analysed transect dictionary information computed by 
                         do_analyse _trasnsects
                         
+        :dataX:         object (default=None), with xarray dataset object with 3d 
+                        vertice temperature or salinity data to compute heatflux/
+                        saltflux through section   
+                        
+        :data_Xref:     float (default=0.0) reference temperature or salinity to 
+                        compute flux
+        
         :do_transectattr: bool, (default=True) write full transect info into return
                         xarray dataset attribute
         
@@ -851,7 +859,15 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         transects=list([transects])
     
     #___________________________________________________________________________
-    vname, vname2 = list(data.keys())
+    # variable name of zonal meridional velocity component
+    vnameU, vnameV = list(data.keys())
+    
+    # variable name of Xtransp component (temp or salt)
+    vnameX = None
+    if dataX is not None: vnameX = list(dataX.keys())[0]
+    
+    #___________________________________________________________________________
+    # loop over various transects
     for transect in transects:
         #_______________________________________________________________________
         # select only necessary elements 
@@ -870,9 +886,16 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             
         else:
             raise ValueError("--> Could not find proper dimension in uv velocity data")
-        vel_u   = data_uv[vname ].values
-        vel_v   = data_uv[vname2].values
+        vel_u   = data_uv[vnameU ].values
+        vel_v   = data_uv[vnameV].values
         del(data_uv)
+        
+        #_______________________________________________________________________
+        # select only necessary elements from temp data
+        var_X = None
+        if dataX is not None:
+            var_X = dataX.isel(nod2=xr.DataArray(transect['edge_cut_ni'], dims=['nod2', 'n2'])).load()
+            var_X = var_X[vnameX].values
         
         #_______________________________________________________________________
         # rotate vectors insert topography as nan
@@ -908,6 +931,17 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
                                             mesh.n_x[transect['edge_cut_ni']].sum(axis=1)*0.5, 
                                             mesh.n_y[transect['edge_cut_ni']].sum(axis=1)*0.5,
                                             vel_u[nti,:,:], vel_v[nti,:,:])
+            
+            #___________________________________________________________________        
+            if dataX is not None:
+                # Here i introduce the vertical topography, we replace the zeros that
+                # describe the topography with nan's
+                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                    var_X[:, ii, 0, mesh.n_iz[ni0]:] = np.nan
+                    var_X[:, ii, 1, mesh.n_iz[ni1]:] = np.nan
+            
+                # average vertice temperature to the edge centers
+                var_X = var_X.sum(axis=2)*0.5
                 
         else: 
             #___________________________________________________________________
@@ -939,7 +973,17 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
                                         mesh.n_x[transect['edge_cut_ni']].sum(axis=1)*0.5, 
                                         mesh.n_y[transect['edge_cut_ni']].sum(axis=1)*0.5,
                                         vel_u, vel_v)
+            
+            #___________________________________________________________________        
+            if dataX is not None:
+                # Here i introduce the vertical topography, we replace the zeros that
+                # describe the topography with nan's
+                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                    var_X[ii, 0, mesh.n_iz[ni0]:] = np.nan
+                    var_X[ii, 1, mesh.n_iz[ni1]:] = np.nan
                     
+                # average vertice temperature to the edge centers
+                var_X = var_X.sum(axis=1)*0.5
         
         #_______________________________________________________________________
         # multiply with dz
@@ -959,19 +1003,52 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             # use velocities located at left and rights handside elements with 
             # respect to the edge
             if 'time' in list(data.dims):
-                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))*1e-6 
+                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))
             else:
-                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))*1e-6
+                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
                 
         elif 'nod2' in data.dims:
             # use edge centered averaged velocities, thats why this velocity needs 
             # to be dublicated with np.repeat along the horizontal dimension
             if 'time' in list(data.dims):
                 vel_u, vel_v = np.repeat(vel_u, 2, axis=1), np.repeat(vel_v, 2, axis=1)
-                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))*1e-6 
+                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))
             else:    
                 vel_u, vel_v = np.repeat(vel_u, 2, axis=0), np.repeat(vel_v, 2, axis=0)
-                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))*1e-6
+                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
+        
+        #_______________________________________________________________________
+        # multiply transp_uv with temp 
+        if dataX is not None:
+            if 'time' in list(data.dims):
+                aux_transp = aux_transp * (np.repeat(var_X, 2, axis=1).transpose((0,2,1)) - data_Xref)
+            else:
+                aux_transp = aux_transp * (np.repeat(var_X, 2, axis=0).T - data_Xref)
+            
+        #_______________________________________________________________________
+        data_vars = dict()
+        aux_attr  = data[vnameU].attrs
+
+        if (vnameX=='temp') or (vnameU=='tu' and vnameV=='tv'):
+            rho0 = 1030 # kg/m^3
+            cp   = 3850 # J/kg/K
+            inPW = 1.0e-15
+            aux_transp = aux_transp * rho0 * cp * inPW
+            aux_attr['long_name'], aux_attr['units'] = 'Heat Transport', 'PW'
+            vnameFLX = 'Hflx'
+        
+        elif (vnameX=='salt') or (vnameU=='su' and vnameV=='sv'):
+            rho0 = 1030 # kg/m^3
+            # 1psu = 1g(NaCl)/1kg(H2O)=1/1000--> Umrechnung von psu*kg/s --> kg/s -->.../1000
+            aux_transp = aux_transp * rho0 / 1000
+            aux_attr['long_name'], aux_attr['units'] = 'Salinity Transport', 'kg/s'
+            vnameFLX = 'Sflx'    
+            
+        else:    
+            inSv = 1.0e-6
+            aux_transp = aux_transp * inSv
+            aux_attr['long_name'], aux_attr['units'] = 'Volume Transport', 'Sv'
+            vnameFLX = 'Vflx'
             
         #_______________________________________________________________________
         lon = transect['path_xy'][:-1,0]
@@ -995,16 +1072,11 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
         # define variable 
         gattrs = data.attrs
         gattrs['proj']          = 'index+depth+xy'
-        
-        data_vars = dict()
-        aux_attr  = data[vname].attrs
-        #aux_attr['long_name'], aux_attr['units'] = 'Transport through cross-section', 'Sv'
-        aux_attr['long_name'], aux_attr['units'] = 'Volume Transport', 'Sv'
         aux_attr['transect_name'] = transect['Name']
         aux_attr['transect_lon']  = transect['lon']
         aux_attr['transect_lat']  = transect['lat']
         if do_transectattr: aux_attr['transect'] = transect
-        data_vars['transp'] = (list(list_dimname.values()), aux_transp, aux_attr) 
+        data_vars[vnameFLX] = (list(list_dimname.values()), aux_transp, aux_attr) 
         
         #_______________________________________________________________________
         # define coordinates
@@ -1037,11 +1109,17 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             # are not possible
             if 'time' in data.dims: transp[-1] = transp[-1].assign_coords(time=data.time)  
             if do_info:
-                print(' --------> Name:', transp[-1]['transp'].attrs['transect_name'])
-                print(' neto transport:', transp[-1]['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (+) transport :', transp[-1]['transp'].where(transp[-1]['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (-) transport :', transp[-1]['transp'].where(transp[-1]['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' --------> Name:', transp[-1][vnameFLX].attrs['transect_name'])
+                if 'time' in data.dims:
+                    print(' mean neto transport:', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                    print(' mean (+) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                    print(' mean (-) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                else:
+                    print(' neto transport:', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
+                    print(' (+) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
+                    print(' (-) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
                 print('')
+                
         else:
             transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs )
             # we have to set the time here with assign_coords otherwise if its 
@@ -1050,15 +1128,18 @@ def calc_transect_transp(mesh, data, transects, do_transectattr=False, do_rot=Tr
             # are not possible
             if 'time' in data.dims: transp = transp.assign_coords(time=data.time)  
             if do_info:
-                print(' --------> Name:', transp['transp'].attrs['transect_name'])
-                print(' neto transport:', transp['transp'].sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (+) transport :', transp['transp'].where(transp['transp']>0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
-                print(' (-) transport :', transp['transp'].where(transp['transp']<0).sum(dim=('npts','nz1'), skipna=True).data,' [Sv]')
+                print(' --------> Name:', transp[vnameFLX].attrs['transect_name'])
+                if 'time' in data.dims:
+                    print(' mean neto transport:', '{:6.4f} / {:s}'.format(transp[vnameFLX].sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                    print(' mean (+) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                    print(' mean (-) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                else:
+                    print(' neto transport:', '{:6.4f} / {:s}'.format(transp[vnameFLX].sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
+                    print(' (+) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
+                    print(' (-) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
                 print('')
     #___________________________________________________________________________
-    #if do_info: print('        elapsed time: {:3.2f}min.'.format((clock.time()-t1)/60.0))
     return(transp)
-
 
 
 #
