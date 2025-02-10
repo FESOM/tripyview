@@ -35,6 +35,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     #___________________________________________________________________________
     # assemble total strings
     str_all1 = f"{params_vname['tripyrun_name']}_{params_vname['tripyrun_analysis']}{str_vname1}"
+    str_all2 = ''
     if exec_template in ['hslice', 'hslice_clim', 'hquiver']:
         str_all1 = f"{str_all1}{str_proj1}{str_dep1}{str_mon1}"
         str_all2 = f"{str_vname2}{str_proj2}{str_dep2}{str_mon2}"
@@ -66,7 +67,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
             str_all1 = f"{str_all1}"
             str_all2 = f"{str_vname2}"
         
-    elif exec_template in ['transect', 'transect_clim', 'transect_transp', 'transect_transp_t']:
+    elif exec_template in ['transect', 'transect_clim', 'transect_transp', 'transect_transp_t', 'transect_hflx', 'transect_hflx_t']:
         str_tra1, str_tra2 = '', ''
         if 'input_transect' in params_vname: 
             auxtra = params_vname['input_transect'][0][2].replace(' ','_').replace(',','').replace('°','')
@@ -956,7 +957,10 @@ def drive_transect_clim(yaml_settings, analysis_name, webpage=dict(), image_coun
 #
 #
 #_______________________________________________________________________________
-def drive_transect_transp(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_Xtransp(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    # analysis_name: 
+    #  -'transect_transp_t'
+    #  -'transect_hflx_t'
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -974,7 +978,7 @@ def drive_transect_transp(yaml_settings, analysis_name, webpage=dict(), image_co
     #___________________________________________________________________________
     # make loop over transects
     webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
-                                               source_loop="transects", source_single='transect', exec_template='transect_transp')
+                                               source_loop="transects", source_single='transect', exec_template=analysis_name)
     return webpage
 
 
@@ -982,7 +986,10 @@ def drive_transect_transp(yaml_settings, analysis_name, webpage=dict(), image_co
 #
 #
 #_______________________________________________________________________________
-def drive_transect_transp_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_Xtransp_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    # analysis_name: 
+    #  -'transect_transp_t'
+    #  -'transect_hflx_t'
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1000,7 +1007,7 @@ def drive_transect_transp_t(yaml_settings, analysis_name, webpage=dict(), image_
     #___________________________________________________________________________
     # make loop over transects
     webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
-                                               source_loop="transects", source_single='transect', exec_template='transect_transp_t')
+                                               source_loop="transects", source_single='transect', exec_template=analysis_name)
     return webpage
 
 
