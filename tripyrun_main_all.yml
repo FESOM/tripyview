@@ -1,7 +1,13 @@
 #___1lvl Parameter___
 tripyrun_name: "tripyrun_all_analysis"
+# If do_parallel=True us dask client to allocate several worker, and process in parallel
+do_parallel: False
+#parallel_tnprc: 128    # total number of available CPUs
+#parallel_nprc: 72      # number of allocated dask workers
+#parallel_tmem: 200     # total availabel RAM on compute node
+
 do_papermill: True
-do_parallel: True
+
 input_paths:
     - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/5/
     - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_nycander_bin_ck0.1/5/
@@ -316,6 +322,7 @@ transect_transp:
         #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
         #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
         #- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
+    vname: 'vec+u+v'    
     plt_contb: False
     cstr: 'blue2red'
 
@@ -327,8 +334,38 @@ transect_transp_t:
         - [[ -66,  -66],[-67,-55], 'Drake Passage']
         #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
     year: [1958, 2019]
+    vname: 'vec+u+v'    
     do_allcycl: False
     do_concat: False
+
+#______________________________________________________________________________
+# plot vertical section of heatflux through transect
+transect_hflx:
+    #___2lvl Parameter___
+    transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        #- [[ -30,  -30],[-80, 90], '30°W, 80°S-90°N']
+        #- [[-170, -170],[-80, 90], '170°W, 80°S-90°N']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4], 'OSNAP-West']
+        #- [[-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP-East']
+    vname: 'vec+u+v'    
+    vnamet: 'temp'
+    plt_contb: False
+    cstr: 'blue2red'
+
+#______________________________________________________________________________
+# plot time series of heatflux through transect        
+transect_hflx_t:
+    #___2lvl Parameter___
+    transects:
+        - [[ -66,  -66],[-67,-55], 'Drake Passage']
+        #- [[-56.5,-52.1,-49.8,-49.5,-49.0,-47.6,-45.7,-44.0,-42.8,-37.8,-35.2,-30.6,-27.9,-21.0,-12.3,-9.2,-4.0], [ 51.0, 52.7, 53.6, 55.0, 56.5, 59.0, 59.8, 60.4, 60.0, 59.6, 59.2, 58.9, 58.0, 58.0, 57.5,57.0,57.0], 'OSNAP']
+    vname: 'vec+u+v'    
+    vnamet: 'temp'
+    year: [1958, 2019]
+    do_allcycl: False
+    do_concat: False    
     
 #_______________________________________________________________________________ 
 # plot zonally averaged section 

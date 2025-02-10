@@ -956,7 +956,10 @@ def drive_transect_clim(yaml_settings, analysis_name, webpage=dict(), image_coun
 #
 #
 #_______________________________________________________________________________
-def drive_transect_transp(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_Xtransp(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    # analysis_name: 
+    #  -'transect_transp_t'
+    #  -'transect_hflx_t'
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -974,7 +977,7 @@ def drive_transect_transp(yaml_settings, analysis_name, webpage=dict(), image_co
     #___________________________________________________________________________
     # make loop over transects
     webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
-                                               source_loop="transects", source_single='transect', exec_template='transect_transp')
+                                               source_loop="transects", source_single='transect', exec_template=analysis_name)
     return webpage
 
 
@@ -982,7 +985,10 @@ def drive_transect_transp(yaml_settings, analysis_name, webpage=dict(), image_co
 #
 #
 #_______________________________________________________________________________
-def drive_transect_transp_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_Xtransp_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    # analysis_name: 
+    #  -'transect_transp_t'
+    #  -'transect_hflx_t'
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1000,7 +1006,7 @@ def drive_transect_transp_t(yaml_settings, analysis_name, webpage=dict(), image_
     #___________________________________________________________________________
     # make loop over transects
     webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='input_transect', 
-                                               source_loop="transects", source_single='transect', exec_template='transect_transp_t')
+                                               source_loop="transects", source_single='transect', exec_template=analysis_name)
     return webpage
 
 
