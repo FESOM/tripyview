@@ -130,6 +130,17 @@ def do_analyse_transects(input_transect     ,
             raise ValueError('--> trasect definition must be: [ [lon], [lat], transect-name, inverse_flowdir(optional) ] ')
         
         #_______________________________________________________________________
+        # fix orientation of section 
+        auxx, auxy = transec_lon[-1]-transec_lon[0], transec_lat[-1]-transec_lat[0]
+        auxn       = np.sqrt(auxx**2+auxy**2)
+        auxx, auxy = auxx/auxn, auxy/auxn
+        alpha      = np.arctan2(auxy,auxx)*180/np.pi
+        if alpha>=-180 and alpha<=-90:
+            transec_lon = np.flip(transec_lon)
+            transec_lat = np.flip(transec_lat)
+        del(auxx, auxy, auxn, alpha)
+        
+        #_______________________________________________________________________
         # allocate dictionary for total cross-section 
         sub_transect = _do_init_transect()
         sub_transect['Name'] = transec_name
@@ -567,8 +578,15 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     
     # !!! Make sure positive Transport is defined S-->N and W-->E
     # --> Preliminary --> not 100% sure its universal
-    rad = np.pi/180
-    if (-alpha/rad>=-180 and -alpha/rad<=-90 ) or (-alpha/rad>90 and -alpha/rad<=180 ):
+    #rad = np.pi/180
+    #if (-alpha/rad>=-180 and -alpha/rad<=-90 ) or (-alpha/rad>90 and -alpha/rad<=180 ):
+    
+    # make sure the normal direction of section is fixed from:
+    # NW --> SE
+    #  W --> E
+    # SW --> NE´
+    #  S --> N 
+    if transect['n_vec'][-1][0]<0 or transect['n_vec'][-1][1]<0:
         transect['path_dx'][-1] = -transect['path_dx'][-1]
         transect['path_dy'][-1] = -transect['path_dy'][-1]
         
