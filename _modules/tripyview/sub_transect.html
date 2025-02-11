@@ -169,6 +169,17 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;--&gt; trasect definition must be: [ [lon], [lat], transect-name, inverse_flowdir(optional) ] &#39;</span><span class="p">)</span>
         
         <span class="c1">#_______________________________________________________________________</span>
+        <span class="c1"># fix orientation of section </span>
+        <span class="n">auxx</span><span class="p">,</span> <span class="n">auxy</span> <span class="o">=</span> <span class="n">transec_lon</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">transec_lon</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">transec_lat</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">transec_lat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">auxn</span>       <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">auxx</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">auxy</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">auxx</span><span class="p">,</span> <span class="n">auxy</span> <span class="o">=</span> <span class="n">auxx</span><span class="o">/</span><span class="n">auxn</span><span class="p">,</span> <span class="n">auxy</span><span class="o">/</span><span class="n">auxn</span>
+        <span class="n">alpha</span>      <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">auxy</span><span class="p">,</span><span class="n">auxx</span><span class="p">)</span><span class="o">*</span><span class="mi">180</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="k">if</span> <span class="n">alpha</span><span class="o">&gt;=-</span><span class="mi">180</span> <span class="ow">and</span> <span class="n">alpha</span><span class="o">&lt;=-</span><span class="mi">90</span><span class="p">:</span>
+            <span class="n">transec_lon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flip</span><span class="p">(</span><span class="n">transec_lon</span><span class="p">)</span>
+            <span class="n">transec_lat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flip</span><span class="p">(</span><span class="n">transec_lat</span><span class="p">)</span>
+        <span class="k">del</span><span class="p">(</span><span class="n">auxx</span><span class="p">,</span> <span class="n">auxy</span><span class="p">,</span> <span class="n">auxn</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+        
+        <span class="c1">#_______________________________________________________________________</span>
         <span class="c1"># allocate dictionary for total cross-section </span>
         <span class="n">sub_transect</span> <span class="o">=</span> <span class="n">_do_init_transect</span><span class="p">()</span>
         <span class="n">sub_transect</span><span class="p">[</span><span class="s1">&#39;Name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">transec_name</span>
@@ -607,8 +618,15 @@
     
     <span class="c1"># !!! Make sure positive Transport is defined S--&gt;N and W--&gt;E</span>
     <span class="c1"># --&gt; Preliminary --&gt; not 100% sure its universal</span>
-    <span class="n">rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span>
-    <span class="k">if</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="o">/</span><span class="n">rad</span><span class="o">&gt;=-</span><span class="mi">180</span> <span class="ow">and</span> <span class="o">-</span><span class="n">alpha</span><span class="o">/</span><span class="n">rad</span><span class="o">&lt;=-</span><span class="mi">90</span> <span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="o">/</span><span class="n">rad</span><span class="o">&gt;</span><span class="mi">90</span> <span class="ow">and</span> <span class="o">-</span><span class="n">alpha</span><span class="o">/</span><span class="n">rad</span><span class="o">&lt;=</span><span class="mi">180</span> <span class="p">):</span>
+    <span class="c1">#rad = np.pi/180</span>
+    <span class="c1">#if (-alpha/rad&gt;=-180 and -alpha/rad&lt;=-90 ) or (-alpha/rad&gt;90 and -alpha/rad&lt;=180 ):</span>
+    
+    <span class="c1"># make sure the normal direction of section is fixed from:</span>
+    <span class="c1"># NW --&gt; SE</span>
+    <span class="c1">#  W --&gt; E</span>
+    <span class="c1"># SW --&gt; NE´</span>
+    <span class="c1">#  S --&gt; N </span>
+    <span class="k">if</span> <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;n_vec&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">&lt;</span><span class="mi">0</span> <span class="ow">or</span> <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;n_vec&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">:</span>
         <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;path_dx&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;path_dx&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">transect</span><span class="p">[</span><span class="s1">&#39;path_dy&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">transect</span><span class="p">[</span><span class="s1">&#39;path_dy&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
         
