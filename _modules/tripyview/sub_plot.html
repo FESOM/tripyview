@@ -1501,6 +1501,8 @@
                 <span class="n">pltcr_opt</span>  <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># reference contour line option</span>
                 <span class="n">plt_contl</span>  <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> <span class="c1"># do contourline labels </span>
                 <span class="n">pltcl_opt</span>  <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> <span class="c1"># contour line label options</span>
+                <span class="n">do_smooth</span>  <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> <span class="c1"># apply convolution filterwarnings</span>
+                <span class="n">smooth_opt</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">9</span><span class="p">)</span>     <span class="p">,</span> <span class="c1"># smothing filter size (ndi, nx)--&gt; default (3,9)</span>
                 <span class="c1">#--- mesh -----------</span>
                 <span class="n">do_mesh</span>    <span class="o">=</span> <span class="kc">False</span>     <span class="p">,</span> 
                 <span class="n">mesh_opt</span>   <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>    <span class="p">,</span> 
@@ -1811,7 +1813,8 @@
             <span class="n">ii_valid</span><span class="o">=</span><span class="n">ii</span>
             <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># prepare regular gridded data for plotting</span>
-            <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_plot</span> <span class="o">=</span> <span class="n">do_data_prepare_vslice</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">box_idx</span><span class="p">)</span>
+            <span class="n">data_x</span><span class="p">,</span> <span class="n">data_y</span><span class="p">,</span> <span class="n">data_plot</span> <span class="o">=</span> <span class="n">do_data_prepare_vslice</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">box_idx</span><span class="p">,</span>
+                                                            <span class="n">do_smooth</span><span class="o">=</span><span class="n">do_smooth</span><span class="p">,</span> <span class="n">smooth_opt</span><span class="o">=</span><span class="n">smooth_opt</span><span class="p">)</span>
            
             <span class="c1">#___________________________________________________________________</span>
             <span class="c1"># add tripcolor or tricontourf plot </span>
@@ -4338,7 +4341,7 @@
 <span class="c1">#_______________________________________________________________________________</span>
 <div class="viewcode-block" id="do_data_prepare_vslice">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_plot.do_data_prepare_vslice">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">do_data_prepare_vslice</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">data_ii</span><span class="p">,</span> <span class="n">box_idx</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">do_data_prepare_vslice</span><span class="p">(</span><span class="n">hax_ii</span><span class="p">,</span> <span class="n">data_ii</span><span class="p">,</span> <span class="n">box_idx</span><span class="p">,</span> <span class="n">do_smooth</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">smooth_opt</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">9</span><span class="p">)):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    --&gt; prepare data for plotting, augment periodic boundaries, interpolate from elements</span>
 <span class="sd">        to nodes, kick out nan values from plotting </span>
@@ -4396,7 +4399,23 @@
                 <span class="n">data_x</span> <span class="o">=</span> <span class="n">data_x</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span> <span class="o">+</span> <span class="p">(</span><span class="n">data_x</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">dayofyear</span><span class="o">-</span><span class="n">data_x</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">day</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="n">totdayperyear</span>
                 <span class="n">data_plot</span> <span class="o">=</span> <span class="n">data_plot</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
                 <span class="k">del</span><span class="p">(</span><span class="n">totdayperyear</span><span class="p">)</span>
-             
+                
+        <span class="c1">#_______________________________________________________________________</span>
+        <span class="k">if</span> <span class="n">do_smooth</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.ndimage</span><span class="w"> </span><span class="kn">import</span> <span class="n">convolve</span>
+            <span class="n">filt</span> <span class="o">=</span> <span class="n">filt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">smooth_opt</span><span class="p">)</span>
+            <span class="n">filt</span> <span class="o">=</span> <span class="n">filt</span><span class="o">/</span><span class="nb">sum</span><span class="p">(</span><span class="n">filt</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
+            <span class="n">nan_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data_plot</span><span class="p">)</span>
+            <span class="n">data_plot</span><span class="p">[</span><span class="n">nan_mask</span><span class="p">]</span><span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># Perform convolution on normal array</span>
+            <span class="n">data_smth</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">data_plot</span><span class="p">,</span> <span class="n">filt</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">cval</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># Convolve the NaN mask to count valid elements in each window</span>
+            <span class="n">valid_counts</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="o">~</span><span class="n">nan_mask</span><span class="p">),</span> <span class="n">filt</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">cval</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>  <span class="c1"># Avoid division warnings</span>
+                <span class="n">data_plot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">valid_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">data_smth</span> <span class="o">/</span> <span class="n">valid_counts</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>  
+            <span class="k">del</span><span class="p">(</span><span class="n">data_smth</span><span class="p">,</span> <span class="n">valid_counts</span><span class="p">)</span>    
+            
+        
     <span class="c1"># data is a direct vertical profile and not a list of index profiles e,g MOC         </span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">vname</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">data_ii</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
