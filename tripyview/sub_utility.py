@@ -1785,7 +1785,7 @@ class select_polygon_basin(object):
         # press e key --> exit and disconnect interactive selection
         elif self.bk=='e'    : self._disconnect_()
         
-        # press right key --> move right
+        # press w key --> save polygon
         elif self.bk=='w'    : self._savepolygon_()    
         
         # press + key --> zoom in 
