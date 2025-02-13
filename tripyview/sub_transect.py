@@ -108,7 +108,8 @@ def do_analyse_transects(input_transect     ,
         # arrays to define transport path
         transect['path_xy'      ] = [] # lon/lat coordinates, edge midpoints --> elem centroid --> edge mid points ...
         transect['path_ei'      ] = [] # elem indices
-        transect['path_ni'      ] = [] # node indices of elems 
+        transect['path_ni'      ] = [] # node indices of elems
+        transect['path_cut_ni'  ] = [] # node indices of edges  
         transect['path_dx'      ] = [] # dx of path sections
         transect['path_dy'      ] = [] # dy of path sections
         transect['path_dist'    ] = [] # dy of path sections
@@ -130,20 +131,28 @@ def do_analyse_transects(input_transect     ,
             raise ValueError('--> trasect definition must be: [ [lon], [lat], transect-name, inverse_flowdir(optional) ] ')
         
         #_______________________________________________________________________
+        # allocate dictionary for total cross-section 
+        sub_transect = _do_init_transect()
+        sub_transect['Name'] = transec_name
+        
+        #_______________________________________________________________________
         # fix orientation of section 
         auxx, auxy = transec_lon[-1]-transec_lon[0], transec_lat[-1]-transec_lat[0]
         auxn       = np.sqrt(auxx**2+auxy**2)
         auxx, auxy = auxx/auxn, auxy/auxn
+        sub_transect['e_vec_tot'    ] = [ auxx, auxy]
+        sub_transect['n_vec_tot'    ] = [-auxy, auxx]
+        
         alpha      = np.arctan2(auxy,auxx)*180/np.pi
+        sub_transect['alpha_tot'    ] = alpha
         if alpha>=-180 and alpha<=-90:
             transec_lon = np.flip(transec_lon)
             transec_lat = np.flip(transec_lat)
+            sub_transect['e_vec_tot'] = -sub_transect['e_vec_tot']
+            sub_transect['n_vec_tot'] = -sub_transect['n_vec_tot']
         del(auxx, auxy, auxn, alpha)
         
         #_______________________________________________________________________
-        # allocate dictionary for total cross-section 
-        sub_transect = _do_init_transect()
-        sub_transect['Name'] = transec_name
         sub_transect['lon']  = transec_lon
         sub_transect['lat']  = transec_lat
         sub_transect['ncs']  = len(transec_lon)-1
@@ -185,7 +194,8 @@ def do_analyse_transects(input_transect     ,
             
             #___________________________________________________________________
             # compute which edges are intersected by cross-section line 
-            sub_transect = _do_find_intersected_edges(mesh, sub_transect, edge, idx_edlimit)
+            #sub_transect = _do_find_intersected_edges(mesh, sub_transect, edge, idx_edlimit)
+            sub_transect = _do_find_intersected_edges_fast(mesh, sub_transect, edge, idx_edlimit)
             
             #___________________________________________________________________
             # sort intersected edges after distance from cross-section start point
@@ -232,6 +242,7 @@ def do_analyse_transects(input_transect     ,
             print('edge_cut_ni   =', transect['edge_cut_ni'  ].shape)
             print('path_ei       =', transect['path_ei'      ].shape)
             print('path_ni       =', transect['path_ni'      ].shape)
+            print('path_cut_ni   =', transect['path_cut_ni'  ].shape)
             print('path_dx       =', transect['path_dx'      ].shape)
             print('path_dy       =', transect['path_dy'      ].shape)
             print('path_nvec_cs  =', transect['path_nvec_cs' ].shape)
@@ -267,6 +278,9 @@ def _do_init_transect():
     transect['e_norm'       ] = []
     transect['n_vec'        ] = []
     transect['alpha'        ] = []
+    transect['e_vec_tot'    ] = []
+    transect['n_vec_tot'    ] = []
+    transect['alpha_tot'    ] = []
     
     #___________________________________________________________________________
     # arrays that define the intersection between cross-section and edges
@@ -282,7 +296,8 @@ def _do_init_transect():
     # arrays to define transport path
     transect['path_xy'      ] = [] # lon/lat coordinates, edge midpoints --> elem centroid --> edge mid points ...
     transect['path_ei'      ] = [] # elem indices
-    transect['path_ni'      ] = [] # node indices of elems 
+    transect['path_ni'      ] = [] # node indices of elems
+    transect['path_cut_ni'  ] = [] # node indices of elems 
     transect['path_dx'      ] = [] # dx of path sections
     transect['path_dy'      ] = [] # dy of path sections
     transect['path_dist'    ] = [] # dy of path sections
@@ -311,6 +326,7 @@ def _do_concat_subtransects(sub_transect):
     transect['path_xy'      ] = sub_transect['path_xy'      ][0]
     transect['path_ei'      ] = sub_transect['path_ei'      ][0]
     transect['path_ni'      ] = sub_transect['path_ni'      ][0]
+    transect['path_cut_ni'  ] = sub_transect['path_cut_ni'  ][0]
     transect['path_dx'      ] = sub_transect['path_dx'      ][0]
     transect['path_dy'      ] = sub_transect['path_dy'      ][0]
     transect['path_nvec_cs' ] = sub_transect['path_nvec_cs' ][0]
@@ -326,6 +342,7 @@ def _do_concat_subtransects(sub_transect):
             transect['edge_cut_ni'  ] = np.vstack((transect['edge_cut_ni'  ], sub_transect['edge_cut_ni'  ][ii]))
             transect['path_ei'      ] = np.hstack((transect['path_ei'      ], sub_transect['path_ei'      ][ii]))
             transect['path_ni'      ] = np.vstack((transect['path_ni'      ], sub_transect['path_ni'      ][ii]))
+            transect['path_cut_ni'  ] = np.vstack((transect['path_cut_ni'  ], sub_transect['path_cut_ni'  ][ii]))
             transect['path_dx'      ] = np.hstack((transect['path_dx'      ], sub_transect['path_dx'      ][ii]))
             transect['path_dy'      ] = np.hstack((transect['path_dy'      ], sub_transect['path_dy'      ][ii]))
             transect['path_nvec_cs' ] = np.vstack((transect['path_nvec_cs' ], sub_transect['path_nvec_cs' ][ii]))
@@ -465,7 +482,70 @@ def _do_find_intersected_edges(mesh, transect, edge, idx_ed):
     
     #___________________________________________________________________________
     return(transect)    
- 
+
+def _do_find_intersected_edges_fast(mesh, transect, edge, idx_ed):
+    # Initialize lists
+    for key in ['edge_cut_i', 'edge_cut_evec', 'edge_cut_P', 'edge_cut_midP', 'edge_cut_lint', 'edge_cut_ni']:
+        transect[key].append([])
+
+    # Precompute values
+    eps     = np.finfo(np.float32).eps
+    e_vec   = transect['e_vec'][-1]
+    e_norm  = transect['e_norm'][-1]
+
+    # Compute edge vectors in one go
+    edge_x  = mesh.n_x[edge[1, idx_ed]] - mesh.n_x[edge[0, idx_ed]]
+    edge_y  = mesh.n_y[edge[1, idx_ed]] - mesh.n_y[edge[0, idx_ed]]
+    normA0  = np.sqrt(edge_x**2 + edge_y**2)
+    normA0_inv = 1 / normA0
+
+    # Normalize edge vectors
+    edge_x *= normA0_inv
+    edge_y *= normA0_inv
+
+    # Compute P for all edges
+    P_x     = transect['Px'][-1][0] - mesh.n_x[edge[0, idx_ed]]
+    P_y     = transect['Py'][-1][0] - mesh.n_y[edge[0, idx_ed]]
+
+    # Solve linear equation system
+    div     = edge_x * -e_vec[1] - edge_y * -e_vec[0]
+    # avoid division by zero div
+    div = np.where(np.abs(div) > np.finfo(np.float32).eps, div, np.nan)
+    
+    
+    X0      = (P_x * -e_vec[1] - P_y * -e_vec[0]) /  div
+    X1      = (P_x *  edge_y   - P_y *  edge_x  ) / -div
+    del(e_vec)
+
+    # Boolean mask for valid intersections
+    mask    = (~np.isnan(X0) & (X0 >= -eps) & (X0 <= normA0 + eps) &
+                               (X1 >= -eps) & (X1 <= e_norm + eps))
+
+    # Select only valid intersections
+    valid_idx    = idx_ed[mask]
+    X0_valid     = X0[mask]
+    normA0_valid = normA0[mask]
+    edge_x_valid = edge_x[mask]
+    edge_y_valid = edge_y[mask]
+    del(P_x, P_y, div, X0, X1, edge_x, edge_y, normA0, e_norm)
+
+    # Store results
+    transect['edge_cut_i'   ][-1] = valid_idx
+    transect['edge_cut_evec'][-1] = np.column_stack((edge_x_valid, edge_y_valid))
+    transect['edge_cut_P'   ][-1] = np.column_stack((
+        mesh.n_x[edge[0, valid_idx]] + edge_x_valid * X0_valid,
+        mesh.n_y[edge[0, valid_idx]] + edge_y_valid * X0_valid
+    ))
+    transect['edge_cut_midP'][-1] = np.column_stack((
+        mesh.n_x[edge[0, valid_idx]] + edge_x_valid * normA0_valid / 2.0,
+        mesh.n_y[edge[0, valid_idx]] + edge_y_valid * normA0_valid / 2.0
+    ))
+    transect['edge_cut_lint'][-1] = X0_valid / normA0_valid
+    transect['edge_cut_ni'  ][-1] = edge[:, valid_idx].T
+    
+    #___________________________________________________________________________
+    return transect
+
 
 
 #
@@ -504,6 +584,7 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     path_ni = list()
     path_dx = list()
     path_dy = list()
+    path_cut_ni = list()
     
     #_______________________________________________________________________
     # compute angle bearing of cross-section line: 
@@ -551,17 +632,17 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
         #_______________________________________________________________________
         # add upsection element to path if it exist --> path_xy coodinate points 
         # for the element always come from downsection triangle 
-        path_xy, path_ei, path_ni, path_dx, path_dy = __add_upsection_elem2path(mesh, transect, edi, nced, theta, 
+        path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni = __add_upsection_elem2path(mesh, transect, edi, nced, theta, 
                                                   edge_elem, edge_dxdy_l, edge_dxdy_r,
-                                                  path_xy, path_ei, path_ni, path_dx, path_dy)
+                                                  path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni)
         
         # add edge mid point of cutted edge
         path_xy.append(transect['edge_cut_midP'][-1][edi])
         
         # add downsection element to path if it exist
-        path_xy, path_ei, path_ni, path_dx, path_dy = __add_downsection_elem2path(mesh, transect, edi, nced, theta, 
+        path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni = __add_downsection_elem2path(mesh, transect, edi, nced, theta, 
                                                   edge_elem, edge_dxdy_l, edge_dxdy_r,
-                                                  path_xy, path_ei, path_ni, path_dx, path_dy)
+                                                  path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni)
         
     #___________________________________________________________________________    
     # reformulate from list --> np.array
@@ -570,6 +651,7 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     transect['path_ni'].append(np.asarray(path_ni))
     transect['path_dx'].append(np.asarray(path_dx))
     transect['path_dy'].append(np.asarray(path_dy))
+    transect['path_cut_ni'].append(np.asarray(path_cut_ni))
     
     aux = np.ones((transect['path_dx'][-1].size,2))
     aux[:,0], aux[:,1] = transect['n_vec'][-1][0], transect['n_vec'][-1][1]
@@ -586,7 +668,8 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     #  W --> E
     # SW --> NE´
     #  S --> N 
-    if transect['n_vec'][-1][0]<0 or transect['n_vec'][-1][1]<0:
+    #if transect['n_vec'][-1][0]<0 or transect['n_vec'][-1][1]<0:
+    if transect['n_vec_tot'][0]<0 or transect['n_vec_tot'][1]<0:
         transect['path_dx'][-1] = -transect['path_dx'][-1]
         transect['path_dy'][-1] = -transect['path_dy'][-1]
         
@@ -599,7 +682,7 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
 #
 #_______________________________________________________________________________
 def __add_downsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_dxdy_l, edge_dxdy_r,
-                                path_xy, path_ei, path_ni, path_dx, path_dy):
+                                path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni):
     
     #___________________________________________________________________________
     # if theta>0 edge shows to the left
@@ -625,6 +708,10 @@ def __add_downsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edg
             path_ni.append(mesh.e_i[edge_elem[1], :])
             path_dx.append(edge_dxdy_r[0, transect['edge_cut_i'][-1][edi]])
             path_dy.append(edge_dxdy_r[1, transect['edge_cut_i'][-1][edi]])
+            
+            # needed to interpolate temperature to edge mid point for heat flux 
+            # computation
+            path_cut_ni.append(transect['edge_cut_ni'][-1][edi,:])
         
         # edge is boundary edge right triangle does not exist--> put dummy values
         # instead of centroid position (transect['edge_cut_midP'][-1][edi])  
@@ -635,6 +722,10 @@ def __add_downsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edg
             path_ni.append(np.array([-1, -1, -1])) #--> -1 is here dummy index
             path_dx.append(np.nan)
             path_dy.append(np.nan)
+            
+            # needed to interpolate temperature to edge mid point for heat flux 
+            # computation
+            path_cut_ni.append(np.array([-1, -1]))
     
     #___________________________________________________________________________
     # if theta<0 edge shows to the right
@@ -659,15 +750,17 @@ def __add_downsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edg
         path_dx.append(edge_dxdy_l[0, transect['edge_cut_i'][-1][edi]])
         path_dy.append(edge_dxdy_l[1, transect['edge_cut_i'][-1][edi]])
         
-        
+        # needed to interpolate temperature to edge mid point for heat flux 
+        # computation
+        path_cut_ni.append(transect['edge_cut_ni'][-1][edi,:])
         
     #___________________________________________________________________________
-    return(path_xy, path_ei, path_ni, path_dx, path_dy)
+    return(path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni)
 #
 #
 #_______________________________________________________________________________
 def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_dxdy_l, edge_dxdy_r,
-                            path_xy, path_ei, path_ni, path_dx, path_dy):
+                            path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni):
     #___________________________________________________________________________
     # if theta>0 edge shows to the left
     #                          ^ Section
@@ -695,6 +788,10 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
         # directed to the transect direction --> upsection
         path_dx.append(-edge_dxdy_l[0, transect['edge_cut_i'][-1][edi]])
         path_dy.append(-edge_dxdy_l[1, transect['edge_cut_i'][-1][edi]])
+        
+        # needed to interpolate temperature to edge mid point for heat flux 
+        # computation
+        path_cut_ni.append(transect['edge_cut_ni'][-1][edi,:])
         
     #___________________________________________________________________________
     # if theta<0 edge shows to the right
@@ -725,6 +822,10 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
             path_dx.append(-edge_dxdy_r[0, transect['edge_cut_i'][-1][edi]])
             path_dy.append(-edge_dxdy_r[1, transect['edge_cut_i'][-1][edi]])
             
+            # needed to interpolate temperature to edge mid point for heat flux 
+            # computation
+            path_cut_ni.append(transect['edge_cut_ni'][-1][edi,:])
+            
         # edge is boundary edge right triangle does not exist--> put dummy values
         # instead of centroid position (transect['edge_cut_midP'][-1][edi])  
         else:
@@ -738,12 +839,17 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
             path_dx.append(np.nan)
             path_dy.append(np.nan)
             
+            # needed to interpolate temperature to edge mid point for heat flux 
+            # computation
+            path_cut_ni.append(np.array([-1, -1]))
+            
             if edi!=0 and edi!=nced-1:
                 # in case of a single transect
                 path_ei.append(-1)                     
                 path_ni.append(np.array([-1, -1, -1])) 
                 path_dx.append(np.nan)
                 path_dy.append(np.nan)
+                path_cut_ni.append(np.array([-1, -1]))
             elif transect['ncsi'][-1]!=0 and edi==0:        
                 # in case of transect consist of subtransects
                 path_xy.append(transect['edge_cut_midP'][-1][edi])  #(***)
@@ -751,6 +857,7 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
                 path_ni.append(np.array([-1, -1, -1])) 
                 path_dx.append(np.nan)
                 path_dy.append(np.nan)
+                path_cut_ni.append(np.array([-1, -1]))
             elif transect['ncsi'][-1]!=transect['ncs'] and edi==nced-1:   
                 # in case of transect consist of subtransects
                 path_xy.append(transect['edge_cut_midP'][-1][edi])  #(***)
@@ -758,9 +865,10 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
                 path_ni.append(np.array([-1, -1, -1])) 
                 path_dx.append(np.nan)
                 path_dy.append(np.nan)
+                path_cut_ni.append(np.array([-1, -1]))
                 
     #___________________________________________________________________________
-    return(path_xy, path_ei, path_ni, path_dx, path_dy)
+    return(path_xy, path_ei, path_ni, path_dx, path_dy, path_cut_ni)
 
 
 
@@ -920,7 +1028,7 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
                           "    between the transport based on u+v or unod+vnod. Although the variability \n"+
                           "    seems to be unaffected. So if you have the data try to compute the \n"+
                           "    transport based on velocities on elements. \n")
-            data_uv = data.isel(nod2=xr.DataArray(transect['edge_cut_ni'], dims=['nod2', 'n2'])).load()
+            data_uv = data.isel(nod2=xr.DataArray(transect['path_cut_ni'], dims=['nod2', 'n2'])).load()
             
         else:
             raise ValueError("--> Could not find proper dimension in uv velocity data")
@@ -932,7 +1040,7 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
         # select only necessary elements from temp data
         var_X = None
         if dataX is not None:
-            var_X = dataX.isel(nod2=xr.DataArray(transect['edge_cut_ni'], dims=['nod2', 'n2'])).load()
+            var_X = dataX.isel(nod2=xr.DataArray(transect['path_cut_ni'], dims=['nod2', 'n2'])).load()
             var_X = var_X[vnameX].values
         
         #_______________________________________________________________________
@@ -955,7 +1063,7 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
             
             #___________________________________________________________________        
             elif 'nod2' in data.dims:
-                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
                     vel_u[:, ii, 0, mesh.n_iz[ni0]:], vel_v[:, ii, 0, mesh.n_iz[ni0]:] = np.nan, np.nan
                     vel_u[:, ii, 1, mesh.n_iz[ni1]:], vel_v[:, ii, 0, mesh.n_iz[ni1]:] = np.nan, np.nan
                     
@@ -966,15 +1074,15 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
                 if do_rot:
                     for nti in range(data.sizes['time']):
                         vel_u[nti,:,:], vel_v[nti,:,:] = vec_r2g(mesh.abg, 
-                                            mesh.n_x[transect['edge_cut_ni']].sum(axis=1)*0.5, 
-                                            mesh.n_y[transect['edge_cut_ni']].sum(axis=1)*0.5,
+                                            mesh.n_x[transect['path_cut_ni']].sum(axis=1)*0.5, 
+                                            mesh.n_y[transect['path_cut_ni']].sum(axis=1)*0.5,
                                             vel_u[nti,:,:], vel_v[nti,:,:])
             
             #___________________________________________________________________        
             if dataX is not None:
                 # Here i introduce the vertical topography, we replace the zeros that
                 # describe the topography with nan's
-                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
                     var_X[:, ii, 0, mesh.n_iz[ni0]:] = np.nan
                     var_X[:, ii, 1, mesh.n_iz[ni1]:] = np.nan
             
@@ -998,7 +1106,7 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
                 
             #___________________________________________________________________        
             elif 'nod2' in data.dims:
-                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
                     vel_u[ii, 0, mesh.n_iz[ni0]:], vel_v[ii, 0, mesh.n_iz[ni0]:] = np.nan, np.nan
                     vel_u[ii, 1, mesh.n_iz[ni1]:], vel_v[ii, 0, mesh.n_iz[ni1]:] = np.nan, np.nan
                     
@@ -1008,15 +1116,15 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
                 # here rotate the velocities from roted frame to geo frame 
                 if do_rot:
                     vel_u, vel_v = vec_r2g(mesh.abg, 
-                                        mesh.n_x[transect['edge_cut_ni']].sum(axis=1)*0.5, 
-                                        mesh.n_y[transect['edge_cut_ni']].sum(axis=1)*0.5,
+                                        mesh.n_x[transect['path_cut_ni']].sum(axis=1)*0.5, 
+                                        mesh.n_y[transect['path_cut_ni']].sum(axis=1)*0.5,
                                         vel_u, vel_v)
             
             #___________________________________________________________________        
             if dataX is not None:
                 # Here i introduce the vertical topography, we replace the zeros that
                 # describe the topography with nan's
-                for ii, (ni0, ni1) in enumerate(transect['edge_cut_ni']):
+                for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
                     var_X[ii, 0, mesh.n_iz[ni0]:] = np.nan
                     var_X[ii, 1, mesh.n_iz[ni1]:] = np.nan
                     
@@ -1049,19 +1157,26 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
             # use edge centered averaged velocities, thats why this velocity needs 
             # to be dublicated with np.repeat along the horizontal dimension
             if 'time' in list(data.dims):
-                vel_u, vel_v = np.repeat(vel_u, 2, axis=1), np.repeat(vel_v, 2, axis=1)
+                #vel_u, vel_v = np.repeat(vel_u, 2, axis=1), np.repeat(vel_v, 2, axis=1)
                 aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))
             else:    
-                vel_u, vel_v = np.repeat(vel_u, 2, axis=0), np.repeat(vel_v, 2, axis=0)
+                #vel_u, vel_v = np.repeat(vel_u, 2, axis=0), np.repeat(vel_v, 2, axis=0)
                 aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
+        
+        #aux_transp = vel_u.T*(-dy)
+        #aux_transp = vel_v.T*( abs(dx))      
+        #aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
+        #aux_transp = -(vel_u.T*abs(dy) + vel_v.T*abs(dx))
         
         #_______________________________________________________________________
         # multiply transp_uv with temp 
         if dataX is not None:
             if 'time' in list(data.dims):
-                aux_transp = aux_transp * (np.repeat(var_X, 2, axis=1).transpose((0,2,1)) - data_Xref)
+                #aux_transp = aux_transp * (np.repeat(var_X, 2, axis=1).transpose((0,2,1)) - data_Xref)
+                aux_transp = aux_transp * (var_X.transpose((0,2,1)) - data_Xref)
             else:
-                aux_transp = aux_transp * (np.repeat(var_X, 2, axis=0).T - data_Xref)
+                #aux_transp = aux_transp * (np.repeat(var_X, 2, axis=0).T - data_Xref)
+                aux_transp = aux_transp * (var_X.T - data_Xref)
             
         #_______________________________________________________________________
         data_vars = dict()
