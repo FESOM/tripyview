@@ -1163,6 +1163,11 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
                 #vel_u, vel_v = np.repeat(vel_u, 2, axis=0), np.repeat(vel_v, 2, axis=0)
                 aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
         
+        #aux_transp = vel_u.T*(-dy)
+        #aux_transp = vel_v.T*( abs(dx))      
+        #aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
+        #aux_transp = -(vel_u.T*abs(dy) + vel_v.T*abs(dx))
+        
         #_______________________________________________________________________
         # multiply transp_uv with temp 
         if dataX is not None:

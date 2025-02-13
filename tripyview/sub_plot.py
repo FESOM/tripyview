@@ -1453,6 +1453,8 @@ def plot_vslice(mesh                   ,
                 pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
+                do_smooth  = False     , # apply convolution filterwarnings
+                smooth_opt = (3,9)     , # smothing filter size (ndi, nx)--> default (3,9)
                 #--- mesh -----------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    , 
@@ -1763,7 +1765,8 @@ def plot_vslice(mesh                   ,
             ii_valid=ii
             #___________________________________________________________________
             # prepare regular gridded data for plotting
-            data_x, data_y, data_plot = do_data_prepare_vslice(hax_ii, data[ii], box_idx)
+            data_x, data_y, data_plot = do_data_prepare_vslice(hax_ii, data[ii], box_idx,
+                                                            do_smooth=do_smooth, smooth_opt=smooth_opt)
            
             #___________________________________________________________________
             # add tripcolor or tricontourf plot 
@@ -4260,7 +4263,7 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
 #
 #
 #_______________________________________________________________________________
-def do_data_prepare_vslice(hax_ii, data_ii, box_idx):
+def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt=(3,9)):
     """
     --> prepare data for plotting, augment periodic boundaries, interpolate from elements
         to nodes, kick out nan values from plotting 
@@ -4318,7 +4321,23 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx):
                 data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear
                 data_plot = data_plot.transpose()
                 del(totdayperyear)
-             
+                
+        #_______________________________________________________________________
+        if do_smooth:
+            from scipy.ndimage import convolve
+            filt = filt = np.ones(smooth_opt)
+            filt = filt/sum(filt.flatten())
+            nan_mask = np.isnan(data_plot)
+            data_plot[nan_mask]= 0
+            # Perform convolution on normal array
+            data_smth = convolve(data_plot, filt, mode='constant', cval=0)
+            # Convolve the NaN mask to count valid elements in each window
+            valid_counts = convolve(np.float32(~nan_mask), filt, mode='constant', cval=0)
+            with np.errstate(divide='ignore', invalid='ignore'):  # Avoid division warnings
+                data_plot = np.where(valid_counts > 0, data_smth / valid_counts, np.nan)  
+            del(data_smth, valid_counts)    
+            
+        
     # data is a direct vertical profile and not a list of index profiles e,g MOC         
     else:
         vname = list(data_ii.data_vars)[0]
