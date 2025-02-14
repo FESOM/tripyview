@@ -2003,5 +2003,6 @@ class select_polygon_basin(object):
         if isinstance(self.auxpolygon, Polygon): 
             self.polygon.append(self.auxpolygon)
             self.auxpolygon = []
+            self.poly_x, self.poly_y = [], []
             self.hitxt.set_text('[ w ]')
             
