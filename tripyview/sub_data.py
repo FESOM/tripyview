@@ -32,7 +32,7 @@ def load_data_fesom2(mesh,
                      do_hweight     = True      ,
                      do_nan         = True      ,
                      do_ie2n        = True      ,
-                     do_vecrot      = True      ,
+                     do_rot         = True      ,
                      do_filename    = False     ,
                      do_file        = 'run'     ,
                      descript       = ''        ,
@@ -100,7 +100,7 @@ def load_data_fesom2(mesh,
         :do_ie2n:       bool (default=True), if data are on elements automatically 
                         interpolates them to vertices --> easier to plot 
         
-        :do_vecrot:     bool (default=True), if vector data are loaded e.g. 
+        :do_rot:        bool (default=True), if vector data are loaded e.g. 
                         vname='vec+u+v' rotates the from rotated frame (in which 
                         they are stored) to geo coordinates
         
@@ -301,6 +301,7 @@ def load_data_fesom2(mesh,
     if '~/' in datapath: datapath = os.path.abspath(os.path.expanduser(datapath))
     pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
     
+    # if pathlist is empty jump out of the routine and return none 
     if len(pathlist)==0: 
         data = None
         return data
@@ -361,6 +362,9 @@ def load_data_fesom2(mesh,
         # remove variables that are not needed
         #data = data.drop(labels=vname_drop)
         data = data.drop_vars(vname_drop)
+    
+    #___________________________________________________________________________    
+    if do_parallel and do_info: display(data)
     
     #___________________________________________________________________________    
     # This is for icepack data over thickness classes make class selection always 
@@ -541,8 +545,8 @@ def load_data_fesom2(mesh,
         depth=None
     
     #___________________________________________________________________________
-    # rotate the vectors if do_vecrot=True and do_vec=True
-    data = do_vector_rotation(data, mesh, do_vec, do_vecrot, do_sclrv)
+    # rotate the vectors if do_rot=True and do_vec=True
+    data = do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv)
     
     #___________________________________________________________________________
     # compute norm of the vectors if do_norm=True    
@@ -844,6 +848,10 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         data = data.assign_coords(lon  = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3.0, dims=dimh).chunk(set_chunk))
         data = data.assign_coords(lat  = xr.DataArray(mesh.n_y[mesh.e_i].sum(axis=1)/3.0, dims=dimh).chunk(set_chunk))
         data = data.assign_coords(elemi= xr.DataArray(np.arange(0,mesh.n2de)            , dims=dimh).astype('int32').chunk(set_chunk))
+        
+        aux_pbnd = np.zeros(mesh.n2de, dtype=bool); aux_pbnd[mesh.e_pbnd_1]=True
+        data = data.assign_coords(elem_pbnd= xr.DataArray(aux_pbnd, dims=dimh).astype('bool').chunk(set_chunk))
+        del(aux_pbnd)
         if   dimv in ['nz1']: 
             data = data.assign_coords(elemiz= xr.DataArray(mesh.e_iz-1                  , dims=dimh).astype('uint8').chunk(set_chunk))
         elif dimv in ['nz']: 
@@ -1467,7 +1475,7 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
 #
 #
 # ___COMPUTE GRID ROTATION OF VECTOR DATA______________________________________
-def do_vector_rotation(data, mesh, do_vec, do_vecrot, do_sclrv):
+def do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv):
     """
     --> compute roration of vector: vname='vec+u+v'
     
@@ -1479,7 +1487,7 @@ def do_vector_rotation(data, mesh, do_vec, do_vecrot, do_sclrv):
         
         :do_vec:        bool, should data be considered as vectors
         
-        :do_vecrot:     bool, should rotation be applied
+        :do_rot:     bool, should rotation be applied
     
     Returns:
     
@@ -1487,7 +1495,7 @@ def do_vector_rotation(data, mesh, do_vec, do_vecrot, do_sclrv):
         
     ____________________________________________________________________________
     """
-    if do_vec and do_vecrot:
+    if do_vec and do_rot:
         # which varaibles are in data, must be two to compute vector rotation
         vname = list(data.keys())
         
