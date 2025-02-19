@@ -93,7 +93,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                 data[vname_temp].attrs['long_name'] = 'Temperature'
                 data = data.drop_vars(vname_drop)
                 data = data.rename({vname_temp:vname})
-                print(vname_drop)
+                
             elif vname in ['salt', 'sss']:
                 vname_drop.remove('salt')
                 data[vname_salt].attrs['units'] = 'psu'
