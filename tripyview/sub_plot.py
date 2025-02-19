@@ -107,12 +107,15 @@ def plot_hslice(mesh                   ,
                 enum_str   = []        , 
                 enum_x     = [0.005]   , 
                 enum_y     = [1.00]    ,
-                enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                enum_dir   = 'lr'      ,# prescribed list of enumeration strings
                 
                 #--- save figure ----
                 do_save    = None      , 
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
+                
+                #--- chunk size------
+                chnksize    = 3e6      ,
                 
                 #--- set output -----
                 nargout    =['hfig', 'hax', 'hcb'],
@@ -316,7 +319,11 @@ def plot_hslice(mesh                   ,
         :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
 
         :save_opt:  dict, (default: dict()) direct option for saving via kwarg
-
+        
+        ___chunking___________________________________
+        
+        :chnksize:   int, (default:1e6), size of triangle plot chunks 
+        
         ___set output_________________________________
 
         :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
@@ -437,23 +444,24 @@ def plot_hslice(mesh                   ,
                 
                 #_______________________________________________________________
                 # add color for ocean bottom
-                h0 = do_plt_bot(hax_ii, do_bot, tri=tri, bot_opt=bot_opt)
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
                 hbot.append(h0)
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
-                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
+                h0 = do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
                                 plt_opt  = plt_opt,
                                 plt_contb=plt_contb, pltcb_opt=pltcb_opt,
                                 plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                 plt_contr=plt_contr, pltcr_opt=pltcr_opt,
-                                plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                                plt_contl=plt_contl, pltcl_opt=pltcl_opt, 
+                                chnksize=chnksize)
                 hp.append(h0)
                 
                 #___________________________________________________________________
                 # add grid mesh on top
-                h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
+                h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
                 hmsh.append(h0)
             
             # plot regular gridded data
@@ -501,7 +509,7 @@ def plot_hslice(mesh                   ,
             
             #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
@@ -581,6 +589,7 @@ def plot_hmesh( mesh                   ,
                 proj       = 'pc'      ,
                 do_ie2n    = False     ,
                 do_rescale = False     ,
+                
                 #--- data -----------
                 do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
@@ -592,17 +601,21 @@ def plot_hmesh( mesh                   ,
                 pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
+                
                 #--- mesh -----------
                 do_mesh    = True      , 
                 mesh_opt   = dict()    , 
+                
                 #--- landsea mask ---
                 do_lsm     = 'fesom'   , 
                 lsm_opt    = dict()    , 
                 lsm_res    = 'low'     ,
+                
                 #--- gridlines ------
                 do_grid    = True      ,
                 do_boundbox= True      , 
                 grid_opt   = dict()    ,
+                
                 #--- colorbar -------
                 cb_label   = None      ,
                 cb_lunit   = None      ,
@@ -611,9 +624,11 @@ def plot_hmesh( mesh                   ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
+                
                 #--- axes -----------
                 ax_title   = None,
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                
                 #--- enumerate axes -
                 do_enum    = False     ,
                 enum_opt   = dict()    , 
@@ -621,10 +636,14 @@ def plot_hmesh( mesh                   ,
                 enum_x     = [0.005]   , 
                 enum_y     = [1.00]    ,
                 enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                
                 #--- save figure ----
                 do_save    = None      , 
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
+                 #--- chunk size------
+                chnksize    = 3e6      ,
+                
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
                 ):
@@ -801,6 +820,10 @@ def plot_hmesh( mesh                   ,
 
         :save_opt:  dict, (default: dict()) direct option for saving via kwarg
 
+        ___chunking___________________________________
+        
+        :chnksize:   int, (default:1e6), size of triangle plot chunks 
+        
         ___set output_________________________________
 
         :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
@@ -929,23 +952,24 @@ def plot_hmesh( mesh                   ,
 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
-                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, norm_plot, 
+                h0 = do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, norm_plot, 
                                  plt_opt  =plt_opt, 
                                  plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
                                  plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                  plt_contr=plt_contr, pltcr_opt=pltcr_opt,
-                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt, 
+                                 chnksize=chnksize)
                 hp.append(h0)
                 
                 
             #___________________________________________________________________
             # add grid mesh on top
-            h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
+            h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
             hmsh.append(h0)
                 
             #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm[ii], mesh[ii], lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm[ii], mesh[ii], lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
@@ -1006,6 +1030,7 @@ def plot_hquiver(mesh                  ,
                 proj       = 'pc'      ,
                 do_ie2n    = False     , # interpolate element data to vertices
                 do_rescale = False     ,
+                
                 #--- quiver ---------
                 do_quiv    = True      , # tpc:tripcolor, tcf:tricontourf
                 quiv_opt   = dict()    ,
@@ -1015,12 +1040,15 @@ def plot_hquiver(mesh                  ,
                 quiv_smax  = 10        , # small arrow are scaled strong with factor smax, its off when smax=1
                 quiv_shiftL= 2         , # shift smothing function to the left
                 quiv_smooth= 2         , # slope of transitions zone, smaller value steeper transition
+                
                 #--- mesh -----------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    , 
+                
                 #--- bottom mask ----
                 do_bot     = True      , 
                 bot_opt    = dict()    ,
+                
                 #--- topography -----
                 do_topo    = 'tpc'     , 
                 topo_opt   = dict()    ,
@@ -1028,14 +1056,17 @@ def plot_hquiver(mesh                  ,
                 topoc_opt  = dict()    , # contour line option
                 topo_contl = False     , # do contourline labels 
                 topocl_opt = dict()    , # contour line label options
+                
                 #--- landsea mask ---
                 do_lsm     = 'fesom'   , 
                 lsm_opt    = dict()    , 
                 lsm_res    = 'low'     ,
+                
                 #--- gridlines ------
                 do_grid    = True      , 
                 do_boundbox= True      , 
                 grid_opt   = dict()    ,
+                
                 #--- colorbar -------
                 cb_label   = None      ,
                 cb_lunit   = None      ,
@@ -1044,9 +1075,11 @@ def plot_hquiver(mesh                  ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
+                
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                
                 #--- enumerate axes -
                 do_enum    = False     ,
                 enum_opt   = dict()    , 
@@ -1054,10 +1087,15 @@ def plot_hquiver(mesh                  ,
                 enum_x     = [0.005]   , 
                 enum_y     = [1.00]    ,
                 enum_dir   = 'lr'      , # prescribed list of enumeration strings
+                
                 #--- save figure ----
                 do_save    = None      , 
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
+                
+                #--- chunk size------
+                chnksize    = 3e6      ,
+                
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
                 ):
@@ -1238,7 +1276,11 @@ def plot_hquiver(mesh                  ,
         :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
 
         :save_opt:  dict, (default: dict()) direct option for saving via kwarg
-
+         
+        ___chunking___________________________________
+        
+        :chnksize:   int, (default:1e6), size of triangle plot chunks 
+        
         ___set output_________________________________
 
         :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
@@ -1346,34 +1388,35 @@ def plot_hquiver(mesh                  ,
             
             #___________________________________________________________________
             # add color for ocean bottom
-            h0 = do_plt_bot(hax_ii, do_bot, tri=tri, bot_opt=bot_opt)
+            h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
             hbot.append(h0)
             
             #___________________________________________________________________
             # add grey topo
-            h0 = do_plt_topo(hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri), 
+            h0 = do_plt_topo(hfig, hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri), 
                              plt_opt=topo_opt,
                              plt_contb=topo_cont , pltcb_opt=topoc_opt,
-                             plt_contl=topo_contl, pltcl_opt=topocl_opt)
+                             plt_contl=topo_contl, pltcl_opt=topocl_opt,
+                             chnksize=chnksize)
             htop.append(h0)
             
             #___________________________________________________________________
             # add grid mesh on top
-            h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
+            h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
             hmsh.append(h0)
             
             #___________________________________________________________________
             # do quiver computations
-            h0 = do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
+            h0 = do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
                                quiv_scalfac=quiv_scalfac, quiv_arrwidth=quiv_arrwidth, quiv_dens=quiv_dens,
                                quiv_smax=quiv_smax, quiv_shiftL=quiv_shiftL, 
-                               quiv_smooth=quiv_smooth, quiv_opt=quiv_opt)
+                               quiv_smooth=quiv_smooth, quiv_opt=quiv_opt, chnksize=chnksize)
             hp.append(h0)
-            
-            #___________________________________________________________________
-            # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
+
+            ##___________________________________________________________________
+            ## add mesh land-sea mask
+            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
@@ -1405,14 +1448,14 @@ def plot_hquiver(mesh                  ,
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
                              cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
-            
+        
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -1454,7 +1497,7 @@ def plot_vslice(mesh                   ,
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
                 do_smooth  = False     , # apply convolution filterwarnings
-                smooth_opt = (3,9)     , # smothing filter size (ndi, nx)--> default (3,9)
+                smooth_size= (3,5)     , # smothing filter size (ndi, nx)--> default (3,5)
                 #--- mesh -----------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    , 
@@ -1576,6 +1619,10 @@ def plot_vslice(mesh                   ,
         :plt_contl: bool, (default: False) label overlayed  contour linec plot
 
         :pltcl_opt: dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+        :do_smooth: bool, (default: False) apply convolution filter to vertical section
+        
+        :smooth_size: tuple, (default=(3,5)) smothing filter size (ndi, nx)--> default (3,9)
 
         ___plot mesh________________________________________
 
@@ -1766,7 +1813,7 @@ def plot_vslice(mesh                   ,
             #___________________________________________________________________
             # prepare regular gridded data for plotting
             data_x, data_y, data_plot = do_data_prepare_vslice(hax_ii, data[ii], box_idx,
-                                                            do_smooth=do_smooth, smooth_opt=smooth_opt)
+                                                            do_smooth=do_smooth, smooth_size=smooth_size)
            
             #___________________________________________________________________
             # add tripcolor or tricontourf plot 
@@ -1783,13 +1830,13 @@ def plot_vslice(mesh                   ,
             ## add bottom  mask
             ax_xlim0, ax_ylim0 = ax_xlim, ax_ylim
             if   hax_ii.projection=='index+depth+xy':
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, 
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data_x, data_y=data_y, 
                                 data_plot=data_plot, bot_opt=bot_opt)
         
             # zmoc bottom patch
             elif hax_ii.projection=='zmoc':
                 ax_ylim0 = [0, abs(mesh.zlev[-1])]
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, 
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data_x, data_y=data_y, 
                                 data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
                                 bot_opt=bot_opt) 
                 
@@ -1797,7 +1844,7 @@ def plot_vslice(mesh                   ,
             elif 'dmoc' in hax_ii.projection and \
                 ('ndens_zfh' in data[ii].coords or 'nz_rho' in data[ii].coords or'ndens_z' in data[ii].coords) :
                 ax_ylim0 = [0, abs(mesh.zlev[-1])]
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
                                 data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
                                 bot_opt=bot_opt)    
             hbot.append(h0)
@@ -4263,7 +4310,7 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
 #
 #
 #_______________________________________________________________________________
-def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt=(3,9)):
+def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_size=(3,9)):
     """
     --> prepare data for plotting, augment periodic boundaries, interpolate from elements
         to nodes, kick out nan values from plotting 
@@ -4325,7 +4372,7 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt
         #_______________________________________________________________________
         if do_smooth:
             from scipy.ndimage import convolve
-            filt = filt = np.ones(smooth_opt)
+            filt = filt = np.ones(smooth_size)
             filt = filt/sum(filt.flatten())
             nan_mask = np.isnan(data_plot)
             data_plot[nan_mask]= 0
@@ -4462,12 +4509,13 @@ def do_data_norm(cinfo, do_rescale):
 #
 #
 #_______________________________________________________________________________
-def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
+def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
                 plt_opt  =dict(), 
                 plt_contb=False, pltcb_opt=dict(), 
                 plt_contf=False, pltcf_opt=dict(),
                 plt_contr=False, pltcr_opt=dict(),
-                plt_contl=False, pltcl_opt=dict()):
+                plt_contl=False, pltcl_opt=dict(),
+                chnksize=1e6):
     """
     --> plot triangular data based on tripcolor or tricontourf
     
@@ -4532,18 +4580,30 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
         
         ## pcolor plot in combination with shading :gouraud and orthographic projection
         ## leads to an blow up of the plotting therefor change to flat shading 
-        #if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
-            #plt_optdefault.update({'shading':'flat'})
+        if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
+            plt_optdefault.update({'shading':'flat'})
         
         # if which_normplot is specified like in case of log10 and slog10 scaling
         # vmin and vmax argumetns are not allows
         cminmax=dict()
         if which_norm_plot is None:cminmax.update({'vmin':cinfo_plot['clevel'][0], 'vmax':cinfo_plot['clevel'][-1]})
         
-        h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
-                              cmap=cinfo_plot['cmap'], norm = which_norm_plot,
-                              **cminmax, **plt_optdefault)
-
+        #_______________________________________________________________________
+        # plotting of chunks 
+        auxtriangles = tri.triangles[tri.mask_e_ok,:]
+        arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+        print(' --> plot {:6s} chunk:'.format('data'),end='')
+        for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+            h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe,:], data_plot,
+                                cmap=cinfo_plot['cmap'], norm = which_norm_plot,
+                                **cminmax, **plt_optdefault)
+            hfig.canvas.draw_idle()     # Updates only changed parts
+            hfig.canvas.flush_events()  # Ensures interactive update
+        print('')    
+        del(auxtriangles)
+        
     #___________________________________________________________________________
     # plot tricontour 
     elif do_plt in ['tcf','cf']: 
@@ -4764,10 +4824,10 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
 #
 #
 #_______________________________________________________________________________
-def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
+def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
                   cinfo_plot, norm_plot, quiv_scalfac=1, quiv_arrwidth=0.25, quiv_dens=0.4, 
                   quiv_smax=10, quiv_shiftL=2, quiv_smooth=2, 
-                  quiv_opt=dict()):
+                  quiv_opt=dict(), chnksize=1e6):
     """
     --> plot triangular data as quiver plot 
     
@@ -4819,6 +4879,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
     """      
     h0=None
     if do_quiv: 
+        
         #_______________________________________________________________________
         # prepare quiver data
         data_plot_n              = np.sqrt(data_plot_u**2 + data_plot_v**2)
@@ -4829,7 +4890,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         
         nmax  = np.nanmax(data_plot_n)
         data_plot_u, data_plot_v = data_plot_u/nmax, data_plot_v/nmax
-
+        
         # scale up weaker flow vectors stronger so that also weaker flows become more visible
         # if quiv_scal=1 this scaling is switched off 
         fac   = (1.0 - np.tanh(((data_plot_n/nmax*np.pi*4)-np.pi*2 + 2*np.pi/quiv_shiftL )/quiv_smooth) )/2.0
@@ -4838,30 +4899,45 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         fac   = fac*(quiv_smax-1.0) + 1.0
         data_plot_u, data_plot_v = data_plot_u*fac, data_plot_v*fac
         
-                
+        
+        # kick out nan values from quiver coordinates 
+        mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) | 
+                    np.isnan(data_plot_v) | np.isinf(data_plot_v) | 
+                    np.isnan(tri.x)       | np.isnan(tri.y) )==False
+        
         # convert into cartopy projection frame 
         if data_plot_u.size == tri.xorig.size: 
             isonvert=True
-            tri0x, tri0y = tri.x, tri.y
-            data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
-                                                                tri.xorig, tri.yorig, 
-                                                                data_plot_u, data_plot_v)
+            tri0x, tri0y, tri0xorig, tri0yorig = tri.x[mask_nan], tri.y[mask_nan], tri.xorig[mask_nan], tri.yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+            
+            #___________________________________________________________________
+            # chunks computation of hax_ii.projection.transform_vectors(...)
+            chnksize, arrsize = np.int32(chnksize), data_plot_u.size
+            for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+                idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe] = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
+                                                                tri0xorig[idxs:idxe], tri0yorig[idxs:idxe], 
+                                                                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe])
+            del(tri0xorig, tri0yorig)
+            
         else:
             isonvert=False
             triangles = tri.triangles[tri.mask_e_ok,:]
             tri0x    , tri0y     = tri.x[    triangles].sum(axis=1)/3.0, tri.y[    triangles].sum(axis=1)/3.0
-            tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0,
-            data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
-                                                                tri0xorig, tri0yorig, 
-                                                                data_plot_u, data_plot_v)
+            tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0
+            tri0x, tri0y, tri0xorig, tri0yorig = tri0x[mask_nan], tri0y[mask_nan], tri0xorig[mask_nan], tri0yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+            #___________________________________________________________________
+            # chunks computation of hax_ii.projection.transform_vectors(...)
+            chnksize, arrsize = np.int32(chnksize), data_plot_u.size
+            for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+                idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe] = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
+                                                                tri0xorig[idxs:idxe], tri0yorig[idxs:idxe], 
+                                                                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe])
             del(triangles, tri0xorig, tri0yorig)
             
-            
-        # kick out nan values from quiver coordinates 
-        mask_nan = np.isnan(data_plot_u) == False
-        tri0x, tri0y = tri0x[mask_nan], tri0y[mask_nan]
-        data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
-        
         ## kick out to small arrows
         #mean, std   = np.nanmean(data_plot_n), np.nanstd(data_plot_n)
         #mask_quiv   = data_plot_n>mean-std*quiv_excl
@@ -4870,6 +4946,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         #data_plot_u = data_plot_u[mask_quiv], 
         #data_plot_v = data_plot_v[mask_quiv], 
         #data_plot_n = data_plot_n[mask_quiv]
+        
         
         # kick out arrows based on density 
         if quiv_dens is not None and tri.narea is not None:
@@ -4881,13 +4958,13 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
                 del(aux_earea)
                 
             mask_quiv   = np.random.rand(tri0x.size)>r0/np.max(r0)*quiv_dens #1.5
-            #mask_quiv = np.logical_and(isok,mask_quiv)
-            tri0x       = tri0x[mask_quiv], 
-            tri0y       = tri0y[mask_quiv],                         
-            data_plot_u = data_plot_u[mask_quiv], 
-            data_plot_v = data_plot_v[mask_quiv], 
+            ##mask_quiv = np.logical_and(isok,mask_quiv)
+            tri0x       = tri0x[mask_quiv] 
+            tri0y       = tri0y[mask_quiv]                        
+            data_plot_u = data_plot_u[mask_quiv]
+            data_plot_v = data_plot_v[mask_quiv] 
             data_plot_n = data_plot_n[mask_quiv]
-            
+        
         #_______________________________________________________________________
         # try to do scaling projection space dependent
         # Define the geographic coordinates bounding the area of interest
@@ -4923,17 +5000,31 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
                               'scale_units':'xy', 'angles':'xy', 'scale': quiv_scalfac}) 
         quiv_optdefault.update(quiv_opt)
         
-        h0=hax_ii.quiver(tri0x, tri0y, 
-                        data_plot_u, data_plot_v, 
-                        data_plot_n,
-                        cmap = cinfo_plot['cmap'],                    
-                        norm = norm_plot,
-                        zorder=10,
-                        **quiv_optdefault, 
-                        )
+        #_______________________________________________________________________
+        # plotting of chunks 
+        arrsize, chnksize = data_plot_u.size, np.int32(chnksize)
+        print(' --> plot {:6s} chunk:'.format('quiver'),end='')
+        for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+            h0=hax_ii.quiver(tri0x[idxs:idxe], tri0y[idxs:idxe], 
+                            data_plot_u[idxs:idxe], data_plot_v[idxs:idxe], data_plot_n[idxs:idxe],
+                            cmap = cinfo_plot['cmap'],                    
+                            norm = norm_plot,
+                            zorder=10, #                            
+                            **quiv_optdefault, 
+                            )
+            h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
+            
+            # Force update & clear cache
+            hfig.canvas.draw_idle()   # Updates only changed parts
+            hfig.canvas.flush_events()  # Ensures interactive update
+            
+        print('')    
+        #h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
+        del(tri0x, tri0y, )    
+
         
-        h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
-        del(tri0x, tri0y)    
     return(h0)
 
 
@@ -5239,7 +5330,8 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
 #
 #
 #_______________________________________________________________________________
-def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, ylim=None, bot_opt=dict()):
+def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, ylim=None, 
+               bot_opt=dict(), chnksize=1e6):
     """
     --> plot bottom mask
 
@@ -5294,9 +5386,21 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
                 for ii in rmv:
                     del(bot_optdefault[ii])
             
-            #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], **bot_optdefault)
-            h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[tri.mask_e_ok==False,:], np.ones(np.sum(tri.mask_e_ok==False)), **bot_optdefault)
-    
+            #___________________________________________________________________
+            # plotting of chunks 
+            auxtriangles = tri.triangles[tri.mask_e_ok==False,:]
+            arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+            print(' --> plot {:6s} chunk:'.format('bot'),end='')
+            for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+                idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+                print('{:d}|'.format(chnki), end='')
+                h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe, :], np.ones((idxe-idxs)), **bot_optdefault)
+                hfig.canvas.draw_idle()     # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
+            print('')
+            del(auxtriangles)
+            
+            
     # plot bottom mask for index+depth+xy
     elif hax_ii.projection=='index+depth+xy':
         
@@ -5339,10 +5443,10 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
 #
 #
 #_______________________________________________________________________________
-def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, 
+def do_plt_topo(hfig, hax_ii, do_topo, data_topo, mesh, tri, 
                 plt_opt=dict(), 
                 plt_contb=True,  pltcb_opt=dict(), 
-                plt_contl=False, pltcl_opt=dict()):
+                plt_contl=False, pltcl_opt=dict(), chnksize=1e6):
     """
     --> plot topography contour or pcolor
 
@@ -5391,12 +5495,13 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
         topocmp = ListedColormap(vals)
         cinfo_topo = dict({'clevel':levels, 'cmap':topocmp})
                 
-        h0 = do_plt_data(hax_ii, do_topo, tri0, data_topo, 
+        h0 = do_plt_data(hfig, hax_ii, do_topo, tri0, data_topo, 
                          cinfo_topo, None,    plt_opt  =plt_opt, 
                          plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
                          plt_contf=False    , pltcf_opt=dict(),
                          plt_contr=False    , pltcr_opt=dict(),
-                         plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                         plt_contl=plt_contl, pltcl_opt=pltcl_opt,
+                         chnksize=chnksize)
         del(tri0)
     return(h0)
 
@@ -5405,7 +5510,7 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
 #
 #
 #_______________________________________________________________________________
-def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
+def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6):
     """
     --> plot overlaying triangular mesh
 
@@ -5432,7 +5537,19 @@ def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
         mesh_optdefault = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75})
         mesh_optdefault.update(mesh_opt)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_optdefault)
-        h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles, zorder=5, **mesh_optdefault)
+        #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles, zorder=5, **mesh_optdefault)
+        auxtriangles = tri.triangles[tri.mask_e_ok,:]
+        arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+        print(' --> plot {:6s} chunk:'.format('mesh'),end='')
+        for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+            h0 = hax_ii.triplot(tri.x, tri.y, auxtriangles[idxs:idxe,:], zorder=5, **mesh_optdefault)
+            hfig.canvas.draw_idle()     # Updates only changed parts
+            hfig.canvas.flush_events()  # Ensures interactive update
+        print('')    
+        del(auxtriangles)
+        
     return(h0)
 
 
@@ -5440,7 +5557,7 @@ def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
 #
 #
 #_______________________________________________________________________________
-def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
+def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
     """
     --> plot fesom mesh inverted land sea mask
 
@@ -5518,6 +5635,8 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
         raise ValueError(" > the do_lsm={} is not supported, must be either 'fesom', 'stock', 'bluemarble' or 'etopo'! ")
         
     #___________________________________________________________________________
+    hfig.canvas.draw_idle()   # Updates only changed parts
+    hfig.canvas.flush_events()  # Ensures interactive update
     return(h0)
 
 
