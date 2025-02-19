@@ -217,15 +217,21 @@ def do_analyse_transects(input_transect     ,
         #_______________________________________________________________________    
         # rotate path_dx and path_dy from rot --> geo coordinates
         if do_rot:
+            #transect['path_dx'], transect['path_dy'] = vec_r2g(mesh.abg, 
+                                                        #mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
+                                                        #mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
+                                                        #transect['path_dx'], transect['path_dy'])
+            
             transect['path_dx'], transect['path_dy'] = vec_r2g(mesh.abg, 
-                                                        mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
-                                                        mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
+                                                        mesh.n_x[transect['path_cut_ni']].sum(axis=1)/2.0, 
+                                                        mesh.n_y[transect['path_cut_ni']].sum(axis=1)/2.0,
                                                         transect['path_dx'], transect['path_dy'])
-        
+            
         #_______________________________________________________________________    
         # rotate path_dx and path_dy from rot --> geo coordinates
         if transec_flowdir:
              transect['path_dx'], transect['path_dy'] =  -transect['path_dx'], -transect['path_dy']
+             transect['path_nvec_cs'] =  -transect['path_nvec_cs']
              
         #_______________________________________________________________________ 
         # buld distance from start point array [km]
@@ -301,6 +307,7 @@ def _do_init_transect():
     transect['path_dx'      ] = [] # dx of path sections
     transect['path_dy'      ] = [] # dy of path sections
     transect['path_dist'    ] = [] # dy of path sections
+    transect['path_evec_cs' ] = [] # normal vector of transection segment
     transect['path_nvec_cs' ] = [] # normal vector of transection segment
     
     #___________________________________________________________________________
@@ -329,6 +336,7 @@ def _do_concat_subtransects(sub_transect):
     transect['path_cut_ni'  ] = sub_transect['path_cut_ni'  ][0]
     transect['path_dx'      ] = sub_transect['path_dx'      ][0]
     transect['path_dy'      ] = sub_transect['path_dy'      ][0]
+    transect['path_evec_cs' ] = sub_transect['path_evec_cs' ][0]
     transect['path_nvec_cs' ] = sub_transect['path_nvec_cs' ][0]
     
     #___________________________________________________________________________
@@ -346,6 +354,7 @@ def _do_concat_subtransects(sub_transect):
             transect['path_dx'      ] = np.hstack((transect['path_dx'      ], sub_transect['path_dx'      ][ii]))
             transect['path_dy'      ] = np.hstack((transect['path_dy'      ], sub_transect['path_dy'      ][ii]))
             transect['path_nvec_cs' ] = np.vstack((transect['path_nvec_cs' ], sub_transect['path_nvec_cs' ][ii]))
+            transect['path_evec_cs' ] = np.vstack((transect['path_evec_cs' ], sub_transect['path_evec_cs' ][ii]))
             
             # if there are multiple subsection to one transect than the last point
             # of the previous subsection and the first point of the actual subsection 
@@ -374,7 +383,15 @@ def _do_calc_csect_vec(transect):
     
     # normal vector --> norm vector definition (-dy,dx) --> shows to the 
     # left of the e_vec
-    transect['n_vec' ].append(np.array([-evec[1], evec[0]])/enorm)  
+    # make sure the normal direction of section is fixed from:
+    # NW --> SE
+    #  W --> E
+    # SW --> NE´
+    #  S --> N 
+    if -evec[1]<0 or evec[0]<0:
+        transect['n_vec' ].append(np.array([ evec[1], -evec[0]])/enorm)  
+    else:     
+        transect['n_vec' ].append(np.array([-evec[1], evec[0]])/enorm)  
     del(evec, enorm)
     
     #___________________________________________________________________________
@@ -656,6 +673,10 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     aux = np.ones((transect['path_dx'][-1].size,2))
     aux[:,0], aux[:,1] = transect['n_vec'][-1][0], transect['n_vec'][-1][1]
     transect['path_nvec_cs'].append(aux)
+    
+    aux = np.ones((transect['path_dx'][-1].size,2))
+    aux[:,0], aux[:,1] = transect['e_vec'][-1][0], transect['e_vec'][-1][1]
+    transect['path_evec_cs'].append(aux)
     del(aux)
     
     # !!! Make sure positive Transport is defined S-->N and W-->E
@@ -957,7 +978,7 @@ def _do_compute_distance_from_startpoint(transect):
 #
 #___COMPUTE VOLUME TRANSPORT THROUGH TRANSECT___________________________________
 def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
-                          do_transectattr=False, do_rot=False, do_info=True):
+                          do_transectattr=False, do_rot=False, do_info=True, do_nveccs=True):
     """
     --> Compute fesom2 modell accurate transport through defined transect
     
@@ -1140,8 +1161,12 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
         
         #_______________________________________________________________________
         # multiple u*dy and v*(-dx) --> vec_v * vec_n
-        dx, dy     = transect['path_dx'], transect['path_dy']
-            
+        if do_nveccs: 
+            nvecx, nvecy= transect['path_nvec_cs'][:,0], transect['path_nvec_cs'][:,1]
+            dx, dy      = np.abs(transect['path_dx'])*nvecy, np.abs(transect['path_dy'])*nvecx
+        else:
+            dx, dy      = transect['path_dx'], -transect['path_dy']    
+        
         # proper transport sign with respect to normal vector of section 
         # normal vector definition --> norm vector definition (-dy,dx) --> shows 
         # to the left of the e_vec
@@ -1149,24 +1174,19 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
             # use velocities located at left and rights handside elements with 
             # respect to the edge
             if 'time' in list(data.dims):
-                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))
+                aux_transp = (vel_u.transpose((0,2,1))*dy + vel_v.transpose((0,2,1))*dx)
             else:
-                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
+                aux_transp = (vel_u.T*(dy) + vel_v.T*dx)
                 
         elif 'nod2' in data.dims:
             # use edge centered averaged velocities, thats why this velocity needs 
             # to be dublicated with np.repeat along the horizontal dimension
             if 'time' in list(data.dims):
                 #vel_u, vel_v = np.repeat(vel_u, 2, axis=1), np.repeat(vel_v, 2, axis=1)
-                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))
+                aux_transp = (vel_u.transpose((0,2,1))*dy + vel_v.transpose((0,2,1))*dx)
             else:    
                 #vel_u, vel_v = np.repeat(vel_u, 2, axis=0), np.repeat(vel_v, 2, axis=0)
-                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
-        
-        #aux_transp = vel_u.T*(-dy)
-        #aux_transp = vel_v.T*( abs(dx))      
-        #aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
-        #aux_transp = -(vel_u.T*abs(dy) + vel_v.T*abs(dx))
+                aux_transp = (vel_u.T*dy + vel_v.T*dx)
         
         #_______________________________________________________________________
         # multiply transp_uv with temp 
@@ -1535,6 +1555,7 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
 def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figsize=[10,10], 
                            proj='nears', box = [-180, 180,-90, 90], 
                            resolution='low', do_path=True, do_labels=True, do_title=True,
+                           do_nvec=False, do_evec_cs=False, do_nvec_cs=True, 
                            do_grid=False, ax_pos=[0.90, 0.05, 0.45, 0.45]):
     """
     --> plot transect positions
@@ -1650,9 +1671,35 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
         ax.plot(transect['path_xy'   ][ :, 0], transect['path_xy'   ][ :, 1],'m', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=1.0, transform=proj_from)
 
     # end start point [green] and end point [red]
-    ax.plot(transect['edge_cut_P'][ 0, 0], transect['edge_cut_P'][ 0, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='g', transform=proj_from)
-    ax.plot(transect['edge_cut_P'][-1, 0], transect['edge_cut_P'][-1, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='r', transform=proj_from)
+    ax.plot(transect['lon'], transect['lat'],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='w', transform=proj_from)
+    ax.plot(transect['edge_cut_P'][ 0, 0], transect['edge_cut_P'][ 0, 1],'k', marker='o', linestyle='None', markersize=10, markerfacecolor='g', transform=proj_from)
+    ax.plot(transect['edge_cut_P'][-1, 0], transect['edge_cut_P'][-1, 1],'k', marker='o', linestyle='None', markersize=10, markerfacecolor='r', transform=proj_from)
     
+    # plot norm vector 
+    if do_nvec:
+        xx   , yy    = mesh.n_x[transect['path_ni'][1:-1]].sum(axis=1)/3.0, mesh.n_y[transect['path_ni'][1:-1]].sum(axis=1)/3.0
+        vecxx, vecyy = -transect['path_dy'][1:-1], transect['path_dx'][1:-1]
+        vecxx, vecyy = proj_to.transform_vectors(ccrs.PlateCarree(), xx, yy, vecxx, vecyy)
+        ax.quiver(xx, yy, vecxx, vecyy, color='c', transform=proj_from)
+    
+    if do_nvec_cs:
+        xx           = np.array(transect['Px']).sum(axis=1)/2.0
+        yy           = np.array(transect['Py']).sum(axis=1)/2.0
+        vecxx, vecyy = np.array(transect['n_vec'])[:,0], np.array(transect['n_vec'])[:,1]
+        ax.quiver(xx, yy, 
+                  vecxx, vecyy,
+                  facecolor=np.array([0, 192, 255])/255, transform=proj_from,
+                  edgecolor='w', linewidth=0.5, scale=10)
+        
+    if do_evec_cs:
+        xx           = np.array(transect['Px']).sum(axis=1)/2.0
+        yy           = np.array(transect['Py']).sum(axis=1)/2.0
+        vecxx, vecyy = np.array(transect['e_vec'])[:,0], np.array(transect['e_vec'])[:,1]
+        ax.quiver(xx, yy, 
+                  vecxx, vecyy,
+                  facecolor=np.array([255, 192, 0])/255, transform=proj_from,
+                  edgecolor='w', linewidth=0.5, scale=10)    
+        
     ## plot cross-section 
     #for ii, (Px, Py) in enumerate(zip(transect['Px'],transect['Py'])):
         ## plot evec
