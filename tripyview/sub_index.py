@@ -181,7 +181,7 @@ def load_index_fesom2(mesh                  ,
                     
         index_list.append(index)
         idxin_list.append(idx_IN)
-        del(index)
+        del(index, idx_IN)
         
         #_______________________________________________________________________
         warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
