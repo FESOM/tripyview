@@ -357,7 +357,12 @@ def plot_hslice(mesh                   ,
         if not isinstance(streaml_dat, list): streaml_dat = [streaml_dat]
     ndat = len(data)
     
+    # make clabel automatically list
     if not isinstance(cb_label, list): cb_label=[cb_label]
+    if not isinstance(cb_lunit, list): cb_lunit=[cb_lunit]
+    # check if number of clabel coresponds with the number of colorbars in cinfo
+    if isinstance(cinfo, list) and len(cb_label)==1: cb_label = cb_label*len(cinfo)
+    if isinstance(cinfo, list) and len(cb_lunit)==1: cb_lunit = cb_lunit*len(cinfo)
     
     #___________________________________________________________________________
     # --> create projection
@@ -543,11 +548,15 @@ def plot_hslice(mesh                   ,
         if hcb_ii != 0 and hp[-1] is not None: 
             if isinstance(do_rescale, list):
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
-                                cb_label[cb_plt_idx[ii_valid]-1], cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], 
+                                cb_lunit[cb_plt_idx[ii_valid]-1], cb_ltime, cb_ldep, 
+                                norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
             else:    
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                                cb_label[cb_plt_idx[ii_valid]-1], cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], 
+                                cb_lunit[cb_plt_idx[ii_valid]-1], cb_ltime, cb_ldep, 
+                                norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #___________________________________________________________________
@@ -1724,6 +1733,13 @@ def plot_vslice(mesh                   ,
     if not isinstance(data, list): data = [data]
     ndat = len(data)
     
+    # make clabel automatically list
+    if not isinstance(cb_label, list): cb_label=[cb_label]
+    if not isinstance(cb_lunit, list): cb_lunit=[cb_lunit]
+    # check if number of clabel coresponds with the number of colorbars in cinfo
+    if isinstance(cinfo, list) and len(cb_label)==1: cb_label = cb_label*len(cinfo)
+    if isinstance(cinfo, list) and len(cb_lunit)==1: cb_lunit = cb_lunit*len(cinfo)
+    
     #___________________________________________________________________________
     # check vertical plotting mode if index+depth+xy, zmoc, dmoc
     if proj is None:
@@ -1912,20 +1928,20 @@ def plot_vslice(mesh                   ,
         # add colorbar 
         
         if hcb_ii != 0 and hp[-1] is not None: 
-            if isinstance(cb_label,list): cb_label2 = cb_label[count_cb]
-            else: cb_label2 = cb_label
-            
             if isinstance(do_rescale, list):
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
-                             cb_label2, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                             cb_label[cb_plt_idx[ii_valid]-1], 
+                             cb_lunit[cb_plt_idx[ii_valid]-1], 
+                             cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                              box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
             
             else:    
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                                cb_label2, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], 
+                                cb_lunit[cb_plt_idx[ii_valid]-1], 
+                                cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
                 
-            count_cb=count_cb+1
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
@@ -6001,12 +6017,14 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     elif isinstance(data, xr.Dataset) :
         vname    = list(data.keys())[0]        
         loc_attrs= data[vname].attrs
-            
+    
     if cb_label is None:
         cb_label = ''
         if  'long_name' in loc_attrs:
+            #cb_label = cb_label+loc_attrs['long_name' ][0].upper()+loc_attrs['long_name' ][1:]
             cb_label = cb_label+loc_attrs['long_name'].capitalize()
         elif 'short_name' in loc_attrs:
+            #cb_label = cb_label+loc_attrs['short_name'][0].upper()+loc_attrs['short_name'][1:]
             c_label = cb_label+loc_attrs['short_name'].capitalize()
         
         if cb_lunit  is None:

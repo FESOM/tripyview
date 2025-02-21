@@ -9,6 +9,7 @@ import seawater as sw
 #import gsw as gsw
 from .sub_mesh import *
 import warnings
+import dask.array               as da
 
 
 #xr.set_options(enable_cftimeindex=False)
@@ -860,7 +861,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         #_______________________________________________________________________
         # do weighting for weighted mean computation on elements
         if do_hweight:
-            data = data.assign_coords(w_A  = xr.DataArray(mesh.e_area                   , dims=dimh).chunk(set_chunk))
+            data = data.assign_coords(w_A  = xr.DataArray(mesh.e_area                   , dims=dimh).astype( 'float32').chunk(set_chunk))
         
         if do_zweight and dimv is not None:    
             if   'nz1' == dimv:
@@ -881,7 +882,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
                 set_chunk = dict({dimv:data.chunksizes[dimv]})
                 w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=dimv).chunk(set_chunk)
                 
-            data = data.assign_coords(w_z=w_z*w_Ae)
+            data = data.assign_coords(w_z=w_z*w_Ae).astype( 'float32')
             del(w_z, w_Ae, w_A)
     
     #___________________________________________________________________________
@@ -1848,3 +1849,200 @@ def do_anomaly(data1,data2):
     
     #___________________________________________________________________________
     return(anom)
+
+
+#
+#
+#_______________________________________________________________________________
+def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
+    import dask.array as da
+    #___________________________________________________________________________
+    if len(list(data.data_vars))==2:
+        vname, vname2 = list(data.data_vars)
+    else:     
+        vname = list(data.data_vars)[0]
+        
+    #___________________________________________________________________________
+    # determine actual chunksize
+    nchunk = 1
+    if do_parallel :
+        if   'elem' in data.dims: nchunk = len(data.chunks['elem'])
+        elif 'nod2' in data.dims: nchunk = len(data.chunks['nod2'])
+        print(' --> nchunk=', nchunk)  
+        
+    #___________________________________________________________________________
+    # after all the time and depth operation after the loading there will be worker who have no chunk
+    # piece to work on  --> therfore we needtro rechunk 
+    # make sure the workload is distributed between all availbel worker equally         
+    if do_parallel and nchunk<parallel_nprc*0.75:
+        print(' --> rechunk array size', end='')
+        if   'elem' in data.dims: 
+            data = data.chunk({'elem': np.ceil(data.dims['elem']/parallel_nprc).astype('int')})
+            nchunk = len(data.chunks['elem'])
+        elif 'nod2' in data.dims: 
+            data = data.chunk({'nod2': np.ceil(data.dims['nod2']/parallel_nprc).astype('int')})
+            nchunk = len(data.chunks['nod2'])
+        # print(data.chunks)        
+        print(' --> nchunk_new=', nchunk)        
+    
+    #___________________________________________________________________________
+    # The centroid position of the periodic boundary trinagle causes problems when determining in which 
+    # bin they should be --> therefor we kick them out 
+    if 'elem_pbnd' not in data.coords: 
+        data['elem_pbnd'] = xr.DataArray(np.zeros(data[vname].shape, dtype=bool), dims=data[vname].dims).chunk((data[vname].chunks) )
+    
+    #___________________________________________________________________________
+    # create lon lat bins 
+    rad     , Rearth   = np.pi/180, 6371e3
+    lon_min , lon_max  = np.floor(data['lon'].min().compute()), np.ceil( data['lon'].max().compute())
+    lat_min , lat_max  = np.floor(data['lat'].min().compute()), np.ceil( data['lat'].max().compute())
+    lon_bins, lat_bins = np.arange(lon_min, lon_max+dlon/2, dlon), np.arange(lat_min, lat_max+dlat/2, dlat)
+    nlon    , nlat     = len(lon_bins)-1, len(lat_bins)-1
+    lon     , lat      = (lon_bins[1:]+lon_bins[:-1])*0.5, (lat_bins[1:]+lat_bins[:-1])*0.5
+    dx      , dy       = Rearth*dlon*rad*np.cos((lat)/2.0*rad), Rearth*dlat*rad, 
+    dA                 = np.tile(dx*dy, (nlon,1)).T
+    del(dx, dy, lon_min, lon_max, lat_min, lat_max)
+    
+    #___________________________________________________________________________
+    # Apply coarse-graining over chunks for both u and v velocities
+    if len(list(data.data_vars))==2:
+        binned_d = da.map_blocks(coarsegrain_h_chnk    ,
+                                lon_bins               , 
+                                lat_bins               ,
+                                data['lon'      ].data ,  # lon mesh coordinates of chunk piece
+                                data['lat'      ].data ,  # lat mesh coordinates of chunk piece
+                                data['w_A'      ].data ,  # area weight
+                                data['elem_pbnd'].data ,  # index if triangle is boundary triangle, can be None for nodes
+                                data[vname      ].data ,  # zonal vel. of chunk piece
+                                data[vname2     ].data ,  # meridional vel. Chunked data for u and v
+                                dtype  = np.float32    ,  # Tuple dtype
+                                chunks = (3*nlon*nlat,)  # Output shape
+                                )
+        # reshape axis over chunks 
+        binned_d = binned_d.reshape((nchunk, 3, nlat, nlon ))
+    
+    # Apply coarse-graining over chunks for single data
+    else:   
+        # Apply coarse-graining over chunks for both u and v velocities
+        binned_d = da.map_blocks(coarsegrain_h_chnk    ,
+                                lon_bins               , 
+                                lat_bins               ,
+                                data['lon'      ].data ,  # lon mesh coordinates of chunk piece
+                                data['lat'      ].data ,  # lat mesh coordinates of chunk piece
+                                data['w_A'      ].data ,  # area weight
+                                data['elem_pbnd'].data ,  # index if triangle is boundary triangle, can be None for nodes
+                                data[vname      ].data ,  # single data chunk piece
+                                None                   ,
+                                dtype  = np.float32    ,  # Tuple dtype
+                                chunks = (2*nlon*nlat,)  # Output shape
+                                )
+        # reshape axis over chunks 
+        binned_d = binned_d.reshape((nchunk, 2, nlat, nlon ))
+        
+    #___________________________________________________________________________
+    # do dask axis reduction across chunks dimension
+    binned_d = da.reduction(binned_d,                   
+                            chunk     = lambda x, axis=None, keepdims=None: x,  # this is a do nothing function definition
+                            aggregate = np.sum, 
+                            dtype     = np.float32,  # Tuple dtype
+                            axis      = 0,
+                            ).compute()
+    
+    #___________________________________________________________________________
+    # deal with u,v data
+    if len(list(data.data_vars))==2:
+        # compute mean velocities ber bin for u/v--> avoid division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            binned_d[0] = np.where(binned_d[2] > 0, binned_d[0] / binned_d[2], np.nan)
+            binned_d[1] = np.where(binned_d[2] > 0, binned_d[1] / binned_d[2], np.nan)
+        
+        # build data_vars dictionary 
+        data_vars =  dict({vname    : (('lat','lon'), binned_d[0], data[vname].attrs), 
+                           vname2   : (('lat','lon'), binned_d[1], data[vname2].attrs)})
+    
+    # deal with single data
+    else:
+        # compute mean velocities ber bin for single data--> avoid division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            binned_d[0] = np.where(binned_d[1] > 0, binned_d[0] / binned_d[1], np.nan)
+        
+        # build data_vars dictionary 
+        data_vars =  dict({vname    : (('lat','lon'), binned_d[0], data[vname].attrs)})
+    
+    #___________________________________________________________________________
+    # write xarray dataset
+    data_reg = xr.Dataset(data_vars = data_vars,
+                           coords    = {'lon'    : (('lon'      ), lon), 
+                                        'lat'    : (('lat'      ), lat), 
+                                        'lon_bnd': (('lon','n2' ), np.column_stack((lon_bins[:-1], lon_bins[1:]))) , 
+                                        'lat_bnd': (('lat','n2' ), np.column_stack((lat_bins[:-1], lat_bins[1:]))) , 
+                                        'w_A'    : (('lat','lon'), dA)},
+                           attrs     = data.attrs)
+
+    #___________________________________________________________________________
+    return(data_reg)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def coarsegrain_h_chnk(lon_bins, lat_bins, chnk_lon, chnk_lat, chnk_wA, chnk_pbnd, chnk_d, chnk_d2):
+    """
+    Coarse-grain unstructured chunked data into longitude-latitude bins.
+    """
+    # Replace NaNs with 0 value to summation issues
+    chnk_wA     = np.where(np.isnan(chnk_d ), 0, chnk_wA)
+    chnk_d      = np.where(np.isnan(chnk_d ), 0, chnk_d )
+    if chnk_d2 is not None:
+        chnk_d2 = np.where(np.isnan(chnk_d2), 0, chnk_d2)
+        
+    # Use np.digitize to find bin indices for longitudes and latitudes
+    lon_indices = np.digitize(chnk_lon, lon_bins) - 1  # Adjust to get 0-based index
+    lat_indices = np.digitize(chnk_lat, lat_bins) - 1  # Adjust to get 0-based index
+    nlon, nlat  = len(lon_bins)-1, len(lat_bins)-1
+    
+    # Initialize binned data storage for both u and v velocities
+    if chnk_d2 is None:
+        binned_d= np.zeros((2, len(lat_bins) - 1, len(lon_bins) - 1))
+        # binned_d[0, nlat, nlon] - sum area weight data
+        # binned_d[1, nlat, nlon] - area weight sum
+        
+    # Initialize binned data storage for both single data
+    else:
+        binned_d= np.zeros((3, len(lat_bins) - 1, len(lon_bins) - 1))
+        # binned_d[0, nlat, nlon] - sum area weight zonal data
+        # binned_d[1, nlat, nlon] - sum area weight merid data
+        # binned_d[2, nlat, nlon] - area weight sum
+    
+    # Precompute mask outside the loop
+    idx_valid   = ((lon_indices >= 0) & (lon_indices < nlon) & 
+                   (lat_indices >= 0) & (lat_indices < nlat) &    
+                   (~chnk_pbnd))
+    del(chnk_pbnd)
+    
+    # Apply mask before looping
+    lat_indices = lat_indices[idx_valid]
+    lon_indices = lon_indices[idx_valid]
+    chnk_wA     = chnk_wA[    idx_valid]
+    chnk_d      = chnk_d [    idx_valid]
+    if chnk_d2 is not None:
+        chnk_d2 = chnk_d2[    idx_valid]
+    nnod        = len(chnk_d)
+    
+    # do binning for single data
+    if chnk_d2 is None:
+        for nod_i in range(nnod):
+            ii, jj = lon_indices[nod_i], lat_indices[nod_i]
+            binned_d[0, jj, ii] = binned_d[0, jj, ii] + chnk_d[ nod_i] * chnk_wA[nod_i]
+            binned_d[1, jj, ii] = binned_d[1, jj, ii] + chnk_wA[nod_i] # area weight counter
+    
+    # do binning for zonal/merid data
+    else:
+        for nod_i in range(nnod):
+            ii, jj = lon_indices[nod_i], lat_indices[nod_i]
+            binned_d[0, jj, ii] = binned_d[0, jj, ii] + chnk_d[ nod_i] * chnk_wA[nod_i]
+            binned_d[1, jj, ii] = binned_d[1, jj, ii] + chnk_d2[nod_i] * chnk_wA[nod_i]
+            binned_d[2, jj, ii] = binned_d[2, jj, ii] + chnk_wA[nod_i] # area weight counter
+
+    return binned_d.flatten()

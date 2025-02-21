@@ -16,6 +16,8 @@ from   .sub_utility             import *
 from   .sub_colormap            import *
 import pandas as pd
 import warnings
+
+import dask.array               as da
 #xr.set_options(enable_cftimeindex=True)
 
 #
@@ -2010,6 +2012,652 @@ def load_zmeantransect_fesom2(mesh                  ,
         
     #___________________________________________________________________________
     return(index_list)
+
+
+
+#
+#
+#___COMPUTE ZONAL MEAN SECTION BASED ON BINNING_________________________________
+def calc_transect_zmean_dask(mesh                  , 
+                              data                  , 
+                              box_list              , 
+                              do_parallel           , 
+                              parallel_nprc         ,
+                              dlat          =0.5    , 
+                              boxname       =None   ,
+                              diagpath      =None   , 
+                              do_checkbasin =False  , 
+                              do_compute    =False  , 
+                              do_load       =True   , 
+                              do_persist    =False  , 
+                              do_info       =False  , 
+                              **kwargs,):
+    """
+    --> compute zonal means transect, defined by regional box_list
+    
+    Parameters:
+        
+        :mesh:      fesom2 mesh object, with all mesh information
+
+        :data:      xarray dataset object, or list of xarray dataset object with 3d vertice
+                    data
+
+        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts), boxname] index region defined by polygon
+
+        :dlat:      float, (default=0.5) resolution of latitudinal bins
+        
+        :diagpath:  str, (default=None), path to diagnostic file only needed when 
+                    w_A weights for area average are not given in the dataset, than 
+                    he will search for the diagnostic file_loader
+                    
+        :do_checkbasin: bool, (default=False) additional plot with selected region/
+                        basin information
+                        
+        :do_compute:    bool (default=False), do xarray dataset compute() at the end
+                        data = data.compute(), creates a new dataobject the original
+                        data object seems to persist
+        
+        :do_load:       bool (default=True), do xarray dataset load() at the end
+                        data = data.load(), applies all operations to the original
+                        dataset
+                        
+        :do_persist:    bool (default=False), do xarray dataset persist() at the end
+                        data = data.persist(), keeps the dataset as dask array, keeps
+                        the chunking    
+                      
+        :do_info:       bool (defalt=False), print variable info at the end 
+                      
+    Returns:
+    
+        :index_list:    list with xarray dataset of zonal mean array
+    
+    ____________________________________________________________________________
+    
+    """
+    #___________________________________________________________________________
+    # str_anod    = ''
+    index_list  = []
+    cnt         = 0
+    
+    #___________________________________________________________________________
+    # loop over box_list
+    vname = list(data.keys())[0]
+    dimn_v = None
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h = 'nod2'
+    elif ('elem' in data.dims): dimn_h = 'elem'
+    if   'nz'  in list(data[vname].dims): 
+        dimn_v, ndi, depth = 'nz' , mesh.nlev  , mesh.zlev     
+    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
+        dimn_v, ndi, depth = 'nz1', mesh.nlev-1, mesh.zmid
+    
+    
+    for box in box_list:
+        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+            if len(box)==2: boxname, box = box[1], box[0]
+        
+        #_______________________________________________________________________
+        # compute box mask index for nodes
+        if   'nod2' in data.dims:
+            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2')
+        elif 'elem' in data.dims:     
+            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem')
+            
+        #___________________________________________________________________________
+        if do_checkbasin:
+            from matplotlib.tri import Triangulation
+            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            plt.figure()
+            plt.triplot(tri, color='k')
+            if 'elem' in data.dims:
+                plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
+            else:
+                plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], 'or', linestyle='None', markersize=1)
+            plt.title('Basin selection')
+            plt.show()
+        
+        #___________________________________________________________________________
+        # do zonal mean calculation either on nodes or on elements        
+        # keep in mind that node area info is changing over depth--> therefor load from file 
+        fname = data[vname].attrs['runid']+'.mesh.diag.nc'            
+        if diagpath is None:
+            if   os.path.isfile( os.path.join(data[vname].attrs['datapath'], fname) ): 
+                dname = data[vname].attrs['datapath']
+            elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/'), fname) ): 
+                dname = os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/')
+            elif os.path.isfile( os.path.join(mesh.path,fname) ): 
+                dname = mesh.path
+            else:
+                raise ValueError('could not find directory with...mesh.diag.nc file')
+            
+            diagpath = os.path.join(dname,fname)
+            if do_info: print(' --> found diag in directory:{}', diagpath)
+        else:
+            if os.path.isfile(os.path.join(diagpath,fname)):
+                diagpath = os.path.join(diagpath,fname)
+            elif os.path.isfile(os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)) :
+                diagpath = os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)
+                
+        #___________________________________________________________________________
+        # compute area weighted vertical velocities on elements
+        if 'elem' in data.dims:        
+            #_______________________________________________________________________
+            # load elem area from diag file
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['elem_area']#.chunk({'elem':1e4})
+                    if 'elem_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'elem_n':'elem'})
+                    if 'nl'     in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'    :'nz'  })
+                    if 'nl1'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'   :'nz1' })
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+                data = data.assign_coords(w_A=nz_w_A)
+                
+            data = data.assign_coords(new_w_A = data['w_A'].expand_dims({dimn_v: data[dimn_v]}).transpose())
+            data = data.drop_vars('w_A').rename({'new_w_A':'w_A'})
+            
+            #___________________________________________________________________
+            # select basin to compute mean over
+            data_zm = data.isel(elem=idxin)
+        
+        # compute area weighted vertical velocities on vertices
+        else:     
+            #___________________________________________________________________
+            # load vertice cluster area from diag file
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']
+                    if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nod_n':'nod2'})
+                    if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl'   :'nz'  })
+                    if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl1'  :'nz1' })    
+                    nz_w_A = nz_w_A.drop_vars(['nz'])
+                    
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+                
+                # data are on mid depth levels
+                if dimn_v=='nz1': 
+                    nz_w_A = nz_w_A.isel(nz=slice(None, -1)).rename({'nz':'nz1'})
+                
+                data = data.assign_coords(w_A=nz_w_A)
+                
+            #___________________________________________________________________
+            # select basin to compute mean over
+            data_zm = data.isel(nod2=idxin)
+            
+        #_______________________________________________________________________
+        # determine actual chunksize
+        nchunk = 1
+        if do_parallel :
+            if   'elem' in data_zm.dims: nchunk = len(data_zm.chunks['elem'])
+            elif 'nod2' in data_zm.dims: nchunk = len(data_zm.chunks['nod2'])
+            print(' --> nchunk=', nchunk)   
+            
+        #_______________________________________________________________________
+        # after all the time and depth operation after the loading there will 
+        # be worker who have no chunk piece to work on  --> therfore we need
+        # to rechunk make sure the workload is distributed between all 
+        # availabel worker equally         
+        if do_parallel and nchunk<parallel_nprc*0.75:
+            print(' --> rechunk array size', end='')
+            if   'elem' in data_zm.dims: 
+                data_zm = data_zm.chunk({'elem': np.ceil(data_zm.dims['elem']/(parallel_nprc)).astype('int'), dimn_v:-1})
+                nchunk = len(data_zm.chunks['elem'])
+            elif 'nod2' in data_zm.dims: 
+                data_zm = data_zm.chunk({'nod2': np.ceil(data_zm.dims['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1})
+                nchunk = len(data_zm.chunks['nod2'])
+            print(' --> nchunk_new=', nchunk)    
+               
+        #_______________________________________________________________________
+        # create meridional bins
+        lat_min    = np.floor(data_zm['lat'].min().compute())
+        lat_max    = np.ceil( data_zm['lat'].max().compute())
+        lat_bins   = np.arange(lat_min, lat_max+dlat/2, dlat)
+        nlat, nlev = len(lat_bins)-1, data_zm.dims[dimn_v]
+        
+        #_______________________________________________________________________
+        # !!! THIS IS VERY IMPORTANT THAT THE WHOLE DASK APPROACH WORKS !!!
+        # expand chunked lat coordinates along the vertical dimension since all 
+        # the chunked input files to da.map_blocks(calc_transect_zmean_chnk(...)
+        # must have identical chunked dimensions now all is 2d
+        data_zm['lat'] = (data_zm[vname].dims, da.broadcast_to(data_zm['lat'].data[:, None], data_zm[vname].data.shape))
+        # The centroid position of the periodic boundary trinagle causes problems 
+        # when determining in which bin they should be --> therefor we kick them out 
+        if 'elem_pbnd' not in data_zm.coords: 
+            data_zm['elem_pbnd'] = xr.DataArray(np.zeros(data_zm[vname].shape, dtype=bool), dims=data_zm[vname].dims).chunk((data_zm[vname].chunks) )
+        else                            : 
+            data_zm['elem_pbnd'] = (data_zm[vname].dims, da.broadcast_to(data_zm['elem_pbnd'].data[:, None], data_zm[vname].data.shape))
+        
+        
+        #_______________________________________________________________________
+        # Apply zonal mean over chunk
+        bin_zm = da.map_blocks(calc_transect_zmean_chnk  ,
+                                  lat_bins                  ,  # zonal mean bin definitions
+                                  data_zm['lat'      ].data ,  # depth
+                                  data_zm['w_A'      ].data ,  # area weight
+                                  data_zm['elem_pbnd'].data ,  # area weight
+                                  data_zm[vname      ].data ,  # data chunk piece
+                                  dtype     = np.float32,  # Tuple dtype
+                                  drop_axis = [1],           # we drop dim nz1
+                                  chunks    = (2*nlat*nlev, )  # Output shape
+                                )
+        
+        #_______________________________________________________________________
+        # reshape axis over chunks 
+        bin_zm = bin_zm.reshape((nchunk, 2, nlat, nlev))
+        
+        #_______________________________________________________________________
+        # do dask axis reduction across chunks dimension
+        bin_zm = da.reduction(bin_zm,                   
+                                 chunk     = lambda x, axis=None, keepdims=None: x,  # Updated to handle axis and keepdims
+                                 aggregate = np.sum,
+                                 dtype     = np.float32,
+                                 axis      = 0,
+                                 ).compute()
+        
+        #_______________________________________________________________________
+        # compute mean velocities ber bin --> avoid division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            bin_zm = np.where(bin_zm[1]>0, bin_zm[0]/bin_zm[1], np.nan)
+        
+        #________________________________________________________________________________________________    
+        data_bin_zm = xr.Dataset(data_vars = {vname : ((dimn_v,'lat'), bin_zm.T, data_zm[vname].attrs)
+                                              }, 
+                                 coords    = {'lat'    : (('lat'      ), (lat_bins[:-1]+lat_bins[1:])*0.5)              , 
+                                              'lat_bnd': (('lat','n2' ), np.column_stack((lat_bins[:-1], lat_bins[1:]))), 
+                                              'depth'  : (('nz1'      ), data_zm[dimn_v].values) 
+                                              },
+                                 attrs     = data_zm.attrs)
+        
+        #_______________________________________________________________________
+        # change attributes
+        if 'long_name' in data[vname].attrs:
+            data_bin_zm[vname].attrs['long_name'] = "zonal mean {}".format(data[vname].attrs['long_name']) 
+        else:
+            data_bin_zm[vname].attrs['long_name'] = "zonal mean {}".format(vname) 
+        
+        if 'short_name' in data[vname].attrs:
+            data_bin_zm[vname].attrs['short_name'] = "zonal mean {}".format(data[vname].attrs['short_name']) 
+        else:
+            data_bin_zm[vname].attrs['short_name'] = "zonal mean {}".format(vname) 
+        
+        #_______________________________________________________________________
+        if box is None or box == 'global': 
+            data_bin_zm[vname].attrs['transect_name'] = 'global zonal mean'
+        elif isinstance(box, shp.Reader):
+            str_name = box.shapeName.split('/')[-1].replace('_',' ')
+            data_bin_zm[vname].attrs['transect_name'] = '{} zonal mean'.format(str_name.lower())
+        
+        # for the choice of vertical plotting mode
+        data_bin_zm.attrs['proj'] = 'index+depth+xy'
+        ##_______________________________________________________________________
+        #if do_compute : data_zm = data_zm.compute() 
+        #if do_load    : data_zm = data_zm.load()
+        #if do_persist : data_zm = data_zm.persist()    
+        
+        #_______________________________________________________________________
+        # append index to list
+        index_list.append(data_bin_zm)
+        
+        #_______________________________________________________________________
+        cnt = cnt + 1
+        
+    #___________________________________________________________________________
+    return(index_list)
+
+
+
+#
+#
+#___COMPUTE ZONAL MEAN SECTION BASED ON BINNING_________________________________
+def calc_transect_mmean_dask(mesh                  , 
+                              data                  , 
+                              box_list              , 
+                              do_parallel           , 
+                              parallel_nprc         ,
+                              dlon          =0.5    , 
+                              boxname       =None   ,
+                              diagpath      =None   , 
+                              do_checkbasin =False  , 
+                              do_compute    =False  , 
+                              do_load       =True   , 
+                              do_persist    =False  , 
+                              do_info       =False  , 
+                              **kwargs,):
+    """
+    --> compute zonal means transect, defined by regional box_list
+    
+    Parameters:
+        
+        :mesh:      fesom2 mesh object, with all mesh information
+
+        :data:      xarray dataset object, or list of xarray dataset object with 3d vertice
+                    data
+
+        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts), boxname] index region defined by polygon
+
+        :dlat:      float, (default=0.5) resolution of latitudinal bins
+        
+        :diagpath:  str, (default=None), path to diagnostic file only needed when 
+                    w_A weights for area average are not given in the dataset, than 
+                    he will search for the diagnostic file_loader
+                    
+        :do_checkbasin: bool, (default=False) additional plot with selected region/
+                        basin information
+                        
+        :do_compute:    bool (default=False), do xarray dataset compute() at the end
+                        data = data.compute(), creates a new dataobject the original
+                        data object seems to persist
+        
+        :do_load:       bool (default=True), do xarray dataset load() at the end
+                        data = data.load(), applies all operations to the original
+                        dataset
+                        
+        :do_persist:    bool (default=False), do xarray dataset persist() at the end
+                        data = data.persist(), keeps the dataset as dask array, keeps
+                        the chunking    
+                      
+        :do_info:       bool (defalt=False), print variable info at the end 
+                      
+    Returns:
+    
+        :index_list:    list with xarray dataset of zonal mean array
+    
+    ____________________________________________________________________________
+    
+    """
+    #___________________________________________________________________________
+    # str_anod    = ''
+    index_list  = []
+    cnt         = 0
+    
+    #___________________________________________________________________________
+    # loop over box_list
+    vname = list(data.keys())[0]
+    dimn_v = None
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h = 'nod2'
+    elif ('elem' in data.dims): dimn_h = 'elem'
+    if   'nz'  in list(data[vname].dims): 
+        dimn_v, ndi, depth = 'nz' , mesh.nlev  , mesh.zlev     
+    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
+        dimn_v, ndi, depth = 'nz1', mesh.nlev-1, mesh.zmid
+    
+    
+    for box in box_list:
+        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+            if len(box)==2: boxname, box = box[1], box[0]
+        
+        #_______________________________________________________________________
+        # compute box mask index for nodes
+        if   'nod2' in data.dims:
+            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2')
+        elif 'elem' in data.dims:     
+            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem')
+            
+        #___________________________________________________________________________
+        if do_checkbasin:
+            from matplotlib.tri import Triangulation
+            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            plt.figure()
+            plt.triplot(tri, color='k')
+            if 'elem' in data.dims:
+                plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
+            else:
+                plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], 'or', linestyle='None', markersize=1)
+            plt.title('Basin selection')
+            plt.show()
+        
+        #___________________________________________________________________________
+        # do zonal mean calculation either on nodes or on elements        
+        # keep in mind that node area info is changing over depth--> therefor load from file 
+        fname = data[vname].attrs['runid']+'.mesh.diag.nc'            
+        if diagpath is None:
+            if   os.path.isfile( os.path.join(data[vname].attrs['datapath'], fname) ): 
+                dname = data[vname].attrs['datapath']
+            elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/'), fname) ): 
+                dname = os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/')
+            elif os.path.isfile( os.path.join(mesh.path,fname) ): 
+                dname = mesh.path
+            else:
+                raise ValueError('could not find directory with...mesh.diag.nc file')
+            
+            diagpath = os.path.join(dname,fname)
+            if do_info: print(' --> found diag in directory:{}', diagpath)
+        else:
+            if os.path.isfile(os.path.join(diagpath,fname)):
+                diagpath = os.path.join(diagpath,fname)
+            elif os.path.isfile(os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)) :
+                diagpath = os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)
+                
+        #___________________________________________________________________________
+        # compute area weighted vertical velocities on elements
+        if 'elem' in data.dims:        
+            #_______________________________________________________________________
+            # load elem area from diag file
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['elem_area']#.chunk({'elem':1e4})
+                    if 'elem_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'elem_n':'elem'})
+                    if 'nl'     in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'    :'nz'  })
+                    if 'nl1'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'   :'nz1' })
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+                data = data.assign_coords(w_A=nz_w_A)
+                
+            data = data.assign_coords(new_w_A = data['w_A'].expand_dims({dimn_v: data[dimn_v]}).transpose())
+            data = data.drop_vars('w_A').rename({'new_w_A':'w_A'})
+            
+            #___________________________________________________________________
+            # select basin to compute mean over
+            data_zm = data.isel(elem=idxin)
+        
+        # compute area weighted vertical velocities on vertices
+        else:     
+            #___________________________________________________________________
+            # load vertice cluster area from diag file
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']
+                    if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nod_n':'nod2'})
+                    if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl'   :'nz'  })
+                    if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl1'  :'nz1' })    
+                    nz_w_A = nz_w_A.drop_vars(['nz'])
+                    
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+                
+                # data are on mid depth levels
+                if dimn_v=='nz1': 
+                    nz_w_A = nz_w_A.isel(nz=slice(None, -1)).rename({'nz':'nz1'})
+                
+                data = data.assign_coords(w_A=nz_w_A)
+                
+            #___________________________________________________________________
+            # select basin to compute mean over
+            data_zm = data.isel(nod2=idxin)
+            
+        #_______________________________________________________________________
+        # determine actual chunksize
+        nchunk = 1
+        if do_parallel :
+            if   'elem' in data_zm.dims: nchunk = len(data_zm.chunks['elem'])
+            elif 'nod2' in data_zm.dims: nchunk = len(data_zm.chunks['nod2'])
+            print(' --> nchunk=', nchunk)   
+            
+        #_______________________________________________________________________
+        # after all the time and depth operation after the loading there will 
+        # be worker who have no chunk piece to work on  --> therfore we need
+        # to rechunk make sure the workload is distributed between all 
+        # availabel worker equally         
+        if do_parallel and nchunk<parallel_nprc*0.75:
+            print(' --> rechunk array size', end='')
+            if   'elem' in data_zm.dims: 
+                data_zm = data_zm.chunk({'elem': np.ceil(data_zm.dims['elem']/(parallel_nprc)).astype('int'), dimn_v:-1})
+                nchunk = len(data_zm.chunks['elem'])
+            elif 'nod2' in data_zm.dims: 
+                data_zm = data_zm.chunk({'nod2': np.ceil(data_zm.dims['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1})
+                nchunk = len(data_zm.chunks['nod2'])
+            print(' --> nchunk_new=', nchunk)    
+               
+        #_______________________________________________________________________
+        # create meridional bins
+        lon_min    = np.floor(data_zm['lon'].min().compute())
+        lon_max    = np.ceil( data_zm['lon'].max().compute())
+        lon_bins   = np.arange(lon_min, lon_max+dlon/2, dlon)
+        nlon, nlev = len(lon_bins)-1, data_zm.dims[dimn_v]
+        
+        #_______________________________________________________________________
+        # !!! THIS IS VERY IMPORTANT THAT THE WHOLE DASK APPROACH WORKS !!!
+        # expand chunked lat coordinates along the vertical dimension since all 
+        # the chunked input files to da.map_blocks(calc_transect_zmean_chnk(...)
+        # must have identical chunked dimensions now all is 2d
+        data_zm['lon'] = (data_zm[vname].dims, da.broadcast_to(data_zm['lon'].data[:, None], data_zm[vname].data.shape))
+        # The centroid position of the periodic boundary trinagle causes problems 
+        # when determining in which bin they should be --> therefor we kick them out 
+        if 'elem_pbnd' not in data_zm.coords: 
+            data_zm['elem_pbnd'] = xr.DataArray(np.zeros(data_zm[vname].shape, dtype=bool), dims=data_zm[vname].dims).chunk((data_zm[vname].chunks) )
+        else                            : 
+            data_zm['elem_pbnd'] = (data_zm[vname].dims, da.broadcast_to(data_zm['elem_pbnd'].data[:, None], data_zm[vname].data.shape))
+        
+        
+        #_______________________________________________________________________
+        # Apply zonal mean over chunk
+        bin_zm = da.map_blocks(calc_transect_zmean_chnk  ,
+                                  lon_bins                  ,  # zonal mean bin definitions
+                                  data_zm['lon'      ].data ,  # depth
+                                  data_zm['w_A'      ].data ,  # area weight
+                                  data_zm['elem_pbnd'].data ,  # area weight
+                                  data_zm[vname      ].data ,  # data chunk piece
+                                  dtype     = np.float32,  # Tuple dtype
+                                  drop_axis = [1],           # we drop dim nz1
+                                  chunks    = (2*nlon*nlev, )  # Output shape
+                                )
+        
+        #_______________________________________________________________________
+        # reshape axis over chunks 
+        bin_zm = bin_zm.reshape((nchunk, 2, nlon, nlev))
+        
+        #_______________________________________________________________________
+        # do dask axis reduction across chunks dimension
+        bin_zm = da.reduction(bin_zm,                   
+                                 chunk     = lambda x, axis=None, keepdims=None: x,  # Updated to handle axis and keepdims
+                                 aggregate = np.sum,
+                                 dtype     = np.float32,
+                                 axis      = 0,
+                                 ).compute()
+        
+        #_______________________________________________________________________
+        # compute mean velocities ber bin --> avoid division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            bin_zm = np.where(bin_zm[1]>0, bin_zm[0]/bin_zm[1], np.nan)
+        
+        #________________________________________________________________________________________________    
+        data_bin_zm = xr.Dataset(data_vars = {vname : ((dimn_v,'lon'), bin_zm.T, data_zm[vname].attrs)
+                                              }, 
+                                 coords    = {'lon'    : (('lon'      ), (lon_bins[:-1]+lon_bins[1:])*0.5)              , 
+                                              'lon_bnd': (('lon','n2' ), np.column_stack((lon_bins[:-1], lon_bins[1:]))), 
+                                              'depth'  : (('nz1'      ), data_zm[dimn_v].values) 
+                                              },
+                                 attrs     = data_zm.attrs)
+        
+        #_______________________________________________________________________
+        # change attributes
+        if 'long_name' in data[vname].attrs:
+            data_bin_zm[vname].attrs['long_name'] = "meridional mean {}".format(data[vname].attrs['long_name']) 
+        else:
+            data_bin_zm[vname].attrs['long_name'] = "meridional mean {}".format(vname) 
+        
+        if 'short_name' in data[vname].attrs:
+            data_bin_zm[vname].attrs['short_name'] = "meridional mean {}".format(data[vname].attrs['short_name']) 
+        else:
+            data_bin_zm[vname].attrs['short_name'] = "meridional mean {}".format(vname) 
+        
+        #_______________________________________________________________________
+        if box is None or box == 'global': 
+            data_bin_zm[vname].attrs['transect_name'] = 'global zonal mean'
+        elif isinstance(box, shp.Reader):
+            str_name = box.shapeName.split('/')[-1].replace('_',' ')
+            data_bin_zm[vname].attrs['transect_name'] = '{} zonal mean'.format(str_name.lower())
+        
+        # for the choice of vertical plotting mode
+        data_bin_zm.attrs['proj'] = 'index+depth+xy'
+        ##_______________________________________________________________________
+        #if do_compute : data_zm = data_zm.compute() 
+        #if do_load    : data_zm = data_zm.load()
+        #if do_persist : data_zm = data_zm.persist()    
+        
+        #_______________________________________________________________________
+        # append index to list
+        index_list.append(data_bin_zm)
+        
+        #_______________________________________________________________________
+        cnt = cnt + 1
+        
+    #___________________________________________________________________________
+    return(index_list)
+
+
+
+#
+#
+#_______________________________________________________________________________  
+def calc_transect_zmean_chnk(lat_bins, chnk_lat, chnk_wA, chnk_pnbd, chnk_d):
+    """
+
+    """
+    #___________________________________________________________________________
+    # Replace NaNs with 0 value to summation issues
+    chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
+    chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
+    nnod, nlev  = chnk_d.shape
+    
+    # i need the nz1 dimension in these variables only for the input of 
+    # function da.map_block() so that all chunked variables have the same size
+    # after the input phase i need from chnk_lat[:, 0]  and chnk_pnbd[:, 0] onyl 
+    # the first layer
+    chnk_lat    = chnk_lat[:, 0] 
+    chnk_pnbd   = chnk_pnbd[:, 0]
+    
+    # Use np.digitize to find bin indices for longitudes and latitudes
+    lat_indices = np.digitize(chnk_lat, lat_bins)-1  # Adjust to get 0-based index
+    nlat        = len(lat_bins)-1
+    
+    # Initialize binned data storage 
+    binned_d    = np.zeros((2, nlat, nlev), dtype=np.float32)  
+    # binned_d[0,...] - data
+    # binned_d[1,...] - area weight counter
+    
+    # Precompute mask outside the loop
+    idx_valid  = (lat_indices >= 0) & (lat_indices < nlat) & (~chnk_pnbd)
+    del(chnk_pnbd)
+
+    # Apply mask before looping
+    lat_indices = lat_indices[idx_valid   ]
+    chnk_d      = chnk_d[     idx_valid, :]
+    chnk_wA     = chnk_wA[    idx_valid, :]
+
+    # Sum data based on binned indices
+    for nod_i in range(len(lat_indices)):
+        jj = lat_indices[nod_i]
+        binned_d[0, jj, :] = binned_d[0, jj, :] + chnk_d[ nod_i, :] * chnk_wA[nod_i,:]
+        binned_d[1, jj, :] = binned_d[1, jj, :] + chnk_wA[nod_i,:]
+    
+    #___________________________________________________________________________
+    return binned_d.flatten()
+    
 
 
 #
