@@ -97,6 +97,8 @@ vertice/element- resolution and area)
 * `transect_hflx_t`  - plot time-series of heat transport through arbitrary transects 
 * `transect_zmean`   - plot zonally averaged transects of 3d ocean variables
 * `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
+* `transect_mmean`   - plot meridionally averaged transects of 3d ocean variables
+* `transect_mmean_clim`- plot meridionally averaged transects of 3d temperature, salinity and density climatology
 <p align="center" width="100%">
   <img height=150px src="docs/images/tripyview_transect_pos.png">
   <img height=150px src="docs/images/tripyview_transect.png">
