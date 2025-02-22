@@ -210,5 +210,5 @@ driver section.
 </p>
 
 ## Credits:
-If you use the package please give the package or the author some credit.
+If you use the package, please cite the package or the author as the source.
 
