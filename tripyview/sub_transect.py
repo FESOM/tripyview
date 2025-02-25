@@ -2152,9 +2152,6 @@ def calc_transect_zm_mean_dask(mesh                  ,
                 else: 
                     raise ValueError('could not find ...mesh.diag.nc file')
                 data = data.assign_coords(w_A=nz_w_A)
-                
-            data = data.assign_coords(new_w_A = data['w_A'].expand_dims({dimn_v: data[dimn_v]}).transpose())
-            data = data.drop_vars('w_A').rename({'new_w_A':'w_A'})
             
             #___________________________________________________________________
             # select basin to compute mean over
@@ -2189,6 +2186,7 @@ def calc_transect_zm_mean_dask(mesh                  ,
         # determine/adapt actual chunksize
         nchunk = 1
         if do_parallel and isinstance(data_zm[vname].data, da.Array)==True :
+            
             if   'elem' in data_zm.dims: nchunk = len(data_zm.chunks['elem'])
             elif 'nod2' in data_zm.dims: nchunk = len(data_zm.chunks['nod2'])
             print(' --> nchunk=', nchunk)   
@@ -2224,29 +2222,39 @@ def calc_transect_zm_mean_dask(mesh                  ,
         lonlat_max    = np.ceil( data_zm[ do_lonlat ].max().compute())
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
         nlonlat, nlev = len(lonlat_bins)-1, data_zm.dims[dimn_v]
+        # print('nlonlat, nlev = ', nlonlat, nlev)
         
         #_______________________________________________________________________
-        # !!! THIS IS VERY IMPORTANT THAT THE WHOLE DASK APPROACH WORKS !!!
-        # expand chunked lat coordinates along the vertical dimension since all 
-        # the chunked input files to da.map_blocks(calc_transect_zmean_chnk(...)
-        # must have identical chunked dimensions now all is 2d
-        data_zm[ do_lonlat ] = (data_zm[vname].dims, da.broadcast_to(data_zm[ do_lonlat ].data[:, None], data_zm[vname].data.shape))
-        # The centroid position of the periodic boundary trinagle causes problems 
+        # The centroid position of the periodic boundary triangle causes problems 
         # when determining in which bin they should be --> therefor we kick them out 
+        # with this index
         if 'elem_pbnd' not in data_zm.coords: 
-            data_zm = data_zm.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data_zm[vname].shape, dtype=bool), dims=data_zm[vname].dims))
-            if isinstance(data_zm[vname].data, da.Array)==True: 
-                data_zm['elem_pbnd'] = data_zm['elem_pbnd'].chunk(data_zm[vname].chunks)
-        else                            : 
-            data_zm['elem_pbnd'] = (data_zm[vname].dims, da.broadcast_to(data_zm['elem_pbnd'].data[:, None], data_zm[vname].data.shape))
+            data_zm = data_zm.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data_zm[do_lonlat].shape, dtype=bool), dims=data_zm[do_lonlat].dims))
+            if isinstance(data_zm[do_lonlat].data, da.Array)==True: 
+                data_zm['elem_pbnd'] = data_zm['elem_pbnd'].chunk(data_zm[do_lonlat].chunks)
         
         #_______________________________________________________________________
         # Apply zonal mean over chunk
+        # its important to use: 
+        # data_zm[do_lonlat  ].data[:,None]
+        # data_zm['elem_pbnd'].data[:,None]
+        # all the input to da.map_blocks(calc_transect_zm_mean_chnk... must have the
+        # same dimensionality otherwise it wont work. I also hat to use drop_axis = [1] 
+        # which drops the chunking along the second dimension only leaving  the 
+        # chunking of the first dimension. I also only managed to return the results
+        # as a flattened array the attempt to return as a more dimensional matrix
+        # failed. THats why i need to use shape afterwards 
+        chnk_lonlat = data_zm[do_lonlat  ].data[:, None] 
+        chnk_epbnd  = data_zm['elem_pbnd'].data[:, None]
+        # when we are on elements w_A is a 1D field, whereas when we are on 
+        # vertices w_A is 2D, that why we need to add a dimension for the elem case
+        if np.ndim(data_zm['w_A'].data)==1: chnk_wA = data_zm['w_A'].data[:, None] 
+        else                              : chnk_wA = data_zm['w_A'].data
         bin_zm = da.map_blocks(calc_transect_zm_mean_chnk    ,
                                   lonlat_bins                ,   # mean bin definitions
-                                  data_zm[do_lonlat  ].data  ,   # lon/lat nod2 coordinates
-                                  data_zm['w_A'      ].data  ,   # area weight
-                                  data_zm['elem_pbnd'].data  ,   # if elem is pbnd element
+                                  chnk_lonlat                ,   # lon/lat nod2 coordinates
+                                  chnk_wA                    ,   # area weight
+                                  chnk_epbnd                 ,   # if elem is pbnd element
                                   data_zm[vname      ].data  ,   # data chunk piece
                                   dtype     = np.float32     ,   # Tuple dtype
                                   drop_axis = [1]            ,   # drop dim nz1
@@ -2332,17 +2340,16 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_pnbd, chn
 
     """
     #___________________________________________________________________________
+    # only needthe additional dimension at the point where the function is started
+    if   np.ndim(chnk_lonlat) == 2: chnk_lonlat = chnk_lonlat[:, 0]
+    elif np.ndim(chnk_lonlat) == 3: chnk_lonlat = chnk_lonlat[:, 0, 0]
+    if   np.ndim(chnk_pnbd)   == 2: chnk_pnbd   = chnk_pnbd[  :, 0]
+    elif np.ndim(chnk_pnbd)   == 3: chnk_pnbd   = chnk_pnbd[  :, 0, 0]
+    
     # Replace NaNs with 0 value to summation issues
     chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
     chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
     nnod, nlev  = chnk_d.shape
-    
-    # i need the nz1 dimension in these variables only for the input of 
-    # function da.map_block() so that all chunked variables have the same size
-    # after the input phase i need from chnk_lonlat[:, 0]  and chnk_pnbd[:, 0] onyl 
-    # the first layer
-    chnk_lonlat = chnk_lonlat[:, 0] 
-    chnk_pnbd   = chnk_pnbd[  :, 0]
     
     # Use np.digitize to find bin indices for longitudes and latitudes
     idx_lonlat  = np.digitize(chnk_lonlat, lonlat_bins)-1  # Adjust to get 0-based index
@@ -2358,7 +2365,7 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_pnbd, chn
     del(chnk_pnbd)
 
     # Apply mask before looping
-    idx_lonlat  = idx_lonlat[idx_valid   ]
+    idx_lonlat  = idx_lonlat[idx_valid]
     chnk_d      = chnk_d[    idx_valid, :]
     chnk_wA     = chnk_wA[   idx_valid, :]
     nnod        = len(idx_lonlat)
@@ -2371,7 +2378,6 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_pnbd, chn
     
     #___________________________________________________________________________
     return binned_d.flatten()
-    
 
 
 #

@@ -8,7 +8,8 @@ import numpy        as np
 import xarray       as xr
 import shapefile    as shp
 import tripyview    as tpv
-
+import dask.array   as da
+import dask
 xr.set_options(keep_attrs=True)
 
 client, use_existing_client = None, "tcp://0.0.0.0:0000"
@@ -27,11 +28,13 @@ def init_notebook(which_matplotlib="inline"):
     globals_.update({
         "os": os,
         "warnings": warnings,
+        "clock": clock,
         "tpv": tpv,
         "shp": shp,
         "xr": xr,
         "np": np,
-        "clock": clock,
+        "da": da,
+        "dask": dask,
         "client": None,
         "use_existing_client": "tcp://0.0.0.0:0000"
     })

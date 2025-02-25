@@ -50,6 +50,7 @@ def load_data_fesom2(mesh,
                                         'ndens':'auto'},
                      do_showtime    = False     ,
                      do_info        = True      ,
+                     client         = None      , 
                      **kwargs):
     """
     --> general loading of fesom2 and fesom14cmip6 data
@@ -363,6 +364,7 @@ def load_data_fesom2(mesh,
         # remove variables that are not needed
         #data = data.drop(labels=vname_drop)
         data = data.drop_vars(vname_drop)
+    
     
     #___________________________________________________________________________    
     if do_parallel and do_info: display(data)
@@ -714,7 +716,7 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
             if os.path.isfile(path):
                 pathlist.append(path)  
             else:
-                print(f'--> No file: {path}\n')
+                print(f'--> No file: {path}')
     
     # a single year is given to load
     elif isinstance(year, int):
@@ -723,7 +725,7 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
         if os.path.isfile(path):
             pathlist.append(path)  
         else:
-            print(f'--> No file: {path}\n')
+            print(f'--> No file: {path}')
         str_mtim = 'y:{}'.format(year)
     else:
         raise ValueError( " year can be integer, list, np.array or range(start,end)")
@@ -1384,16 +1386,10 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
             data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)      
         
         elif do_harithm=='wmean':
-            weights = data['w_A']
-            data    = data.drop_vars('w_A')
-            weights = weights.where(np.isnan(data)==False)
-            weights = weights/weights.sum(dim=dim_name, skipna=True)
-            data    = data*weights
-            del weights
-            data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)  
-            data    = data.where(data!=0)
-        
-        elif do_harithm=='None' or do_zarithm is None:
+            # this solution needs way less RAM and scales better with dask
+            data    = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
+            
+        elif do_harithm=='None' or do_harithm is None:
             ...
         
         else:

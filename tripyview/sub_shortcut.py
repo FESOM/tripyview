@@ -1,4 +1,5 @@
 from dask.distributed import Client
+import numpy as np
 import gc
 import dask
 import os
@@ -9,7 +10,13 @@ import shapefile as shp
 #
 #_______________________________________________________________________________
 # start parallel dask client
-def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel_nprc, parallel_tmem):
+def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel_nprc, parallel_tmem,
+                              threads_per_worker=4, 
+                              memory_thresh=0.90, # hoch much memory from total mem should be distributed
+                              memory_target=0.80, # Start spilling at 85% usage (default 60%)
+                              memory_spill =0.90,  # Spill to disk at 90% usage (default 70%)
+                              memory_pause =0.95, # Pause execution at 95% usage (default 80%)
+                              ):
     """
     --> shortcut to setup dask client in a note book 
     
@@ -31,7 +38,7 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
                         
         :parallel_nprc:  int, (default:48) How many dask worker should be started
         
-        :parallel_tmem:  int, (default:200) Available memory that will be distributed 
+        :parallel_tmem:  int, (default:256) Available memory that will be distributed 
                          between the started dask workers   
     
      __________________________________________________
@@ -46,6 +53,12 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
     #___________________________________________________________________________
     if do_parallel:
         dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
+        dask.config.set({
+                         "distributed.worker.memory.target": memory_target,   # Start spilling at 80%
+                         "distributed.worker.memory.spill" : memory_spill,    # Spill to disk at 90%
+                         "distributed.worker.memory.pause" : memory_pause,   # Pause execution at 95%
+                        })
+        dask.config.set({"distributed.scheduler.work-stealing": True})
         
         #_______________________________________________________________________
         # check for existing client via adress
@@ -64,9 +77,14 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
                 print("Dask client already running:", client)
             except ValueError:
                 # No active client, start a new one
-                client = Client(n_workers=parallel_nprc, threads_per_worker=1, memory_limit='{:3.3f} GB'.format(parallel_tmem/parallel_nprc))
+                client = Client(n_workers         = np.int16(parallel_nprc/threads_per_worker), 
+                                threads_per_worker= threads_per_worker, 
+                                memory_limit      = '{:3.3f} GB'.format(parallel_tmem/parallel_nprc*threads_per_worker*memory_thresh)
+                                )
                 print("Started a new Dask client:", client)
+        #_______________________________________________________________________            
         display(client)
+        
     #___________________________________________________________________________
     return(client)
 
