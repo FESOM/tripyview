@@ -222,7 +222,8 @@ def tripyrun():
     analyses_driver_list["dmoc_t"             ] = drive_dmoc_t
     
     analyses_driver_list["hbarstreamf"        ] = drive_hbarstreamf
-    analyses_driver_list["ghflx"              ] = drive_ghflx
+    analyses_driver_list["gmhflx"             ] = drive_gmhflx
+    analyses_driver_list["gzhflx"             ] = drive_gmhflx
     analyses_driver_list["mhflx"              ] = drive_mhflx
     
     #___________________________________________________________________________

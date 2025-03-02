@@ -9,7 +9,8 @@ import seawater as sw
 #import gsw as gsw
 from .sub_mesh import *
 import warnings
-import dask.array               as da
+import dask.array as da
+from dask.array import broadcast_arrays
 
 
 #xr.set_options(enable_cftimeindex=False)
@@ -152,6 +153,8 @@ def load_data_fesom2(mesh,
         :do_showtime:   bool, (default=False) show time information stored in dataset
         
         :do_info:       bool (defalt=True), print variable info at the end 
+        
+        :client:        dask client object (default=None)
         
     Returns:
     
@@ -312,13 +315,9 @@ def load_data_fesom2(mesh,
     # set specfic type when loading --> #convert to specific precision
     from functools import partial
     def _preprocess(x, do_prec):
-        return x.astype(do_prec, copy=False)
-    
-    #def _preprocess(x, do_prec):
         #for var in list(x.coords):
             #if var == 'time_bnds': x = x.drop_vars(var)
-        #return x.astype(do_prec, copy=False)
-
+        return x.astype(do_prec, copy=False)
     partial_func = partial(_preprocess, do_prec=do_prec)
     
     #___________________________________________________________________________
@@ -368,7 +367,7 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________    
     if do_parallel and do_info: display(data)
-    
+
     #___________________________________________________________________________    
     # This is for icepack data over thickness classes make class selection always 
     # based in indices
@@ -420,51 +419,6 @@ def load_data_fesom2(mesh,
         
         del dimn_vold
     
-    # ensure proper dimnesion permutation for data it must be [time, nod2, nz]
-    dimn_h, dimn_v = 'dum', 'dum'
-    if   ('nod2' in data.dims): dimn_h = 'nod2'
-    elif ('elem' in data.dims): dimn_h = 'elem'
-    if   ('nz'   in data.dims): dimn_v = 'nz'
-    elif ('nz1'  in data.dims): dimn_v = 'nz1'
-    elif ('ndens'in data.dims): dimn_v = 'ndens'
-    # check dimension ordering
-    if ( len(data.dims)==3 and list(data.dims) != ['time', dimn_h, dimn_v]): data = data.transpose('time', dimn_h, dimn_v)
-    del dimn_h, dimn_v
-    
-    ## convert dimensions name from fesom14cmip6 --> fesom2
-    #if do_f14cmip6: 
-        ## rename coordinate: depth --> nz, do this first than rename dimension otherwise
-        ## it triggers a warning message
-        #if ('depth'  in data.coords): 
-            #data = data.rename({'depth' :'nz'  })
-            #if 'nz' not in data.indexes:
-                #data = data.set_index(nz='nz')
-        ## rename dimension: depth --> nz
-        #if ('depth'  in data.dims  ): data = data.swap_dims({'depth': 'nz'})
-        
-        #if ('time' in data.dims) and \
-           #('nod2' in data.dims) and \
-           #('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
-        
-    ## convert dimensions name from multiio --> fesom2    
-    #if do_multiio: 
-        ## rename coordinate: depth --> nz, do this first than rename dimension otherwise
-        ## it triggers a warning message
-        #if ('lev'  in data.coords): 
-            #data = data.rename({'lev' :'nz'  })
-            #if 'nz' not in data.indexes:
-                #data = data.set_index(nz='nz')
-        
-        #if ('lev'  in data.dims  ): data = data.swap_dims({'lev': 'nz'})
-        
-        #if ('time' in data.dims) and \
-           #('nod2' in data.dims) and \
-           #('nz'   in data.dims): data = data.transpose('time', 'nod2', 'nz')
-        #data = data.unify_chunks()
-    
-    #___________________________________________________________________________    
-    data = data.unify_chunks()
-    
     #___________________________________________________________________________
     # check if mesh and data fit together
     if   'nod2' in data.dims: 
@@ -488,16 +442,8 @@ def load_data_fesom2(mesh,
     data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
     
     # do time arithmetic on data
-    if 'time' in data.dims:
-        data, str_atim = do_time_arithmetic(data, do_tarithm)
+    if 'time' in data.dims: data, str_atim = do_time_arithmetic(data, do_tarithm)
     
-    #___________________________________________________________________________
-    # make sure datas are alligned in [time, elem, nz] and not [time, nz, elem]
-    if 'time' in data.dims:
-        if dim_vert is not None: data = data.transpose('time', dim_horz, dim_vert)
-    else: 
-        if dim_vert is not None: data = data.transpose(dim_horz, dim_vert)
-
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
@@ -537,15 +483,15 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
-    elif ( bool(set(['nz1', 'nz', 'ncat']).intersection(data.dims)) ) and (depth is None) and (do_zarithm in ['sum','mean','wmean','wint', 'max', 'min']): 
-        #print('~~ >-))))o> o0O ~~~ B')
+    elif ( (bool(set(['nz1', 'nz', 'ncat', 'ndens']).intersection(data.dims))) and 
+           (depth is None) and 
+           (do_zarithm in ['sum','mean','wmean','wint', 'max', 'min']) ): 
         if   ('nz1'  in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz1" )
         elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz"  )
         elif ('ncat' in data.dims): data = do_depth_arithmetic(data, do_zarithm, "ncat")     
+    
     # only 2D data found            
-    else:
-        #print('~~ >-))))o> o0O ~~~ C')
-        depth=None
+    else: depth=None
     
     #___________________________________________________________________________
     # rotate the vectors if do_rot=True and do_vec=True
@@ -555,10 +501,6 @@ def load_data_fesom2(mesh,
     # compute norm of the vectors if do_norm=True    
     data = do_vector_norm(data, do_norm)
     
-    ##___________________________________________________________________________
-    ## compute norm of the vectors if do_norm=True    
-    #data = do_rescaling(data, do_rescale)
-
     #___________________________________________________________________________
     # compute potential density if do_pdens=True    
     if do_pdens and depth is None: 
@@ -590,9 +532,10 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
     warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
-    if do_compute: data = data.compute()
-    if do_load   : data = data.load()
-    if do_persist: data = data.persist()
+    if   do_compute: data = data.compute()
+    elif do_load   : data = data.load()
+    elif do_persist: data = data.persist()
+    if client is not None: client.rebalance()
     warnings.resetwarnings()
     #___________________________________________________________________________
     if do_info: 
@@ -763,133 +706,107 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     """
     
     # Suppress the specific warning about sending large graphs
-    warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+    #warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
 
-    dimv = None
+    #___________________________________________________________________________
+    # setup vertical and horizontal dimension names 
+    dimn_v, dimn_h = None, None
+    if   'nz1'   in data.dims: dimn_v = 'nz1'        
+    elif 'nz'    in data.dims: dimn_v = 'nz'
+    elif 'ndens' in data.dims: dimn_v = 'ndens'
+    elif 'ncat'  in data.dims: dimn_v = 'ncat'
+    if   'nod2'  in data.dims: dimn_h = 'nod2'
+    elif 'elem'  in data.dims: dimn_h = 'elem'
+    elif 'edg_n' in data.dims: dimn_h = 'edg_n'
+    set_chnk_h  = {dimn_h: data.chunksizes[dimn_h]}
+    set_chnk_v  = {dimn_v: data.chunksizes[dimn_v]}
+    set_chnk_hv = {dimn_v: data.chunksizes[dimn_v], dimn_h: data.chunksizes[dimn_h]}
+    
+    #___________________________________________________________________________
+    # set vertical coordinates and grid info
+    grid_info = dict()
     if   ('nz1'  in data.dims): 
-        dimv = 'nz1'
         if   ('nz1'  in data.coords): data = data.drop_vars('nz1' ) 
-        elif ('nz_1' in data.coords): data = data.drop_vars('nz_1') 
-        set_chunk = dict({dimv:data.chunksizes[dimv]}) 
-        data = data.assign_coords({'nz1': xr.DataArray(-mesh.zmid,                  dims=dimv).astype('float32').chunk(set_chunk) })
-        data = data.assign_coords({'nzi': xr.DataArray(np.arange(0,mesh.zmid.size), dims=dimv).astype('uint8'  ).chunk(set_chunk) })
+        grid_info['nz1']    = xr.DataArray(-mesh.zmid.astype('float32'),               dims=dimn_v).chunk(set_chnk_v)
+        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zmid.size, dtype='uint8'), dims=dimn_v).chunk(set_chnk_v)
         
     elif ('nz'   in data.dims): 
-        dimv = 'nz'
         if ('nz'  in data.coords): data = data.drop_vars('nz' ) 
-        set_chunk = dict({dimv:data.chunksizes[dimv]}) 
-        data = data.assign_coords(nz   = xr.DataArray(-mesh.zlev,                  dims=dimv).astype('float32').chunk(set_chunk) )
-        data = data.assign_coords(nzi  = xr.DataArray(np.arange(0,mesh.zlev.size), dims=dimv).astype('uint8').chunk(set_chunk) )
-        
-    elif ('ndens'   in data.dims): 
-        dimv = 'ndens'
+        grid_info['nz' ]    = xr.DataArray(-mesh.zlev.astype('float32'),               dims=dimn_v).chunk(set_chnk_v) 
+        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zlev.size, dtype='uint8'), dims=dimn_v).chunk(set_chnk_v) 
     
-    elif ('ncat'   in data.dims): 
-        dimv = 'ncat'
-        
-    dimh = None
+    #___________________________________________________________________________
+    # set horizontal coordinates and gridinfo 
+    # set vertice coordinates
     if   ('nod2' in data.dims):
-        dimh = 'nod2'
-        if dimh in data.chunksizes: set_chunk = dict({dimh: data.chunksizes[dimh]})
-        else                      : set_chunk = dict({})
+        grid_info['lon'   ] = xr.DataArray(mesh.n_x.astype('float32')                         , dims=dimn_h).chunk(set_chnk_h)
+        grid_info['lat'   ] = xr.DataArray(mesh.n_y.astype('float32')                         , dims=dimn_h).chunk(set_chnk_h)
+        grid_info['nodi'  ] = xr.DataArray(np.arange(0,mesh.n2dn, dtype='int32')              , dims=dimn_h).chunk(set_chnk_h)
+        grid_info['ispbnd'] = xr.DataArray(np.zeros(mesh.n2dn, dtype='bool')                  , dims=dimn_h).chunk(set_chnk_h)
+        if   'nz1' == dimn_v: grid_info['nodiz'] = xr.DataArray(mesh.n_iz.astype('uint8'  )-1 , dims=dimn_h).chunk(set_chnk_h)
+        elif 'nz'  == dimn_v: grid_info['nodiz'] = xr.DataArray(mesh.n_iz.astype('uint8'  )   , dims=dimn_h).chunk(set_chnk_h)
         
         #_______________________________________________________________________
-        # set coordinates
-        data = data.assign_coords(lon  = xr.DataArray(mesh.n_x              , dims=dimh).chunk(set_chunk))
-        data = data.assign_coords(lat  = xr.DataArray(mesh.n_y              , dims=dimh).chunk(set_chunk))
-        data = data.assign_coords(nodi = xr.DataArray(np.arange(0,mesh.n2dn), dims=dimh).astype('int32').chunk(set_chunk))
-        if   dimv in ['nz1']: 
-            data = data.assign_coords(nodiz = xr.DataArray(mesh.n_iz-1      , dims=dimh).astype('uint8').chunk(set_chunk))
-        elif dimv in ['nz']: 
-            data = data.assign_coords(nodiz = xr.DataArray(mesh.n_iz        , dims=dimh).astype('uint8').chunk(set_chunk))
-        
-        #_______________________________________________________________________
-        # do horiz weighting for weighted mean computation on nodes
+        # do horizontal weighting for weighted mean computation on vertices
         if do_hweight:
-            if   'nz1'  == dimv:
-                set_chunk = dict({dimh: data.chunksizes[dimh], dimv:data.chunksizes[dimv]}) 
-                w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=[dimv, dimh]).chunk(set_chunk)
-            elif 'nz'   == dimv:
+            # need area weight for 3d data on mid depth levels
+            if   'nz1' == dimn_v:
+                grid_info['w_A']     = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+            
+            # need area weight for 3d data on full depth levels
+            elif 'nz'  == dimn_v:
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
-                    set_chunk = dict({dimh: data.chunksizes[dimh]}) 
-                    w_A = xr.DataArray(mesh.n_area.astype( 'float32'), dims=[        dimh]).chunk(set_chunk)
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')       , dims=[        dimn_h]).chunk(set_chnk_h)
                 else:    
-                    set_chunk = dict({dimh: data.chunksizes[dimh], dimv:data.chunksizes[dimv]}) 
-                    w_A = xr.DataArray(mesh.n_area.astype('float32'), dims=[dimv, dimh]).chunk(set_chunk)
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')       , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+            
+            # only need area weights for 2d data
             else:   
-                set_chunk = dict({dimh: data.chunksizes[dimh]}) 
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
-                    w_A = xr.DataArray(mesh.n_area.astype( 'float32'), dims=[        dimh]).chunk(set_chunk)
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')       , dims=[        dimn_h]).chunk(set_chnk_h)
                 else:    
-                    w_A = xr.DataArray(mesh.n_area[0, :].astype( 'float32'), dims=[        dimh]).chunk(set_chunk)
-            data = data.assign_coords(w_A=w_A)
-            del(w_A)
-        
-        # do vertical weighting/volumen weight
-        if do_zweight and dimv is not None:  
-            if   'nz1' == dimv:
-                set_chunk = dict({dimv:data.chunksizes[dimv]}) 
-                #w_An = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1', 'nod2']).chunk(data.chunksizes['nod2'])
-                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=dimv).chunk(set_chunk)
-                #data = data.assign_coords(w_z=w_z*w_An)
-            elif 'nz' == dimv:
-                set_chunk = dict({dimv:data.chunksizes[dimv]}) 
-                #w_An = xr.DataArray(mesh.n_area.astype('float32'), dims=['nz', 'nod2']).chunk(data.chunksizes['nod2'])
-                w_z  = xr.DataArray(np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0)), dims=dimv).chunk(set_chunk)
-            #data = data.drop('w_A')    
-            #data = data.assign_coords(w_z=w_An*w_z)
-            data = data.assign_coords(w_z=w_z)
-            del(w_z)
-        
-    elif ('elem' in data.dims):                          
-        dimh = 'elem'
-        if dimh in data.chunksizes: set_chunk = dict({dimh: data.chunksizes[dimh]})
-        else                      : set_chunk = dict({})
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area[0, :].astype('float32') , dims=[        dimn_h]).chunk(set_chnk_h)
         
         #_______________________________________________________________________
-        # set coordinates
-        data = data.assign_coords(lon  = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3.0, dims=dimh).chunk(set_chunk))
-        data = data.assign_coords(lat  = xr.DataArray(mesh.n_y[mesh.e_i].sum(axis=1)/3.0, dims=dimh).chunk(set_chunk))
-        data = data.assign_coords(elemi= xr.DataArray(np.arange(0,mesh.n2de)            , dims=dimh).astype('int32').chunk(set_chunk))
-        
-        aux_pbnd = np.zeros(mesh.n2de, dtype=bool); aux_pbnd[mesh.e_pbnd_1]=True
-        data = data.assign_coords(elem_pbnd= xr.DataArray(aux_pbnd, dims=dimh).astype('bool').chunk(set_chunk))
-        del(aux_pbnd)
-        if   dimv in ['nz1']: 
-            data = data.assign_coords(elemiz= xr.DataArray(mesh.e_iz-1                  , dims=dimh).astype('uint8').chunk(set_chunk))
-        elif dimv in ['nz']: 
-            data = data.assign_coords(elemiz= xr.DataArray(mesh.e_iz                    , dims=dimh).astype('uint8').chunk(set_chunk))
+        # do vertical weighting/volumen weight 
+        if do_zweight and dimn_v is not None:  
+            if   'nz1' == dimn_v: dz = mesh.zlev[:-1]-mesh.zlev[1:]
+            elif 'nz'  == dimn_v: dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))
+            grid_info['w_z']  = xr.DataArray(dz.astype('float16')                       , dims=[dimn_v        ]).chunk(set_chnk_v)
+            del(dz)    
+    
+    #___________________________________________________________________________
+    # set element coordinates
+    elif ('elem' in data.dims):                          
+        grid_info['lon'  ]  = xr.DataArray((mesh.n_x[mesh.e_i].sum(axis=1)/3.0).astype('float32'), dims=dimn_h).chunk(set_chnk_h)
+        grid_info['lat'  ]  = xr.DataArray((mesh.n_y[mesh.e_i].sum(axis=1)/3.0).astype('float32'), dims=dimn_h).chunk(set_chnk_h)
+        grid_info['elemi']  = xr.DataArray(np.arange(0,mesh.n2de, dtype='int32')                 , dims=dimn_h).chunk(set_chnk_h)
+        grid_info['ispbnd'] = xr.DataArray(np.isin(np.arange(0, mesh.n2de, dtype='int32'), mesh.e_pbnd_1), dims=dimn_h).chunk(set_chnk_h)
+        if   'nz1' == dimn_v: grid_info['elemiz'] = xr.DataArray(mesh.e_iz.astype('uint8')-1     , dims=dimn_h).chunk(set_chnk_h)
+        elif 'nz'  == dimn_v: grid_info['elemiz'] = xr.DataArray(mesh.e_iz.astype('uint8')       , dims=dimn_h).chunk(set_chnk_h)
         
         #_______________________________________________________________________
         # do weighting for weighted mean computation on elements
         if do_hweight:
-            data = data.assign_coords(w_A  = xr.DataArray(mesh.e_area                   , dims=dimh).astype( 'float32').chunk(set_chunk))
+            grid_info['w_A'] = xr.DataArray(mesh.e_area.astype( 'float32')                       , dims=dimn_h).chunk(set_chnk_h)
         
-        if do_zweight and dimv is not None:    
-            if   'nz1' == dimv:
-                set_chunk = dict({dimh: data.chunksizes[dimh], dimv:data.chunksizes[dimv]})
-                w_A  = np.zeros((mesh.nlev-1, mesh.n2de))
-                for ei in range(0,mesh.n2de): w_A[mesh.e_iz[ei]+1-1:,ei]=np.nan
-                w_Ae = xr.DataArray(w_A, dims=[dimv, dimh]).chunk(set_chunk) 
-                                               
-                set_chunk = dict({dimv:data.chunksizes[dimv]})
-                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=dimv).chunk(set_chunk)
-                
-            elif 'nz' == dimv:
-                set_chunk = dict({dimh: data.chunksizes[dimh], dimv:data.chunksizes[dimv]})
-                w_A  = np.zeros((mesh.nlev, mesh.n2de))
-                for ei in range(0,mesh.n2de): w_A[mesh.e_iz[ei]+1:,ei]=np.nan
-                w_Ae = xr.DataArray(w_A, dims=[dimv, dimh]).chunk(set_chunk)
-                
-                set_chunk = dict({dimv:data.chunksizes[dimv]})
-                w_z  = xr.DataArray(mesh.zlev[:-1]-mesh.zlev[1:], dims=dimv).chunk(set_chunk)
-                
-            data = data.assign_coords(w_z=w_z*w_Ae).astype( 'float32')
-            del(w_z, w_Ae, w_A)
-    
+        if do_zweight and dimn_v is not None:    
+            if   'nz1' == dimn_v: dz = mesh.zlev[:-1]-mesh.zlev[1:]
+            elif 'nz'  == dimn_v: dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))    
+            dz = xr.DataArray(dz.astype('float16'), dims=dimn_v).chunk(set_chnk_v)
+            
+            mat_nhor_iz    = data['elemiz'].expand_dims(dim=dimn_v)              # --> Shape (1, n)
+            mat_nzi_hor    = data['nzi'   ].expand_dims(dim=dimn_h, axis=-1)     # --> Shape (m, 1)
+            # Broadcast the arrays together (Dask-aware operation)
+            mat_nhor_iz, mat_nzi_hor = xr.broadcast(mat_nhor_iz, mat_nzi_hor) # --> Shape (m, n)
+
+            grid_info['w_z']= xr.where(mat_nzi_hor <= mat_nhor_iz, 1, 0 )*dz
+            del(dz, mat_nhor_iz, mat_nzi_hor)
+            
     #___________________________________________________________________________
-    warnings.resetwarnings()
-    return(data, dimv, dimh)
+    # now return assigned grid_info to the dataset
+    #warnings.resetwarnings()
+    return(data.assign_coords(grid_info), dimn_v, dimn_h)
 
     
 
@@ -917,30 +834,26 @@ def do_setbottomnan(mesh, data, do_nan):
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
     if do_nan and any(x in data.dims for x in ['nz1','nz']): 
+        
+        dimn_v = 'nz1' if 'nz1'  in data.dims else 'nz'
+        dimn_h = 'nod2'if 'nod2' in data.dims else 'elem'
         if   ('nod2' in data.dims):
-            #if vname in ['Kv', 'Av']: 
-            if   ('nz1'  in data.dims): mat_nodiz= data['nodiz'].expand_dims({'nz1': data['nz1']}).transpose()
-            elif ('nz'   in data.dims): mat_nodiz= data['nodiz'].expand_dims({'nz': data['nz']}).transpose()
-            mat_nzinod= data['nzi'].expand_dims({'nod2': data['nod2']}).drop_vars('nod2')
-            
-            # kickout all cooordinates from mat_nodiz and mat_nzinod
-            mat_nodiz = mat_nodiz.drop_vars(list(mat_nodiz.coords))
-            mat_nzinod= mat_nzinod.drop_vars(list(mat_nzinod.coords))
-            
-            data = data.where(mat_nzinod<=mat_nodiz)
-            del mat_nodiz, mat_nzinod
-                
+            # from Shape (n,)  --> Shape (1, n)
+            mat_nhor_iz = data['nodiz'].expand_dims(dim=dimn_v) 
         elif('elem' in data.dims):
-            if   ('nz1'  in data.dims): mat_elemiz= data['elemiz'].expand_dims({'nz1': data['nz1']}).transpose()
-            elif ('nz'   in data.dims): mat_elemiz= data['elemiz'].expand_dims({'nz': data['nz']}).transpose()
-            mat_nzielem= data['nzi'].expand_dims({'elem': data['elemi']}).drop_vars('elem')
+            # from Shape (n,)  --> Shape (1, n)
+            mat_nhor_iz = data['elemiz'].expand_dims(dim=dimn_v) 
             
-            # kickout all cooordinates from mat_nzielem
-            mat_elemiz = mat_elemiz.drop_vars(list(mat_elemiz.coords))
-            mat_nzielem= mat_nzielem.drop_vars(list(mat_nzielem.coords))
-            
-            data = data.where(mat_nzielem<=mat_elemiz)
-            del mat_elemiz, mat_nzielem
+        # from Shape (m,) --> Shape (m, 1)    
+        mat_nzi_hor = data['nzi'  ].expand_dims(dim=dimn_h, axis=-1)
+
+        # Broadcast the arrays together (this will align them properly across chunks)
+        # create here both arrays to have the size (m, n)
+        mat_nhor_iz, mat_nzi_hor = broadcast_arrays(mat_nhor_iz, mat_nzi_hor)
+        
+        # set nan values where mat_nzi_hor <= mat_nhor_iz
+        data = data.where(mat_nzi_hor <= mat_nhor_iz)
+        del mat_nhor_iz, mat_nzi_hor
         
     #___________________________________________________________________________
     return(data)
@@ -1382,9 +1295,8 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
             data = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)            
         
         elif do_harithm=='wint':
-            data    = data*data['w_A']
-            data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)      
-        
+            data    = data.weighted(data['w_A']).sum(dim=dim_name, keep_attrs=True, skipna=True)
+            
         elif do_harithm=='wmean':
             # this solution needs way less RAM and scales better with dask
             data    = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
@@ -1445,19 +1357,14 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
             data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_zarithm=='wint':
-            data    = data*data['w_z']
-            data    = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)          
-        
+            data    = data.weighted(data['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True)
+            
         elif do_zarithm=='wmean':
-            if   ('nod2' in data.dims):
-                weights = data['w_A']*data['w_z']
-            else:    
-                weights = data['w_z']
-                
-            weights = weights/weights.sum(dim=dim_name, skipna=True)
-            data    = data*weights
-            data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True) 
-            del weights
+            #if   ('nod2' in data.dims):
+                #weights = data['w_A']*data['w_z']
+            #else:    
+                #weights = data['w_z']
+            data    = data.weighted(data['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_zarithm=='None' or do_zarithm is None:
             ...
@@ -1497,22 +1404,14 @@ def do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv):
         vname = list(data.keys())
         
         # vector data are on vertices 
-        if ('nod2' in data[vname[0]].dims) or ('node' in data[vname[0]].dims):
-            print(' > do nod2 vector rotation')
-            data[vname[0] ].data,\
-            data[vname[1]].data = vec_r2g(mesh.abg, mesh.n_x, mesh.n_y, 
-                                        data[vname[0]].data, data[vname[1]].data, 
-                                        gridis='geo' )
-        
-        # vector data are on elements
-        if ('elem' in data[vname[0]].dims):
-            print(' > do elem vector rotation')
-            data[vname[0] ].data,\
-            data[vname[1]].data = vec_r2g(mesh.abg, 
-                                        mesh.n_x[mesh.e_i].sum(axis=1)/3, 
-                                        mesh.n_y[mesh.e_i].sum(axis=1)/3, 
-                                        data[vname[0]].data, data[vname[1]].data, 
-                                        gridis='geo' )  
+        #if ('nod2' in data[vname[0]].dims) or ('node' in data[vname[0]].dims):
+        print(' > do vector rotation')
+        data[vname[0]], data[vname[1]] = vec_r2g_dask(mesh.abg           , 
+                                                    data['lon']     , 
+                                                    data['lat']     , 
+                                                    data[vname[0]]  ,  
+                                                    data[vname[1]]  , 
+                                                    gridis='geo' )
         
         # in case only a scalar vector component is needed, rotation might still 
         # need to be done. After rotation the other vector component can be dropped
@@ -1548,73 +1447,33 @@ def do_vector_norm(data, do_norm):
     ____________________________________________________________________________
     """
     if do_norm:
-        print(' > do compute norm')
-        # which varaibles are in data, must be two to compute norm
-        vname = list(data.keys())
+        print(' > compute norm')
+
+        # Extract variable names (assuming exactly two variables exist)
+        vname = list(data.data_vars)  # Use `.data_vars` instead of `keys()` to ensure only variables are considered
         
-        # rename variable vname
+        # Define new variable name
         new_vname = 'norm+{}+{}'.format(vname[0],vname[1])
         
-        ## estimate chunksize
-        #if   'nod2' in data.dims: dim_horz   = 'nod2'            
-        #elif 'elem' in data.dims: dim_horz   = 'elem'
-        #chunkssize = data.chunksizes[dim_horz]
+        # Compute norm efficiently using `apply_ufunc`
+        # --> this option is minimal faster than np.sqrt( np.square(data[vname[0]]) + 
+        #     np.square(data[vname[1]]) ) but produces a much cleaner task graph 
+        #     in dask
+        data[new_vname] = xr.apply_ufunc(np.hypot,  # Efficient sqrt(x^2 + y^2) function
+                                        data[vname[0]],
+                                        data[vname[1]],
+                                        dask="parallelized",  # Enables Dask parallelization
+                                        output_dtypes=[data[vname[0]].dtype])
+        #data[new_vname] = np.sqrt( np.square(data[vname[0]]) + np.square(data[vname[1]]) )
         
-        # compute norm in variable  vname
-        #data[vname[0] ].data = np.sqrt(data[vname[0]].data**2 + data[vname[1]].data**2)
-        #data[vname[0] ] = np.sqrt(np.square(data[vname[0]]) + np.square(data[vname[1]]))
-        #data[new_vname] = np.sqrt(data[vname[0]].data**2 + data[vname[1]].data**2)
-        #data[new_vname] = xr.DataArray(np.sqrt(np.square(data[vname[0]].data) + np.square(data[vname[1]].data)), dims=[dim_horz]).chunk(chunkssize)
-        
-        data[vname[0]] = np.sqrt( np.square(data[vname[0]]) + np.square(data[vname[1]]) )
-        
-        # rename variable vname[0]
-        data = data.rename({vname[0]:new_vname})
+        # rescue attributes
+        data[new_vname].attrs = data[vname[0]].attrs.copy()
         
         # delet variable vname2 from Dataset
-        data = data.drop_vars(vname[1])
- 
+        data = data.drop_vars(vname)
+        
     #___________________________________________________________________________    
     return(data)  
-
-
-##
-##
-##
-## ___COMPUTE LOGARYTHMIC RESCALING_____________________________________________
-#def do_rescaling(data, do_rescale):
-    #"""
-    #compute vector norm: vname='vec+u+v'
-    
-    #Parameters: 
-    
-        #:data:          xarray dataset object
-        
-        #:do_rescale:    string 'log10'
-        
-    #Returns:
-
-        #:data:          xarray dataset object
-    #____________________________________________________________________________
-    #"""
-    #if do_rescale=='log10':
-        #print(' > do compute log10 rescaling')
-        ## which varaibles are in data, must be two to compute norm
-        #vname = list(data.keys())[0]
-        
-        ## compute log10
-        ##data[vname] = xr.ufuncs.log10(data[vname])
-        #attr_glob = data.attrs        # rescue global attributes --> get lost with xr.where
-        #attr_loc  = data[vname].attrs # rescue local  attributes --> get lost with xr.where 
-        #data = xr.where(data!=0, xr.ufuncs.log10(data), 0.0)
-        #data.attrs        = attr_glob # put back global attributes
-        #data[vname].attrs = attr_loc  # put back local  attributes
-        
-        ## set attribute for rescaling
-        #data[vname].attrs['do_rescale'] = 'log10()'
-        
-    ##___________________________________________________________________________    
-    #return(data)  
 
 
 
@@ -1852,6 +1711,7 @@ def do_anomaly(data1,data2):
 #_______________________________________________________________________________
 def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
     import dask.array as da
+    
     #___________________________________________________________________________
     if len(list(data.data_vars))==2:
         vname, vname2 = list(data.data_vars)
@@ -1884,8 +1744,8 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
     #___________________________________________________________________________
     # The centroid position of the periodic boundary trinagle causes problems when determining in which 
     # bin they should be --> therefor we kick them out 
-    if 'elem_pbnd' not in data.coords: 
-        data['elem_pbnd'] = xr.DataArray(np.zeros(data[vname].shape, dtype=bool), dims=data[vname].dims).chunk((data[vname].chunks) )
+    if 'ispbnd' not in data.coords: 
+        data = data.assign_coords(ispbnd=xr.DataArray(np.zeros(data[vname].shape, dtype=bool), dims=data[vname].dims).chunk((data[vname].chunks) ))
     
     #___________________________________________________________________________
     # create lon lat bins 
@@ -1908,7 +1768,7 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
                                 data['lon'      ].data ,  # lon mesh coordinates of chunk piece
                                 data['lat'      ].data ,  # lat mesh coordinates of chunk piece
                                 data['w_A'      ].data ,  # area weight
-                                data['elem_pbnd'].data ,  # index if triangle is boundary triangle, can be None for nodes
+                                data['ispbnd'   ].data ,  # index if triangle is boundary triangle, can be None for nodes
                                 data[vname      ].data ,  # zonal vel. of chunk piece
                                 data[vname2     ].data ,  # meridional vel. Chunked data for u and v
                                 dtype  = np.float32    ,  # Tuple dtype
@@ -1926,7 +1786,7 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
                                 data['lon'      ].data ,  # lon mesh coordinates of chunk piece
                                 data['lat'      ].data ,  # lat mesh coordinates of chunk piece
                                 data['w_A'      ].data ,  # area weight
-                                data['elem_pbnd'].data ,  # index if triangle is boundary triangle, can be None for nodes
+                                data['ispbnd'   ].data ,  # index if triangle is boundary triangle, can be None for nodes
                                 data[vname      ].data ,  # single data chunk piece
                                 None                   ,
                                 dtype  = np.float32    ,  # Tuple dtype
@@ -1968,11 +1828,11 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
     #___________________________________________________________________________
     # write xarray dataset
     data_reg = xr.Dataset(data_vars = data_vars,
-                           coords    = {'lon'    : (('lon'      ), lon), 
-                                        'lat'    : (('lat'      ), lat), 
-                                        'lon_bnd': (('lon','n2' ), np.column_stack((lon_bins[:-1], lon_bins[1:]))) , 
-                                        'lat_bnd': (('lat','n2' ), np.column_stack((lat_bins[:-1], lat_bins[1:]))) , 
-                                        'w_A'    : (('lat','lon'), dA)},
+                           coords    = {'lon'    : (('lon'      ), lon.astype(np.float32)), 
+                                        'lat'    : (('lat'      ), lat.astype(np.float32)), 
+                                        'lon_bnd': (('lon_bnd'  ), lon_bins.astype(np.float32)) , 
+                                        'lat_bnd': (('lat_bnd'  ), lat_bins.astype(np.float32)) , 
+                                        'w_A'    : (('lat','lon'), dA.astype(np.float32))},
                            attrs     = data.attrs)
 
     #___________________________________________________________________________
@@ -2042,3 +1902,66 @@ def coarsegrain_h_chnk(lon_bins, lat_bins, chnk_lon, chnk_lat, chnk_wA, chnk_pbn
             binned_d[2, jj, ii] = binned_d[2, jj, ii] + chnk_wA[nod_i] # area weight counter
 
     return binned_d.flatten()
+
+
+def vec_r2g_dask(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
+    """
+    Rotate vector data from rotated coordinates into geographical coordinates.
+    This version uses Dask for parallelization.
+    """
+    #___________________________________________________________________________
+    # create grid coorinates for geo and rotated frame
+    if any(x in gridis for x in ['geo', 'g', 'geographical']):
+        rlon, rlat = grid_g2r(abg, lon, lat)
+    elif any(x in gridis for x in ['rot', 'r', 'rotated']):
+        rlon, rlat = lon, lat
+        lon , lat  = grid_g2r(abg, rlon, rlat)
+    else:
+        raise ValueError(f"Unsupported gridis={gridis}, expected 'geo' or 'rot'.")
+
+    #___________________________________________________________________________
+    # compute rotation matrix
+    rmat = grid_rotmat(abg)
+
+    # Use map_blocks to calculate the pseudo-inverse in parallel
+    rmat_inv = da.map_blocks(np.linalg.pinv, rmat, dtype=rmat.dtype)
+    
+    #___________________________________________________________________________
+    # degree --> radian 
+    rad        = np.pi / 180  # Degree to radian conversion
+    lon , lat  = lon  * rad, lat  * rad
+    rlon, rlat = rlon * rad, rlat * rad
+    if   vrot.ndim == 2 or urot.ndim == 2: 
+        lon , lat  =  lon[None, :],  lat[None, :]
+        rlon, rlat = rlon[None, :], rlat[None, :]
+    elif vrot.ndim == 3 or urot.ndim == 3: 
+        lon ,  lat =  lon[None, None, :] ,  lat[None, None, :]
+        rlon, rlat = rlon[None, None, :] , rlat[None, None, :]
+        
+    #___________________________________________________________________________
+    # Precompute trigonometric functions for efficiency (avoid recalculating in 
+    # loop)
+    sin_lat , cos_lat  = da.sin(lat ), da.cos(lat )
+    sin_lon , cos_lon  = da.sin(lon ), da.cos(lon )
+    sin_rlat, cos_rlat = da.sin(rlat), da.cos(rlat)
+    sin_rlon, cos_rlon = da.sin(rlon), da.cos(rlon)
+
+    #___________________________________________________________________________
+    # rotation of one dimensional vector data
+    # Handle 1D/2d/3d data (vectorized with Dask)
+    
+    # Compute vector in rotated cartesian coordinates
+    vxr = -vrot*sin_rlat*cos_rlon - urot*sin_rlon
+    vyr = -vrot*sin_rlat*sin_rlon + urot*cos_rlon
+    vzr =  vrot*cos_rlat
+
+    # Compute vector in geo cartesian coordinates
+    vxg = rmat[0, 0]*vxr + rmat[0, 1]*vyr + rmat[0, 2]*vzr
+    vyg = rmat[1, 0]*vxr + rmat[1, 1]*vyr + rmat[1, 2]*vzr
+    vzg = rmat[2, 0]*vxr + rmat[2, 1]*vyr + rmat[2, 2]*vzr
+
+    # Compute vector in geo coordinates
+    vgeo = vxg*-sin_lat*cos_lon - vyg*sin_lat*sin_lon + vzg*cos_lat
+    ugeo = vxg*-sin_lon         + vyg*cos_lon
+
+    return ugeo, vgeo

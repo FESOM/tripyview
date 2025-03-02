@@ -15,7 +15,7 @@ import cartopy.crs              as ccrs
 
 from .sub_mesh import *
 from .sub_plot import *
-
+import tripyview
 #
 #
 #_____________________________________________________________________________________________
@@ -526,24 +526,15 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
 #| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
 #| 
 #+___________________________________________________________________________________________________
-def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False):
+def calc_basindomain_fast(mesh, 
+                          which_moc    ='amoc', 
+                          do_onelem    = True, 
+                          do_exclude   = False, 
+                          exclude_list = list()):
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
     if which_moc=='gmoc' and not isinstance(which_moc,shp.Reader):
-        #_______________________________________________________________________
-        if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
-        else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
-        
-        #_______________________________________________________________________
-        if exclude_meditoce:
-            pkg_path = os.path.dirname(__file__)
-            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
-            idx_excl = do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)
-            if do_onelem:
-                idx_excl = idx_excl[mesh.e_i].sum(axis=1)>=1
-                e_idxin[idx_excl]=False
-            else:    
-                n_idxin[idx_excl]=False
+        n_idxin = np.ones((mesh.n2dn,), dtype=bool)
         
     else:    
         tt1=time.time()
@@ -597,16 +588,26 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_medito
         n_idxin = np.zeros((mesh.n2dn,), dtype=bool)
         for box in box_list:
             n_idxin = np.logical_or(n_idxin, do_boxmask(mesh, box, do_elem=False))
-        
-        #_______________________________________________________________________
-        # exclude the mediterranean basin when computing MOC
-        if exclude_meditoce:
-            pkg_path = os.path.dirname(__file__)
-            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
-            n_idxin[do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)]=False
-        
-        #_______________________________________________________________________
-        if do_onelem: e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+    
+    #___________________________________________________________________________
+    # exclude certain areas from selection e.g mediterranean, blasck sea ... 
+    if do_exclude and len(exclude_list)>0 and which_moc=='gmoc':
+        for exclude in exclude_list:
+            # exclude by box
+            if   isinstance(exclude, list):
+                idx_excl = do_boxmask(mesh, exclude, do_elem=False)
+            
+            # exclude by shapefile location string
+            elif isinstance(exclude, str):    
+                shp_path = os.path.join(tripyview.__path__[0],'shapefiles/')
+                idx_excl = do_boxmask(mesh, shp.Reader(os.path.join(shp_path,exclude)), do_elem=False)
+                
+            else: raise ValueError('--> this exclude format is not supported')
+                    
+            n_idxin[idx_excl]=False
+    
+    #_______________________________________________________________________
+    if do_onelem: e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
     
     
     #___________________________________________________________________________

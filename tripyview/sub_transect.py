@@ -980,7 +980,8 @@ def _do_compute_distance_from_startpoint(transect):
 #
 #___COMPUTE VOLUME TRANSPORT THROUGH TRANSECT___________________________________
 def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
-                          do_transectattr=False, do_rot=False, do_info=True, do_nveccs=True):
+                          do_transectattr=False, do_rot=False, do_info=True, 
+                          do_nveccs=True, client=None):
     """
     --> Compute fesom2 modell accurate transport through defined transect
     
@@ -2084,8 +2085,8 @@ def calc_transect_zm_mean_dask(mesh                  ,
     vname = list(data.keys())[0]
     dimn_v = None
     dimn_h, dimn_v = 'dum', 'dum'
-    if   ('nod2' in data.dims): dimn_h = 'nod2'
-    elif ('elem' in data.dims): dimn_h = 'elem'
+    if   ('nod2' in data.dims): dimn_h, do_elem = 'nod2', False
+    elif ('elem' in data.dims): dimn_h, do_elem = 'elem', False
     if   'nz'  in list(data[vname].dims): 
         dimn_v  = 'nz'    
     elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
@@ -2098,10 +2099,7 @@ def calc_transect_zm_mean_dask(mesh                  ,
             
         #_______________________________________________________________________
         # compute box mask index for nodes
-        if   'nod2' in data.dims:
-            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2')
-        elif 'elem' in data.dims:     
-            idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem')
+        idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
             
         #___________________________________________________________________________
         if do_checkbasin:
@@ -2186,9 +2184,7 @@ def calc_transect_zm_mean_dask(mesh                  ,
         # determine/adapt actual chunksize
         nchunk = 1
         if do_parallel and isinstance(data_zm[vname].data, da.Array)==True :
-            
-            if   'elem' in data_zm.dims: nchunk = len(data_zm.chunks['elem'])
-            elif 'nod2' in data_zm.dims: nchunk = len(data_zm.chunks['nod2'])
+            nchunk = len(data_zm.chunks[dimn_h])
             print(' --> nchunk=', nchunk)   
             
             # after all the time and depth operation after the loading there will 
@@ -2197,23 +2193,15 @@ def calc_transect_zm_mean_dask(mesh                  ,
             # availabel worker equally         
             if nchunk<parallel_nprc*0.75:
                 print(' --> rechunk array size', end='')
-                if   'elem' in data_zm.dims: 
-                    data_zm = data_zm.chunk({'elem': np.ceil(data_zm.dims['elem']/(parallel_nprc)).astype('int'), dimn_v:-1})
-                    nchunk = len(data_zm.chunks['elem'])
-                elif 'nod2' in data_zm.dims: 
-                    data_zm = data_zm.chunk({'nod2': np.ceil(data_zm.dims['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1})
-                    nchunk = len(data_zm.chunks['nod2'])
+                data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1})
+                nchunk = len(data_zm.chunks[dimn_h])
                 print(' --> nchunk_new=', nchunk)    
         
         # in case of climatology data because there i need to make compute() after 
         # interpolation which destroys the chunking so i try to rechunk it
         elif do_parallel and isinstance(data_zm[vname].data, da.Array)==False: 
-            if   'elem' in data_zm.dims: 
-                data_zm = data_zm.chunk({'elem': np.ceil(data_zm.dims['elem']/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks().persist()
-                nchunk = len(data_zm.chunks['elem'])
-            elif 'nod2' in data_zm.dims: 
-                data_zm = data_zm.chunk({'nod2': np.ceil(data_zm.dims['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks().persist()
-                nchunk = len(data_zm.chunks['nod2'])
+            data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks().persist()
+            nchunk = len(data_zm.chunks[dimn_h])
             print(' --> nchunk_new=', nchunk)        
         
         #_______________________________________________________________________
@@ -2273,6 +2261,8 @@ def calc_transect_zm_mean_dask(mesh                  ,
                                  dtype     = np.float32,
                                  axis      = 0,
                                  ).compute()
+        
+        if client is not None: client.rebalance()
         
         #_______________________________________________________________________
         # compute mean velocities ber bin --> avoid division by zero
@@ -2341,41 +2331,81 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_pnbd, chn
     """
     #___________________________________________________________________________
     # only needthe additional dimension at the point where the function is started
-    if   np.ndim(chnk_lonlat) == 2: chnk_lonlat = chnk_lonlat[:, 0]
-    elif np.ndim(chnk_lonlat) == 3: chnk_lonlat = chnk_lonlat[:, 0, 0]
-    if   np.ndim(chnk_pnbd)   == 2: chnk_pnbd   = chnk_pnbd[  :, 0]
-    elif np.ndim(chnk_pnbd)   == 3: chnk_pnbd   = chnk_pnbd[  :, 0, 0]
-    
-    # Replace NaNs with 0 value to summation issues
-    chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
-    chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
-    nnod, nlev  = chnk_d.shape
-    
+    if   np.ndim(chnk_d) == 2: 
+        chnk_lat = chnk_lat[   :, 0] # 2D --> now is 1D again
+        chnk_pnbd= chnk_pnbd[  :, 0]
+    elif np.ndim(chnk_d) == 3:
+        chnk_lat = chnk_lat[ 0, :, 0] # 3D --> now is 1D again
+        chnk_pnbd= chnk_pnbd[0, :, 0]
+        chnk_wA  = chnk_wA[  0, :, :] # 3D --> now is 2D again
+        
     # Use np.digitize to find bin indices for longitudes and latitudes
     idx_lonlat  = np.digitize(chnk_lonlat, lonlat_bins)-1  # Adjust to get 0-based index
     nlonlat     = len(lonlat_bins)-1
     
-    # Initialize binned data storage 
-    binned_d    = np.zeros((2, nlonlat, nlev), dtype=np.float32)  
-    # binned_d[0,...] - data
-    # binned_d[1,...] - area weight counter
+    if   np.ndim(chnk_d) == 1: 
+        # Replace NaNs with 0 value to summation issues
+        nnod        = chnk_d.shape
+        chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
+        chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
+        binned_d    = np.zeros((2, nlonlat), dtype=np.float32)  
+        # binned_d[0, nlonlat] - data*area weight
+        # binned_d[1, nlonlat] - area weight sum
     
+    elif np.ndim(chnk_d) == 2: 
+        # Replace NaNs with 0 value to summation issues
+        nnod, nlev  = chnk_d.shape
+        chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
+        chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
+        binned_d    = np.zeros((2, nlonlat, nlev), dtype=np.float32)  
+        # binned_d[0, nlonlat, nlev] - data*area weight
+        # binned_d[1, nlonlat, nlev] - area weight sum
+        
+    elif np.ndim(chnk_d) == 3: 
+        # Replace NaNs with 0 value to summation issues
+        ntime, nnod, nlev = chnk_d.shape
+        chnk_wA     = np.where(np.isnan(chnk_d[0,:,:]), 0, chnk_wA)
+        chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
+        binned_d    = np.zeros((2, ntime, nlonlat, nlev), dtype=np.float32)
+        # binned_d[0, ntime, nlonlat, nlev] - data*area weight
+        # binned_d[1, ntime, nlonlat, nlev] - area weight sum    
+        
     # Precompute mask outside the loop
     idx_valid   = (idx_lonlat >= 0) & (idx_lonlat < nlonlat) & (~chnk_pnbd)
     del(chnk_pnbd)
 
     # Apply mask before looping
     idx_lonlat  = idx_lonlat[idx_valid]
-    chnk_d      = chnk_d[    idx_valid, :]
-    chnk_wA     = chnk_wA[   idx_valid, :]
     nnod        = len(idx_lonlat)
     
     # Sum data based on binned indices
-    for nod_i in range(0,nnod):
-        jj = idx_lonlat[nod_i]
-        binned_d[0, jj, :] = binned_d[0, jj, :] + chnk_d[ nod_i, :] * chnk_wA[nod_i, :]
-        binned_d[1, jj, :] = binned_d[1, jj, :] + chnk_wA[nod_i, :]
+    # data for zonal mean are 1d [nlonlat, ]
+    if   np.ndim(chnk_d) == 1:
+        chnk_d      = chnk_d[ idx_valid]
+        chnk_wA     = chnk_wA[idx_valid]
+        for nod_i in range(0,nnod):
+            jj = idx_lonlat[nod_i]
+            binned_d[0, jj] = binned_d[0, jj] + chnk_d[ nod_i] * chnk_wA[nod_i]
+            binned_d[1, jj] = binned_d[1, jj] + chnk_wA[nod_i]
     
+    # data for zonal mean are 2d [nlonlat, nlev]
+    elif np.ndim(chnk_d) == 2:
+        chnk_d      = chnk_d[ idx_valid, :]
+        chnk_wA     = chnk_wA[idx_valid, :]
+        for nod_i in range(0,nnod):
+            jj = idx_lonlat[nod_i]
+            binned_d[0, jj, :] = binned_d[0, jj, :] + chnk_d[ nod_i, :] * chnk_wA[nod_i, :]
+            binned_d[1, jj, :] = binned_d[1, jj, :] + chnk_wA[nod_i, :]
+    
+    # data for zonal mean are 3d [ntime, nlonlat, nlev]
+    elif np.ndim(chnk_d) == 3:    
+        chnk_d      = chnk_d[ :, idx_valid, :]
+        chnk_wA     = chnk_wA[   idx_valid, :]
+        for nod_i in range(0,nnod):
+            jj = idx_lonlat[nod_i]
+            binned_d[0, :, jj, :] = binned_d[0, :, jj, :] + chnk_d[ :, nod_i, :] * chnk_wA[nod_i, :]
+            binned_d[1, :, jj, :] = binned_d[1, :, jj, :] + chnk_wA[nod_i, :]
+            
     #___________________________________________________________________________
     return binned_d.flatten()
 

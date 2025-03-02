@@ -332,8 +332,8 @@ def calc_zmoc(mesh,
     for dim_ni in dim_n:
         if   dim_ni=='time': dim_s.append(data.sizes['time']); coords['time' ]=(['time'], data['time'].data ) 
         elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
-        elif dim_ni=='nz1' : dim_s.append(data.sizes['nz1'] ); coords['depth']=(['nz1' ], data['nz1' ].data )
-        elif dim_ni=='nz'  : dim_s.append(data.sizes['nz' ] ); coords['depth']=(['nz'  ], data['nz'  ].data ) 
+        elif dim_ni=='nz1'  : dim_s.append(data.sizes['nz1'] ); coords['depth']=(['nz1'  ], data['nz1' ].data )
+        elif dim_ni=='nz'   : dim_s.append(data.sizes['nz' ] ); coords['depth']=(['nz'   ], data['nz'  ].data ) 
     data_vars['zmoc'] = (dim_n, np.zeros(dim_s, dtype='float32'), vattr) 
     # create dataset
     zmoc = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
@@ -361,8 +361,8 @@ def calc_zmoc(mesh,
         if do_info: print('\n ___parallel loop over longitudinal bins___'+'_'*1, end='\n')
         from joblib import Parallel, delayed
         results = Parallel(n_jobs=n_workers)(delayed(moc_over_lat)(lat_i, lat_bin, data) for lat_i in zmoc.lat)
-        if 'time' in data.dims: zmoc['zmoc'][:,:,:] = xr.concat(results, dim='lat').transpose('time','nz','lat')
-        else                  : zmoc['zmoc'][  :,:] = xr.concat(results, dim='lat').transpose('nz','lat')
+        if 'time' in data.dims: zmoc['zmoc'][:,:,:] = xr.concat(results, dim='nlat').transpose('time','nz','lat')
+        else                  : zmoc['zmoc'][  :,:] = xr.concat(results, dim='nlat').transpose('nz','lat')
     
     del(data)
     
@@ -422,18 +422,19 @@ def calc_zmoc(mesh,
 #|                                                                             |
 #|                                                                             |
 #|_____________________________________________________________________________|
-def calc_zmoc_dask(mesh, 
-              data, 
-              do_parallel               , 
-              parallel_nprc             ,
-              dlat          = 1.0       ,
-              which_moc     = 'gmoc'    , 
-              do_onelem     = False     , 
-              diagpath      = None      , 
-              do_checkbasin = False     , 
-              do_info       = True      , 
-              **kwargs                  , 
-             ):
+def calc_zmoc_dask( mesh                      , 
+                    data                      , 
+                    do_parallel               , 
+                    parallel_nprc             ,
+                    dlat          = 1.0       ,
+                    which_moc     = 'gmoc'    , 
+                    diagpath      = None      , 
+                    do_checkbasin = False     , 
+                    do_exclude    = False     , 
+                    exclude_list  = list(['ocean_basins/Mediterranean_Basin.shp', [26,42,39.5,47]])   ,
+                    do_info       = True      , 
+                    **kwargs                  , 
+                    ):
     """
     --> calculate meridional overturning circulation from vertical velocities 
         (Pseudostreamfunction) either on vertices or elements
@@ -441,6 +442,12 @@ def calc_zmoc_dask(mesh,
     Parameters:
     
         :mesh:          fesom2 tripyview mesh object,  with all mesh information 
+        
+        :data:          xarray dataset object with 3d vertical velocities
+        
+        :do_parallel:   bool, (default=False) is a dask client running
+        
+        :parallel_nprc: int, (default=64), number of parallel processes
         
         :data:          xarray dataset object with 3d vertical velocities
         
@@ -464,9 +471,6 @@ def calc_zmoc_dask(mesh,
                         is stronger than 'amoc'. There is no clear rule which one 
                         is better, just be sure you are consistent       
                         
-        :do_onelem:     bool (default=False) ... should computation be done on 
-                        elements or vertices
-        
         :diagpath       str (default=None) if str give custom path to specific fesom2
                         fesom.mesh.diag.nc file, if None routine looks automatically in    
                         meshfolder and original datapath folder (stored as attribute in)
@@ -526,10 +530,11 @@ def calc_zmoc_dask(mesh,
         
     #___________________________________________________________________________
     # compute/use index for basin domain limitation
-    if do_onelem:
-        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='elem')
-    else:
-        idxin = xr.DataArray(calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=do_onelem), dims='nod2')
+    idxin = xr.DataArray(calc_basindomain_fast(mesh, 
+                                               which_moc    = which_moc, 
+                                               do_onelem    = False, 
+                                               do_exclude   = do_exclude, 
+                                               exclude_list = exclude_list), dims='nod2')
     
     #___________________________________________________________________________
     if do_checkbasin:
@@ -537,10 +542,7 @@ def calc_zmoc_dask(mesh,
         tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
         plt.figure()
         plt.triplot(tri, color='k')
-        if do_onelem:
-            plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
-        else:
-            plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], 'or', linestyle='None', markersize=1)
+        plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], 'or', linestyle='None', markersize=1)
         plt.title('Basin selection')
         plt.show()
     
@@ -700,7 +702,7 @@ def calc_zmoc_dask(mesh,
     #___________________________________________________________________________
     # transfer from [nlat, nlev] ---> [nlev, nlat]
     if 'time' in data.dims : zmoc = zmoc.transpose([0,2,1])
-    else                   : zmoc = zmoc.T
+    else                   : zmoc = zmoc.transpose([1,0])
     
     #___________________________________________________________________________
     # create ZMOC xarray Dataset
@@ -733,8 +735,8 @@ def calc_zmoc_dask(mesh,
     for dim_ni in dim_n:
         if   dim_ni=='time': dim_s.append(data.sizes['time']); coords['time' ]=(['time'], data['time'].data ) 
         elif dim_ni=='lat' : dim_s.append(lat.size          ); coords['lat'  ]=(['lat' ], lat          ) 
-        elif dim_ni=='nz1' : dim_s.append(data.sizes['nz1'] ); coords['depth']=(['nz1' ], data['nz1' ].data )
-        elif dim_ni=='nz'  : dim_s.append(data.sizes['nz' ] ); coords['depth']=(['nz'  ], data['nz'  ].data ) 
+        elif dim_ni=='nz1'  : dim_s.append(data.sizes['nz1'] ); coords['depth']=(['nz1'  ], data['nz1' ].data )
+        elif dim_ni=='nz'   : dim_s.append(data.sizes['nz' ] ); coords['depth']=(['nz'   ], data['nz'  ].data ) 
     data_vars['zmoc'] = (dim_n, zmoc, vattr) 
     
     # create dataset

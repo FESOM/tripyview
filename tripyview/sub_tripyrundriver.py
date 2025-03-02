@@ -1097,7 +1097,7 @@ def drive_transect_zm_mean_clim(yaml_settings, analysis_name, webpage=dict(), im
 #
 #
 #_______________________________________________________________________________
-def drive_ghflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_gmhflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1110,8 +1110,8 @@ def drive_ghflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vna
     params_vname = dict({'tripyrun_analysis':analysis_name})
     params_vname.update(params_1lvl)
     params_vname.update(params_2lvl)
-    params_vname["vname"] = 'ghflx'
-    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_ghflx')
+    params_vname["vname"] = analysis_name
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_'+analysis_name)
     return webpage
 
 

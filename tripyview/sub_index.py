@@ -29,6 +29,7 @@ def load_index_fesom2(mesh                  ,
                       do_compute    = False , 
                       do_load       = True  , 
                       do_persist    = False ,
+                      client        = None  ,
                       ):
     """
     --> compute index over region from 2d and 3d vertice data
@@ -76,7 +77,8 @@ def load_index_fesom2(mesh                  ,
                       
         :do_info:       bool (defalt=False), print variable info at the end 
                        
-                    
+        :client:        dask client object (default=None)
+        
     Returns:
     
     
@@ -92,28 +94,30 @@ def load_index_fesom2(mesh                  ,
     cnt         = 0
     
     #___________________________________________________________________________
+    vname = list(data.keys())[0]
+    dimn_v = None
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h, do_elem = 'nod2', False
+    elif ('elem' in data.dims): dimn_h, do_elem = 'elem', False
+    if   'nz'  in list(data[vname].dims): 
+        dimn_v  = 'nz'    
+    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
+        dimn_v  = 'nz1'
+        
+    #___________________________________________________________________________
     # loop over box_list
     for box in box_list:
         
         if not isinstance(box, shp.Reader):
-            if len(box)==2: boxname, box = box[1], box[0]
+            if   len(box)==2: boxname, box = box[1], box[0]
+            elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])
             if box is None or box=='global': boxname='global'
         else:     
             boxname = os.path.basename(box.shapeName).replace('_',' ')  
            
         #_______________________________________________________________________
-        # compute  mask index
-        if   'nod2' in data.dims: 
-            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=False), dims='nod2')
-            # --> seems to be not allowed anymore in newer version of xarray + dask
-            #     indexing array cant be chunked anymore
-            #if any(data.chunks.values()): idx_IN = idx_IN.chunk({'nod2':data.chunksizes['nod2']})
-            
-        elif 'elem' in data.dims: 
-            idx_IN=xr.DataArray(do_boxmask(mesh, box, do_elem=True), dims='elem')
-            # --> seems to be not allowed anymore in newer version of xarray + dask
-            #     indexing array cant be chunked anymore
-            #if any(data.chunks.values()): idx_IN = idx_IN.chunk({'elem':data.chunksizes['elem']})
+        # compute  mask index to select index region 
+        idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
             
         #_______________________________________________________________________
         # check basin selection
@@ -123,10 +127,10 @@ def load_index_fesom2(mesh                  ,
             plt.figure()
             ax = plt.gca()
             plt.triplot(tri, color='k')
-            if   'nod2' in data.dims: 
-                plt.plot(mesh.n_x[idx_IN], mesh.n_y[idx_IN], '*r', linestyle='None', markersize=1)
+            if  ~ do_elem: 
+                plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], '*r', linestyle='None', markersize=1)
             else: 
-                plt.plot(mesh.n_x[tri.triangles[idx_IN,:]].sum(axis=1)/3.0, mesh.n_y[tri.triangles[idx_IN,:]].sum(axis=1)/3.0, '*r', linestyle='None', markersize=1)
+                plt.plot(mesh.n_x[tri.triangles[idxin,:]].sum(axis=1)/3.0, mesh.n_y[tri.triangles[idxin,:]].sum(axis=1)/3.0, '*r', linestyle='None', markersize=1)
             plt.title('Basin selection')
             plt.show()
                 
@@ -138,57 +142,45 @@ def load_index_fesom2(mesh                  ,
         elif 'elem' in data.dims: dim_name.append('elem')    
         if   'nz'   in data.dims: dim_name.append('nz')
         elif 'nz1'  in data.dims: dim_name.append('nz1')      
-                
+        
+        #_______________________________________________________________________
+        # select index region from data
+        index   = data.sel({dimn_h:idxin})
+            
         #_______________________________________________________________________
         # do volume averaged mean
-        if do_harithm=='wmean' and do_zarithm=='wmean':
-            if   'nod2' in data.dims:
-                index   = data.sel(nod2=idx_IN)
-                weights = index['w_A']*index['w_z']
-                index   = index.drop_vars(['w_A', 'w_z'])
-                weights = weights/weights.sum(dim=dim_name, skipna=True)
-                index   = index*weights.astype('float32', copy=False )
-                index   = index.sum(dim=dim_name, keep_attrs=True, skipna=True)  
-            elif 'elem' in data.dims:    
-                STOP
-        
+        if   do_harithm=='wmean' and do_zarithm=='wmean':
+            index = index.weighted(index['w_A']*index['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True)
+                
         #_______________________________________________________________________
         # do volume integral
         elif do_harithm=='wint' and do_zarithm=='wint':
-            if   'nod2' in data.dims:
-                index   = data.sel(nod2=idx_IN)
-                weights = index['w_A']*index['w_z']
-                index   = index.drop_vars(['w_A', 'w_z'])
-                index   = index*weights.astype('float32', copy=False )
-                index   = index.sum(dim=dim_name, keep_attrs=True, skipna=True)  
-            elif 'elem' in data.dims:    
-                STOP  
-        
+            index = index.weighted(index['w_A']*index['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True)
+
         #_______________________________________________________________________
         # do horizontal/ vertical metrix that can be idependent from each other
         else:    
             #___________________________________________________________________
-            if   'nod2' in data.dims:
-                index = do_horiz_arithmetic(data.sel(nod2=idx_IN), do_harithm, 'nod2')
-            elif 'elem' in data.dims:    
-                index = do_horiz_arithmetic(data.sel(elem=idx_IN), do_harithm, 'elem')
+            if   dimn_h in ['nod2', 'elem'] and do_harithm is not None:
+                index = do_horiz_arithmetic(index, do_harithm, dimn_h)
                 
             #___________________________________________________________________
-            if   'nz1' in data.dims and do_harithm is not None:
-                index = do_depth_arithmetic(index, do_zarithm, 'nz1')
-            elif 'nz'  in data.dims and do_harithm is not None:        
-                index = do_depth_arithmetic(index, do_zarithm, 'nz')
+            if   dimn_v in ['nz', 'nz1','nz_1', 'ncat', 'ndens'] and do_zarithm is not None:
+                index = do_depth_arithmetic(index, do_zarithm, dimn_v)
                     
         index_list.append(index)
-        idxin_list.append(idx_IN)
-        del(index, idx_IN)
+        idxin_list.append(idxin)
+        del(index, idxin)
         
         #_______________________________________________________________________
         warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
         warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
-        if do_compute: index_list[cnt] = index_list[cnt].compute()
-        if do_load   : index_list[cnt] = index_list[cnt].load()
-        if do_persist: index_list[cnt] = index_list[cnt].persist()
+        if   do_compute: index_list[cnt] = index_list[cnt].compute()
+        elif do_load   : index_list[cnt] = index_list[cnt].load()
+        elif do_persist: index_list[cnt] = index_list[cnt].persist()
+        
+        # additionally rebalancing the  memory load of workers 
+        if client is not None: client.rebalance()
         warnings.resetwarnings()
             
         #_______________________________________________________________________
@@ -210,7 +202,6 @@ def load_index_fesom2(mesh                  ,
             proj = proj+'+xy'
             
         index_list[cnt].attrs['proj'] = proj    
-        
         
         #_______________________________________________________________________
         cnt = cnt + 1

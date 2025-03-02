@@ -10,6 +10,7 @@ import shapefile    as shp
 import tripyview    as tpv
 import dask.array   as da
 import dask
+import gc
 xr.set_options(keep_attrs=True)
 
 client, use_existing_client = None, "tcp://0.0.0.0:0000"
@@ -35,6 +36,7 @@ def init_notebook(which_matplotlib="inline"):
         "np": np,
         "da": da,
         "dask": dask,
+        "gc": gc,
         "client": None,
         "use_existing_client": "tcp://0.0.0.0:0000"
     })

@@ -4,6 +4,7 @@ import sys
 import os
 import time as clock
 import numpy  as np
+import dask.array as da
 import pandas as pa
 import joblib
 import warnings
@@ -1780,18 +1781,18 @@ def grid_rotmat(abg):
     ga  = abg[2] * rad
         
     #___________________________________________________________________________
-    rmat= np.zeros((3,3))
-    rmat[0,0] =( np.cos(ga)*np.cos(al) - np.sin(ga)*np.cos(be)*np.sin(al) )
-    rmat[0,1] =( np.cos(ga)*np.sin(al) + np.sin(ga)*np.cos(be)*np.cos(al) )
-    rmat[0,2] =( np.sin(ga)*np.sin(be) )
+    rmat      = da.zeros((3,3))
+    rmat[0,0] =( da.cos(ga)*da.cos(al) - da.sin(ga)*da.cos(be)*da.sin(al) )
+    rmat[0,1] =( da.cos(ga)*da.sin(al) + da.sin(ga)*da.cos(be)*da.cos(al) )
+    rmat[0,2] =( da.sin(ga)*da.sin(be) )
         
-    rmat[1,0] =(-np.sin(ga)*np.cos(al) - np.cos(ga)*np.cos(be)*np.sin(al) )
-    rmat[1,1] =(-np.sin(ga)*np.sin(al) + np.cos(ga)*np.cos(be)*np.cos(al) )
-    rmat[1,2] =( np.cos(ga)*np.sin(be) )
+    rmat[1,0] =(-da.sin(ga)*da.cos(al) - da.cos(ga)*da.cos(be)*da.sin(al) )
+    rmat[1,1] =(-da.sin(ga)*da.sin(al) + da.cos(ga)*da.cos(be)*da.cos(al) )
+    rmat[1,2] =( da.cos(ga)*da.sin(be) )
         
-    rmat[2,0] =( np.sin(be)*np.sin(al) )
-    rmat[2,1] =(-np.sin(be)*np.cos(al) )        
-    rmat[2,2] =( np.cos(be) )
+    rmat[2,0] =( da.sin(be)*da.sin(al) )
+    rmat[2,1] =(-da.sin(be)*da.cos(al) )        
+    rmat[2,2] =( da.cos(be) )
         
     #___________________________________________________________________________
     return(rmat)
@@ -1830,9 +1831,9 @@ def grid_cart3d(lon,lat,R=1.0, is_deg=False):
         lat = lat * rad
         lon = lon * rad
     
-    x = R*np.cos(lat) * np.cos(lon)
-    y = R*np.cos(lat) * np.sin(lon)
-    z = R*np.sin(lat)
+    x = R*da.cos(lat) * da.cos(lon)
+    y = R*da.cos(lat) * da.sin(lon)
+    z = R*da.sin(lat)
     #___________________________________________________________________________
     return(x,y,z)
 

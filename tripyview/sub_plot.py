@@ -476,9 +476,9 @@ def plot_hslice(mesh                   ,
                 vname = list(data[ii].keys())[0]
                 data_plot = data[ii][vname].data.copy()
                 if   do_plt in ['tpc','pc'] and ('lon_bnd' in data[ii] and 'lat_bnd' in data[ii]) : 
-                    data_x, data_y = data[ii]['lon_bnd'], data[ii]['lat_bnd']
+                    data_x, data_y = data[ii]['lon_bnd'].data.copy(), data[ii]['lat_bnd'].data.copy()
                 else: 
-                    data_x, data_y = data[ii]['lon'    ], data[ii]['lat'    ]
+                    data_x, data_y = data[ii]['lon'    ].data.copy(), data[ii]['lat'    ].data.copy()
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
@@ -1842,7 +1842,7 @@ def plot_vslice(mesh                   ,
                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt)
             hp.append(h0)
             
-            ##__________________________________________________________________
+            ##_____________________ _____________________________________________
             ## add bottom  mask
             ax_xlim0, ax_ylim0 = ax_xlim, ax_ylim
             if   hax_ii.projection=='index+depth+xy':
@@ -1859,10 +1859,20 @@ def plot_vslice(mesh                   ,
             # dmoc when doeing z-coordinate projection bottom patch                   
             elif 'dmoc' in hax_ii.projection and \
                 ('ndens_zfh' in data[ii].coords or 'nz_rho' in data[ii].coords or'ndens_z' in data[ii].coords) :
-                ax_ylim0 = [0, abs(mesh.zlev[-1])]
-                h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
-                                data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
-                                bot_opt=bot_opt)    
+                
+                if 'botmax_dens' in data[ii].coords:
+                    bot_opt2 = bot_opt.copy()
+                    bot_opt2.update({'color':[0.75,0.75,0.75]})
+                    ax_ylim0 = [0, abs(mesh.zlev[-1])]
+                    h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
+                                    data_plot=data[ii]['botmax_dens'].values, ylim=ax_ylim0, 
+                                    bot_opt=bot_opt2 )
+                    
+                if 'botmax' in data[ii].coords:
+                    ax_ylim0 = [0, abs(mesh.zlev[-1])]
+                    h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
+                                    data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
+                                    bot_opt=bot_opt)        
             hbot.append(h0)
             
             #___________________________________________________________________
@@ -4608,11 +4618,14 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
         # plotting of chunks 
         auxtriangles = tri.triangles[tri.mask_e_ok,:]
         arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+        
         print(' --> plot {:6s} chunk:'.format('data'),end='')
         for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
             idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
             print('{:d}|'.format(chnki), end='')
-            h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe,:], data_plot,
+            if tri.x.size!=data_plot.size: idxs1, idxe1 = idxs, idxe
+            else                         : idxs1, idxe1 = 0, tri.x.size
+            h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe,:], data_plot[idxs1: idxe1],
                                 cmap=cinfo_plot['cmap'], norm = which_norm_plot,
                                 **cminmax, **plt_optdefault)
             hfig.canvas.draw_idle()     # Updates only changed parts
@@ -4792,11 +4805,11 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     #___________________________________________________________________________
     # solve problem between  using lat_bnd & lon_bnd and lat & lon
     if   np.ndim(data_x) == 1:
-        if   data_plot.shape[1] == data_x.shape[0]  : data_x0=data_x
-        elif data_plot.shape[1] == data_x.shape[0]-1: data_x0=(data_x[1:] + data_x[:-1])*0.5
-        if   data_plot.shape[0] == data_y.shape[0]  : data_y0=data_y
-        elif data_plot.shape[0] == data_y.shape[0]-1: data_y0=(data_y[1:] + data_y[:-1])*0.5
-    elif np.ndim(data_x) == 2: data_x0, data_y0=data_x, data_y
+        if   data_plot.shape[1] == data_x.shape[0]  : data_x0 = data_x
+        elif data_plot.shape[1] == data_x.shape[0]-1: data_x0 = (data_x[1:] + data_x[:-1])*0.5
+        if   data_plot.shape[0] == data_y.shape[0]  : data_y0 = data_y
+        elif data_plot.shape[0] == data_y.shape[0]-1: data_y0 = (data_y[1:] + data_y[:-1])*0.5
+    elif np.ndim(data_x) == 2: data_x0, data_y0 = data_x, data_y
         
     #___________________________________________________________________________
     # overlay background contour lines, very thin lines 
@@ -4811,6 +4824,11 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     if plt_contf:    
         pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
         pltcf_optdefault.update(pltcf_opt)
+        #print(data_x.shape)
+        #print(data_y.shape)
+        #print(data_x0.shape)
+        #print(data_y0.shape)
+        #print(data_plot.shape)
         h0cf = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=cinfo_plot['clab'], transform=which_transf, **pltcf_optdefault) 
         #_______________________________________________________________________
@@ -6290,14 +6308,14 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     else         : 
                         data_plot   = data_ii[ vname[0] ].data.copy()
                         if cinfo['chist'] and 'w_A' in list(data_ii.coords.keys()): 
-                            do_cweights = data_ii['w_A'].data.copy()
+                            do_cweights = data_ii['w_A'].data.flatten().copy()
                 
                 #_______________________________________________________________
                 # --> consider vector norm data
                 else:
                     # compute norm when vector data
                     data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
-                    if cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
+                    if cinfo['chist']: do_cweights = data_ii['w_A'].data.flatten().copy()
             
             #___________________________________________________________________    
             # for logarythmic rescaling cmin or cmax can not be zero

@@ -13,9 +13,10 @@ import shapefile as shp
 def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel_nprc, parallel_tmem,
                               threads_per_worker=4, 
                               memory_thresh=0.90, # hoch much memory from total mem should be distributed
-                              memory_target=0.80, # Start spilling at 85% usage (default 60%)
+                              memory_target=0.85, # Start spilling at 85% usage (default 60%)
                               memory_spill =0.90,  # Spill to disk at 90% usage (default 70%)
                               memory_pause =0.95, # Pause execution at 95% usage (default 80%)
+                              memory_termin=0.98, # Pause execution at 95% usage (default 80%)
                               ):
     """
     --> shortcut to setup dask client in a note book 
@@ -53,13 +54,52 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
     #___________________________________________________________________________
     if do_parallel:
         dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
+                        
+        # - work-stealing: True or False ... Enables/disables the feature (default: True).
+        # - work-stealing-interval: str (default: "100ms") ... How often the scheduler 
+        #   checks for imbalanced task loads across workers. Lower values (e.g., "50ms") 
+        #   make work stealing more aggressive but increase scheduling overhead.
+        # - work-stealing-distance: int (default: 2) ... Determines how far tasks can 
+        #   be stolen across the cluster. A higher value allows more aggressive 
+        #   stealing, which is useful for heterogeneous clusters. A lower value 
+        #   keeps tasks local, reducing data transfer overhead.
+        # - work-stealing-threshold: float (default: 0.3) ... Defines how much imbalance 
+        #   (CPU/memory usage) is needed before stealing happens. A lower value (e.g., 0.2) 
+        #   (makes stealing more frequent. A higher value (e.g., 0.5) makes workers 
+        #   (hold onto tasks longer, reducing movement overhead.
         dask.config.set({
-                         "distributed.worker.memory.target": memory_target,   # Start spilling at 80%
-                         "distributed.worker.memory.spill" : memory_spill,    # Spill to disk at 90%
-                         "distributed.worker.memory.pause" : memory_pause,   # Pause execution at 95%
-                        })
-        dask.config.set({"distributed.scheduler.work-stealing": True})
+                "distributed.scheduler.work-stealing"                : True   ,  # Enable work stealing
+                "distributed.scheduler.work-stealing-interval"       : "50ms" ,  # Frequency of stealing checks
+                "distributed.scheduler.work-stealing-distance"       : 10     ,  # Limits how far tasks can be stolen
+                "distributed.scheduler.work-stealing-threshold"      : 0.01   ,  # Load imbalance threshold before stealing starts
+                })
         
+        # - "managed" ensures Dask only tracks Python-related memory (Dask arrays, xarray, NumPy).
+        # - memory.spill: 0.9 prevents excessive disk I/O but avoids memory overload.
+        # - memory.pause: 0.95 ensures workers don’t overcommit memory.
+        # - memory.terminate: 0.98 prevents system crashes due to OOM errors.
+        # - memory.chunk-size: 256MB improves performance for xarray/Dask array computations.
+        # - connections.outgoing: 20 Limits the number of concurrent outgoing connections 
+        #   a worker can have to other workers or the scheduler. When a worker needs to 
+        #   send data (e.g., during client.scatter(), client.rebalance(), or task 
+        #   dependencies), it can only open up to 20 simultaneous connections.
+        #   Increased worker connections help with large data transfers in multi-worker setups.
+        # - connections.incoming: 50. Limits the number of concurrent incoming connections a
+        #   worker can handle from other workers or the scheduler. If multiple workers are 
+        #   trying to send data to a single worker (e.g., during a reduce operation like sum() 
+        #   or mean() over a large dataset), it will only accept data from up to 50 workers
+        #   at a time.
+        dask.config.set({
+                "distributed.scheduler.active-memory-manager.measure": "managed",  # Track Dask-managed memory only
+                "distributed.worker.memory.rebalance.measure"        : "managed",  # Rebalance based on managed memory
+                "distributed.worker.memory.target"                   : memory_target,  # Start spilling at 80%
+                "distributed.worker.memory.spill"                    : memory_spill,  # Spill only when 90% of memory is used
+                "distributed.worker.memory.pause"                    : memory_pause,  # Pause new tasks if memory exceeds 95%
+                "distributed.worker.memory.terminate"                : memory_termin,  # Kill worker if memory exceeds 98%
+                "distributed.array.chunk-size"                       : "256MB",  # Optimize chunk size for large arrays
+                "distributed.worker.connections.outgoing"            : 15,  # Improve parallelism for large data transfers
+                "distributed.worker.connections.incoming"            : 40
+                })
         #_______________________________________________________________________
         # check for existing client via adress
         try:
@@ -82,8 +122,16 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
                                 memory_limit      = '{:3.3f} GB'.format(parallel_tmem/parallel_nprc*threads_per_worker*memory_thresh)
                                 )
                 print("Started a new Dask client:", client)
+        
         #_______________________________________________________________________            
         display(client)
+        
+        #_______________________________________________________________________            
+        # Rebalance data within network. Move data between workers to roughly balance 
+        # memory burden. This either affects a subset of the keys/workers or the 
+        # entire network, depending on keyword arguments.
+        client.rebalance()
+        
         
     #___________________________________________________________________________
     return(client)

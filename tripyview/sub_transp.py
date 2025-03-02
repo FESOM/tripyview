@@ -10,6 +10,7 @@ from .sub_colormap import *
 from .sub_mesh     import vec_r2g
 from .sub_plot     import *
 from .sub_utility  import *
+from .sub_transect import calc_transect_zm_mean_chnk
 
 ##+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
 ##|                                                                             |
@@ -1110,6 +1111,187 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True,
         
     #___________________________________________________________________________
     return(list_gmhflx)
+
+
+#
+#
+#
+#___COMPUTE MERIDIONAL HEATFLUX FROM TRACER ADVECTION TROUGH BINNING____________
+def calc_gzmhflx_box_dask(mesh, 
+                         data, 
+                         box_list, 
+                         do_parallel           , 
+                         parallel_nprc         ,
+                         do_lonlat     = 'lat'  ,
+                         dlonlat       = 1.0    , 
+                         boxname       = None   ,
+                         diagpath      = None   , 
+                         do_checkbasin = False  , 
+                         do_info       = False  , 
+                         ):
+    #___________________________________________________________________________
+    vname = list(data.keys())[0]
+    
+    # save global and local variable attributes
+    gattrs = data.attrs
+    gattrs['proj'] = 'index+xy'
+    vattr = data[vname].attrs
+    
+    # factors for heatflux computation
+    inPW = 1.0e-15
+    
+    if 'nod2' in list(data.dims) : dimn_h, do_elem = 'nod2', False
+    if 'elem' in list(data.dims) : dimn_h, do_elem = 'elem', True
+    
+    #___________________________________________________________________________
+    # Loop over boxes
+    list_gmhflx=list()
+    for box in box_list:
+        #_______________________________________________________________________
+        if not isinstance(box, shp.Reader):
+            if len(box)==2: boxname, box = box[1], box[0]
+            if box is None or box=='global': boxname='global'
+        else:     
+            boxname = os.path.basename(box.shapeName).replace('_',' ')  
+           
+        #_______________________________________________________________________
+        # compute  mask index
+        idxin   = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+        
+        #___________________________________________________________________________
+        if do_checkbasin:
+            from matplotlib.tri import Triangulation
+            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            plt.figure()
+            plt.triplot(tri, color='k', linewidth=0.1)
+            if 'elem' in data.dims:
+                plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
+            else:
+                plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], 'or', linestyle='None', markersize=1)
+            plt.title('Basin selection')
+            plt.show()
+            
+        #_______________________________________________________________________
+        # select box area
+        data_box = data.isel({dimn_h:idxin})
+        
+        #_______________________________________________________________________
+        # determine/adapt actual chunksize
+        nchunk = 1
+        if do_parallel and isinstance(data_box[vname].data, da.Array)==True :
+            nchunk = len(data_box.chunks[dimn_h])
+            print(' --> nchunk=', nchunk)   
+            
+            # after all the time and depth operation after the loading there will 
+            # be worker who have no chunk piece to work on  --> therfore we need
+            # to rechunk make sure the workload is distributed between all 
+            # availabel worker equally         
+            if nchunk<parallel_nprc*0.75:
+                print(' --> rechunk array size', end='')
+                data_box = data_box.chunk({dimn_h: np.ceil(data_box.dims[dimn_h]/(parallel_nprc)).astype('int')})
+                nchunk = len(data_box.chunks[dimn_h])
+                print(' --> nchunk_new=', nchunk)    
+            
+            data_box = data_box.persist()
+            
+        # in case of climatology data because there i need to make compute() after 
+        # interpolation which destroys the chunking so i try to rechunk it
+        elif do_parallel and isinstance(data_box[vname].data, da.Array)==False: 
+            data_box = data_box.chunk({dimn_h: np.ceil(data_box.dims[dimn_h]/(parallel_nprc)).astype('int')}).unify_chunks().persist()
+            nchunk = len(data_box.chunks[dimn_h])
+            print(' --> nchunk_new=', nchunk)  
+            
+        #_______________________________________________________________________
+        # create zonal/meridional bins
+        lonlat_min    = np.floor(data_box[ do_lonlat ].min().compute())
+        lonlat_max    = np.ceil( data_box[ do_lonlat ].max().compute())
+        lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
+        lonlat        = (lonlat_bins[1:] + lonlat_bins[:-1])*0.5
+        nlonlat       = len(lonlat_bins)-1
+           
+        #_______________________________________________________________________
+        # The centroid position of the periodic boundary triangle causes problems 
+        # when determining in which bin they should be --> therefor we kick them out 
+        # with this index
+        if 'elem_pbnd' not in data_box.coords: 
+            data_box = data_box.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data_box[do_lonlat].shape, dtype=bool), dims=data_box[do_lonlat].dims))
+            if isinstance(data_box[do_lonlat].data, da.Array)==True: 
+                data_box['elem_pbnd'] = data_box['elem_pbnd'].chunk(data_box[do_lonlat].chunks)
+        
+        #_______________________________________________________________________
+        # Apply zonal area weighted integration
+        # its important to use: 
+        # all the input to da.map_blocks(calc_transect_zm_mean_chnk... must have the
+        # same dimensionality otherwise it wont work. I also hat to use drop_axis = [1] 
+        # which drops the chunking along the second dimension only leaving  the 
+        # chunking of the first dimension. I also only managed to return the results
+        # as a flattened array the attempt to return as a more dimensional matrix
+        # failed. THats why i need to use shape afterwards 
+        databin_box = da.map_blocks(calc_transect_zm_mean_chnk    ,
+                                  lonlat_bins                ,   # mean bin definitions
+                                  data_box[do_lonlat  ].data ,   # lon/lat nod2 coordinates
+                                  data_box['w_A'      ].data ,   # area weight
+                                  data_box['elem_pbnd'].data ,   # if elem is pbnd element
+                                  data_box[vname      ].data ,   # data chunk piece
+                                  dtype     = np.float32     ,   # Tuple dtype
+                                  chunks    = (2*nlonlat, ) # Output shape
+                                )
+        
+        #_______________________________________________________________________
+        # reshape axis over chunks 
+        databin_box = databin_box.reshape((nchunk, 2, nlonlat))
+        
+        #_______________________________________________________________________
+        # do dask axis reduction across chunks dimension
+        databin_box = da.reduction(databin_box,                   
+                                 chunk     = lambda x, axis=None, keepdims=None: x,  # Updated to handle axis and keepdims
+                                 aggregate = np.sum,
+                                 dtype     = np.float32,
+                                 axis      = 0,
+                                 ).compute()
+        
+        #_______________________________________________________________________
+        # databin_box[0]... contains the area weighted sum
+        databin_box = -databin_box[0] * inPW
+        
+        #_______________________________________________________________________
+        # do cumulative sum over latitudes    
+        if do_lonlat=='lat':
+            databin_box = databin_box.cumsum(axis=0) 
+        
+        #_______________________________________________________________________
+        # Create xarray dataset
+        tm1= clock.time()
+        # define variable attributes  
+        vattr['long_name' ] = f'Meridional Heat Transport'
+        vattr['short_name'] = f'Merid. Heat Transp.'
+        vattr['boxname'   ] = boxname
+        vattr['units'     ] = 'PW'
+        # define data_vars dict, coordinate dict, as well as list of dimension name 
+        # and size 
+        data_vars, coords, dim_n,  = dict(), dict(), list()
+        if 'time' in list(data.dims): dim_n.append('time')
+        dim_n.append(do_lonlat); 
+        for dim_ni in dim_n:
+            if   dim_ni=='time': coords['time' ]=(['time'], data['time'].data ) 
+            elif dim_ni==do_lonlat : 
+                    coords[do_lonlat         ]=([do_lonlat        ], lonlat     )
+                    coords[do_lonlat+'_bnd'  ]=([do_lonlat+'_bnd' ], lonlat_bins) 
+        data_vars['gmhflx'] = (dim_n, databin_box, vattr) 
+        # create dataset
+        gmhflx = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
+        del(data_vars, coords, dim_n, lonlat_bins, lonlat)
+        
+        #_______________________________________________________________________
+        if len(box_list)==1: list_gmhflx = gmhflx
+        else               : list_gmhflx.append(gmhflx)
+        
+        #_______________________________________________________________________
+        del(gmhflx)
+        
+    #___________________________________________________________________________
+    return(list_gmhflx)
+
 
 
 
