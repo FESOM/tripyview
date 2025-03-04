@@ -651,14 +651,14 @@ def calc_zmoc_dask( mesh                      ,
     # as a flattened array the attempt to return as a more dimensional matrix
     # failed. THats why i need to use shape afterwards 
     if 'time' in data.dims:
-        drop_axis   = [0,2]
+        drop_axis   = [0,1]
         ntime       = data.dims['time']
-        chnk_lat    = data['lat'].data[None, : , None] 
+        chnk_lat    = data['lat'].data[None, None, : ] 
         chnk_wA     = data['w_A'].data[None, : , :   ]
     else:
-        drop_axis   = [1]
+        drop_axis   = [0]
         ntime       = 1
-        chnk_lat    = data['lat'].data[:, None] 
+        chnk_lat    = data['lat'].data[None, :] 
         chnk_wA     = data['w_A'].data
     
     zmoc = da.map_blocks(calc_zmoc_chnk             ,
@@ -669,12 +669,13 @@ def calc_zmoc_dask( mesh                      ,
                          dtype     = np.float32     ,   # Tuple dtype
                          drop_axis = drop_axis      ,   # drop dim nz1
                          chunks    = (2*ntime*nlat*nlev,) # Output shape
-                        )#.compute()
+                         )
+    
        
     #___________________________________________________________________________
     # reshape axis over chunks 
-    if 'time' in data.dims: zmoc = zmoc.reshape((nchunk, 2, ntime, nlat, nlev))
-    else                  : zmoc = zmoc.reshape((nchunk, 2,        nlat, nlev))
+    if 'time' in data.dims: zmoc = zmoc.reshape((nchunk, 2, ntime, nlev, nlat))
+    else                  : zmoc = zmoc.reshape((nchunk, 2,        nlev, nlat))
         
     #___________________________________________________________________________
     # do dask axis reduction across chunks dimension
@@ -689,9 +690,9 @@ def calc_zmoc_dask( mesh                      ,
     # cumulative sum over latitudes from N-->S
     inSv = 1e-6
     if 'time' in data.dims:
-        zmoc[0] = -np.flip(np.flip(zmoc[0], axis=1).cumsum(axis=1), axis=1) * inSv
+        zmoc[0] = -np.flip(np.flip(zmoc[0], axis=2).cumsum(axis=2), axis=2) * inSv
     else:
-        zmoc[0] = -np.flip(np.flip(zmoc[0], axis=0).cumsum(axis=0), axis=0) * inSv
+        zmoc[0] = -np.flip(np.flip(zmoc[0], axis=1).cumsum(axis=1), axis=1) * inSv
     
     #___________________________________________________________________________
     # create land seamask --> zmoc[0] contains the bin summated area weight where 
@@ -701,8 +702,8 @@ def calc_zmoc_dask( mesh                      ,
 
     #___________________________________________________________________________
     # transfer from [nlat, nlev] ---> [nlev, nlat]
-    if 'time' in data.dims : zmoc = zmoc.transpose([0,2,1])
-    else                   : zmoc = zmoc.transpose([1,0])
+    #if 'time' in data.dims : zmoc = zmoc.transpose([0,2,1])
+    #else                   : zmoc = zmoc.transpose([1,0])
     
     #___________________________________________________________________________
     # create ZMOC xarray Dataset
@@ -787,9 +788,9 @@ def calc_zmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_d):
     #___________________________________________________________________________
     # only need the additional dimension at the point where the function is initialised
     if   np.ndim(chnk_d) == 2: 
-        chnk_lat = chnk_lat[   :, 0] # 2D --> now is 1D again
+        chnk_lat = chnk_lat[ 0, :] # 2D --> now is 1D again
     elif np.ndim(chnk_d) == 3:
-        chnk_lat = chnk_lat[0, :, 0] # 3D --> now is 1D again
+        chnk_lat = chnk_lat[0, 0, :] # 3D --> now is 1D again
         chnk_wA  = chnk_wA[ 0, :, :] # 3D --> now is 2D again
     
     # Use np.digitize to find bin indices for longitudes and latitudes
@@ -799,19 +800,19 @@ def calc_zmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_d):
     # Initialize binned data storage 
     if   np.ndim(chnk_d) == 3: 
         # Replace NaNs with 0 value to summation issues
-        ntime, nnod, nlev = chnk_d.shape
+        ntime, nlev, nnod = chnk_d.shape
         chnk_wA     = np.where(np.isnan(chnk_d[0,:,:]), 0, chnk_wA)
         chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
-        binned_d    = np.zeros((2, ntime, nlat, nlev), dtype=np.float32)
+        binned_d    = np.zeros((2, ntime, nlev, nlat), dtype=np.float32)
         # binned_d[0,...] - data*area weight
         # binned_d[1,...] - area weight sum
         
     elif np.ndim(chnk_d) == 2: 
         # Replace NaNs with 0 value to summation issues
-        nnod, nlev  = chnk_d.shape
+        nlev, nnod  = chnk_d.shape
         chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
         chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
-        binned_d    = np.zeros((2, nlat, nlev), dtype=np.float32)  
+        binned_d    = np.zeros((2, nlev, nlat), dtype=np.float32)  
         # binned_d[0,...] - data*area weight
         # binned_d[1,...] - area weight sum
         
@@ -820,30 +821,31 @@ def calc_zmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_d):
 
     # Apply mask before looping
     idx_lat   = idx_lat[idx_valid   ]
-    chnk_wA   = chnk_wA[idx_valid, :]
+    chnk_wA   = chnk_wA[:, idx_valid]
     nnod      = len(idx_lat)
     
     # Sum data based on binned indices with time dimension: [2, ntime, nlat, nlev]
     if   np.ndim(chnk_d) == 3:    
-        chnk_d  = chnk_d[ :, idx_valid, :]
+        chnk_d  = chnk_d[ :, :, idx_valid]
         for nod_i in range(0,nnod):
             jj = idx_lat[nod_i]
-            binned_d[0, :, jj, :] = binned_d[0, :, jj, :] + chnk_d[ :, nod_i, :] * chnk_wA[nod_i, :]
-            binned_d[1, :, jj, :] = binned_d[1, :, jj, :] + chnk_wA[   nod_i, :]
+            binned_d[0, :, :, jj] = binned_d[0, :, :, jj] + chnk_d[ :, :, nod_i] * chnk_wA[:, nod_i]
+            binned_d[1, :, :, jj] = binned_d[1, :, :, jj] + chnk_wA[   :, nod_i]
     
     # Sum data based on binned indices withou time dimension: [2, nlat, nlev]
     elif np.ndim(chnk_d) == 2:  
-        chnk_d  = chnk_d[ idx_valid, :]
+        chnk_d  = chnk_d[:,  idx_valid]
         for nod_i in range(0,nnod):
             jj = idx_lat[nod_i]
-            binned_d[0, jj, :] = binned_d[0, jj, :] + chnk_d[ nod_i, :] * chnk_wA[nod_i, :]
-            binned_d[1, jj, :] = binned_d[1, jj, :] + chnk_wA[nod_i, :]
+            binned_d[0, :, jj] = binned_d[0, :, jj] + chnk_d[ :, nod_i] * chnk_wA[:, nod_i]
+            binned_d[1, :, jj] = binned_d[1, :, jj] + chnk_wA[:, nod_i]
     
     #___________________________________________________________________________
     return binned_d.flatten()
-    #return np.array([n11, n12, n31 ]).flatten()
+    #return np.array([n11, n21, n31 ]).flatten()
 
 
+    
 # ___CALC BOTTOM TOPO PATCH____________________________________________________
 #|                                                                             |
 #|                                                                             |

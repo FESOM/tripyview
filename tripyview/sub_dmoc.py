@@ -324,7 +324,7 @@ def load_dmoc_data(mesh                         ,
         # add divergence of density classes --> diapycnal velocity
         data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', 
                         **{**input_dict, 'chunks': {'nod2': -1, 'ndens': 1, 'time': 1}}).rename({'std_dens_DIV':'dmoc'}).persist()
-        data_div  = data_div.drop_vars(['ndens', 'nodi']) 
+        data_div  = data_div.drop_vars(['ndens', 'nodi', 'ispbnd']) 
         data_div  = data_div.assign_coords({'dens':dens})
 
         # doing this step here so that the MOC amplitude is correct, setp 1 of 2
@@ -388,7 +388,7 @@ def load_dmoc_data(mesh                         ,
             # add divergence of density classes --> diapycnal velocity
             data_div_bolus  = load_data_fesom2(mesh, datapath, vname='std_dens_DIVbolus', 
                                     **{**input_dict, 'chunks': {'nod2': -1, 'ndens': 1, 'time': 1}}).rename({'std_dens_DIVbolus':'dmoc_bolus'}).persist()
-            data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi']) 
+            data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi', 'ispbnd']) 
             data_div_bolus  = data_div_bolus.assign_coords({'dens':dens})
             
             # doing this step here so that the MOC amplitude is correct, setp 1 of 2
@@ -1019,12 +1019,14 @@ def calc_dmoc_dask( mesh                          ,
     
     # prepare chunked input to routine that should act on chunks
     if 'time' in data.dims:
-        drop_axis, ntime = [0,2], data.dims['time']
-        chnk_lat  = data['lat'].data[None, :, None]
+        drop_axis, ntime = [0,1], data.dims['time']
+        chnk_lat     = data['lat'].data[None, None, :]
+        chnk_ispbnd  = data['ispbnd'].data[None, None, :]
         #chnk_pbnd = data['elem_pbnd'].data[None, :, None]
     else:
-        drop_axis, ntime = [1], 1
-        chnk_lat  = data['lat'].data[      :, None]
+        drop_axis, ntime = [0], 1
+        chnk_lat     = data['lat'].data[None, :]
+        chnk_ispbnd  = data['ispbnd'].data[None, :]
         #chnk_pbnd = data['elem_pbnd'].data[      :, None]
         
     chnk_wA, chnk_h = None, None    
@@ -1045,6 +1047,7 @@ def calc_dmoc_dask( mesh                          ,
                          lat_bins                   , # mean bin definitions
                          chnk_lat                   , # lat nod2 coordinates
                          chnk_wA                    , # area weight
+                         chnk_ispbnd                , # area weight
                          nvar                       , # number of input/output variables
                          chnk_h                     , # density class thickness
                          chnk_dmoc                  , # density class divergence
@@ -1056,14 +1059,14 @@ def calc_dmoc_dask( mesh                          ,
                          chnk_dvdt                  ,   
                          dtype     = np.float32     , # Tuple dtype
                          drop_axis = drop_axis      , # drop dim nz1
-                         chunks    = (nvar*ntime*nlat*nlev,) # Output shape
+                         chunks    = (nvar*ntime*nlev*nlat,) # Output shape
                         )
     
     
     #___________________________________________________________________________
     # reshape axis over chunks 
-    if 'time' in data.dims: dmoc = dmoc.reshape((nchunk, nvar, ntime, nlat, nlev))
-    else                  : dmoc = dmoc.reshape((nchunk, nvar,        nlat, nlev))
+    if 'time' in data.dims: dmoc = dmoc.reshape((nchunk, nvar, ntime, nlev, nlat))
+    else                  : dmoc = dmoc.reshape((nchunk, nvar,        nlev, nlat))
     
     #___________________________________________________________________________
     # do dask axis reduction across chunks dimension
@@ -1074,11 +1077,6 @@ def calc_dmoc_dask( mesh                          ,
                         axis      = 0,
                        ).compute()
     del(chnk_wA, chnk_h, chnk_dmoc, chnk_dmoc_bolus, chnk_fh, chnk_fw, chnk_fr, chnk_fd, chnk_dvdt)
-    
-    #___________________________________________________________________________
-    # transfer from [nlat, nlev] ---> [nlev, nlat]
-    if 'time' in data.dims : dmoc = dmoc.transpose([0,1,3,2])
-    else                   : dmoc = dmoc.transpose([0,2,1])
     
     #___________________________________________________________________________
     # do area weighted mean density class thickness
@@ -1231,7 +1229,7 @@ def calc_dmoc_dask( mesh                          ,
 #
 #
 #_______________________________________________________________________________  
-def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, 
+def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_ispbnd, 
                    nvar            , # number of input/output variables
                    chnk_h          , # density class thickness
                    chnk_d          , # density class divergence
@@ -1262,9 +1260,11 @@ def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA,
     
     # only need the additional dimension at the point where the function is initialised
     if   np.ndim(chnk_var_list[0]) == 2: 
-        chnk_lat = chnk_lat[   :, 0] # 2D --> now is 1D again
+        chnk_lat    = chnk_lat[0, :] # 2D --> now is 1D again
+        chnk_ispbnd = chnk_ispbnd[0, :] # 2D --> now is 1D again
     elif np.ndim(chnk_var_list[0]) == 3:
-        chnk_lat = chnk_lat[0, :, 0] # 3D --> now is 1D again
+        chnk_lat    = chnk_lat[0, 0, :] # 3D --> now is 1D again
+        chnk_ispbnd = chnk_ispbnd[0, 0, :] # 3D --> now is 1D again
         if chnk_h is not None: chnk_wA  = chnk_wA[ 0, :, :] # 3D --> now is 2D again
     
     # Use np.digitize to find bin indices for longitudes and latitudes
@@ -1274,53 +1274,54 @@ def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA,
     # Initialize binned data storage 
     if   np.ndim(chnk_var_list[0]) == 3: 
         # Replace NaNs with 0 value to summation issues
-        ntime, nnod, nlev = chnk_var_list[0].shape
-        binned_d    = np.zeros((nvar, ntime, nlat, nlev), dtype=np.float32)
+        ntime, nlev, nnod = chnk_var_list[0].shape
+        binned_d    = np.zeros((nvar, ntime, nlev, nlat), dtype=np.float32)
         # binned_d[ 0,...] - data
         # binned_d[-2,...] - area weight sum
         # binned_d[-1,...] - area weight sum
         
     elif np.ndim(chnk_var_list[0]) == 2: 
         # Replace NaNs with 0 value to summation issues
-        nnod, nlev  = chnk_var_list[0].shape
-        binned_d    = np.zeros((nvar, nlat, nlev), dtype=np.float32)  
+        nlev, nnod  = chnk_var_list[0].shape
+        binned_d    = np.zeros((nvar, nlev, nlat), dtype=np.float32)  
         # binned_d[ 0,...] - data
         # binned_d[-2,...] - class thickness * area weight
         # binned_d[-1,...] - area weight sum
         
     # Precompute mask outside the loop
-    idx_valid = (idx_lat >= 0) & (idx_lat < nlat)
+    idx_valid = (idx_lat >= 0) & (idx_lat < nlat) & ~chnk_ispbnd
+    del(chnk_ispbnd)
 
     # Apply mask before looping
     idx_lat   = idx_lat[idx_valid   ]
-    if chnk_h is not None:  chnk_wA   = chnk_wA[idx_valid, :]
+    if chnk_h is not None:  chnk_wA   = chnk_wA[:, idx_valid]
     nnod      = len(idx_lat)
     
     # Sum data based on binned indices with time dimension: [2, ntime, nlat, nlev]
     if   np.ndim(chnk_var_list[0]) == 3: 
-        if chnk_h is not None: chnk_h = chnk_h[:, idx_valid, :]
-        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = chnk_var[:, idx_valid, :]
+        if chnk_h is not None: chnk_h = chnk_h[:, :, idx_valid]
+        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = chnk_var[:, :, idx_valid]
         for nod_i in range(0,nnod):
             jj = idx_lat[nod_i]
             for ii, chnk_var in enumerate(chnk_var_list):
-                binned_d[ii, :, jj, :] = binned_d[ii, :, jj, :] + chnk_var[:, nod_i, :]
+                binned_d[ii, :, :, jj] = binned_d[ii, :, :, jj] + chnk_var[:, :, nod_i]
             
             if chnk_h is not None:    
-                binned_d[-2, :, jj, :] = binned_d[-2, :, jj, :] + chnk_h[  :, nod_i, :]*chnk_wA[nod_i, :]    
-                binned_d[-1, :, jj, :] = binned_d[-1, :, jj, :] + chnk_wA[    nod_i, :]
+                binned_d[-2, :, :, jj] = binned_d[-2, :, :, jj] + chnk_h[  :, :, nod_i]*chnk_wA[:, nod_i]    
+                binned_d[-1, :, :, jj] = binned_d[-1, :, :, jj] + chnk_wA[    :, nod_i]
     
     # Sum data based on binned indices withou time dimension: [2, nlat, nlev]
     elif np.ndim(chnk_var_list[0]) == 2:  
-        if chnk_h is not None: chnk_h = chnk_h[idx_valid, :]
-        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = chnk_var[idx_valid, :]
+        if chnk_h is not None: chnk_h = chnk_h[:, idx_valid]
+        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = chnk_var[:, idx_valid]
         for nod_i in range(0,nnod):
             jj = idx_lat[nod_i]
             for ii, chnk_var in enumerate(chnk_var_list):
-                binned_d[ii, jj, :] = binned_d[ii, jj, :] + chnk_var[nod_i, :]
+                binned_d[ii, :, jj] = binned_d[ii, :, jj] + chnk_var[:, nod_i]
                 
             if chnk_h is not None:        
-                binned_d[-2, jj, :] = binned_d[-2, jj, :] + chnk_h[  nod_i, :]*chnk_wA[nod_i, :]
-                binned_d[-1, jj, :] = binned_d[-1, jj, :] + chnk_wA[ nod_i, :]
+                binned_d[-2, :, jj] = binned_d[-2, :, jj] + chnk_h[ :, nod_i]*chnk_wA[:, nod_i]
+                binned_d[-1, :, jj] = binned_d[-1, :, jj] + chnk_wA[:, nod_i]
     
     #___________________________________________________________________________
     return binned_d.flatten()

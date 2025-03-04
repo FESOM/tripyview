@@ -314,11 +314,13 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # set specfic type when loading --> #convert to specific precision
     from functools import partial
-    def _preprocess(x, do_prec):
-        #for var in list(x.coords):
-            #if var == 'time_bnds': x = x.drop_vars(var)
+    def _preprocess(x, do_prec, transpose):
+        #if transpose is not None:
+           #for var in list(x.data_vars):
+                 #x[var] = x[var].transpose(*transpose)  # Correct variable reference
         return x.astype(do_prec, copy=False)
-    partial_func = partial(_preprocess, do_prec=do_prec)
+    #partial_func = partial(_preprocess, do_prec=do_prec, transpose=['nod2','nz1','time'])
+    partial_func = partial(_preprocess, do_prec=do_prec, transpose=None)
     
     #___________________________________________________________________________
     # load multiple files
@@ -363,7 +365,6 @@ def load_data_fesom2(mesh,
         # remove variables that are not needed
         #data = data.drop(labels=vname_drop)
         data = data.drop_vars(vname_drop)
-    
     
     #___________________________________________________________________________    
     if do_parallel and do_info: display(data)
@@ -456,7 +457,7 @@ def load_data_fesom2(mesh,
     if ( bool(set(['nz1','nz', 'ncat']).intersection(data.dims)) ) and (depth is not None):
         #print('~~ >-))))o> o0O ~~~ A')
         #_______________________________________________________________________
-        data, str_ldep = do_select_levidx(data, mesh, depth, depidx)
+        data, str_ldep = do_select_levidx(data, mesh, depth, depidx, dim_vert)
         
         #_______________________________________________________________________
         if do_pdens: 
@@ -471,7 +472,17 @@ def load_data_fesom2(mesh,
             if isinstance(depth,list) and len(depth)==1: auxdepth = depth[0]
                 
             if   ('nz1' in data.dims):
+                # this seems to be in moment slightly faster  than using here the 
+                # map_blocks option!!!
                 data = data.interp(nz1=auxdepth, method="linear")
+                
+                #template = data.isel(nz1=slice(0, 2)).interp(nz1=auxdepth, method="linear")
+                #def interp_block(data_block, new_depth=None):
+                    #return data_block.interp(nz1=new_depth, method="linear")
+                #data = data.chunk({dim_vert: -1}).map_blocks(interp_block, 
+                                                          #kwargs={"new_depth": auxdepth}, 
+                                                          #template=template)
+                
                 if data['nz1'].size>1: 
                     data = do_depth_arithmetic(data, do_zarithm, "nz1")
                     
@@ -718,22 +729,23 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     if   'nod2'  in data.dims: dimn_h = 'nod2'
     elif 'elem'  in data.dims: dimn_h = 'elem'
     elif 'edg_n' in data.dims: dimn_h = 'edg_n'
-    set_chnk_h  = {dimn_h: data.chunksizes[dimn_h]}
-    set_chnk_v  = {dimn_v: data.chunksizes[dimn_v]}
-    set_chnk_hv = {dimn_v: data.chunksizes[dimn_v], dimn_h: data.chunksizes[dimn_h]}
+    set_chnk_h, set_chnk_v = dict(), dict()
+    if dimn_h in data.chunksizes.keys(): set_chnk_h = {dimn_h: data.chunksizes[dimn_h]}
+    if dimn_v in data.chunksizes.keys(): set_chnk_v = {dimn_v: data.chunksizes[dimn_v]}
+    set_chnk_hv = {**set_chnk_h, **set_chnk_v}
     
     #___________________________________________________________________________
     # set vertical coordinates and grid info
     grid_info = dict()
     if   ('nz1'  in data.dims): 
         if   ('nz1'  in data.coords): data = data.drop_vars('nz1' ) 
-        grid_info['nz1']    = xr.DataArray(-mesh.zmid.astype('float32'),               dims=dimn_v).chunk(set_chnk_v)
-        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zmid.size, dtype='uint8'), dims=dimn_v).chunk(set_chnk_v)
+        grid_info['nz1']    = xr.DataArray(np.abs(mesh.zmid).astype('float32')                , dims=dimn_v).chunk(set_chnk_v)
+        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zmid.size, dtype='uint8')         , dims=dimn_v).chunk(set_chnk_v)
         
     elif ('nz'   in data.dims): 
         if ('nz'  in data.coords): data = data.drop_vars('nz' ) 
-        grid_info['nz' ]    = xr.DataArray(-mesh.zlev.astype('float32'),               dims=dimn_v).chunk(set_chnk_v) 
-        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zlev.size, dtype='uint8'), dims=dimn_v).chunk(set_chnk_v) 
+        grid_info['nz' ]    = xr.DataArray(np.abs(mesh.zlev).astype('float32')                , dims=dimn_v).chunk(set_chnk_v) 
+        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zlev.size, dtype='uint8')         , dims=dimn_v).chunk(set_chnk_v) 
     
     #___________________________________________________________________________
     # set horizontal coordinates and gridinfo 
@@ -751,28 +763,28 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         if do_hweight:
             # need area weight for 3d data on mid depth levels
             if   'nz1' == dimn_v:
-                grid_info['w_A']     = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+                grid_info['w_A']     = xr.DataArray(mesh.n_area[:-1,:].astype('float32')      , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
             
             # need area weight for 3d data on full depth levels
             elif 'nz'  == dimn_v:
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
-                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')       , dims=[        dimn_h]).chunk(set_chnk_h)
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[        dimn_h]).chunk(set_chnk_h)
                 else:    
-                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')       , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
             
             # only need area weights for 2d data
             else:   
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
-                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')       , dims=[        dimn_h]).chunk(set_chnk_h)
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[        dimn_h]).chunk(set_chnk_h)
                 else:    
-                    grid_info['w_A'] = xr.DataArray(mesh.n_area[0, :].astype('float32') , dims=[        dimn_h]).chunk(set_chnk_h)
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area[0, :].astype('float32')       , dims=[        dimn_h]).chunk(set_chnk_h)
         
         #_______________________________________________________________________
         # do vertical weighting/volumen weight 
         if do_zweight and dimn_v is not None:  
             if   'nz1' == dimn_v: dz = mesh.zlev[:-1]-mesh.zlev[1:]
             elif 'nz'  == dimn_v: dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))
-            grid_info['w_z']  = xr.DataArray(dz.astype('float16')                       , dims=[dimn_v        ]).chunk(set_chnk_v)
+            grid_info['w_z']  = xr.DataArray(np.abs(dz).astype('float16')               , dims=[dimn_v        ]).chunk(set_chnk_v)
             del(dz)    
     
     #___________________________________________________________________________
@@ -793,7 +805,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         if do_zweight and dimn_v is not None:    
             if   'nz1' == dimn_v: dz = mesh.zlev[:-1]-mesh.zlev[1:]
             elif 'nz'  == dimn_v: dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))    
-            dz = xr.DataArray(dz.astype('float16'), dims=dimn_v).chunk(set_chnk_v)
+            dz = xr.DataArray(np.abs(dz).astype('float16'), dims=dimn_v).chunk(set_chnk_v)
             
             mat_nhor_iz    = data['elemiz'].expand_dims(dim=dimn_v)              # --> Shape (1, n)
             mat_nzi_hor    = data['nzi'   ].expand_dims(dim=dimn_h, axis=-1)     # --> Shape (m, 1)
@@ -853,6 +865,15 @@ def do_setbottomnan(mesh, data, do_nan):
         
         # set nan values where mat_nzi_hor <= mat_nhor_iz
         data = data.where(mat_nzi_hor <= mat_nhor_iz)
+        
+        #if len(data.data_vars)==2:
+            #vname, vname2 = list(data.data_vars)
+            #data[vname ] = (data[vname].dims, da.where(mat_nzi_hor <= mat_nhor_iz, data[vname ], np.nan))
+            #data[vname2] = (data[vname].dims, da.where(mat_nzi_hor <= mat_nhor_iz, data[vname2], np.nan))
+        #else:
+            #vname = list(data.data_vars)[0]
+            #data[vname] = (data[vname].dims, da.where(mat_nzi_hor <= mat_nhor_iz, data[vname], np.nan))
+            
         del mat_nhor_iz, mat_nzi_hor
         
     #___________________________________________________________________________
@@ -969,7 +990,7 @@ def do_select_time(data, mon, day, record, str_mtim):
 #
 #
 # ___DO VERTICAL LEVEL SELECTION_______________________________________________
-def do_select_levidx(data, mesh, depth, depidx):
+def do_select_levidx(data, mesh, depth, depidx, dimn_v):
     """
     --> select vertical levels based on depth list
     
@@ -996,49 +1017,35 @@ def do_select_levidx(data, mesh, depth, depidx):
     """
     #___________________________________________________________________________
     # no depth selecetion at all
-    if   (depth is None): 
+    if   depth is None: 
         str_ldep = ''
         return(data, str_ldep)
+    else:
+        ndimax  = data.sizes[dimn_v]
+        #_______________________________________________________________________
+        # found 3d data based on mid-depth levels (w, Kv,...) --> compute 
+        # selection index
+        if   dimn_v == 'nz1':
+            sel_levidx = do_comp_sel_levidx(data[dimn_v], depth, depidx, ndimax)
+            aux_strdep = 'depidx'
+        
+        #_______________________________________________________________________
+        # found 3d data based on full-depth levels (w, Kv,...) --> compute 
+        # selection index
+        elif dimn_v == 'nz':    
+            sel_levidx = do_comp_sel_levidx(data[dimn_v], depth, depidx, ndimax)
+            aux_strdep = 'depidx'
+        
+        #_______________________________________________________________________
+        # found 3d data based based on icepack thickness classes -->
+        # selection index
+        elif dimn_v == 'ncat':
+            sel_levidx = do_comp_sel_levidx(np.arange(1,ndimax+1,1), depth, depidx, ndimax)
+            aux_strdep = 'ncat'
     
     #___________________________________________________________________________
-    # found 3d data based on mid-depth levels (w, Kv,...) --> compute 
-    # selection index
-    elif ('nz1' in data.dims) and (depth is not None):
-        #_______________________________________________________________________
-        # compute selection index either single layer of for interpolation 
-        ndimax = mesh.n_iz.max()-1
-        sel_levidx = do_comp_sel_levidx(-mesh.zmid, depth, depidx, ndimax)
-        
-        #_______________________________________________________________________        
-        # select vertical levels from data
-        data = data.isel(nz1=sel_levidx)        
-        aux_strdep = 'depidx'
-    #___________________________________________________________________________
-    # found 3d data based on full-depth levels (w, Kv,...) --> compute 
-    # selection index
-    elif ('nz' in data.dims) and (depth is not None):  
-        #_______________________________________________________________________
-        # compute selection index either single layer of for interpolation 
-        ndimax  = mesh.n_iz.max()
-        sel_levidx = do_comp_sel_levidx(-mesh.zlev, depth, depidx, ndimax)
-        
-        #_______________________________________________________________________        
-        # select vertical levels from data
-        data = data.isel(nz=sel_levidx)
-        aux_strdep = 'depidx'
-        
-    #___________________________________________________________________________
-    # found 3d data based based on icepack thickness classes -->
-    # selection index
-    elif ('ncat' in data.dims) and (depth is not None):  
-        #_______________________________________________________________________
-        # compute selection index either single layer of for interpolation 
-        ndimax  = data.sizes['ncat']
-        sel_levidx = do_comp_sel_levidx(np.arange(1,ndimax+1,1), depth, depidx, ndimax)
-        #_______________________________________________________________________        
-        # select vertical levels from data
-        data = data.isel(ncat=sel_levidx)    
-        aux_strdep = 'ncat'
+    # select depth index
+    data = data.isel({dimn_v:sel_levidx})#.chunk({dimn_v:-1})    
         
     #___________________________________________________________________________
     # do depth information string
@@ -1598,6 +1605,7 @@ def do_interp_e2n(data, mesh, do_ie2n):
         
         #_______________________________________________________________________
         # enter area weights for nodes
+        print(data)
         data, _ , _ = do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False)
     #___________________________________________________________________________
     return(data)
@@ -1709,7 +1717,7 @@ def do_anomaly(data1,data2):
 #
 #
 #_______________________________________________________________________________
-def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
+def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0, client=None ):
     import dask.array as da
     
     #___________________________________________________________________________
@@ -1803,6 +1811,7 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
                             dtype     = np.float32,  # Tuple dtype
                             axis      = 0,
                             ).compute()
+    if client is not None: client.rebalance()
     
     #___________________________________________________________________________
     # deal with u,v data
@@ -1834,7 +1843,6 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0 ):
                                         'lat_bnd': (('lat_bnd'  ), lat_bins.astype(np.float32)) , 
                                         'w_A'    : (('lat','lon'), dA.astype(np.float32))},
                            attrs     = data.attrs)
-
     #___________________________________________________________________________
     return(data_reg)
 
@@ -1965,3 +1973,90 @@ def vec_r2g_dask(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
     ugeo = vxg*-sin_lon         + vyg*cos_lon
 
     return ugeo, vgeo
+
+
+
+#_______________________________________________________________________________
+def isotherm_depth_dask(data, which_isotherm, client=None,):
+    import dask.array as da
+    vname = list(data.keys())[0]  # Get temperature variable name
+    if   'nod2'  in data.dims: dimn_h = 'nod2'
+    elif 'elem'  in data.dims: dimn_h = 'elem'
+    elif 'edg_n' in data.dims: dimn_h = 'edg_n'
+    #___________________________________________________________________________
+    # Apply function to chunks over dask client 
+    isothermz = da.map_blocks(isotherm_depth_chnk            , # input function isotherm_depth_chnk 
+                              data[vname].data               , # temp_chunk
+                              data.coords['nz1'].data        , # depth
+                              which_isotherm                 , # which isotherm value 
+                              dtype=np.float32, 
+                              drop_axis=0,
+                             )
+    isothermz = isothermz.compute()
+    if client is not None: client.rebalance()
+        
+    #___________________________________________________________________________
+    # build xarray dataset
+    isotdep = xr.Dataset(data_vars = {'isotdep': ('nod2', isothermz, data[vname].attrs)},
+                             coords    = {'lon'    : data.coords['lon'], 
+                                          'lat'    : data.coords['lat'], 
+                                          'w_A'    : data.coords['w_A'].isel(nz1=0)},
+                             attrs     = data.attrs)
+    isotdep['isotdep'].attrs['long_name'  ] = 'depth of {}°C isotherm'.format(which_isotherm)
+    isotdep['isotdep'].attrs['description'] = 'depth of {}°C isotherm'.format(which_isotherm)
+    isotdep['isotdep'].attrs['units'      ] = 'm'
+    isotdep = isotdep.load()
+    #___________________________________________________________________________
+    return(isotdep) 
+
+
+
+#_______________________________________________________________________________
+# compute isotherm depth for each chunk block, hereby its important that the vertical dimension
+# nz1 is NOT chunked and consecutive
+def isotherm_depth_chnk(temp_chnk, depth_vals, which_isotherm):
+    import dask.array as da
+    """Efficiently compute the isotherm depth for each node."""
+    nz1, nod2    = temp_chnk.shape
+    
+    # Replace NaNs with a large negative value to avoid issues
+    temp_chnk    = da.where(da.isnan(temp_chnk), da.inf, temp_chnk)
+
+    # Find below indices where temp crosses isotherm
+    idx_below    = da.argmax(temp_chnk < which_isotherm, axis=0)
+    # it can haben that some chunk contain no valid situation for 
+    # temp_chnk < which_isotherm in this da.argmax would return an empty array
+    if len(idx_below)==0: idx_below = da.zeros(nod2)
+
+    # Find below indices where temp crosses isotherm
+    idx_above    = idx_below-1
+
+    # Find depth layers above below where isotherm crosses
+    depth_below  = depth_vals[idx_below]
+    depth_above  = depth_vals[idx_above]
+
+    # if there is no valid isotherm crossing set depth layers to NaN
+    depth_above  = da.where(idx_above<=-1, da.nan, depth_above)
+    depth_below  = da.where(idx_above<=-1, da.nan, depth_below)
+    
+    # Create a tuple of indices for (nod2, idx_below)
+    # Convert the tuple of indices into a linear index for the flattened temp_block
+    # Use the linear index to get values from the flattened temp_chnk[nod2, nz1]
+    #flat_indices = da.arange(nod2) * nz1 + idx_below # --> for temp_chnk shape (nod2, nlev)
+    flat_indices = da.arange(nod2) + idx_below*nod2   # --> for temp_chnk shape (nlev, nod2) !!!
+    temp_below   = temp_chnk.flatten()[flat_indices]
+
+    #flat_indices = da.arange(nod2) * nz1 + idx_above # --> for temp_chnk shape (nod2, nlev)
+    flat_indices = da.arange(nod2) + idx_above*nod2   # --> for temp_chnk shape (nlev, nod2) !!!
+    temp_above   = temp_chnk.flatten()[flat_indices]
+    del(flat_indices)
+
+    # avoid division by zero
+    denom_temp   = temp_below - temp_above
+    denom_temp   = da.where(denom_temp == 0, da.nan, denom_temp)
+    
+    # linearly interpolate isotherm depth
+    isothermz = depth_above + ((which_isotherm - temp_above) * (depth_below - depth_above) / denom_temp)
+    
+    return (isothermz)
+    #return np.stack([nz1, nod2])

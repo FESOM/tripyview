@@ -107,21 +107,35 @@ def load_index_fesom2(mesh                  ,
     #___________________________________________________________________________
     # loop over box_list
     for box in box_list:
-        
         if not isinstance(box, shp.Reader):
             if   len(box)==2: boxname, box = box[1], box[0]
             elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])
             if box is None or box=='global': boxname='global'
         else:     
+            # if we do the box polygon selection in paralel, i cant give into the 
+            # box selection routine the Read shapefile handle since its not pickable
+            # therfore i need to extract the shapefile polygon points before throwing it into 
+            # the do_boxmask_dask routine 
             boxname = os.path.basename(box.shapeName).replace('_',' ')  
-           
-        #_______________________________________________________________________
-        # compute  mask index to select index region 
-        idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+            shape_data = [shape.points for shape in box.shapes()]  # Extract raw data
+            box = MultiPolygon([Polygon(shape) for shape in shape_data])
             
         #_______________________________________________________________________
+        # compute  mask index to select index region 
+        if box != 'global': 
+            #idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+            idxin = da.map_blocks(  do_boxmask_dask,
+                                    data['lon'].data,
+                                    data['lat'].data,
+                                    data['ispbnd'].data,
+                                    box,
+                                    dtype=bool).compute()
+            idxin = idxin.compute() # ---> we can not index whit a dask array 
+        else:
+            idxin = None
+        #_______________________________________________________________________
         # check basin selection
-        if do_checkbasin:
+        if do_checkbasin and idxin is not None:
             from matplotlib.tri import Triangulation
             tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
             plt.figure()
@@ -145,26 +159,25 @@ def load_index_fesom2(mesh                  ,
         
         #_______________________________________________________________________
         # select index region from data
-        index   = data.sel({dimn_h:idxin})
+        if box != 'global': index = data.sel({dimn_h:idxin})
+        else              : index = data    
             
         #_______________________________________________________________________
-        # do volume averaged mean
+        # do volume averaged mean (apply horiz. and vertical)
         if   do_harithm=='wmean' and do_zarithm=='wmean':
             index = index.weighted(index['w_A']*index['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True)
                 
-        #_______________________________________________________________________
-        # do volume integral
+        # do volume integraln  (apply horiz. and vertical)
         elif do_harithm=='wint' and do_zarithm=='wint':
             index = index.weighted(index['w_A']*index['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True)
 
-        #_______________________________________________________________________
         # do horizontal/ vertical metrix that can be idependent from each other
         else:    
-            #___________________________________________________________________
+            # only horizontal arithmetic 
             if   dimn_h in ['nod2', 'elem'] and do_harithm is not None:
                 index = do_horiz_arithmetic(index, do_harithm, dimn_h)
                 
-            #___________________________________________________________________
+            # only vertical arithmetic 
             if   dimn_v in ['nz', 'nz1','nz_1', 'ncat', 'ndens'] and do_zarithm is not None:
                 index = do_depth_arithmetic(index, do_zarithm, dimn_v)
                     

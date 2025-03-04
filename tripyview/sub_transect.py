@@ -2019,17 +2019,18 @@ def load_zmeantransect_fesom2(mesh                  ,
 #
 #
 #___COMPUTE ZONAL MEAN SECTION BASED ON BINNING_________________________________
-def calc_transect_zm_mean_dask(mesh                  , 
-                               data                  , 
-                               box_list              , 
-                               do_parallel           , 
-                               parallel_nprc         ,
-                               do_lonlat     ='lat'  , 
-                               dlonlat       =0.5    , 
-                               boxname       =None   ,
-                               diagpath      =None   , 
-                               do_checkbasin =False  , 
-                               do_info       =False  , 
+def calc_transect_zm_mean_dask(mesh                   , 
+                               data                   ,  
+                               box_list               ,  
+                               do_parallel            , 
+                               parallel_nprc          ,
+                               do_lonlat     = 'lat'  , 
+                               dlonlat       = 0.5    , 
+                               boxname       = None   ,
+                               diagpath      = None   , 
+                               do_checkbasin = False  , 
+                               do_info       = False  , 
+                               client        = None   ,
                                **kwargs,):
     """
     --> compute zonal or meridional means transect, defined by regional box_list
@@ -2210,17 +2211,7 @@ def calc_transect_zm_mean_dask(mesh                  ,
         lonlat_max    = np.ceil( data_zm[ do_lonlat ].max().compute())
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
         nlonlat, nlev = len(lonlat_bins)-1, data_zm.dims[dimn_v]
-        # print('nlonlat, nlev = ', nlonlat, nlev)
-        
-        #_______________________________________________________________________
-        # The centroid position of the periodic boundary triangle causes problems 
-        # when determining in which bin they should be --> therefor we kick them out 
-        # with this index
-        if 'elem_pbnd' not in data_zm.coords: 
-            data_zm = data_zm.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data_zm[do_lonlat].shape, dtype=bool), dims=data_zm[do_lonlat].dims))
-            if isinstance(data_zm[do_lonlat].data, da.Array)==True: 
-                data_zm['elem_pbnd'] = data_zm['elem_pbnd'].chunk(data_zm[do_lonlat].chunks)
-        
+       
         #_______________________________________________________________________
         # Apply zonal mean over chunk
         # its important to use: 
@@ -2232,26 +2223,27 @@ def calc_transect_zm_mean_dask(mesh                  ,
         # chunking of the first dimension. I also only managed to return the results
         # as a flattened array the attempt to return as a more dimensional matrix
         # failed. THats why i need to use shape afterwards 
-        chnk_lonlat = data_zm[do_lonlat  ].data[:, None] 
-        chnk_epbnd  = data_zm['elem_pbnd'].data[:, None]
+        chnk_lonlat = data_zm[do_lonlat].data[None, :] 
+        chnk_ispbnd = data_zm['ispbnd' ].data[None, :]
         # when we are on elements w_A is a 1D field, whereas when we are on 
         # vertices w_A is 2D, that why we need to add a dimension for the elem case
-        if np.ndim(data_zm['w_A'].data)==1: chnk_wA = data_zm['w_A'].data[:, None] 
+        if np.ndim(data_zm['w_A'].data)==1: chnk_wA = data_zm['w_A'].data[None, :] 
         else                              : chnk_wA = data_zm['w_A'].data
+        
         bin_zm = da.map_blocks(calc_transect_zm_mean_chnk    ,
                                   lonlat_bins                ,   # mean bin definitions
                                   chnk_lonlat                ,   # lon/lat nod2 coordinates
                                   chnk_wA                    ,   # area weight
-                                  chnk_epbnd                 ,   # if elem is pbnd element
-                                  data_zm[vname      ].data  ,   # data chunk piece
+                                  chnk_ispbnd                ,   # if elem is pbnd element
+                                  data_zm[vname].data        ,   # data chunk piece
                                   dtype     = np.float32     ,   # Tuple dtype
-                                  drop_axis = [1]            ,   # drop dim nz1
-                                  chunks    = (2*nlonlat*nlev, ) # Output shape
+                                  drop_axis = [0]            ,   # drop dim nz1
+                                  chunks    = (2*nlev*nlonlat, ) # Output shape
                                 )
         
         #_______________________________________________________________________
         # reshape axis over chunks 
-        bin_zm = bin_zm.reshape((nchunk, 2, nlonlat, nlev))
+        bin_zm = bin_zm.reshape((nchunk, 2, nlev, nlonlat))
         
         #_______________________________________________________________________
         # do dask axis reduction across chunks dimension
@@ -2270,7 +2262,7 @@ def calc_transect_zm_mean_dask(mesh                  ,
             bin_zm = np.where(bin_zm[1]>0, bin_zm[0]/bin_zm[1], np.nan)
         
         #________________________________________________________________________________________________    
-        data_bin_zm = xr.Dataset(data_vars = {vname : ((dimn_v,do_lonlat), bin_zm.T, data_zm[vname].attrs)
+        data_bin_zm = xr.Dataset(data_vars = {vname : ((dimn_v,do_lonlat), bin_zm, data_zm[vname].attrs)
                                               }, 
                                  coords    = {do_lonlat       : ((do_lonlat      ), (lonlat_bins[:-1]+lonlat_bins[1:])*0.5)              , 
                                               do_lonlat+'_bnd': ((do_lonlat,'n2' ), np.column_stack((lonlat_bins[:-1], lonlat_bins[1:]))), 
@@ -2305,10 +2297,6 @@ def calc_transect_zm_mean_dask(mesh                  ,
         
         # for the choice of vertical plotting mode
         data_bin_zm.attrs['proj'] = 'index+depth+xy'
-        ##_______________________________________________________________________
-        #if do_compute : data_zm = data_zm.compute() 
-        #if do_load    : data_zm = data_zm.load()
-        #if do_persist : data_zm = data_zm.persist()    
         
         #_______________________________________________________________________
         # append index to list
@@ -2325,19 +2313,19 @@ def calc_transect_zm_mean_dask(mesh                  ,
 #
 #
 #_______________________________________________________________________________  
-def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_pnbd, chnk_d):
+def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_ispbnd, chnk_d):
     """
 
     """
     #___________________________________________________________________________
     # only needthe additional dimension at the point where the function is started
     if   np.ndim(chnk_d) == 2: 
-        chnk_lat = chnk_lat[   :, 0] # 2D --> now is 1D again
-        chnk_pnbd= chnk_pnbd[  :, 0]
+        chnk_lonlat= chnk_lonlat[   0, :] # 2D --> now is 1D again
+        chnk_ispbnd= chnk_ispbnd[  0, :]
     elif np.ndim(chnk_d) == 3:
-        chnk_lat = chnk_lat[ 0, :, 0] # 3D --> now is 1D again
-        chnk_pnbd= chnk_pnbd[0, :, 0]
-        chnk_wA  = chnk_wA[  0, :, :] # 3D --> now is 2D again
+        chnk_lonlat= chnk_lonlat[ 0, 0, :] # 3D --> now is 1D again
+        chnk_ispbnd= chnk_ispbnd[0, 0, :]
+        chnk_wA    = chnk_wA[  0, :, :] # 3D --> now is 2D again
         
     # Use np.digitize to find bin indices for longitudes and latitudes
     idx_lonlat  = np.digitize(chnk_lonlat, lonlat_bins)-1  # Adjust to get 0-based index
@@ -2354,25 +2342,25 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_pnbd, chn
     
     elif np.ndim(chnk_d) == 2: 
         # Replace NaNs with 0 value to summation issues
-        nnod, nlev  = chnk_d.shape
+        nlev, nnod  = chnk_d.shape
         chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
         chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
-        binned_d    = np.zeros((2, nlonlat, nlev), dtype=np.float32)  
+        binned_d    = np.zeros((2, nlev, nlonlat), dtype=np.float32)  
         # binned_d[0, nlonlat, nlev] - data*area weight
         # binned_d[1, nlonlat, nlev] - area weight sum
         
     elif np.ndim(chnk_d) == 3: 
         # Replace NaNs with 0 value to summation issues
-        ntime, nnod, nlev = chnk_d.shape
+        ntime, nlev, nnod = chnk_d.shape
         chnk_wA     = np.where(np.isnan(chnk_d[0,:,:]), 0, chnk_wA)
         chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
-        binned_d    = np.zeros((2, ntime, nlonlat, nlev), dtype=np.float32)
+        binned_d    = np.zeros((2, nlev, ntime, nlonlat), dtype=np.float32)
         # binned_d[0, ntime, nlonlat, nlev] - data*area weight
         # binned_d[1, ntime, nlonlat, nlev] - area weight sum    
         
     # Precompute mask outside the loop
-    idx_valid   = (idx_lonlat >= 0) & (idx_lonlat < nlonlat) & (~chnk_pnbd)
-    del(chnk_pnbd)
+    idx_valid   = (idx_lonlat >= 0) & (idx_lonlat < nlonlat) & (~chnk_ispbnd)
+    del(chnk_ispbnd)
 
     # Apply mask before looping
     idx_lonlat  = idx_lonlat[idx_valid]
@@ -2390,21 +2378,21 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_pnbd, chn
     
     # data for zonal mean are 2d [nlonlat, nlev]
     elif np.ndim(chnk_d) == 2:
-        chnk_d      = chnk_d[ idx_valid, :]
-        chnk_wA     = chnk_wA[idx_valid, :]
+        chnk_d      = chnk_d[ :, idx_valid]
+        chnk_wA     = chnk_wA[:, idx_valid]
         for nod_i in range(0,nnod):
             jj = idx_lonlat[nod_i]
-            binned_d[0, jj, :] = binned_d[0, jj, :] + chnk_d[ nod_i, :] * chnk_wA[nod_i, :]
-            binned_d[1, jj, :] = binned_d[1, jj, :] + chnk_wA[nod_i, :]
+            binned_d[0, :, jj] = binned_d[0, :, jj] + chnk_d[ :, nod_i] * chnk_wA[:, nod_i]
+            binned_d[1, :, jj] = binned_d[1, :, jj] + chnk_wA[:, nod_i]
     
     # data for zonal mean are 3d [ntime, nlonlat, nlev]
     elif np.ndim(chnk_d) == 3:    
-        chnk_d      = chnk_d[ :, idx_valid, :]
-        chnk_wA     = chnk_wA[   idx_valid, :]
+        chnk_d      = chnk_d[ :, :, idx_valid]
+        chnk_wA     = chnk_wA[   :, idx_valid]
         for nod_i in range(0,nnod):
             jj = idx_lonlat[nod_i]
-            binned_d[0, :, jj, :] = binned_d[0, :, jj, :] + chnk_d[ :, nod_i, :] * chnk_wA[nod_i, :]
-            binned_d[1, :, jj, :] = binned_d[1, :, jj, :] + chnk_wA[nod_i, :]
+            binned_d[0, :, :, jj] = binned_d[0, :, :, jj] + chnk_d[ :, :, nod_i] * chnk_wA[:, nod_i]
+            binned_d[1, :, :, jj] = binned_d[1, :, :, jj] + chnk_wA[:, nod_i]
             
     #___________________________________________________________________________
     return binned_d.flatten()

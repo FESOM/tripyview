@@ -693,6 +693,73 @@ def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
     return(idx_IN) 
     
 
+#
+#
+#_______________________________________________________________________________
+def do_boxmask_dask(lon, lat, ispbnd, box):
+    
+    #___________________________________________________________________________
+    # a rectangular box is given --> translate into shapefile object
+    if  box == None or box == 'global': # if None do global
+        idxin = da.ones((lon.shape), dtype=bool)
+        
+    #___________________________________________________________________________    
+    elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+        px     = [box[0], box[1], box[1], box[0], box[0]]
+        py     = [box[2], box[2], box[3], box[3], box[2]]
+        p      = Polygon(list(zip(px,py)))
+        idxin  = contains(p, lon, lat)
+    
+    #___________________________________________________________________________
+    # a polygon as list or ndarray is given --> translate into shape file object
+    elif isinstance(box,list) and len(box)==2: 
+        px, py = box[0], box[1]  
+        p      = Polygon(list(zip(px,py)))  
+        idxin  = contains(p, lon, lat)
+            
+    #___________________________________________________________________________
+    elif isinstance(box, np.ndarray): 
+        if box.shape[0]==2:
+            px, py = list(box[0,:]), list(box[1,:])
+            p      = Polygon(list(zip(px,py)))
+            idxin  = contains(p, lon, lat)
+        else:
+            raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+            
+    #___________________________________________________________________________
+    # a polygon as shapefile or shapefile collection is given
+    elif (isinstance(box, (Polygon, MultiPolygon))):
+        if   isinstance(box, Polygon): 
+            idxin = contains(box, lon, lat)
+                
+        elif isinstance(box, MultiPolygon):
+            idxin = da.zeros((lon.shape), dtype=bool)
+            for p in box.geoms:
+                idxin  = da.logical_or(idxin, contains(p, lon, lat))
+                
+    #___________________________________________________________________________    
+    # index selection by shapefile 
+    elif (isinstance(box, shp.Reader)):
+        idxin = da.zeros((lon.shape), dtype=bool)
+        for shape in box.shapes(): 
+            p      = Polygon(shape.points)
+            idxin  = da.logical_or(idxin, contains(p, lon, lat))
+    
+    #___________________________________________________________________________    
+    # otherwise
+    else:
+        raise ValueError('the given box information to compute the index has no valid format')
+    
+    #___________________________________________________________________________
+    # exclude periodic boundary point in case of elements
+    idxin = np.where(ispbnd, False, idxin)
+    
+    #___________________________________________________________________________
+    return(idxin) 
+    
+
+
+
 #+___EQUIVALENT OF MATLAB ISMEMBER FUNCTION___________________________________________________________+
 #|                                                                                                    |
 #+____________________________________________________________________________________________________+

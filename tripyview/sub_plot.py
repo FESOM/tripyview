@@ -1392,27 +1392,27 @@ def plot_hquiver(mesh                  ,
             # values from plotting that are bottom topo  
             vname = list(data[ii].keys())
             data_plot_u, data_plot_v = data[ii][ vname[0] ].data.copy(), data[ii][ vname[1] ].data.copy()
-            data_plot_u, tri   = do_data_prepare_unstruct(mesh, tri, data_plot_u, do_ie2n)
-            data_plot_v, tri   = do_data_prepare_unstruct(mesh, tri, data_plot_v, do_ie2n)
+            data_plot_u, _   = do_data_prepare_unstruct(mesh, tri, data_plot_u, do_ie2n)
+            data_plot_v, tri = do_data_prepare_unstruct(mesh, tri, data_plot_v, do_ie2n)
             
-            #___________________________________________________________________
-            # add color for ocean bottom
-            h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
-            hbot.append(h0)
+            ##___________________________________________________________________
+            ## add color for ocean bottom
+            #h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
+            #hbot.append(h0)
             
-            #___________________________________________________________________
-            # add grey topo
-            h0 = do_plt_topo(hfig, hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri), 
-                             plt_opt=topo_opt,
-                             plt_contb=topo_cont , pltcb_opt=topoc_opt,
-                             plt_contl=topo_contl, pltcl_opt=topocl_opt,
-                             chnksize=chnksize)
-            htop.append(h0)
+            ##___________________________________________________________________
+            ## add grey topo
+            #h0 = do_plt_topo(hfig, hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri), 
+                             #plt_opt=topo_opt,
+                             #plt_contb=topo_cont , pltcb_opt=topoc_opt,
+                             #plt_contl=topo_contl, pltcl_opt=topocl_opt,
+                             #chnksize=chnksize)
+            #htop.append(h0)
             
-            #___________________________________________________________________
-            # add grid mesh on top
-            h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
-            hmsh.append(h0)
+            ##___________________________________________________________________
+            ## add grid mesh on top
+            #h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
+            #hmsh.append(h0)
             
             #___________________________________________________________________
             # do quiver computations
@@ -4913,7 +4913,6 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
     """      
     h0=None
     if do_quiv: 
-        
         #_______________________________________________________________________
         # prepare quiver data
         data_plot_n              = np.sqrt(data_plot_u**2 + data_plot_v**2)
@@ -4933,19 +4932,18 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         fac   = fac*(quiv_smax-1.0) + 1.0
         data_plot_u, data_plot_v = data_plot_u*fac, data_plot_v*fac
         
-        
-        # kick out nan values from quiver coordinates 
-        mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) | 
-                    np.isnan(data_plot_v) | np.isinf(data_plot_v) | 
-                    np.isnan(tri.x)       | np.isnan(tri.y) )==False
-        
         # convert into cartopy projection frame 
         if data_plot_u.size == tri.xorig.size: 
             isonvert=True
+            
+            # kick out nan values from quiver coordinates 
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) | 
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) | 
+                        np.isnan(tri.x)       | np.isnan(tri.y) )==False
+        
             tri0x, tri0y, tri0xorig, tri0yorig = tri.x[mask_nan], tri.y[mask_nan], tri.xorig[mask_nan], tri.yorig[mask_nan]
             data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
             
-            #___________________________________________________________________
             # chunks computation of hax_ii.projection.transform_vectors(...)
             chnksize, arrsize = np.int32(chnksize), data_plot_u.size
             for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
@@ -4957,12 +4955,19 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
             
         else:
             isonvert=False
+            
             triangles = tri.triangles[tri.mask_e_ok,:]
             tri0x    , tri0y     = tri.x[    triangles].sum(axis=1)/3.0, tri.y[    triangles].sum(axis=1)/3.0
             tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0
+            
+            # kick out nan values from quiver coordinates 
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) | 
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) | 
+                        np.isnan(tri0x)       | np.isnan(tri0y) )==False
+            
             tri0x, tri0y, tri0xorig, tri0yorig = tri0x[mask_nan], tri0y[mask_nan], tri0xorig[mask_nan], tri0yorig[mask_nan]
             data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
-            #___________________________________________________________________
+            
             # chunks computation of hax_ii.projection.transform_vectors(...)
             chnksize, arrsize = np.int32(chnksize), data_plot_u.size
             for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
@@ -5005,7 +5010,7 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         min_x, max_x = hax_ii.get_xlim()
         min_y, max_y = hax_ii.get_ylim()
         ddx  , ddy   = max_x-min_x , max_y-min_y
-          
+        #print('ddx, ddy:',ddx, ddy)  
         min_x += ddx*0.025  
         min_y += ddy*0.025
         max_x -= ddx*0.025  
@@ -5020,18 +5025,25 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         # Calculate the distance in kilometers using the scale factor
         dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
         dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
+        #print('dlon, dlat:', dlon, dlat)
         
         dy   = dlat*np.pi*6371/180
         dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
+        #print('dx,dy:',dx,dy)
         
-        #_______________________________________________________________________
-        # add quiver plot 
-        max_dim = np.min([dx,dy])*10
-        if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
-        if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+        ##_______________________________________________________________________
+        ## add quiver plot 
+        #max_dim = np.min([dx,dy])*10
+        max_dim = np.min([dlon, dlat])*2
         
-        quiv_optdefault=dict({'edgecolor':'k', 'linewidth':0.10, 'width': quiv_arrwidth , 'units':'xy', \
-                              'scale_units':'xy', 'angles':'xy', 'scale': quiv_scalfac}) 
+        #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
+        if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
+        #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+        
+        quiv_optdefault=dict({
+                              'edgecolor':'k', 'linewidth':0.10, #'width': quiv_arrwidth , 
+                              'units':'xy', 'scale_units':'xy', 'angles':'xy', 'scale': quiv_scalfac
+                             }) 
         quiv_optdefault.update(quiv_opt)
         
         #_______________________________________________________________________
@@ -5053,7 +5065,7 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
             # Force update & clear cache
             hfig.canvas.draw_idle()   # Updates only changed parts
             hfig.canvas.flush_events()  # Ensures interactive update
-            
+        
         print('')    
         #h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
         del(tri0x, tri0y, )    
