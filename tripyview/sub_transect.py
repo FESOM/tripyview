@@ -1321,8 +1321,14 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
 #
 #
 #___COMPUTE TRANSECT OF SCALAR VERTICE/ELEMENTAL VARIABLE_______________________
-def calc_transect_scalar(mesh, data, transects, nodeinelem=None, 
-                         do_transectattr=False, do_info=False):
+def calc_transect_scalar(mesh, 
+                         data, 
+                         transects, 
+                         do_tarithm = None, #'mean', 
+                         nodeinelem=None, 
+                         do_transectattr=False, 
+                         do_info=False, 
+                         client=None):
     """
     --> interpolate scalar vertice values onto cutting point position where
         cross-section intersects with edge
@@ -1366,26 +1372,46 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
     
     #___________________________________________________________________________
     vname = list(data.keys())[0]
+    dimn_v = None
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h = 'nod2'
+    elif ('elem' in data.dims): dimn_h = 'elem'
+    if   'nz'  in list(data[vname].dims): 
+        dimn_v  = 'nz'    
+    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
+        dimn_v  = 'nz1'
+        
+        
     for transect in transects:
         #_______________________________________________________________________
         if 'nod2' in list(data.dims):
-            # select only necessary vertices
-            scalarP1 = data[vname].isel(nod2=transect['edge_cut_ni'][:,0]).load().values
-            scalarP2 = data[vname].isel(nod2=transect['edge_cut_ni'][:,1]).load().values
+            
+            dataP12 = data[vname].isel({dimn_h:xr.DataArray(transect['edge_cut_ni'].flatten(), dims=dimn_h)})
+            
+            # if we do first the horizontal reduction operation and afterwards the 
+            # the time reduction operation, its not neccesarily faster but the 
+            # RAM demand is significantly lower which allow for larger chunks in 
+            # the vertical --> and allow for abit of a speed up
+            if do_tarithm is not None: dataP12, _ = do_time_arithmetic(dataP12, do_tarithm)
+            
+            dataP12 = dataP12.load()
+            if client is not None: client.rebalance()
+            dataP12 = np.reshape(dataP12.data, (dataP12.sizes[dimn_v], transect['edge_cut_ni'].shape[0], 2))
+            scalarP1  = dataP12[:, :, 0]
+            scalarP2  = dataP12[:, :, 1]
+            del(dataP12)
             
             # put back the nans 
             if 'nz1' in data.dims or 'nz_1' in data.dims:
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[ii,mesh.n_iz[ni]:] = np.nan
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[ii,mesh.n_iz[ni]:] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[mesh.n_iz[ni]:  , ii] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[mesh.n_iz[ni]:  , ii] = np.nan
             elif 'nz' in data.dims:
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[ii,mesh.n_iz[ni]+1:] = np.nan
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[ii,mesh.n_iz[ni]+1:] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[mesh.n_iz[ni]+1:, ii] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[mesh.n_iz[ni]+1:, ii] = np.nan
                 
             # interpolate scalar vertice values onto cutting point position where
             # cross-section intersects with edge
-            scalarPcut = scalarP1.T + (scalarP2.T-scalarP1.T)*transect['edge_cut_lint']
-            #scalarPcut = scalarP1.T 
-            #scalarPcut = scalarP2.T 
+            scalarPcut = scalarP1 + (scalarP2-scalarP1)*transect['edge_cut_lint']
             del(scalarP1, scalarP2)
             
             # define lon, lat , distance arrays
@@ -1397,15 +1423,25 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         elif 'elem' in list(data.dims):
             if nodeinelem is None:
                 # select only necessary elements 
-                scalarPcut = data[vname].isel(elem=transect['path_ei'][::2]).load().values
-                
+                dataP12 = data[vname].isel({dimn_h:xr.DataArray(transect['path_ei'][::2], dims=dimn_h)})
+            
+                # if we do first the horizontal reduction operation first and afterwards the 
+                # the time reduction operation, its not neccesarily faster but the 
+                # RAM demand is significantly lower which allow for larger chunks in 
+                # the vertical --> and allow for abit of a speed up
+                if do_tarithm is not None: dataP12, _ = do_time_arithmetic(dataP12, do_tarithm)
+            
+                scalarPcut = dataP12.load().data
+                if client is not None: client.rebalance()
+                del(dataP12)
+                    
                 # put back the nans 
-                if 'nz1' in data.dims or 'nz_1' in data.dims:
-                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[ii,mesh.e_iz[ei]:  ] = np.nan
+                if   'nz1' in data.dims or 'nz_1' in data.dims:
+                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[mesh.e_iz[ei]:  ,ii] = np.nan
                 elif 'nz' in data.dims:
-                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[ii,mesh.e_iz[ei]+1:] = np.nan
+                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[mesh.e_iz[ei]+1:,ii] = np.nan
                 
-                scalarPcut = scalarPcut.T
+                scalarPcut[:, transect['path_ei'][::2]<0] = np.nan
                 
                 if scalarPcut.shape[1] == transect['edge_cut_P'][:,0].shape[0]: 
                     # define lon, lat , distance arrays
@@ -1428,23 +1464,41 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 #       \ /   \ /  
                 #        o-----o  
                 #
-                elem_i_P = nodeinelem[:,transect['edge_cut_ni'][:,0]]
-                elem_A_P = mesh.e_area[elem_i_P]
-                elem_A_P[elem_i_P<0]=0.0
-                scalarP1 = data[vname].isel(elem=elem_i_P.flatten()).load().values.T #.reshape(elem_i_P.shape)
+                elem_i_P12 = np.stack((nodeinelem[:,transect['edge_cut_ni'][:,0]], 
+                                       nodeinelem[:,transect['edge_cut_ni'][:,1]]
+                                       ), axis=-1)
+                dum0, dum01, dum02 = elem_i_P12.shape
+                
+                # select only necessary elements 
+                dataP12 = data[vname].isel({dimn_h:xr.DataArray(elem_i_P12.flatten(), dims=dimn_h)})
+                # if we do first the horizontal reduction operation first and afterwards the 
+                # the time reduction operation, its not neccesarily faster but the 
+                # RAM demand is significantly lower which allow for larger chunks in 
+                # the vertical --> and allow for abit of a speed up
+                if do_tarithm is not None: dataP12, _ = do_time_arithmetic(dataP12, do_tarithm)
+                dataP12 = dataP12.load()
+                if client is not None: client.rebalance()
+                dataP12 = np.reshape(dataP12.data, (dataP12.sizes[dimn_v], dum0*dum01, dum02))
+                scalarP1  = dataP12[:, :, 0]
+                scalarP2  = dataP12[:, :, 1]
+                del(dataP12)
+                
+                #_______________________________________________________________
+                elem_A_P1 = mesh.e_area[elem_i_P12[:,:,0]]
+                elem_A_P1[elem_i_P12[:,:,0]<0]=0.0
                 
                 # set nan's from the land sea mask to zeros
                 scalarP1[np.isnan(scalarP1)]=0
                 
                 dim1,dum = scalarP1.shape # --> dim1 depth dimension 
-                dim2,dim3= elem_i_P.shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
-                del(elem_i_P)
+                dim2,dim3= elem_i_P12[:,:,0].shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
                 
                 # weighted mean over elements that belong to node
-                scalarP1 = scalarP1*elem_A_P.flatten()
+                scalarP1 = scalarP1*elem_A_P1.flatten()
                 scalarP1 = scalarP1.reshape((dim1, dim2, dim3))
-                scalarP1 = scalarP1.sum(axis=1)/elem_A_P.sum(axis=0)
-                del(elem_A_P)
+                
+                scalarP1 = scalarP1.sum(axis=1)/elem_A_P1.sum(axis=0)
+                del(elem_A_P1)
                 
                 # put back the nans 
                 if 'nz1' in data.dims or 'nz_1' in data.dims:
@@ -1452,24 +1506,22 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 elif 'nz' in data.dims:
                     for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[mesh.n_iz[ni]+1:,ii] = np.nan
                     
+                #_______________________________________________________________
                 # average elemental values to edge node 2
-                elem_i_P = nodeinelem[:,transect['edge_cut_ni'][:,1]]
-                elem_A_P = mesh.e_area[elem_i_P]
-                elem_A_P[elem_i_P<0]=0.0
-                scalarP2 = data[vname].isel(elem=elem_i_P.flatten()).load().values.T #.reshape(elem_i_P.shape)
-                
+                elem_A_P2 = mesh.e_area[elem_i_P12[:,:,1]]
+                elem_A_P2[elem_i_P12[:,:,1]<0]=0.0
                 # set nan's from the land sea mask to zeros
                 scalarP2[np.isnan(scalarP2)]=0
                 
                 dim1,dum = scalarP2.shape # --> dim1 depth dimension 
-                dim2,dim3= elem_i_P.shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
-                del(elem_i_P)
+                dim2,dim3= elem_i_P12[:,:,1].shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
+                del(elem_i_P12)
                 
                 # weighted mean over elements that belong to node
-                scalarP2 = scalarP2*elem_A_P.flatten()
+                scalarP2 = scalarP2*elem_A_P2.flatten()
                 scalarP2 = scalarP2.reshape((dim1, dim2, dim3))
-                scalarP2 = scalarP2.sum(axis=1)/elem_A_P.sum(axis=0)
-                del(elem_A_P)
+                scalarP2 = scalarP2.sum(axis=1)/elem_A_P2.sum(axis=0)
+                del(elem_A_P2)
                 
                 # put back the nans based on node depth
                 if 'nz1' in data.dims or 'nz_1' in data.dims:
@@ -1493,7 +1545,8 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         #_______________________________________________________________________
         # define dimensions
         list_dimname, list_dimsize, list_dimval = list(), list(), list()
-        if   'time' in data.dims: list_dimname.append('time'), list_dimsize.append(data.dims['time']), list_dimval.append(pd.to_datetime(data.time))             
+        if   'time' in data.dims and do_tarithm is None: 
+            list_dimname.append('time'), list_dimsize.append(data.dims['time']), list_dimval.append(pd.to_datetime(data.time))             
         if   'nz1'  in data.dims: list_dimname.append('nz1' ), list_dimsize.append(mesh.zmid.size), list_dimval.append(mesh.zmid) 
         elif 'nz_1' in data.dims: list_dimname.append('nz_1'), list_dimsize.append(mesh.zmid.size), list_dimval.append(mesh.zmid)  
         elif 'nz'   in data.dims: list_dimname.append('nz'  ), list_dimsize.append(mesh.zlev.size), list_dimval.append(mesh.zlev)  
@@ -1538,14 +1591,15 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
             # are not possible
-            if 'time' in data.dims: csects[-1] = csects[-1].assign_coords(time=data.time)  
+            if 'time' in data.dims and do_tarithm is None: csects[-1] = csects[-1].assign_coords(time=data.time)  
         else:
             csects = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
             # are not possible
-            if 'time' in data.dims: csects = csects.assign_coords(time=data.time)  
+            if 'time' in data.dims and do_tarithm is None:
+                csects = csects.assign_coords(time=data.time)  
             
     #___________________________________________________________________________
     if do_info: print('        elapsed time: {:3.2f}min.'.format((clock.time()-t1)/60.0))
@@ -2240,6 +2294,8 @@ def calc_transect_zm_mean_dask(mesh                   ,
                                   drop_axis = [0]            ,   # drop dim nz1
                                   chunks    = (2*nlev*nlonlat, ) # Output shape
                                 )
+        
+        print(nchunk, 2, nlev, nlonlat)
         
         #_______________________________________________________________________
         # reshape axis over chunks 

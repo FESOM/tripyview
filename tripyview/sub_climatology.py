@@ -17,6 +17,10 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                      do_zarithm='mean', do_hinterp='linear', do_zinterp=True, 
                      descript='clim', do_ptemp=True, pref =0.0, 
                      do_compute=False, do_load=True, do_persist=False, 
+                     chunks         = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
+                                        'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
+                                        'ndens':'auto'},
+                     do_parallel=False, 
                      **kwargs):
     
     str_mdep = ''
@@ -233,9 +237,14 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     data = data.drop_vars(['depth'])
     
     #___________________________________________________________________________
-    data = data.transpose()    
+    #data = data.transpose()    
     data = data.astype('float32', copy=False)
     
+    #___________________________________________________________________________
+    if do_parallel: 
+        data = data.chunk({'nod2':chunks['nod2'], 'nz1':chunks['nz1']})
+        data = data.unify_chunks()
+        
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
     warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
