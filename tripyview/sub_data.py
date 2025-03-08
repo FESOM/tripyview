@@ -1413,11 +1413,11 @@ def do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv):
         # vector data are on vertices 
         #if ('nod2' in data[vname[0]].dims) or ('node' in data[vname[0]].dims):
         print(' > do vector rotation')
-        data[vname[0]], data[vname[1]] = vec_r2g_dask(mesh.abg           , 
-                                                    data['lon']     , 
-                                                    data['lat']     , 
-                                                    data[vname[0]]  ,  
-                                                    data[vname[1]]  , 
+        data[vname[0]].data, data[vname[1]].data = vec_r2g_dask(mesh.abg      , 
+                                                    data['lon'].data     , 
+                                                    data['lat'].data     , 
+                                                    data[vname[0]].data  ,  
+                                                    data[vname[1]].data  , 
                                                     gridis='geo' )
         
         # in case only a scalar vector component is needed, rotation might still 
@@ -1923,7 +1923,7 @@ def vec_r2g_dask(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
         rlon, rlat = grid_g2r(abg, lon, lat)
     elif any(x in gridis for x in ['rot', 'r', 'rotated']):
         rlon, rlat = lon, lat
-        lon , lat  = grid_g2r(abg, rlon, rlat)
+        lon , lat  = grid_r2g(abg, rlon, rlat)
     else:
         raise ValueError(f"Unsupported gridis={gridis}, expected 'geo' or 'rot'.")
 
@@ -1972,7 +1972,7 @@ def vec_r2g_dask(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
     vgeo = vxg*-sin_lat*cos_lon - vyg*sin_lat*sin_lon + vzg*cos_lat
     ugeo = vxg*-sin_lon         + vyg*cos_lon
 
-    return ugeo, vgeo
+    return ugeo.astype(np.float32), vgeo.astype(np.float32)
 
 
 

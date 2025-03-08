@@ -107,6 +107,7 @@ def load_index_fesom2(mesh                  ,
     #___________________________________________________________________________
     # loop over box_list
     for box in box_list:
+        #_______________________________________________________________________
         if not isinstance(box, shp.Reader):
             if   len(box)==2: boxname, box = box[1], box[0]
             elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])

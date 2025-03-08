@@ -2033,7 +2033,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
         rlon, rlat = grid_g2r(abg, lon, lat)        
     elif any(x in gridis for x in ['rot','r','rotated']):     
         rlon, rlat = lon, lat 
-        lon,  lat  = grid_g2r(abg, rlon, rlat)
+        lon,  lat  = grid_r2g(abg, rlon, rlat)
     else:
         raise ValueError("The option gridis={} in vec_r2g is not supported.\n (only: 'geo','g','geographical', 'rot','r','rotated') ".format(str(gridis)))
     

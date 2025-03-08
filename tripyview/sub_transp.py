@@ -706,6 +706,377 @@ def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do
     return(list_mhflx)
 
 
+
+#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
+#|                                                                             |
+#+_____________________________________________________________________________+
+def calc_mhflx_box_dask(mdiag               , 
+                        box_list            , 
+                        do_parallel         , 
+                        parallel_nprc       , 
+                        do_lonlat='edge_my' , 
+                        dlonlat=1.0         , 
+                        do_info=True        , 
+                        do_checkbasin=False , 
+                        client=None         ,
+                        ):
+    #___________________________________________________________________________
+    vname_list = list(mdiag.data_vars)
+    vnamet = None
+    if 'temp' in vname_list:
+        vnamet = 'temp'
+        vname_list.remove('temp')
+    for vi in vname_list:
+        if 'u' in vi: vnameu=vi
+        if 'v' in vi: vnamev=vi
+    #vnameu, vnamev = vname_list[0], vname_list[1]
+    
+    # save global and local variable attributes
+    gattr = mdiag.attrs
+    gattr['proj'] = 'index+xy'
+    vattr = mdiag[vnameu].attrs
+
+    #___________________________________________________________________________
+    # factors for heatflux computation
+    rho0 = 1030 # kg/m^3
+    cp   = 3850 # J/kg/K
+    inPW = 1.0e-15
+    
+    #___________________________________________________________________________
+    # Loop over boxes/regions/shapefiles ...
+    dimn_h, dimn_v = 'edg_n', 'nz1'
+    list_mhflx=list()
+    for box in box_list:
+        #_______________________________________________________________________
+        if not isinstance(box, shp.Reader):
+            if   len(box)==2: boxname, box = box[1], box[0]
+            elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])
+            if box is None or box=='global': boxname='global'
+        else:     
+            # if we do the box polygon selection in paralel, i cant give into the 
+            # box selection routine the Read shapefile handle since its not pickable
+            # therfore i need to extract the shapefile polygon points before throwing it into 
+            # the do_boxmask_dask routine 
+            boxname = os.path.basename(box.shapeName).replace('_',' ')  
+            shape_data = [shape.points for shape in box.shapes()]  # Extract raw data
+            box = MultiPolygon([Polygon(shape) for shape in shape_data])
+        
+        #_______________________________________________________________________
+        # select box area
+        datat_box = None
+       #_______________________________________________________________________
+        # compute  mask index to select index region 
+        if box != 'global': 
+            #idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+            idxin = da.map_blocks(  do_boxmask_dask,
+                                    mdiag['edge_mx'].data,
+                                    mdiag['edge_my'].data,
+                                    None,
+                                    box,
+                                    dtype=bool).compute()
+            idxin = idxin.compute() # ---> we can not index whit a dask array 
+        else:
+            idxin = None
+         
+        #_______________________________________________________________________
+        # select index region from data
+        if box != 'global': mdiag_box = mdiag.sel({dimn_h:idxin})
+        else              : mdiag_box = mdiag
+        
+        #_______________________________________________________________________
+        if do_checkbasin and idxin is not None:
+            from matplotlib.tri import Triangulation
+            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            plt.figure()
+            ax = plt.gca()
+            plt.triplot(tri, color='k')
+            plt.plot(mdiag_box.edge_my, mdiag_box.edge_my, '*r', linestyle='None', markersize=1)
+            plt.title('Basin selection')
+            plt.show()
+        
+        #_______________________________________________________________________
+        # create zonal/meridional bins
+        do_lonlat     = 'edge_my'
+        lonlat_min    = np.floor(mdiag_box[ do_lonlat ].min().compute())
+        lonlat_max    = np.ceil( mdiag_box[ do_lonlat ].max().compute())
+        #lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
+        lonlat_bins   = np.arange(lonlat_min+dlonlat/2, lonlat_max, dlonlat)
+        nlonlat, nlev = len(lonlat_bins), mdiag_box.sizes[dimn_v]
+        
+        #_______________________________________________________________________
+        # determine/adapt actual chunksize
+        nchunk = 1
+        if do_parallel and isinstance(mdiag_box[vnameu].data, da.Array)==True :
+            nchunk = len(mdiag_box.chunks[dimn_h])
+            print(' --> nchunk=', nchunk)   
+            
+            # after all the time and depth operation after the loading there will 
+            # be worker who have no chunk piece to work on  --> therfore we need
+            # to rechunk make sure the workload is distributed between all 
+            # availabel worker equally         
+            if nchunk<parallel_nprc*0.75:
+                print(' --> rechunk array size', end='')
+                mdiag_box = mdiag_box.chunk({dimn_h: np.ceil(mdiag_box.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1, 'n2':-1})
+                nchunk = len(mdiag_box.chunks[dimn_h])
+                print(' --> nchunk_new=', nchunk)    
+        
+        #_______________________________________________________________________
+        # Apply zonal mean over chunk
+        do_onelem = True
+        if 'time' in mdiag.dims:
+            drop_axis   = [0, 1, 2]
+            chnk_edy    = mdiag_box['edge_y'    ].data[None, None, :, :   ]
+            chnk_tri    = mdiag_box['edge_tri'  ].data[None, None, :, :   ]
+            chnk_dx     = mdiag_box['edge_dx_lr'].data[None, None, :, :   ]
+            chnk_dy     = mdiag_box['edge_dy_lr'].data[None, None, :, :   ]
+            chnk_dz     = mdiag_box['dz'        ].data[None, None, :, None]
+        else:     
+            drop_axis   = [0, 1]                     #  n2    nlev  edg_n    
+            chnk_edy    = mdiag_box['edge_y'    ].data[:   , None, :   ]
+            chnk_tri    = mdiag_box['edge_tri'  ].data[:   , None, :   ]
+            chnk_dx     = mdiag_box['edge_dx_lr'].data[:   , None, :   ]
+            chnk_dy     = mdiag_box['edge_dy_lr'].data[:   , None, :   ]
+            chnk_dz     = mdiag_box['dz'        ].data[None, :   , None]
+        chnk_u = mdiag_box[vnameu].data
+        chnk_v = mdiag_box[vnamev].data
+        chnk_t = mdiag_box[vnamet].data if vnamet is not None else None
+        
+        print(chnk_lonlat)
+        print(chnk_tri)
+        print(chnk_dx)
+        print(chnk_dy)
+        print(chnk_dz)
+        print(chnk_u)
+        print(chnk_v)        
+        print(chnk_t)
+        print(do_onelem)
+        
+        bin_hflx = da.map_blocks(calc_mhflx_box_chnk         ,
+                                  lonlat_bins                ,   # mean bin definitions
+                                  chnk_edy                   ,   # lon/lat nod2 coordinates
+                                  chnk_tri                   ,   # area weight
+                                  chnk_dx                    ,   # if elem is pbnd element
+                                  chnk_dy                    ,   # if elem is pbnd element
+                                  chnk_dz                    ,   # if elem is pbnd element
+                                  chnk_u                     ,   # data chunk piece
+                                  chnk_v                     ,   # data chunk piece
+                                  chnk_t                     ,   # data chunk piece
+                                  do_onelem                  ,  
+                                  dtype     = np.float32     ,   # Tuple dtype
+                                  drop_axis = drop_axis      ,   # drop dim nz1
+                                  chunks    = (2*nlonlat, ) # Output shape
+                                )
+        
+        #_______________________________________________________________________
+        # reshape axis over chunks 
+        bin_hflx = bin_hflx.reshape((nchunk, 2, nlonlat))
+        
+        #_______________________________________________________________________
+        # do dask axis reduction across chunks dimension
+        bin_hflx = da.reduction(bin_hflx,                   
+                                 chunk     = lambda x, axis=None, keepdims=None: x,  # Updated to handle axis and keepdims
+                                 aggregate = np.sum,
+                                 dtype     = np.float32,
+                                 axis      = 0,
+                                 ).compute()
+        
+        if client is not None: client.rebalance()
+        
+        #_______________________________________________________________________
+        # convert zeros to nan values via counter
+        with np.errstate(divide='ignore', invalid='ignore'):
+            bin_hflx = np.where(bin_hflx[1]>0, bin_hflx[0], np.nan)
+        
+        #_______________________________________________________________________
+        # Create xarray dataset
+        list_dimname, list_dimsize = ['lat'], [lonlat_bins.size]
+        data_vars = dict()
+        # define variable attributes 
+        vattr['long_name' ] = f'Meridional Heat Transport'
+        vattr['short_name'] = f'Merid. Heat Transp.'
+        vattr['boxname'   ] = boxname
+        vattr['units'     ] = 'PW'
+        # define data_vars dict, coordinate dict, as well as list of dimension name 
+        # and size 
+        data_vars, coords, dim_n, dim_s,  = dict(), dict(), list(), list()
+        if 'time' in list(mdiag.dims): dim_n.append('time')
+        dim_n.append('lat')
+        for dim_ni in dim_n:
+            if   dim_ni=='time': dim_s.append(mdiag.sizes['time']); coords['time' ]=(['time'], mdiag['time'].data ) 
+            elif dim_ni=='lat' : dim_s.append(lonlat_bins.size   ); coords['lat'  ]=(['lat' ], lonlat_bins) 
+        data_vars['mhflx'] = (dim_n, bin_hflx, vattr) 
+        # create dataset
+        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+        del(data_vars, coords, dim_n, dim_s)
+        
+        ##_______________________________________________________________________
+        ## do serial loop over bins
+        #if not do_parallel:
+            #ts = ts1 = clock.time()
+            #if do_info: print('\n ___loop over latitudinal bins___'+'_'*90, end='\n')
+            #for iy, lat_i in enumerate(mhflx.lat):
+                ##_______________________________________________________________
+                #if do_info: print('{:+06.1f}|'.format(lat_i), end='')
+                #if np.mod(iy+1,15)==0 and do_info:
+                    #print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
+                    #ts1 = clock.time()
+                #if 'time' in mdiag.dims: mhflx['mhflx'][:,iy] = sum_over_latbin(lat_i, mdiag_box, data, datat)
+                #else                  : mhflx['mhflx'][  iy] = sum_over_latbin(lat_i, mdiag_box, data, datat)       
+        
+        ## do parallel loop over bins        
+        #else:
+            #ts = ts1 = clock.time()
+            #if do_info: print('\n ___parallel loop over latitudinal bins___'+'_'*1, end='\n')
+            #from joblib import Parallel, delayed
+            #results = Parallel(n_jobs=n_workers)(delayed(sum_over_latbin)(lat_i, mdiag_box, data, datat) for lat_i in mhflx.lat)
+            #if 'time' in mdiag.dims: mhflx['mhflx'][:,:] = xr.concat(results, dim='lat').transpose('time','lat')
+            #else                  : mhflx['mhflx'][  :] = xr.concat(results, dim='lat')
+     
+        #_______________________________________________________________________
+        #if do_compute: mhflx = mhflx.compute()
+        #if do_load   : mhflx = mhflx.load()
+        #if do_persist: mhflx = mhflx.persist()
+        
+        #_______________________________________________________________________
+        list_mhflx.append(mhflx)
+        #if len(box_list)==1: list_mhflx = mhflx
+        #else               : list_mhflx.append(mhflx)
+        
+        #_______________________________________________________________________
+        del(mhflx)
+        
+    #___________________________________________________________________________
+    return(list_mhflx)
+
+
+
+def calc_mhflx_box_chnk(lonlat_bins                , 
+                        chnk_y                     ,   # lon/lat nod2 coordinates
+                        chnk_tri                   ,   # area weight
+                        chnk_dx                    ,   # if elem is pbnd element
+                        chnk_dy                    ,   # if elem is pbnd element
+                        chnk_dz                    ,   # if elem is pbnd element
+                        chnk_u                     ,   # data chunk piece
+                        chnk_v                     ,   # data chunk piece
+                        chnk_t                     ,   
+                        do_onelem):
+    
+    #___________________________________________________________________________
+    # factors for heatflux computation
+    rho0 = 1030 # kg/m^3
+    cp   = 3850 # J/kg/K
+    inPW = 1.0e-15
+    
+    #___________________________________________________________________________
+    # only needthe additional dimension at the point where the function is started
+    #if np.ndim(chnk_u) ==3: 
+        ##chnk_y      = chnk_y[  :, 0, :]     
+        ##chnk_tri    = chnk_tri[:, 0, :]     
+        ##chnk_dx     = chnk_dx[ :, 0, :]   
+        ##chnk_dy     = chnk_dy[ :, 0, :]   
+        ##chnk_dz     = chnk_dz[ 0, :, 0]   
+    #elif np.ndim(chnk_u) ==4: 
+        #chnk_y      = chnk_y[0, 0, :, :]
+        #chnk_tri    = chnk_tri[   0, 0, :, :]
+        #chnk_dx     = chnk_dx[    0, 0, :, :]
+        #chnk_dy     = chnk_dy[    0, 0, :, :]
+        #chnk_dz     = chnk_dz[    0, 0, :, 0] 
+    
+    #___________________________________________________________________
+    # compute which edge is cutted by the binning line along latitude
+    # to select the  lat bin cutted edges with where is by far the fastest option
+    # compared to using ...
+    # use here vectorized/broadcast approach 
+    # Fully vectorized boolean mask (shape: N_bins × edg_n)
+    #mask = (chnk_lonlat[0, None, :]-lonlat_bins[:, None]) * (chnk_lonlat[1, None, :]-lonlat_bins[:, None]) <= 0
+
+    ## Extract indices efficiently
+    #idx_lonlatbin = [np.where(mask[i])[0] for i in range(len(lonlat_bins))]
+    
+    binned_hflx = np.zeros((2, len(lonlat_bins)), dtype=np.float32)
+    #for ii, idx_cut in enumerate(idx_lonlatbin): 
+    for ii, lat_i in enumerate(lonlat_bins):    
+        #select cutted edges 
+        idx_cut = np.where((chnk_y[0, 0, :]-lat_i)*(chnk_y[1, 0, :]-lat_i) <= 0.0)[0]
+        if len(idx_cut)==0: continue
+    
+        # limit to cutted edges 
+        chnk_dx_cut = chnk_dx[ :, :, idx_cut]
+        chnk_dy_cut = chnk_dy[ :, :, idx_cut]
+        chnk_u_cut  = chnk_u[  :, :, idx_cut]
+        chnk_v_cut  = chnk_v[  :, :, idx_cut]
+        if chnk_t is not None: 
+            chnk_t_cut  = chnk_t[:, :, idx_cut]
+        
+        # change direction of edge to make it consistent
+        idx_direct = chnk_y[0, 0, idx_cut]<=lat_i
+        chnk_dx_cut[:, :, idx_direct] = -chnk_dx_cut[:, :, idx_direct]
+        chnk_dy_cut[:, :, idx_direct] = -chnk_dy_cut[:, :, idx_direct]
+        del(idx_direct)
+        
+        # --> if velocities or u, v are defined on elements    
+        if do_onelem:
+            # make sure that value of right boundary triangle is zero when boundary edge 
+            # --> if velocities, or tu, tv are defined on elements
+            chnk_u_cut[1, :, chnk_tri[1, 0, idx_cut]<0] = 0.0
+            chnk_v_cut[1, :, chnk_tri[1, 0, idx_cut]<0] = 0.0
+            
+            # transform cross-edge vector --> norm vector
+            chnk_dx_cut[0,:, :] = -chnk_dx_cut[0, :, :] 
+            chnk_dy_cut[1,:, :] = -chnk_dy_cut[1, :, :]
+        
+            chnk_u_cut = (chnk_u_cut*chnk_dy_cut)  
+            chnk_v_cut = (chnk_v_cut*chnk_dx_cut) 
+            
+            # compute u*t, v*t if data wasnt already ut,vt
+            if chnk_t is not None:
+                #chnk_t_cut = np.nanmean(chnk_t_cut, axis=0)
+                #chnk_t_cut = np.mean(chnk_t_cut, axis=0)
+                chnk_u_cut = chnk_u_cut*(chnk_t_cut[0, :, :]+chnk_t_cut[1, :, :])*0.5
+                chnk_v_cut = chnk_v_cut*(chnk_t_cut[0, :, :]+chnk_t_cut[1, :, :])*0.5
+                del(chnk_t_cut)
+                
+        ## --> if velocities or tu, tv are defined on nodes
+        #else:
+            ## compute u*t, v*t if data wasnt already ut,vt
+            #if datat is not None:
+                #datat_latbin = datat.isel(nod2=mdiag_latbin.edges)
+                #vnamet       = list(datat_latbin.keys())[0]
+                #chnk_u_cut = chnk_u_cut*chnk_t_cut
+                #chnk_v_cut = chnk_v_cut*chnk_t_cut
+                #del(chnk_t_cut)
+            
+            ## --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
+            ## transform unit --> norm vector
+            #chnk_u_cut = (chunk_u_cut.mean(axis=0)*chnk_dy_cut + chunk_v_cut.mean(axis=0)*chnk_dx_cut)*chnk_dz[None,:,None]
+            #del(chnk_v_cut)
+            
+        ## sum already over vflux contribution from left and right triangle 
+        ## and over cutted edges 
+        chnk_u_cut = chnk_u_cut * chnk_dz
+        chnk_v_cut = chnk_v_cut * chnk_dz
+        
+        chnk_u_cut = np.nansum(chnk_u_cut.flatten(), axis=0) # sum n2
+        #chnk_u_cut = np.nansum(chnk_u_cut, axis=1) # sum edg_n
+        #chnk_u_cut = np.nansum(chnk_u_cut, axis=0) # sum nz1
+        
+        chnk_v_cut = np.nansum(chnk_v_cut.flatten(), axis=0) # sum n2
+        #chnk_v_cut = np.nansum(chnk_v_cut, axis=1) # sum edg_n
+        #chnk_v_cut = np.nansum(chnk_v_cut, axis=0) # sum nz1
+        
+        #binned_hflx[0, ii] = np.nansum(chnk_u_cut.flatten()) * rho0*cp*inPW*(-1)
+        binned_hflx[0, ii] = (chnk_u_cut+chnk_v_cut) * rho0*cp*inPW*(-1)
+        binned_hflx[1, ii] = 1
+        del(chnk_dx_cut, chnk_dy_cut, chnk_u_cut, chnk_v_cut)
+        
+    return(binned_hflx.flatten())
+    
+    
+
+
+
+
+
 #+___COMPUTE ZONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING______________+
 #|                                                                             |
 #+_____________________________________________________________________________+
