@@ -432,6 +432,20 @@ def load_data_fesom2(mesh,
         if data.sizes['nz' ]  != mesh.nlev  : raise ValueError(' --> zlev length of mesh and data does not fit togeather')
     
     #___________________________________________________________________________
+    # ensure proper dimnesion permutation for data it must be [time, nod2, nz]
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h = 'nod2'
+    elif ('elem' in data.dims): dimn_h = 'elem'
+    elif ('edg_n'in data.dims): dimn_h = 'edg_n'
+    if   ('nz'   in data.dims): dimn_v = 'nz'
+    elif ('nz1'  in data.dims): dimn_v = 'nz1'
+    elif ('ndens'in data.dims): dimn_v = 'ndens'
+    # check dimension ordering
+    if   ( len(data.dims)==3 and list(data.dims) != ['time', dimn_v, dimn_h]): data = data.transpose('time', dimn_v, dimn_h)
+    elif ( len(data.dims)==2 and list(data.dims) != [dimn_v, dimn_h])        : data = data.transpose(dimn_v, dimn_h)
+    del dimn_h, dimn_v
+    
+    #___________________________________________________________________________
     # add depth axes since its not included in restart and blowup files
     # also add weights
     if do_zarithm == 'wmean': do_zweight=True
@@ -520,7 +534,7 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # interpolate from elements to node
     if ('elem' in list(data.dims)) and do_ie2n: is_ie2n=True
-    data = do_interp_e2n(data, mesh, do_ie2n)
+    data = do_interp_e2n(data, mesh, do_ie2n, client=client)
     
     #___________________________________________________________________________
     # write additional attribute info
@@ -1551,7 +1565,7 @@ def do_potential_density(data, do_pdens, vname, vname2, vname_tmp):
 #
 #
 # ___INTERPOLATE ELEMENTAL DATA TO VERTICES____________________________________
-def do_interp_e2n(data, mesh, do_ie2n):
+def do_interp_e2n(data, mesh, do_ie2n, client=None):
     """
     --> interpolate data on elements to vertices
     
@@ -1578,7 +1592,7 @@ def do_interp_e2n(data, mesh, do_ie2n):
             # interpolate elem to vertices
             #aux = grid_interp_e2n(mesh,data[vname].data)
             #with np.errstate(divide='ignore',invalid='ignore'):
-            aux = grid_interp_e2n(mesh,data[vname].values)
+            aux = grid_interp_e2n(mesh,data[vname].values, client=client)
             
             # new variable name 
             vname_new = 'n_'+vname
@@ -1586,9 +1600,9 @@ def do_interp_e2n(data, mesh, do_ie2n):
             # add vertice interpolated variable to dataset
             #print(data)
             if   'nz' in data.dims:
-                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nod2','nz'],aux)})], combine_attrs="no_conflicts")
+                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nz', 'nod2'],aux)})], combine_attrs="no_conflicts")
             elif 'nz1' in data.dims:
-                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nod2','nz1'],aux)})], combine_attrs="no_conflicts")
+                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nz1', 'nod2'],aux)})], combine_attrs="no_conflicts")
             else:
                 data = xr.merge([ data, xr.Dataset({vname_new: ( 'nod2',aux)})], combine_attrs="no_conflicts")
             # copy attributes from elem to vertice variable 
@@ -1932,7 +1946,7 @@ def vec_r2g_dask(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
     rmat = grid_rotmat(abg)
 
     # Use map_blocks to calculate the pseudo-inverse in parallel
-    rmat_inv = da.map_blocks(np.linalg.pinv, rmat, dtype=rmat.dtype)
+    rmat = np.linalg.pinv(rmat.compute())
     
     #___________________________________________________________________________
     # degree --> radian 

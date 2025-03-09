@@ -1792,13 +1792,13 @@ def plot_vslice(mesh                   ,
         #_______________________________________________________________________
         # setup my own colormap definition dictionary
         cinfo_optdefault=dict()
-        if   hax[0].projection in ['index+depth+xy', 'index+depth+time']:
+        if   hax[0].projection in ['index+depth+xy', 'index+depth+time', 'index+xy+time']:
             cinfo_optdefault.update({'do_index':True, 'box_idx':box_idx})
         elif hax[0].projection == 'zmoc' :
             cinfo_optdefault.update({'do_moc':True})
         elif hax[0].projection == 'dmoc+depth' or hax[0].projection == 'dmoc+dens':
             cinfo_optdefault.update({'do_dmoc':True})
-        
+
         if   isinstance(cinfo, list) and isinstance(do_rescale, list):
             cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale[ii-1], **cinfo_optdefault) )
         elif isinstance(cinfo, list):
@@ -1842,8 +1842,8 @@ def plot_vslice(mesh                   ,
                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt)
             hp.append(h0)
             
-            ##_____________________ _____________________________________________
-            ## add bottom  mask
+            #_____________________ _____________________________________________
+            # add bottom  mask
             ax_xlim0, ax_ylim0 = ax_xlim, ax_ylim
             if   hax_ii.projection=='index+depth+xy':
                 h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data_x, data_y=data_y, 
@@ -3336,6 +3336,7 @@ def do_projection(mesh, proj, box):
     elif  proj == 'index+depth'      : proj_to = 'index+depth'
     elif  proj == 'index+time'       : proj_to = 'index+time'
     elif  proj == 'index+xy'         : proj_to = 'index+xy'
+    elif  proj == 'index+xy+time'    : proj_to = 'index+xy+time'
     elif  proj == 'zmoc'             : proj_to = 'zmoc'
     elif  proj == 'dmoc'             : proj_to = 'dmoc'
     elif  proj == 'dmoc+depth'       : proj_to = 'dmoc+depth'
@@ -3767,6 +3768,7 @@ def do_axes_arrange(nx, ny,
             elif projection[0]=='index+depth'     : ax_asp = 0.75
             elif projection[0]=='index+time'      : ax_asp = 2.5
             elif projection[0]=='index+xy'        : ax_asp = 1.5
+            elif projection[0]=='index+xy+time'   : ax_asp = 2.0
             elif projection[0]=='zmoc'            : ax_asp = 2.0   
             elif projection[0]=='dmoc'            : ax_asp = 2.0
             elif projection[0]=='dmoc+depth'      : ax_asp = 2.0   
@@ -4367,7 +4369,13 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_siz
     if box_idx is not None:
         vname = list(data_ii[box_idx].keys())[0]
         data_plot = data_ii[box_idx][vname].data.copy()
-        data_y, str_ylabel = np.abs(data_ii[box_idx]['depth'].values) , 'Depth / m'
+        if 'depth' in list(data_ii[box_idx].variables):
+            data_y, str_ylabel = np.abs(data_ii[box_idx]['depth'].values) , 'Depth / m'
+        elif 'lat' in list(data_ii[box_idx].variables):
+            data_y, str_ylabel = data_ii[box_idx]['lat'].values , 'Latitude / deg'
+        elif 'lon' in list(data_ii[box_idx].variables):
+            data_y, str_ylabel = data_ii[box_idx]['lon'].values , 'Longitude / deg'
+            
         #_______________________________________________________________________
         # data must be a transect 
         if 'dst' in list(data_ii[box_idx].variables):
@@ -4387,7 +4395,8 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_siz
                 data_x, str_xlabel = data_ii[box_idx]['lat'].values , 'Latitude / deg'
             elif 'lon'  in list(data_ii[box_idx].coords): 
                 data_x, str_xlabel = data_ii[box_idx]['lon'].values , 'Longitude / deg'
-            elif 'time'  in list(data_ii[box_idx].coords):     
+            
+            if 'time'  in list(data_ii[box_idx].coords):     
                 data_x, str_xlabel = data_ii[box_idx]['time'] , 'Time / year'
                 # recompute xarray time vector into units of year
                 totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
@@ -5783,9 +5792,11 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             h0.ylabel_style = {'fontsize': hax_ii.fs_ticks} 
         #_______________________________________________________________________
         # grid options for index vs. depth vs. xy plot
-        elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 
+        elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+xy+time', 
                                    'index+depth', 'index+time', 'index+xy', 
                                    'zmoc', 'dmoc', 'dmoc+dens', 'dmoc+depth']:
+            
+            
             #___________________________________________________________________
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':-1})
             grid_optdefault.update(grid_opt)
@@ -5947,6 +5958,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                     if ylim is not None: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
                     hax_ii.invert_yaxis()
                 
+                elif   hax_ii.projection in ['index+xy+time']:
+                    ...
                 else:
                     if do_yinv: hax_ii.invert_yaxis()
             

@@ -2073,7 +2073,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     # rotation of two dimensional vector data    
     elif vrot.ndim==2 or urot.ndim==2: 
         if do_info: print('     > 2D rotation')
-        nd1,nd2=urot.shape
+        nd2,nd1=urot.shape
         ugeo, vgeo = urot.copy(), vrot.copy()
         if do_info: print('nlev:{:d}'.format(nd2))
         for nd2i in range(0,nd2):
@@ -2084,7 +2084,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
             
             #___________________________________________________________________
             t1=clock.time()
-            aux_urot, aux_vrot = urot[:,nd2i], vrot[:,nd2i]
+            aux_urot, aux_vrot = urot[nd2i,:], vrot[nd2i, :]
             
             #___________________________________________________________________
             # compute vector in rotated cartesian coordinates
@@ -2103,8 +2103,8 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
             #___________________________________________________________________
             # compute vector in geo coordinates 
             t1=clock.time()
-            vgeo[:,nd2i]= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
-            ugeo[:,nd2i]= vxg*-np.sin(lon) + vyg*np.cos(lon)
+            vgeo[nd2i,:]= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
+            ugeo[nd2i,:]= vxg*-np.sin(lon) + vyg*np.cos(lon)
             
     #___________________________________________________________________________    
     else: raise ValueError('This number of dimensions is in moment not supported for vector rotation')    
@@ -2201,7 +2201,7 @@ def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
 # ___INTERPOLATE FROM ELEMENTS TO VERTICES_____________________________________
 #|                                                                             |
 #|_____________________________________________________________________________|
-def grid_interp_e2n(mesh,data_e):
+def grid_interp_e2n(mesh,data_e, client=None):
     """
     --> interpolate data from elements to vertices e.g velocity from elements to 
     velocity on nodes
@@ -2239,13 +2239,14 @@ def grid_interp_e2n(mesh,data_e):
     #___________________________________________________________________________        
     elif data_e.ndim==2:
         
-        nd        = data_e.shape[1]
-        data_n    = np.zeros((mesh.n2dn, nd))
+        nd        = data_e.shape[0]
+        data_n    = np.zeros((nd, mesh.n2dn))
         data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
         
         #_______________________________________________________________________
         def e2n_di(di, data_e, area_e, e_i_flat, n_iz):
-            data_exa  = area_e * np.vstack((data_e[:,di],data_e[:,di],data_e[:,di])).transpose().flatten()
+            
+            data_exa  = area_e * np.vstack((data_e[di,:],data_e[di,:],data_e[di,:])).transpose().flatten()
             data_n_di = np.zeros(n_iz.shape)
             data_a_di = np.zeros(n_iz.shape)
         
@@ -2255,21 +2256,37 @@ def grid_interp_e2n(mesh,data_e):
                 if n_iz[n_i]<di: continue
                 data_n_di[n_i] = data_n_di[n_i] + data_exa[ e_i]
                 data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
-            with np.errstate(divide='ignore',invalid='ignore'):    
-                data_n_di = data_n_di/data_a_di
+            
+            # Avoid divide-by-zero errors
+            with np.errstate(divide='ignore', invalid='ignore'):
+                data_n_di = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
+    
             return(data_n_di)
         
         #_______________________________________________________________________
-        #t1 = clock.time()
-        #for di in range(0,nd):
-            #data_n[:, di] = e2n_di(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) 
-        #print(clock.time()-t1)
+        # do seriial computation 
+        if client is None:
+            t1 = clock.time()
+            for di in range(0,nd):
+                data_n[di, :] = e2n_di(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) 
+            print(clock.time()-t1)
         
-        t1 = clock.time()
-        from joblib import Parallel, delayed
-        results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
-        data_n = np.vstack(results).transpose()
-        print(' --> elapsed time:', clock.time()-t1)
+        # do computation in parallel by dask client
+        else:
+            t1 = clock.time()
+            # Submit tasks to the Dask client
+            futures = [client.submit(e2n_di, di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
+
+            # Gather results
+            results = client.gather(futures)
+
+            # Stack results to match (nd, mesh.n2dn) shape
+            data_n = da.vstack(results)
+            print(clock.time()-t1)
+        #from joblib import Parallel, delayed
+        #results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
+        #data_n = np.vstack(results).transpose()
+        #print(' --> elapsed time:', clock.time()-t1)
         
     #___________________________________________________________________________
     return(data_n)
