@@ -865,9 +865,9 @@ def calc_mhflx_box_dask(mesh, data_edge                     ,
                     data_edg_box = data_edg_box.chunk({dimn_h: np.ceil(data_edg_box.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1, 'n2':-1, 'time':-1})
                 else:
                     data_edg_box = data_edg_box.chunk({dimn_h: np.ceil(data_edg_box.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1, 'n2':-1})
-                nchunk = len(data.chunks[dimn_h])
+                nchunk = len(data_edg_box.chunks[dimn_h])
                 print(f' -> {nchunk}', end='')    
-                if 'time' not in data.dims: print('')
+                if 'time' not in data_edg_box.dims: print('')
         
         #_______________________________________________________________________
         # Apply zonal mean over chunk
