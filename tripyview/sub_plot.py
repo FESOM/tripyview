@@ -350,7 +350,7 @@ def plot_hslice(mesh                   ,
         if not isinstance(streaml_dat, list): streaml_dat = [streaml_dat]
     ndat = len(data)
     
-    if not isinstance(cb_label, list): cb_label=[cb_label]
+    if not isinstance(cb_label, list): cb_label = [cb_label] * len(data)
     
     #___________________________________________________________________________
     # --> create projection
