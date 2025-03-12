@@ -17,6 +17,8 @@ except ModuleNotFoundError:
 from   netCDF4 import Dataset
 from .sub_mesh import *
 
+from shapely.geometry import Polygon
+
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
 #| IMPORTANT!!!:                                                               |                                         
 #| only when mesh is initialised with this routine, the main programm is able  |
@@ -1378,6 +1380,12 @@ ___________________________________________""".format(
                 # add points to polygon_list
                 aux_xy = np.vstack((self.n_x[np.int64(run_cont[0,0:count_init+1])], 
                                     self.n_y[np.int64(run_cont[0,0:count_init+1])])).transpose()
+                
+                
+                ### do not allow very small polygons that are only single triangles
+                ### to take part in the lsmask polygon list. These kind of polygons 
+                ### cause a lot of trouble in projection like nps, sps
+                ##if aux_xy.shape[0]>4:
                 polygon_xy.append(aux_xy)
                 del  aux_xy
                 
@@ -1621,9 +1629,30 @@ def lsmask_patch(lsmask):
 
     """
     from shapely.geometry import Polygon, MultiPolygon
+    from shapely.validation import make_valid
+
     #___________________________________________________________________________
     polygonlist=[]
-    for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
+    #for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
+    for xycoord in lsmask: 
+        poly = Polygon(xycoord)
+                    
+        # Ensure polygons are counterclockwise
+        if not poly.exterior.is_ccw:
+            poly = Polygon(list(poly.exterior.coords)[::-1])
+
+        # Ensure polygon is valid
+        if not poly.is_valid:
+            poly = make_valid(poly)  # Attempt to fix the geometry
+        
+            
+        # Check if make_valid() returned a MultiPolygon
+        if isinstance(poly, MultiPolygon):
+            polygonlist.extend(poly.geoms)  # Unpack MultiPolygon into list
+        elif poly.is_valid:
+            polygonlist.append(poly)
+            
+    #print(polygonlist)  
     lsmask_p = MultiPolygon(polygonlist)
     
     #___________________________________________________________________________
@@ -1742,7 +1771,11 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
     # if an extra path is given us this to store the shapefile         
     else:
         shppath = path
-        
+    
+    #___________________________________________________________________________
+    # Ensure the GeoDataFrame has a CRS
+    newdata.set_crs("EPSG:4326", inplace=True)  # Set to the correct CRS
+
     #___________________________________________________________________________
     # write lsmask to shapefile 
     if not fname:

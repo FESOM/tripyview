@@ -2253,23 +2253,24 @@ def calc_transect_zm_mean_dask(mesh                   ,
             # availabel worker equally         
             if nchunk<parallel_nprc*0.75:
                 print(' --> rechunk array size', end='')
-                data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1})
+                data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1})
                 nchunk = len(data_zm.chunks[dimn_h])
                 print(' --> nchunk_new=', nchunk)    
         
         # in case of climatology data because there i need to make compute() after 
         # interpolation which destroys the chunking so i try to rechunk it
         elif do_parallel and isinstance(data_zm[vname].data, da.Array)==False: 
-            data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks().persist()
+            data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks().persist()
             nchunk = len(data_zm.chunks[dimn_h])
             print(' --> nchunk_new=', nchunk)        
         
+        data_zm = data_zm.persist()
         #_______________________________________________________________________
         # create zonal/meridional bins
         lonlat_min    = np.floor(data_zm[ do_lonlat ].min().compute())
         lonlat_max    = np.ceil( data_zm[ do_lonlat ].max().compute())
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
-        nlonlat, nlev = len(lonlat_bins)-1, data_zm.dims[dimn_v]
+        nlonlat, nlev = len(lonlat_bins)-1, data_zm.sizes[dimn_v]
        
         #_______________________________________________________________________
         # Apply zonal mean over chunk

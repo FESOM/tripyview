@@ -1739,29 +1739,29 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0, cli
         vname, vname2 = list(data.data_vars)
     else:     
         vname = list(data.data_vars)[0]
-        
+    
     #___________________________________________________________________________
     # determine actual chunksize
     nchunk = 1
-    if do_parallel :
+    if do_parallel and ('elem' in data.chunks or 'nod2' in data.chunks):
         if   'elem' in data.dims: nchunk = len(data.chunks['elem'])
         elif 'nod2' in data.dims: nchunk = len(data.chunks['nod2'])
         print(' --> nchunk=', nchunk)  
         
-    #___________________________________________________________________________
-    # after all the time and depth operation after the loading there will be worker who have no chunk
-    # piece to work on  --> therfore we needtro rechunk 
-    # make sure the workload is distributed between all availbel worker equally         
-    if do_parallel and nchunk<parallel_nprc*0.75:
-        print(' --> rechunk array size', end='')
-        if   'elem' in data.dims: 
-            data = data.chunk({'elem': np.ceil(data.dims['elem']/parallel_nprc).astype('int')})
-            nchunk = len(data.chunks['elem'])
-        elif 'nod2' in data.dims: 
-            data = data.chunk({'nod2': np.ceil(data.dims['nod2']/parallel_nprc).astype('int')})
-            nchunk = len(data.chunks['nod2'])
-        # print(data.chunks)        
-        print(' --> nchunk_new=', nchunk)        
+        #___________________________________________________________________________
+        # after all the time and depth operation after the loading there will be worker who have no chunk
+        # piece to work on  --> therfore we needtro rechunk 
+        # make sure the workload is distributed between all availbel worker equally         
+        if nchunk<parallel_nprc*0.75:
+            print(' --> rechunk array size', end='')
+            if   'elem' in data.dims: 
+                data = data.chunk({'elem': np.ceil(data.sizes['elem']/parallel_nprc).astype('int')})
+                nchunk = len(data.chunks['elem'])
+            elif 'nod2' in data.dims: 
+                data = data.chunk({'nod2': np.ceil(data.sizes['nod2']/parallel_nprc).astype('int')})
+                nchunk = len(data.chunks['nod2'])
+            # print(data.chunks)        
+            print(' --> nchunk_new=', nchunk)        
     
     #___________________________________________________________________________
     # The centroid position of the periodic boundary trinagle causes problems when determining in which 

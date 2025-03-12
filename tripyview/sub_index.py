@@ -131,7 +131,7 @@ def load_index_fesom2(mesh                  ,
                                     data['ispbnd'].data,
                                     box,
                                     dtype=bool).compute()
-            idxin = idxin.compute() # ---> we can not index whit a dask array 
+            if isinstance(idxin, da.Array): idxin = idxin.compute() # ---> we can not index whit a dask array 
         else:
             idxin = None
         #_______________________________________________________________________
