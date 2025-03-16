@@ -18,6 +18,7 @@ import pandas as pd
 import warnings
 
 import dask.array               as da
+import dask
 #xr.set_options(enable_cftimeindex=True)
 
 #
@@ -2090,6 +2091,7 @@ def calc_transect_zm_mean_dask(mesh                   ,
                                do_checkbasin = False  , 
                                do_info       = False  , 
                                client        = None   ,
+                               do_persist    = True   ,
                                **kwargs,):
     """
     --> compute zonal or meridional means transect, defined by regional box_list
@@ -2240,6 +2242,8 @@ def calc_transect_zm_mean_dask(mesh                   ,
             # select basin to compute mean over
             data_zm = data.isel(nod2=idxin)
             
+            
+        #data_zm = data_zm.load()
         #_______________________________________________________________________
         # determine/adapt actual chunksize
         nchunk = 1
@@ -2260,18 +2264,22 @@ def calc_transect_zm_mean_dask(mesh                   ,
         # in case of climatology data because there i need to make compute() after 
         # interpolation which destroys the chunking so i try to rechunk it
         elif do_parallel and isinstance(data_zm[vname].data, da.Array)==False: 
-            data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks().persist()
+            data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks()
             nchunk = len(data_zm.chunks[dimn_h])
             print(' --> nchunk_new=', nchunk)        
         
-        data_zm = data_zm.persist()
         #_______________________________________________________________________
         # create zonal/meridional bins
-        lonlat_min    = np.floor(data_zm[ do_lonlat ].min().compute())
-        lonlat_max    = np.ceil( data_zm[ do_lonlat ].max().compute())
+        lonlat_min = float(np.floor(data_zm[do_lonlat].min().compute()))
+        lonlat_max = float(np.ceil( data_zm[do_lonlat].max().compute()))
+        print('lonlat_min,lonlat_max=',lonlat_min,lonlat_max)
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
         nlonlat, nlev = len(lonlat_bins)-1, data_zm.sizes[dimn_v]
-       
+        
+        #_______________________________________________________________________
+        if do_persist: data_zm = data_zm.persist()
+        display(data_zm)
+        
         #_______________________________________________________________________
         # Apply zonal mean over chunk
         # its important to use: 
@@ -2300,8 +2308,6 @@ def calc_transect_zm_mean_dask(mesh                   ,
                                   drop_axis = [0]            ,   # drop dim nz1
                                   chunks    = (2*nlev*nlonlat, ) # Output shape
                                 )
-        
-        print(nchunk, 2, nlev, nlonlat)
         
         #_______________________________________________________________________
         # reshape axis over chunks 
@@ -2382,12 +2388,12 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_ispbnd, c
     #___________________________________________________________________________
     # only needthe additional dimension at the point where the function is started
     if   np.ndim(chnk_d) == 2: 
-        chnk_lonlat= chnk_lonlat[   0, :] # 2D --> now is 1D again
-        chnk_ispbnd= chnk_ispbnd[  0, :]
+        chnk_lonlat= chnk_lonlat[0, :] # 2D --> now is 1D again
+        chnk_ispbnd= chnk_ispbnd[ 0, :]
     elif np.ndim(chnk_d) == 3:
         chnk_lonlat= chnk_lonlat[ 0, 0, :] # 3D --> now is 1D again
-        chnk_ispbnd= chnk_ispbnd[0, 0, :]
-        chnk_wA    = chnk_wA[  0, :, :] # 3D --> now is 2D again
+        chnk_ispbnd= chnk_ispbnd[ 0, 0, :]
+        chnk_wA    = chnk_wA[     0, :, :] # 3D --> now is 2D again
         
     # Use np.digitize to find bin indices for longitudes and latitudes
     idx_lonlat  = np.digitize(chnk_lonlat, lonlat_bins)-1  # Adjust to get 0-based index

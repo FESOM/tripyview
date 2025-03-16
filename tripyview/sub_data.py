@@ -326,8 +326,16 @@ def load_data_fesom2(mesh,
     # load multiple files
     # load normal FESOM2 run file
     if do_file=='run':
-        data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
-                                 autoclose=False, preprocess=partial_func, **kwargs)
+        #data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
+                                 #autoclose=True, preprocess=partial_func, 
+                                 ##lock=True, 
+                                 #**kwargs)
+        data = xr.open_mfdataset(pathlist, parallel=do_parallel, 
+                                 autoclose=True, preprocess=partial_func, 
+                                 **kwargs)
+        data = data.chunk({key: chunks[key] for key in data.dims})
+        
+        
         if do_showtime: 
             print(data.time.data)
             print(data['time.year'])
@@ -336,8 +344,13 @@ def load_data_fesom2(mesh,
         # dataset structure
         if do_vec or do_norm or do_pdens:
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
+            #data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
+                                                         #autoclose=True, preprocess=partial_func, 
+                                                         ##lock=True, 
+                                                         #**kwargs)])
             data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
-                                                         autoclose=False, preprocess=partial_func, **kwargs)])
+                                                         autoclose=True, preprocess=partial_func, 
+                                                         **kwargs).chunk({key: chunks[key] for key in data.dims})])
             if do_vec: is_data='vector'
         
         ## rechunking leads to extended memory demand at runtime of xarray with
@@ -560,6 +573,7 @@ def load_data_fesom2(mesh,
     if   do_compute: data = data.compute()
     elif do_load   : data = data.load()
     elif do_persist: data = data.persist()
+    if any([do_compute, do_load, do_persist]): data.close()
     if client is not None: client.rebalance()
     warnings.resetwarnings()
     #___________________________________________________________________________
@@ -1858,6 +1872,7 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0, cli
                                         'w_A'    : (('lat','lon'), dA.astype(np.float32))},
                            attrs     = data.attrs)
     #___________________________________________________________________________
+    #data_reg = data_reg.load()
     return(data_reg)
 
 

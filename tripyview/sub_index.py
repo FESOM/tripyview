@@ -9,6 +9,7 @@ import json
 import geopandas as gpd
 import matplotlib.pylab as plt
 from   matplotlib.ticker import MultipleLocator, AutoMinorLocator, ScalarFormatter
+import gc
 
 from   .sub_mesh           import * 
 from   .sub_data           import *
@@ -25,6 +26,8 @@ def load_index_fesom2(mesh                  ,
                       boxname       = None  , 
                       do_harithm    ='wmean', 
                       do_zarithm    = None  ,
+                      do_idxin_out  = False , 
+                      do_idxin_in   = None , 
                       do_checkbasin = False , 
                       do_compute    = False , 
                       do_load       = True  , 
@@ -106,7 +109,7 @@ def load_index_fesom2(mesh                  ,
         
     #___________________________________________________________________________
     # loop over box_list
-    for box in box_list:
+    for bi, box in enumerate(box_list):
         #_______________________________________________________________________
         if not isinstance(box, shp.Reader):
             if   len(box)==2: boxname, box = box[1], box[0]
@@ -123,17 +126,21 @@ def load_index_fesom2(mesh                  ,
             
         #_______________________________________________________________________
         # compute  mask index to select index region 
-        if box != 'global': 
-            #idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
-            idxin = da.map_blocks(  do_boxmask_dask,
-                                    data['lon'].data,
-                                    data['lat'].data,
-                                    data['ispbnd'].data,
-                                    box,
-                                    dtype=bool).compute()
-            if isinstance(idxin, da.Array): idxin = idxin.compute() # ---> we can not index whit a dask array 
+        if do_idxin_in is None:
+            if box != 'global': 
+                #idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+                idxin = da.map_blocks(  do_boxmask_dask,
+                                        data['lon'].data,
+                                        data['lat'].data,
+                                        data['ispbnd'].data,
+                                        box,
+                                        dtype=bool).compute()
+                if isinstance(idxin, da.Array): idxin = idxin.compute() # ---> we can not index whit a dask array 
+            else:
+                idxin = None
         else:
-            idxin = None
+            idxin = do_idxin_in[bi]
+            
         #_______________________________________________________________________
         # check basin selection
         if do_checkbasin and idxin is not None:
@@ -184,7 +191,6 @@ def load_index_fesom2(mesh                  ,
                     
         index_list.append(index)
         idxin_list.append(idxin)
-        del(index, idxin)
         
         #_______________________________________________________________________
         warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
@@ -192,6 +198,9 @@ def load_index_fesom2(mesh                  ,
         if   do_compute: index_list[cnt] = index_list[cnt].compute()
         elif do_load   : index_list[cnt] = index_list[cnt].load()
         elif do_persist: index_list[cnt] = index_list[cnt].persist()
+        if any([do_compute, do_load, do_persist]): index.close()
+        del(index, idxin)
+        gc.collect() 
         
         # additionally rebalancing the  memory load of workers 
         if client is not None: client.rebalance()
@@ -221,7 +230,8 @@ def load_index_fesom2(mesh                  ,
         cnt = cnt + 1
         
     #___________________________________________________________________________
-    return(index_list)
+    if do_idxin_out: return(index_list, idxin_list)
+    else           : return(index_list)
 
 
     

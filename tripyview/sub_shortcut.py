@@ -5,7 +5,7 @@ import dask
 import os
 import tripyview
 import shapefile as shp
-
+import logging
 #
 #
 #_______________________________________________________________________________
@@ -100,6 +100,10 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
                 "distributed.worker.connections.outgoing"            : 15,  # Improve parallelism for large data transfers
                 "distributed.worker.connections.incoming"            : 40
                 })
+        
+        #logger = logging.getLogger('distributed')
+        #logger.setLevel(logging.DEBUG)
+                
         #_______________________________________________________________________
         # check for existing client via adress
         try:
@@ -117,9 +121,11 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
                 print("Dask client already running:", client)
             except ValueError:
                 # No active client, start a new one
+                
                 client = Client(n_workers         = np.int16(parallel_nprc/threads_per_worker), 
                                 threads_per_worker= threads_per_worker, 
-                                memory_limit      = '{:3.3f} GB'.format(parallel_tmem/parallel_nprc*threads_per_worker*memory_thresh)
+                                memory_limit      = '{:3.3f} GB'.format(parallel_tmem/parallel_nprc*threads_per_worker*memory_thresh), 
+                                timeout           = "300s", 
                                 )
                 print("Started a new Dask client:", client)
         
