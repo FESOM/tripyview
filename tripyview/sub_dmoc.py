@@ -837,6 +837,7 @@ def calc_dmoc_dask( mesh                          ,
                     do_dropvar        = True      , 
                     do_botmax_z       = True      ,
                     do_botmax_dens    = True      ,
+                    do_persist        = True      ,
                     **kwargs):
     """
     --> calculate meridional overturning circulation from vertical velocities 
@@ -990,8 +991,8 @@ def calc_dmoc_dask( mesh                          ,
             
     #___________________________________________________________________________
     # create meridional bins
-    lat_min    = np.floor(data['lat'].min().compute())
-    lat_max    = np.ceil( data['lat'].max().compute())
+    lat_min    = float(np.floor(data['lat'].min().compute()))
+    lat_max    = float(np.ceil( data['lat'].max().compute()))
     lat_bins   = np.arange(lat_min, lat_max+dlat*0.5, dlat)
     lat        = (lat_bins[1:]+lat_bins[:-1])*0.5
     nlat, nlev = len(lat_bins)-1, data.dims['ndens']
@@ -1008,6 +1009,10 @@ def calc_dmoc_dask( mesh                          ,
         data['ndens_w_A'] = data['ndens_w_A'].where(data['ndens_h'] > 0, 0.0)
         data = data.drop_vars(['w_A'])
     
+    #_______________________________________________________________________
+    if do_persist: data = data.persist()
+    #display(data_zm)
+        
     ##___________________________________________________________________________
     #if 'elem_pbnd' not in data.coords: 
             #data = data.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data['lat'].shape, dtype=bool), dims=data['lat'].dims))

@@ -710,17 +710,18 @@ def calc_mhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlat=1.0, do
 #+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
 #|                                                                             |
 #+_____________________________________________________________________________+
-def calc_mhflx_box_dask(mesh, data_edge                     , 
+def calc_mhflx_box_dask(mesh, data_edge           , 
                         box_list                  , 
                         do_parallel               , 
                         parallel_nprc             , 
-                        do_lonlat     = 'edge_y' , 
+                        do_lonlat     = 'edge_y'  , 
                         dlonlat       = 1.0       ,
                         do_onelem     = True      ,
                         do_checkbasin = False     , 
                         do_info       = True      , 
                         do_buflay     = True      , 
                         client        = None      ,
+                        do_persist    = True      ,
                         ):
     #___________________________________________________________________________
     vname_list = list(data_edge.data_vars)
@@ -841,14 +842,6 @@ def calc_mhflx_box_dask(mesh, data_edge                     ,
             plt.show()
         
         #_______________________________________________________________________
-        # create zonal/meridional bins
-        lonlat_min    = float(np.ceil(  data_edg_box[ do_lonlat ].min().compute()))
-        lonlat_max    = float(np.floor( data_edg_box[ do_lonlat ].max().compute()))
-        #lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
-        lonlat_bins   = np.arange(lonlat_min+dlonlat*1.5, lonlat_max, dlonlat)
-        nlonlat, nlev = len(lonlat_bins), data_edg_box.sizes[dimn_v]
-        
-        #_______________________________________________________________________
         # determine/adapt actual chunksize
         nchunk = 1
         if do_parallel and isinstance(data_edg_box[vnameu].data, da.Array)==True :
@@ -869,6 +862,18 @@ def calc_mhflx_box_dask(mesh, data_edge                     ,
                 print(f' -> {nchunk}', end='')    
                 if 'time' not in data_edg_box.dims: print('')
         
+        #_______________________________________________________________________
+        # create zonal/meridional bins
+        lonlat_min    = float(np.ceil(  data_edg_box[ do_lonlat ].min().compute()))
+        lonlat_max    = float(np.floor( data_edg_box[ do_lonlat ].max().compute()))
+        #lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
+        lonlat_bins   = np.arange(lonlat_min+dlonlat*1.5, lonlat_max, dlonlat)
+        nlonlat, nlev = len(lonlat_bins), data_edg_box.sizes[dimn_v]
+        
+        #_______________________________________________________________________
+        if do_persist: data_edge = data_edge.persist()
+        #display(data_zm)
+    
         #_______________________________________________________________________
         # Apply zonal mean over chunk
         if 'time' in data_edge.dims:
@@ -1572,18 +1577,10 @@ def calc_gzmhflx_box_dask(mesh,
         # in case of climatology data because there i need to make compute() after 
         # interpolation which destroys the chunking so i try to rechunk it
         elif do_parallel and isinstance(data_box[vname].data, da.Array)==False: 
-            data_box = data_box.chunk({dimn_h: np.ceil(data_box.dims[dimn_h]/(parallel_nprc)).astype('int')}).unify_chunks().persist()
+            data_box = data_box.chunk({dimn_h: np.ceil(data_box.dims[dimn_h]/(parallel_nprc)).astype('int')}).unify_chunks()
             nchunk = len(data_box.chunks[dimn_h])
             print(' --> nchunk_new=', nchunk)  
             
-        #_______________________________________________________________________
-        # create zonal/meridional bins
-        lonlat_min    = np.floor(data_box[ do_lonlat ].min().compute())
-        lonlat_max    = np.ceil( data_box[ do_lonlat ].max().compute())
-        lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
-        lonlat        = (lonlat_bins[1:] + lonlat_bins[:-1])*0.5
-        nlonlat       = len(lonlat_bins)-1
-           
         #_______________________________________________________________________
         # The centroid position of the periodic boundary triangle causes problems 
         # when determining in which bin they should be --> therefor we kick them out 
@@ -1592,6 +1589,17 @@ def calc_gzmhflx_box_dask(mesh,
             data_box = data_box.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data_box[do_lonlat].shape, dtype=bool), dims=data_box[do_lonlat].dims))
             if isinstance(data_box[do_lonlat].data, da.Array)==True: 
                 data_box['elem_pbnd'] = data_box['elem_pbnd'].chunk(data_box[do_lonlat].chunks)
+        
+        #_______________________________________________________________________
+        # create zonal/meridional bins
+        lonlat_min    = float(np.floor(data_box[ do_lonlat ].min().compute()))
+        lonlat_max    = float(np.ceil( data_box[ do_lonlat ].max().compute()))
+        lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
+        lonlat        = (lonlat_bins[1:] + lonlat_bins[:-1])*0.5
+        nlonlat       = len(lonlat_bins)-1
+           
+        #_______________________________________________________________________
+        if do_persist: data_box = data_box.persist()
         
         #_______________________________________________________________________
         # Apply zonal area weighted integration

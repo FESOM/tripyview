@@ -433,6 +433,7 @@ def calc_zmoc_dask( mesh                      ,
                     do_exclude    = False     , 
                     exclude_list  = list(['ocean_basins/Mediterranean_Basin.shp', [26,42,39.5,47]])   ,
                     do_info       = True      , 
+                    do_persist    = True      ,
                     **kwargs                  , 
                     ):
     """
@@ -633,12 +634,16 @@ def calc_zmoc_dask( mesh                      ,
         
     #___________________________________________________________________________
     # create meridional bins
-    lat_min    = np.floor(data[ 'lat' ].min().compute())
-    lat_max    = np.ceil( data[ 'lat' ].max().compute())
+    lat_min    = float(np.floor(data[ 'lat' ].min().compute()))
+    lat_max    = float(np.ceil( data[ 'lat' ].max().compute()))
     lat_bins   = np.arange(lat_min, lat_max+dlat*0.5, dlat)
     lat        = (lat_bins[1:]+lat_bins[:-1])*0.5
     nlat, nlev = len(lat_bins)-1, data.dims[dimn_v]
     
+    #_______________________________________________________________________
+    if do_persist: data = data.persist()
+    #display(data_zm)
+        
     #___________________________________________________________________________
     # Apply zonal integration over chunk
     # its important to use: 

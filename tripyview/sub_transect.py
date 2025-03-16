@@ -2270,15 +2270,16 @@ def calc_transect_zm_mean_dask(mesh                   ,
         
         #_______________________________________________________________________
         # create zonal/meridional bins
-        lonlat_min = float(np.floor(data_zm[do_lonlat].min().compute()))
-        lonlat_max = float(np.ceil( data_zm[do_lonlat].max().compute()))
+        lonlat_min    = float(np.floor(data_zm[do_lonlat].min().compute()))
+        lonlat_max    = float(np.ceil( data_zm[do_lonlat].max().compute()))
         print('lonlat_min,lonlat_max=',lonlat_min,lonlat_max)
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
+        lonlat        = lonlat_bins[:-1]+lonlat_bins[1:])*0.5
         nlonlat, nlev = len(lonlat_bins)-1, data_zm.sizes[dimn_v]
         
         #_______________________________________________________________________
         if do_persist: data_zm = data_zm.persist()
-        display(data_zm)
+        #display(data_zm)
         
         #_______________________________________________________________________
         # Apply zonal mean over chunk
@@ -2332,7 +2333,7 @@ def calc_transect_zm_mean_dask(mesh                   ,
         #________________________________________________________________________________________________    
         data_bin_zm = xr.Dataset(data_vars = {vname : ((dimn_v,do_lonlat), bin_zm, data_zm[vname].attrs)
                                               }, 
-                                 coords    = {do_lonlat       : ((do_lonlat      ), (lonlat_bins[:-1]+lonlat_bins[1:])*0.5)              , 
+                                 coords    = {do_lonlat       : ((do_lonlat      ), lonlat)              , 
                                               do_lonlat+'_bnd': ((do_lonlat,'n2' ), np.column_stack((lonlat_bins[:-1], lonlat_bins[1:]))), 
                                               'depth'         : (('nz1'          ), data_zm[dimn_v].values) 
                                               },
