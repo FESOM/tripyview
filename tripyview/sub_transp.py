@@ -880,7 +880,7 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
             ntime       = data_edge.sizes['time']
             drop_axis   = [0, 1, 2]                  #    n2    time  nz1   edge_n
             #chnk_edx    = data_edg_box['edge_x'    ].data[:   , None, None, :   ]
-            chnk_edy    = data_edg_box['edge_y'    ].data[:   , None, None, :   ]
+            chnk_edxy   = data_edg_box[do_lonlat   ].data[:   , None, None, :   ]
             chnk_tri    = data_edg_box['edge_tri'  ].data[:   , None, None, :   ]
             chnk_dx     = data_edg_box['edge_dx_lr'].data[:   , None, None, :   ]
             chnk_dy     = data_edg_box['edge_dy_lr'].data[:   , None, None, :   ]
@@ -889,7 +889,7 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
             ntime       = 1
             drop_axis   = [0, 1]                     #    n2    nz1   edg_n    
             #chnk_edx    = data_edg_box['edge_x'    ].data[:   , None, :   ]
-            chnk_edy    = data_edg_box['edge_y'    ].data[:   , None, :   ]
+            chnk_edxy   = data_edg_box[do_lonlat   ].data[:   , None, :   ]
             chnk_tri    = data_edg_box['edge_tri'  ].data[:   , None, :   ]
             chnk_dx     = data_edg_box['edge_dx_lr'].data[:   , None, :   ]
             chnk_dy     = data_edg_box['edge_dy_lr'].data[:   , None, :   ]
@@ -901,23 +901,23 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
         if isinstance(chnk_u, da.Array):
             bin_hflx = da.map_blocks(calc_mhflx_box_chnk       ,
                                     lonlat_bins                ,   # mean bin definitions
-                                    chnk_edy         ,   # lon/lat nod2 coordinates
-                                    chnk_tri                   ,   # area weight
+                                    chnk_edxy                  ,   # lon/lat edge coordinates
+                                    chnk_tri                   ,   
                                     chnk_dx, chnk_dy, chnk_dz  ,
-                                    chnk_u, chnk_v, chnk_t     ,   # data chunk piece
+                                    chnk_u, chnk_v, chnk_t     ,   
                                     do_onelem                  ,  
                                     dtype     = np.float32     ,   # Tuple dtype
                                     drop_axis = drop_axis      ,   # drop dim nz1
                                     chunks    = (2*ntime*nlonlat, ) # Output shape
                                     )
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # reshape axis over chunks 
             if 'time' in data_edge.dims:
                 bin_hflx = bin_hflx.reshape((nchunk, 2, ntime, nlonlat))
             else: 
                 bin_hflx = bin_hflx.reshape((nchunk, 2, nlonlat))
                 
-            #_______________________________________________________________________
+            #___________________________________________________________________
             # do dask axis reduction across chunks dimension
             bin_hflx = da.reduction(bin_hflx,                   
                                     chunk     = lambda x, axis=None, keepdims=None: x,  # Updated to handle axis and keepdims
@@ -928,7 +928,7 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
             if client is not None: client.rebalance()
             
         else:
-            bin_hflx = calc_mhflx_box_chnk(lonlat_bins, chnk_edy, chnk_tri,   # area weight
+            bin_hflx = calc_mhflx_box_chnk(lonlat_bins, chnk_edxy, chnk_tri,   # area weight
                                         chnk_dx, chnk_dy, chnk_dz  ,
                                         chnk_u, chnk_v, chnk_t     ,   # data chunk piece
                                         do_onelem)
@@ -943,9 +943,11 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
         
         #_______________________________________________________________________
         data_vars = dict()
+        if   do_lonlat == 'edge_x': whichmean = 'zonal'
+        elif do_lonlat == 'edge_y': whichmean = 'meridional'
         # int(bin_hflx)le attributes 
-        vattr['long_name' ] = f'Meridional Heat Transport'
-        vattr['short_name'] = f'Merid. Heat Transp.'
+        vattr['long_name' ] = '{} heat transport'.format(whichmean)
+        vattr['short_name'] = '{} heat transport'.format(whichmean)
         vattr['boxname'   ] = boxname
         vattr['units'     ] = 'PW'
         # define data_vars dict, coordinate dict, as well as list of dimension name 
@@ -971,7 +973,7 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
 
 
 def calc_mhflx_box_chnk(lonlat_bins                , 
-                        chnk_y                     ,   # lon/lat nod2 coordinates
+                        chnk_edxy                     ,   # lon/lat nod2 coordinates
                         chnk_tri                   ,   # area weight
                         chnk_dx, chnk_dy, chnk_dz  ,   # if elem is pbnd element
                         chnk_u, chnk_v, chnk_t     ,   
@@ -984,19 +986,19 @@ def calc_mhflx_box_chnk(lonlat_bins                ,
     inPW = 1.0e-15
     
     if np.ndim(chnk_u) == 4: 
-        chnk_y   = chnk_y[  :, 0, 0, :]
-        chnk_tri = chnk_tri[:, 0, 0, :]
+        chnk_edxy = chnk_edxy[  :, 0, 0, :]
+        chnk_tri  = chnk_tri[:, 0, 0, :]
         n2, ntime, nlev, ned = chnk_u.shape
         # everything is already 4d (n2, ntime, nz1, edg_n)
     if np.ndim(chnk_u) == 3: 
-        chnk_y   = chnk_y[  :, 0, :]
-        chnk_tri = chnk_tri[:, 0, :]
-        ntime    = 1
+        chnk_edxy = chnk_edxy[  :, 0, :]
+        chnk_tri  = chnk_tri[:, 0, :]
+        ntime     = 1
         # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
-        chnk_dx  = chnk_dx[:, None, : , :]
-        chnk_dy  = chnk_dy[:, None, : , :]
-        chnk_u   = chnk_u[ :, None, : , :]
-        chnk_v   = chnk_v[ :, None, : , :]
+        chnk_dx   = chnk_dx[:, None, : , :]
+        chnk_dy   = chnk_dy[:, None, : , :]
+        chnk_u    = chnk_u[ :, None, : , :]
+        chnk_v    = chnk_v[ :, None, : , :]
         if chnk_t is not None: chnk_t = chnk_t[ :, None, : , :]
     
     #___________________________________________________________________________
@@ -1009,13 +1011,13 @@ def calc_mhflx_box_chnk(lonlat_bins                ,
     # compared to using ...
     # use here vectorized/broadcast approach 
     # Fully vectorized boolean mask (shape: N_bins × edg_n)
-    #mask = (chnk_y[0, None, :]-lonlat_bins[:, None]) * (chnk_y[1, None, :]-lonlat_bins[:, None]) <= 0
+    #mask = (chnk_edxy[0, None, :]-lonlat_bins[:, None]) * (chnk_edxy[1, None, :]-lonlat_bins[:, None]) <= 0
     #idx_lonlatbin = [np.where(mask[0,i])[0] for i in range(len(lonlat_bins))]
     #for ii, idx_cut in enumerate(idx_lonlatbin): 
-    for ii, lat_i in enumerate(lonlat_bins):    
+    for ii, lonlat_i in enumerate(lonlat_bins):    
         #select cutted edges 
-        #idx_cut = np.where( (((chnk_y[0, 0, :]-lat_i)*(chnk_y[1, 0, :]-lat_i) <= 0.0) & (np.abs(chnk_x[0,0,:]-chnk_x[1,0,:])<180*1.5)) )[0]
-        idx_cut = np.where( ((chnk_y[0, :]-lat_i)*(chnk_y[1, :]-lat_i) <= 0.0) )[0]
+        #idx_cut = np.where( (((chnk_edxy[0, 0, :]-lonlat_i)*(chnk_edxy[1, 0, :]-lonlat_i) <= 0.0) & (np.abs(chnk_x[0,0,:]-chnk_x[1,0,:])<180*1.5)) )[0]
+        idx_cut = np.where( ((chnk_edxy[0, :]-lonlat_i)*(chnk_edxy[1, :]-lonlat_i) <= 0.0) )[0]
         if len(idx_cut)==0: continue
     
         # limit to cutted edges 
@@ -1027,11 +1029,11 @@ def calc_mhflx_box_chnk(lonlat_bins                ,
         
         #import matplotlib.pyplot as plt
         #plt.figure()
-        #plt.plot([-180, 180], [lat_i, lat_i], '-k', marker='o')
-        #plt.plot(chnk_x[:,0,idx_cut],chnk_y[:,0,idx_cut], '-')
+        #plt.plot([-180, 180], [lonlat_i, lonlat_i], '-k', marker='o')
+        #plt.plot(chnk_x[:,0,idx_cut],chnk_edxy[:,0,idx_cut], '-')
         
         # change direction of edge to make it consistent
-        idx_direct = chnk_y[0, idx_cut]<=lonlat_bins[ii]
+        idx_direct = chnk_edxy[0, idx_cut]<=lonlat_bins[ii]
         chnk_dx_cut[:, :, :, idx_direct] = -chnk_dx_cut[:, :, :, idx_direct]
         chnk_dy_cut[:, :, :, idx_direct] = -chnk_dy_cut[:, :, :, idx_direct]
         del(idx_direct)
@@ -1080,9 +1082,6 @@ def calc_mhflx_box_chnk(lonlat_bins                ,
         
     return(binned_hflx.flatten())
     
-    
-
-
 
 
 
