@@ -114,11 +114,19 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     
     #___________________________________________________________________________
     # execute notebook with papermill
-    pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
-                        os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
-                        parameters=params_vname,
-                        nest_asyncio=True,)
-                
+    try:
+        pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
+                            os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
+                            parameters=params_vname,
+                            nest_asyncio=True,)
+        print('Data found')
+    except pm.PapermillExecutionError as e:
+        print(f"Error while running Notebook: {e}")
+
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+
+    print("Continue running script")            
     #___________________________________________________________________________
     # attach created figures to webpage collection
     webpage[f"image_{cnt}"] = {}
