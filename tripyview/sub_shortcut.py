@@ -17,6 +17,7 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
                               memory_spill =0.90,  # Spill to disk at 90% usage (default 70%)
                               memory_pause =0.95, # Pause execution at 95% usage (default 80%)
                               memory_termin=0.98, # Pause execution at 95% usage (default 80%)
+                              do_dashbrdlnk=True,
                               ):
     """
     --> shortcut to setup dask client in a note book 
@@ -53,7 +54,8 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
     
     #___________________________________________________________________________
     if do_parallel:
-        dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
+        if do_dashbrdlnk:
+            dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
                         
         # - work-stealing: True or False ... Enables/disables the feature (default: True).
         # - work-stealing-interval: str (default: "100ms") ... How often the scheduler 

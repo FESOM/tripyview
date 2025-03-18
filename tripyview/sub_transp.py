@@ -846,7 +846,7 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
         nchunk = 1
         if do_parallel and isinstance(data_edg_box[vnameu].data, da.Array)==True :
             nchunk = len(data_edg_box.chunks[dimn_h])
-            print(' --> nchunk=', nchunk)   
+            print(' --> nchunk=', nchunk, end='')   
             
             # after all the time and depth operation after the loading there will 
             # be worker who have no chunk piece to work on  --> therfore we need
@@ -854,11 +854,11 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
             # availabel worker equally         
             if nchunk<parallel_nprc*0.75:
                 print(f' --> rechunk: {nchunk}', end='')
-                if 'time' in data_edg_box.dims:
-                    data_edg_box = data_edg_box.chunk({dimn_h: np.ceil(data_edg_box.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1, 'n2':-1, 'time':-1})
-                else:
-                    data_edg_box = data_edg_box.chunk({dimn_h: np.ceil(data_edg_box.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1, 'n2':-1})
-                nchunk = len(data_edg_box.chunks[dimn_h])
+                rechunk_dict = dict({dimn_h: np.ceil(data_edg_box.sizes[dimn_h]/(parallel_nprc)).astype('int'), 'n2':-1})
+                if 'nz1'  in data_edg_box.dims: rechunk_dict.update({dimn_v:-1})
+                if 'time' in data_edg_box.dims: rechunk_dict.update({'time':-1})
+                data_edg_box = data_edg_box.chunk(rechunk_dict)
+                nchunk       = len(data_edg_box.chunks[dimn_h])
                 print(f' -> {nchunk}', end='')    
                 if 'time' not in data_edg_box.dims: print('')
         
@@ -868,35 +868,40 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
         lonlat_max    = float(np.floor( data_edg_box[ do_lonlat ].max().compute()))
         #lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
         lonlat_bins   = np.arange(lonlat_min+dlonlat*1.5, lonlat_max, dlonlat)
-        nlonlat, nlev = len(lonlat_bins), data_edg_box.sizes[dimn_v]
+        nlonlat       = len(lonlat_bins)
         
         #_______________________________________________________________________
-        if do_persist: data_edge = data_edge.persist()
-        #display(data_zm)
+        if do_persist: data_edg_box = data_edg_box.persist()
+        #display(data_edg_box)
     
         #_______________________________________________________________________
-        # Apply zonal mean over chunk
-        if 'time' in data_edge.dims:
-            ntime       = data_edge.sizes['time']
-            drop_axis   = [0, 1, 2]                  #    n2    time  nz1   edge_n
-            #chnk_edx    = data_edg_box['edge_x'    ].data[:   , None, None, :   ]
-            chnk_edxy   = data_edg_box[do_lonlat   ].data[:   , None, None, :   ]
-            chnk_tri    = data_edg_box['edge_tri'  ].data[:   , None, None, :   ]
-            chnk_dx     = data_edg_box['edge_dx_lr'].data[:   , None, None, :   ]
-            chnk_dy     = data_edg_box['edge_dy_lr'].data[:   , None, None, :   ]
-            chnk_dz     = data_edg_box['dz'        ].data[None, None, :   , None]
-        else:     
-            ntime       = 1
-            drop_axis   = [0, 1]                     #    n2    nz1   edg_n    
-            #chnk_edx    = data_edg_box['edge_x'    ].data[:   , None, :   ]
-            chnk_edxy   = data_edg_box[do_lonlat   ].data[:   , None, :   ]
-            chnk_tri    = data_edg_box['edge_tri'  ].data[:   , None, :   ]
-            chnk_dx     = data_edg_box['edge_dx_lr'].data[:   , None, :   ]
-            chnk_dy     = data_edg_box['edge_dy_lr'].data[:   , None, :   ]
-            chnk_dz     = data_edg_box['dz'        ].data[None, :   , None]
-        chnk_u = data_edg_box[vnameu].data
-        chnk_v = data_edg_box[vnamev].data
-        chnk_t = data_edg_box[vnamet].data if vnamet is not None else None
+         # Determine ntime and drop_axis
+        ntime = data_edg_box.sizes['time'] if 'time' in data_edg_box.dims else 1
+
+        if 'nz1' in data_edg_box.dims:
+            drop_axis    = [0, 1, 2] if 'time' in data_edg_box.dims else [0, 1]
+            dz_slice     = (None, None, slice(None), None)        if 'time' in data_edg_box.dims else (None, slice(None), None)
+            chunk_slices = (slice(None), None, None, slice(None)) if 'time' in data_edg_box.dims else (slice(None), None, slice(None))
+        else:
+            drop_axis    = [0, 1] if 'time' in data_edg_box.dims else [0]
+            dz_slice     = None  # `dz` is not used in this case
+            chunk_slices = (slice(None), None, slice(None))       if 'time' in data_edg_box.dims else (slice(None), slice(None))
+        
+        # make sure that the input variables all have the same dimensionality by inserting 
+        # dummy 1 dimension 
+        #     n2        ntime nz    nedge  
+        # (slice(None), None, None, slice(None)) = ...[:, None, None, :]
+        #     n2        ntime nedge  
+        # (slice(None), None, slice(None)) = ...[:, None, :]
+        chnk_edxy = data_edg_box[do_lonlat   ].data[chunk_slices]
+        chnk_tri  = data_edg_box['edge_tri'  ].data[chunk_slices]
+        chnk_dx   = data_edg_box['edge_dx_lr'].data[chunk_slices]
+        chnk_dy   = data_edg_box['edge_dy_lr'].data[chunk_slices]
+        chnk_dz   = data_edg_box['dz'        ].data[dz_slice] if dz_slice else None
+        
+        chnk_u    = data_edg_box[vnameu].data
+        chnk_v    = data_edg_box[vnamev].data
+        chnk_t    = data_edg_box[vnamet].data if vnamet is not None else None
         
         if isinstance(chnk_u, da.Array):
             bin_hflx = da.map_blocks(calc_mhflx_box_chnk       ,
@@ -936,6 +941,8 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
                 bin_hflx = bin_hflx.reshape((2, ntime, nlonlat))
             else: 
                 bin_hflx = bin_hflx.reshape((2, nlonlat))
+                
+                
         #_______________________________________________________________________
         # convert zeros to nan values via counter
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -956,7 +963,7 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
         if 'time' in data_edge.dims: dim_n.append('time')
         dim_n.append('lat')
         for dim_ni in dim_n:
-            if   dim_ni=='time': dim_s.append(data_edge.sizes['time']); coords['time' ]=(['time'], data_edge['time'].data ) 
+            if   dim_ni=='time': dim_s.append(data_edg_box.sizes['time']); coords['time' ]=(['time'], data_edg_box['time'].data) 
             elif dim_ni=='lat' : dim_s.append(lonlat_bins.size       ); coords['lat'  ]=(['lat' ], lonlat_bins) 
         data_vars['mhflx'] = (dim_n, bin_hflx, vattr) 
         # create dataset
@@ -985,21 +992,46 @@ def calc_mhflx_box_chnk(lonlat_bins                ,
     cp   = 3850 # J/kg/K
     inPW = 1.0e-15
     
-    if np.ndim(chnk_u) == 4: 
-        chnk_edxy = chnk_edxy[  :, 0, 0, :]
-        chnk_tri  = chnk_tri[:, 0, 0, :]
+    #___________________________________________________________________________
+    if   np.ndim(chnk_u) == 4: 
+        chnk_edxy = chnk_edxy[:, 0, 0, :]
+        chnk_tri  = chnk_tri[ :, 0, 0, :]
         n2, ntime, nlev, ned = chnk_u.shape
-        # everything is already 4d (n2, ntime, nz1, edg_n)
-    if np.ndim(chnk_u) == 3: 
-        chnk_edxy = chnk_edxy[  :, 0, :]
-        chnk_tri  = chnk_tri[:, 0, :]
+        # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
+        #                n2          ntime        nz           nedge 
+        #               [:         , :          , None       , :          ]
+        chunk_slices = (slice(None), slice(None), slice(None), slice(None))
+        
+    elif np.ndim(chnk_u) == 3: 
+        chnk_edxy = chnk_edxy[:, 0, :]
+        chnk_tri  = chnk_tri[ :, 0, :]
+        if chnk_dz is None: # use already depth integrated data
+            n2, ntime, ned = chnk_u.shape
+            # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
+            #                n2          ntime        nz    nedge 
+            #               [:         , :          , None, :          ]
+            chunk_slices = (slice(None), slice(None), None, slice(None))
+            
+        else: 
+            ntime     = 1
+            # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
+            #                n2          ntime nz           nedge 
+            #               [:         , None, :          , :          ]
+            chunk_slices = (slice(None), None, slice(None), slice(None))
+    
+    elif np.ndim(chnk_u) == 2: 
         ntime     = 1
         # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
-        chnk_dx   = chnk_dx[:, None, : , :]
-        chnk_dy   = chnk_dy[:, None, : , :]
-        chnk_u    = chnk_u[ :, None, : , :]
-        chnk_v    = chnk_v[ :, None, : , :]
-        if chnk_t is not None: chnk_t = chnk_t[ :, None, : , :]
+        #                n2          ntime nz    nedge 
+        #               [:         , None, None, :          ]
+        chunk_slices = (slice(None), None, None, slice(None))
+        
+    # make everything 4d by creater dummy dimension of size=1    
+    chnk_dx   = chnk_dx[chunk_slices]
+    chnk_dy   = chnk_dy[chunk_slices]
+    chnk_u    = chnk_u[ chunk_slices]
+    chnk_v    = chnk_v[ chunk_slices]
+    if chnk_t is not None: chnk_t = chnk_t[chunk_slices]
     
     #___________________________________________________________________________
     # only needthe additional dimension at the point where the function is started
@@ -1073,385 +1105,11 @@ def calc_mhflx_box_chnk(lonlat_bins                ,
             del(chnk_v_cut)
             
         # multiply with d
-        chnk_u_cut = chnk_u_cut*chnk_dz
+        if chnk_dz is not None: chnk_u_cut = chnk_u_cut*chnk_dz
         
         # sum over everything
         binned_hflx[0,:, ii] = np.nansum(chnk_u_cut, axis=(0, 2, 3)) * rho0*cp*inPW*(-1) # sum n2
         binned_hflx[1,:, ii] = len(idx_cut)
-        del(chnk_u_cut)
-        
-    return(binned_hflx.flatten())
-    
-
-
-#+___COMPUTE MERIDIONAL HEATFLUX FROOM TRACER ADVECTION TROUGH BINNING_________+
-#|                                                                             |
-#+_____________________________________________________________________________+
-def calc_mhflx_nonz_box_dask(mesh, data_edge           , 
-                        box_list                  , 
-                        do_parallel               , 
-                        parallel_nprc             , 
-                        do_lonlat     = 'edge_y'  , 
-                        dlonlat       = 1.0       ,
-                        do_onelem     = True      ,
-                        do_checkbasin = False     , 
-                        do_info       = True      , 
-                        do_buflay     = True      , 
-                        client        = None      ,
-                        do_persist    = True      ,
-                        ):
-    #___________________________________________________________________________
-    vname_list = list(data_edge.data_vars)
-    vnamet = None
-    if 'temp' in vname_list:
-        vnamet = 'temp'
-        vname_list.remove('temp')
-    for vi in vname_list:
-        if 'u' in vi: vnameu=vi
-        if 'v' in vi: vnamev=vi
-    #vnameu, vnamev = vname_list[0], vname_list[1]
-    
-    # save global and local variable attributes
-    gattr = data_edge.attrs
-    if 'time' in data_edge.dims: gattr['proj'] = 'index+xy+time'
-    else                       : gattr['proj'] = 'index+xy'
-    vattr = data_edge[vnameu].attrs
-
-    #___________________________________________________________________________
-    # factors for heatflux computation
-    rho0 = 1030 # kg/m^3
-    cp   = 3850 # J/kg/K
-    inPW = 1.0e-15
-    
-    #___________________________________________________________________________
-    # Loop over boxes/regions/shapefiles ...
-    dimn_h, dimn_v = 'edg_n', 'nz1'
-    list_mhflx=list()
-    for box in box_list:
-        #_______________________________________________________________________
-        if not isinstance(box, shp.Reader):
-            if   len(box)==2: boxname, box = box[1], box[0]
-            elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])
-            if box is None or box=='global': boxname='global'
-        else:     
-            # if we do the box polygon selection in paralel, i cant give into the 
-            # box selection routine the Read shapefile handle since its not pickable
-            # therfore i need to extract the shapefile polygon points before throwing it into 
-            # the do_boxmask_dask routine 
-            boxname = os.path.basename(box.shapeName).replace('_',' ')  
-            shape_data = [shape.points for shape in box.shapes()]  # Extract raw data
-            box = MultiPolygon([Polygon(shape) for shape in shape_data])
-        
-        #_______________________________________________________________________
-        # select box area
-        datat_box = None
-        #_______________________________________________________________________
-        # compute  mask index to select index region 
-        #if box != 'global': 
-            ##idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
-            #idxin = da.map_blocks(  do_boxmask_dask,
-                                    #data_edge['edge_x'].isel(n2=0).data,
-                                    #data_edge['edge_y'].isel(n2=0).data,
-                                    #None,
-                                    #box,
-                                    #dtype=bool).compute()
-            #idxin1 = da.map_blocks(  do_boxmask_dask,
-                                    #data_edge['edge_x'].isel(n2=1).data,
-                                    #data_edge['edge_y'].isel(n2=1).data,
-                                    #None,
-                                    #box,
-                                    #dtype=bool).compute()
-            #idxin = idxin | idxin1 # ---> we can not index whit a dask array 
-            #idxin = idxin.compute() # ---> we can not index whit a dask array 
-        #else:
-            #idxin = None
-            
-        #_______________________________________________________________________
-        # select box area
-        if box=='global':
-            idxin = None
-        else:     
-            #___________________________________________________________________
-            # compute box mask index for nodes
-            #  --> sometimes it can be be that the shapefile is to small in this case 
-            #  boundary triangles might not get selected therefore we if any node
-            #  points of an edge triangle is within the shapefile
-            #e_idxin = do_boxmask(mesh,box,do_elem=True)
-            e_idxin = do_boxmask_dask(mesh.n_x[mesh.e_i].sum(axis=1)/3.0,
-                                      mesh.n_y[mesh.e_i].sum(axis=1)/3.0,
-                                      np.isin(np.arange(0, mesh.n2de, dtype='int32'), mesh.e_pbnd_1), 
-                                      box).compute()
-            e_idxin = e_idxin
-            
-            e_i     = mesh.e_i[e_idxin,:]
-            e_i     = np.unique(e_i.flatten())
-            n_idxin = np.zeros(mesh.n2dn,dtype='bool')
-            n_idxin[e_i]=True
-            n_idxin_b = n_idxin.copy()
-            del(e_i, e_idxin)
-            if do_buflay:
-                # add a buffer layer of selected triangles --> sometimes it can be be that 
-                # the shapefile is to small in this case boundary triangles might not get 
-                # selected. Therefor extend the selection of edges 
-                e_idxin = n_idxin[mesh.e_i].max(axis=1)
-                e_i = mesh.e_i[e_idxin,:]
-                e_i = np.unique(e_i.flatten())
-                n_idxin_b[e_i]=True
-                del(e_i, e_idxin)
-            idxin   = n_idxin_b[data_edge.edges].any(axis=0)
-            #___________________________________________________________________    
-         
-        #_______________________________________________________________________
-        # select index region from data
-        if box != 'global': data_edg_box = data_edge.sel({dimn_h:idxin})
-        else              : data_edg_box = data_edge
-        
-        #_______________________________________________________________________
-        if do_checkbasin and idxin is not None:
-            from matplotlib.tri import Triangulation
-            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
-            plt.figure()
-            ax = plt.gca()
-            plt.triplot(tri, color='k')
-            plt.plot(data_edg_box.edge_x[0,:], data_edg_box.edge_y[0,:], '*r', linestyle='None', markersize=1)
-            plt.plot(data_edg_box.edge_x[1,:], data_edg_box.edge_y[1,:], '*r', linestyle='None', markersize=1)
-            plt.title('Basin selection')
-            plt.show()
-        
-        #_______________________________________________________________________
-        # determine/adapt actual chunksize
-        nchunk = 1
-        if do_parallel and isinstance(data_edg_box[vnameu].data, da.Array)==True :
-            nchunk = len(data_edg_box.chunks[dimn_h])
-            print(' --> nchunk=', nchunk)   
-            
-            # after all the time and depth operation after the loading there will 
-            # be worker who have no chunk piece to work on  --> therfore we need
-            # to rechunk make sure the workload is distributed between all 
-            # availabel worker equally         
-            if nchunk<parallel_nprc*0.75:
-                print(f' --> rechunk: {nchunk}', end='')
-                if 'time' in data_edg_box.dims:
-                    data_edg_box = data_edg_box.chunk({dimn_h: np.ceil(data_edg_box.dims[dimn_h]/(parallel_nprc)).astype('int'), 'n2':-1, 'time':-1})
-                else:
-                    data_edg_box = data_edg_box.chunk({dimn_h: np.ceil(data_edg_box.dims[dimn_h]/(parallel_nprc)).astype('int'), 'n2':-1})
-                nchunk = len(data_edg_box.chunks[dimn_h])
-                print(f' -> {nchunk}', end='')    
-                if 'time' not in data_edg_box.dims: print('')
-        
-        #_______________________________________________________________________
-        # create zonal/meridional bins
-        lonlat_min    = float(np.ceil(  data_edg_box[ do_lonlat ].min().compute()))
-        lonlat_max    = float(np.floor( data_edg_box[ do_lonlat ].max().compute()))
-        #lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
-        lonlat_bins   = np.arange(lonlat_min+dlonlat*1.5, lonlat_max, dlonlat)
-        nlonlat       = len(lonlat_bins)
-        
-        #_______________________________________________________________________
-        if do_persist: data_edge = data_edge.persist()
-        #display(data_zm)
-    
-        #_______________________________________________________________________
-        # Apply zonal mean over chunk
-        if 'time' in data_edge.dims:
-            ntime       = data_edge.sizes['time']
-            drop_axis   = [0, 1]                      #    n2    time   edge_n
-            #chnk_edx    = data_edg_box['edge_x'    ].data[:   , None,  :   ]
-            chnk_edxy   = data_edg_box[do_lonlat   ].data[:   , None,  :   ]
-            chnk_tri    = data_edg_box['edge_tri'  ].data[:   , None,  :   ]
-            chnk_dx     = data_edg_box['edge_dx_lr'].data[:   , None,  :   ]
-            chnk_dy     = data_edg_box['edge_dy_lr'].data[:   , None,  :   ]
-            
-        else:     
-            ntime       = 1
-            drop_axis   = [0]                         #    n2     edg_n    
-            #chnk_edx    = data_edg_box['edge_x'    ].data[:   ,  :   ]
-            chnk_edxy   = data_edg_box[do_lonlat   ].data[:   ,  :   ]
-            chnk_tri    = data_edg_box['edge_tri'  ].data[:   ,  :   ]
-            chnk_dx     = data_edg_box['edge_dx_lr'].data[:   ,  :   ]
-            chnk_dy     = data_edg_box['edge_dy_lr'].data[:   ,  :   ]
-            
-        chnk_u = data_edg_box[vnameu].data
-        chnk_v = data_edg_box[vnamev].data
-        chnk_t = data_edg_box[vnamet].data if vnamet is not None else None
-        
-        if isinstance(chnk_u, da.Array):
-            bin_hflx = da.map_blocks(calc_mhflx_nonz_box_chnk       ,
-                                    lonlat_bins                ,   # mean bin definitions
-                                    chnk_edxy                  ,   # lon/lat edge coordinates
-                                    chnk_tri                   ,   
-                                    chnk_dx, chnk_dy           ,
-                                    chnk_u, chnk_v, chnk_t     ,   
-                                    do_onelem                  ,  
-                                    dtype     = np.float32     ,   # Tuple dtype
-                                    drop_axis = drop_axis      ,   # drop dim nz1
-                                    chunks    = (2*ntime*nlonlat, ) # Output shape
-                                    )
-            #___________________________________________________________________
-            # reshape axis over chunks 
-            if 'time' in data_edge.dims:
-                bin_hflx = bin_hflx.reshape((nchunk, 2, ntime, nlonlat))
-            else: 
-                bin_hflx = bin_hflx.reshape((nchunk, 2, nlonlat))
-                
-            #___________________________________________________________________
-            # do dask axis reduction across chunks dimension
-            bin_hflx = da.reduction(bin_hflx,                   
-                                    chunk     = lambda x, axis=None, keepdims=None: x,  # Updated to handle axis and keepdims
-                                    aggregate = np.sum,
-                                    dtype     = np.float32,
-                                    axis      = 0,
-                                    ).compute()# Create xarray dataset
-            if client is not None: client.rebalance()
-            
-        else:
-            bin_hflx = calc_mhflx_box_chnk(lonlat_bins, chnk_edxy, chnk_tri,   # area weight
-                                        chnk_dx, chnk_dy                   ,
-                                        chnk_u, chnk_v, chnk_t             ,   # data chunk piece
-                                        do_onelem)
-            if 'time' in data_edge.dims:
-                bin_hflx = bin_hflx.reshape((2, ntime, nlonlat))
-            else: 
-                bin_hflx = bin_hflx.reshape((2, nlonlat))
-        #_______________________________________________________________________
-        # convert zeros to nan values via counter
-        with np.errstate(divide='ignore', invalid='ignore'):
-            bin_hflx = np.where(bin_hflx[1]>0, bin_hflx[0], np.nan)
-        
-        #_______________________________________________________________________
-        data_vars = dict()
-        if   do_lonlat == 'edge_x': whichmean = 'zonal'
-        elif do_lonlat == 'edge_y': whichmean = 'meridional'
-        # int(bin_hflx)le attributes 
-        vattr['long_name' ] = '{} heat transport'.format(whichmean)
-        vattr['short_name'] = '{} heat transport'.format(whichmean)
-        vattr['boxname'   ] = boxname
-        vattr['units'     ] = 'PW'
-        # define data_vars dict, coordinate dict, as well as list of dimension name 
-        # and size 
-        data_vars, coords, dim_n, dim_s,  = dict(), dict(), list(), list()
-        if 'time' in data_edge.dims: dim_n.append('time')
-        dim_n.append('lat')
-        for dim_ni in dim_n:
-            if   dim_ni=='time': dim_s.append(data_edge.sizes['time']); coords['time' ]=(['time'], data_edge['time'].data ) 
-            elif dim_ni=='lat' : dim_s.append(lonlat_bins.size       ); coords['lat'  ]=(['lat' ], lonlat_bins) 
-        data_vars['mhflx'] = (dim_n, bin_hflx, vattr) 
-        # create dataset
-        mhflx     = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
-        del(data_vars, coords, dim_n, dim_s)
-        
-        #_______________________________________________________________________
-        list_mhflx.append(mhflx)
-        del(mhflx)
-        
-    #___________________________________________________________________________
-    return(list_mhflx)
-
-
-
-def calc_mhflx_nonz_box_chnk(lonlat_bins                , 
-                        chnk_edxy                     ,   # lon/lat nod2 coordinates
-                        chnk_tri                   ,   # area weight
-                        chnk_dx, chnk_dy,    # if elem is pbnd element
-                        chnk_u, chnk_v, chnk_t     ,   
-                        do_onelem):
-    
-    #___________________________________________________________________________
-    # factors for heatflux computation
-    rho0 = 1030 # kg/m^3
-    cp   = 3850 # J/kg/K
-    inPW = 1.0e-15
-    
-    if np.ndim(chnk_u) == 3: 
-        chnk_edxy = chnk_edxy[  :, 0, :]
-        chnk_tri  = chnk_tri[:, 0, :]
-        n2, ntime, ned = chnk_u.shape
-        # everything is already 4d (n2, ntime, nz1, edg_n)
-    if np.ndim(chnk_u) == 2: 
-        #chnk_edxy = chnk_edxy[  :, 0, :]
-        #chnk_tri  = chnk_tri[:, 0, :]
-        ntime     = 1
-        # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
-        chnk_dx   = chnk_dx[:, None, :]
-        chnk_dy   = chnk_dy[:, None, :]
-        chnk_u    = chnk_u[ :, None, :]
-        chnk_v    = chnk_v[ :, None, :]
-        if chnk_t is not None: chnk_t = chnk_t[ :, None, :]
-    
-    #___________________________________________________________________________
-    # only needthe additional dimension at the point where the function is started
-    binned_hflx = np.zeros((2, ntime, len(lonlat_bins)), dtype=np.float32)
-    
-    #___________________________________________________________________
-    # compute which edge is cutted by the binning line along latitude
-    # to select the  lat bin cutted edges with where is by far the fastest option
-    # compared to using ...
-    # use here vectorized/broadcast approach 
-    # Fully vectorized boolean mask (shape: N_bins × edg_n)
-    #mask = (chnk_edxy[0, None, :]-lonlat_bins[:, None]) * (chnk_edxy[1, None, :]-lonlat_bins[:, None]) <= 0
-    #idx_lonlatbin = [np.where(mask[0,i])[0] for i in range(len(lonlat_bins))]
-    #for ii, idx_cut in enumerate(idx_lonlatbin): 
-    for ii, lonlat_i in enumerate(lonlat_bins):    
-        #select cutted edges 
-        #idx_cut = np.where( (((chnk_edxy[0, 0, :]-lonlat_i)*(chnk_edxy[1, 0, :]-lonlat_i) <= 0.0) & (np.abs(chnk_x[0,0,:]-chnk_x[1,0,:])<180*1.5)) )[0]
-        idx_cut = np.where( ((chnk_edxy[0, :]-lonlat_i)*(chnk_edxy[1, :]-lonlat_i) <= 0.0) )[0]
-        if len(idx_cut)==0: continue
-    
-        # limit to cutted edges 
-        chnk_dx_cut = chnk_dx[ :, :, idx_cut]
-        chnk_dy_cut = chnk_dy[ :, :, idx_cut]
-        chnk_u_cut  = chnk_u[  :, :, idx_cut]
-        chnk_v_cut  = chnk_v[  :, :, idx_cut]
-        if chnk_t is not None: chnk_t_cut  = chnk_t[:, :, idx_cut]
-        
-        #import matplotlib.pyplot as plt
-        #plt.figure()
-        #plt.plot([-180, 180], [lonlat_i, lonlat_i], '-k', marker='o')
-        #plt.plot(chnk_x[:,0,idx_cut],chnk_edxy[:,0,idx_cut], '-')
-        
-        # change direction of edge to make it consistent
-        idx_direct = chnk_edxy[0, idx_cut]<=lonlat_bins[ii]
-        chnk_dx_cut[:, :, idx_direct] = -chnk_dx_cut[:, :, idx_direct]
-        chnk_dy_cut[:, :, idx_direct] = -chnk_dy_cut[:, :, idx_direct]
-        del(idx_direct)
-        
-        # transform cross-edge vector --> norm vector
-        chnk_dx_cut[0,:] = -chnk_dx_cut[0, :] 
-        chnk_dy_cut[1,:] = -chnk_dy_cut[1, :]
-        
-        # --> if velocities or u, v are defined on elements    
-        if do_onelem:
-            # make sure that value of right boundary triangle is zero when boundary edge 
-            # --> if velocities, or tu, tv are defined on elements
-            chnk_u_cut[1, :, chnk_tri[1, idx_cut]<0] = 0.0
-            chnk_v_cut[1, :, chnk_tri[1, idx_cut]<0] = 0.0
-            
-            # compute volume transport
-            chnk_u_cut = (chnk_u_cut*chnk_dy_cut) + (chnk_v_cut*chnk_dx_cut) 
-            del(chnk_v_cut, chnk_dx_cut, chnk_dy_cut)
-            
-            # compute u*t, v*t if data wasnt already ut,vt
-            if chnk_t is not None:
-                chnk_u_cut = chnk_u_cut*(chnk_t_cut[0, :, :]+chnk_t_cut[1, :, :])*0.5
-                del(chnk_t_cut)
-                
-        # --> if velocities or tu, tv are defined on nodes
-        else:
-            # compute u*t, v*t if data wasnt already ut,vt
-            if chnk_t is not None:
-                chnk_u_cut = chnk_u_cut*chnk_t_cut
-                chnk_v_cut = chnk_v_cut*chnk_t_cut
-                del(chnk_t_cut)
-            
-            # --> this when mdiag_latbin['edge_dx_lr'] &  mdiag_latbin['edge_dy_lr'] is cross-edge vector
-            # transform unit --> norm vector
-            chnk_u_cut = ((chnk_u_cut[0, :, :]+chnk_u_cut[1, :, :])*0.5*chnk_dy_cut + 
-                          (chnk_v_cut[0, :, :]+chnk_v_cut[1, :, :])*0.5*chnk_dx_cut)
-            del(chnk_v_cut)
-            
-        # sum over everything
-        binned_hflx[0, :, ii] = np.nansum(chnk_u_cut, axis=(0, 2)) * rho0*cp*inPW*(-1) # sum n2
-        binned_hflx[1, :, ii] = len(idx_cut)
         del(chnk_u_cut)
         
     return(binned_hflx.flatten())

@@ -328,7 +328,10 @@ def load_data_fesom2(mesh,
     # load normal FESOM2 run file
     if do_file=='run':
         data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
-                                 autoclose=True, preprocess=partial_func, 
+                                 preprocess=partial_func, 
+                                 engine="h5netcdf", #"netcdf4", "scipy", "zarr", "cfgrib"
+                                 #autoclose=True, #only for netcdf4
+                                 #decode_times=False, 
                                  #lock=True, 
                                  **kwargs)
                                  
@@ -350,7 +353,10 @@ def load_data_fesom2(mesh,
         if do_vec or do_norm or do_pdens:
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
             data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
-                                                         autoclose=True, preprocess=partial_func, 
+                                                         preprocess=partial_func, 
+                                                         engine="h5netcdf",  #"netcdf4", "scipy", "zarr", "cfgrib"
+                                                         #autoclose=True, # only for netcdf4
+                                                         #decode_times=False, 
                                                          #lock=True, 
                                                          **kwargs)])
             # !!! --> this is not a good idea, to do chunking after loading requires 
@@ -1281,7 +1287,7 @@ def do_time_arithmetic(data, do_tarithm):
             warnings.resetwarnings()
         
         elif do_tarithm=='None':
-            ...
+            return(data, str_atim)
         
         else:
             raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
@@ -1359,7 +1365,7 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
             data_hmean    = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
             
         elif do_harithm=='None' or do_harithm is None:
-            ...
+            return(data)
         
         else:
             raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
@@ -1418,14 +1424,18 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
             data_zmean    = data.sum( dim=dim_name, keep_attrs=True, skipna=True).persist()
         
         elif do_zarithm=='wint':
-            print(data['w_z'].values)
-            data_zmean    = data.weighted(data['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True).persist()
+            #print(data['w_z'].values)
+            #data_zmean    = data.weighted(data['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True).persist()
+            
+            
+            data_zmean    = data*data['w_z']
+            data_zmean    = data_zmean.sum( dim=dim_name, keep_attrs=True, skipna=True).persist()
             
         elif do_zarithm=='wmean':
             data_zmean    = data.weighted(data['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True).persist()
         
         elif do_zarithm=='None' or do_zarithm is None:
-            ...
+            return(data)
         
         else:
             raise ValueError(' the depth arithmetic of do_zarithm={} is not supported'.format(str(do_zarithm))) 
