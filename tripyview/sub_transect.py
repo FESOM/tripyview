@@ -2274,7 +2274,7 @@ def calc_transect_zm_mean_dask(mesh                   ,
         lonlat_max    = float(np.ceil( data_zm[do_lonlat].max().compute()))
         print('lonlat_min,lonlat_max=',lonlat_min,lonlat_max)
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
-        lonlat        = lonlat_bins[:-1]+lonlat_bins[1:])*0.5
+        lonlat        = (lonlat_bins[:-1]+lonlat_bins[1:])*0.5
         nlonlat, nlev = len(lonlat_bins)-1, data_zm.sizes[dimn_v]
         
         #_______________________________________________________________________

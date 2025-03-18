@@ -11,6 +11,7 @@ from .sub_mesh import *
 import warnings
 import dask.array as da
 from dask.array import broadcast_arrays
+import gc
 
 
 #xr.set_options(enable_cftimeindex=False)
@@ -326,14 +327,18 @@ def load_data_fesom2(mesh,
     # load multiple files
     # load normal FESOM2 run file
     if do_file=='run':
-        #data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
-                                 #autoclose=True, preprocess=partial_func, 
-                                 ##lock=True, 
-                                 #**kwargs)
-        data = xr.open_mfdataset(pathlist, parallel=do_parallel, 
+        data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
                                  autoclose=True, preprocess=partial_func, 
+                                 #lock=True, 
                                  **kwargs)
-        data = data.chunk({key: chunks[key] for key in data.dims})
+                                 
+        # !!! --> this is not a good idea, to do chunking after loading requires 
+        # !!! --> massivly more RAM than giveing the chunk operation directly into 
+        # !!! --> loading routine                          
+        #data = xr.open_mfdataset(pathlist, parallel=do_parallel, 
+        #                         autoclose=True, preprocess=partial_func, 
+        #                         **kwargs)
+        #data = data.chunk({key: chunks[key] for key in data.dims})
         
         
         if do_showtime: 
@@ -344,13 +349,16 @@ def load_data_fesom2(mesh,
         # dataset structure
         if do_vec or do_norm or do_pdens:
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
-            #data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
-                                                         #autoclose=True, preprocess=partial_func, 
-                                                         ##lock=True, 
-                                                         #**kwargs)])
             data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
                                                          autoclose=True, preprocess=partial_func, 
-                                                         **kwargs).chunk({key: chunks[key] for key in data.dims})])
+                                                         #lock=True, 
+                                                         **kwargs)])
+            # !!! --> this is not a good idea, to do chunking after loading requires 
+            # !!! --> massivly more RAM than giveing the chunk operation directly into 
+            # !!! --> loading routine                          
+            #data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
+            #                                             autoclose=True, preprocess=partial_func, 
+            #                                             **kwargs).chunk({key: chunks[key] for key in data.dims})])
             if do_vec: is_data='vector'
         
         ## rechunking leads to extended memory demand at runtime of xarray with
@@ -381,7 +389,7 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________    
     if do_parallel and do_info: display(data)
-
+    
     #___________________________________________________________________________    
     # This is for icepack data over thickness classes make class selection always 
     # based in indices
@@ -461,7 +469,7 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # add depth axes since its not included in restart and blowup files
     # also add weights
-    if do_zarithm == 'wmean': do_zweight=True
+    if do_zarithm in ['wmean','wint']: do_zweight=True
     data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=do_zweight, do_hweight=do_hweight)
     
     #___________________________________________________________________________
@@ -574,6 +582,7 @@ def load_data_fesom2(mesh,
     elif do_load   : data = data.load()
     elif do_persist: data = data.persist()
     if any([do_compute, do_load, do_persist]): data.close()
+    gc.collect()  # Trigger garbage collection
     if client is not None: client.rebalance()
     warnings.resetwarnings()
     #___________________________________________________________________________
@@ -833,20 +842,24 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         if do_zweight and dimn_v is not None:    
             if   'nz1' == dimn_v: dz = mesh.zlev[:-1]-mesh.zlev[1:]
             elif 'nz'  == dimn_v: dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))    
-            dz = xr.DataArray(np.abs(dz).astype('float16'), dims=dimn_v).chunk(set_chnk_v)
+            grid_info['w_z']  = xr.DataArray(np.abs(dz).astype('float16')               , dims=[dimn_v        ]).chunk(set_chnk_v)
+            del(dz)    
             
-            mat_nhor_iz    = data['elemiz'].expand_dims(dim=dimn_v)              # --> Shape (1, n)
-            mat_nzi_hor    = data['nzi'   ].expand_dims(dim=dimn_h, axis=-1)     # --> Shape (m, 1)
-            # Broadcast the arrays together (Dask-aware operation)
-            mat_nhor_iz, mat_nzi_hor = xr.broadcast(mat_nhor_iz, mat_nzi_hor) # --> Shape (m, n)
+            #dz = xr.DataArray(np.abs(dz).astype('float16'), dims=dimn_v).chunk(set_chnk_v)
+            
+            #mat_nhor_iz    = data['elemiz'].expand_dims(dim=dimn_v)              # --> Shape (1, n)
+            #mat_nzi_hor    = data['nzi'   ].expand_dims(dim=dimn_h, axis=-1)     # --> Shape (m, 1)
+            ## Broadcast the arrays together (Dask-aware operation)
+            #mat_nhor_iz, mat_nzi_hor = xr.broadcast(mat_nhor_iz, mat_nzi_hor) # --> Shape (m, n)
 
-            grid_info['w_z']= xr.where(mat_nzi_hor <= mat_nhor_iz, 1, 0 )*dz
-            del(dz, mat_nhor_iz, mat_nzi_hor)
+            #grid_info['w_z']= xr.where(mat_nzi_hor <= mat_nhor_iz, 1, 0 )*dz
+            #del(dz, mat_nhor_iz, mat_nzi_hor)
             
     #___________________________________________________________________________
     # now return assigned grid_info to the dataset
-    #warnings.resetwarnings()
-    return(data.assign_coords(grid_info), dimn_v, dimn_h)
+    data = data.assign_coords(grid_info)
+    gc.collect()
+    return(data, dimn_v, dimn_h)
 
     
 
@@ -892,7 +905,7 @@ def do_setbottomnan(mesh, data, do_nan):
         mat_nhor_iz, mat_nzi_hor = broadcast_arrays(mat_nhor_iz, mat_nzi_hor)
         
         # set nan values where mat_nzi_hor <= mat_nhor_iz
-        data = data.where(mat_nzi_hor <= mat_nhor_iz)
+        data_nan = data.where(mat_nzi_hor <= mat_nhor_iz)
         
         #if len(data.data_vars)==2:
             #vname, vname2 = list(data.data_vars)
@@ -903,9 +916,12 @@ def do_setbottomnan(mesh, data, do_nan):
             #data[vname] = (data[vname].dims, da.where(mat_nzi_hor <= mat_nhor_iz, data[vname], np.nan))
             
         del mat_nhor_iz, mat_nzi_hor
-        
-    #___________________________________________________________________________
-    return(data)
+        #___________________________________________________________________________
+        del(data)
+        gc.collect()
+        return(data_nan)
+    else:
+        return(data)
 
 
 
@@ -1011,6 +1027,7 @@ def do_select_time(data, mon, day, record, str_mtim):
                 str_mtim = '{}, d:{}-{}'.format(str_mtim, str(day[0]), str(day[-1]) )
         
     #___________________________________________________________________________
+    gc.collect()
     return(data, mon, day, str_mtim)    
 
 
@@ -1089,6 +1106,7 @@ def do_select_levidx(data, mesh, depth, depidx, dimn_v):
     elif (depth is not None) and depidx:            
         str_ldep = ', {}:{}'.format(aux_strdep, str(depth))
     #___________________________________________________________________________
+    gc.collect()
     return(data, str_ldep)
 
 
@@ -1191,40 +1209,40 @@ def do_time_arithmetic(data, do_tarithm):
         
         #_______________________________________________________________________
         if   do_tarithm=='mean':
-            data = data.mean(  dim="time", keep_attrs=True)
+            data_tmean = data.mean(  dim="time", keep_attrs=True).persist()
         
         elif do_tarithm=='median':
-            data = data.median(dim="time", keep_attrs=True)
+            data_tmean = data.median(dim="time", keep_attrs=True).persist()
         
         elif do_tarithm=='std':
-            data = data.std(   dim="time", keep_attrs=True) 
+            data_tmean = data.std(   dim="time", keep_attrs=True).persist()
         
         elif do_tarithm=='var':
-            data = data.var(   dim="time", keep_attrs=True)       
+            data_tmean = data.var(   dim="time", keep_attrs=True).persist()       
         
         elif do_tarithm=='max':
-            data = data.max(   dim="time", keep_attrs=True)
+            data_tmean = data.max(   dim="time", keep_attrs=True).persist()
         
         elif do_tarithm=='min':
-            data = data.min(   dim="time", keep_attrs=True)  
+            data_tmean = data.min(   dim="time", keep_attrs=True).persist()  
         
         elif do_tarithm=='sum':
-            data = data.sum(   dim="time", keep_attrs=True)    
+            data_tmean = data.sum(   dim="time", keep_attrs=True).persist()    
         
         #_______________________________________________________________________
         # yearly means 
         elif do_tarithm in ['ymean','annual']:
             import datetime
-            data     = data.groupby('time.year').mean('time')
+            data_tmean     = data.groupby('time.year').mean('time')
             # recreate time axes based on year
-            data     = data.rename_dims({'year':'time'})
+            data_tmean     = data_tmean.rename_dims({'year':'time'})
             
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             
-            aux_time = xr.cftime_range(start='{:d}-01-01'.format(data.year[1]), periods=len(data['time']), freq='YS')
-            data     = data.drop_vars('year')
-            data     = data.assign_coords(time=aux_time)
+            aux_time = xr.cftime_range(start='{:d}-01-01'.format(data_tmean.year[1]), periods=len(data['time']), freq='YS')
+            data_tmean     = data_tmean.drop_vars('year')
+            data_tmean     = data_tmean.assign_coords(time=aux_time)
             del(aux_time)
             warnings.resetwarnings()
         
@@ -1232,16 +1250,16 @@ def do_time_arithmetic(data, do_tarithm):
         # monthly means --> seasonal cycle 
         elif do_tarithm in ['mmean','monthly']:
             import datetime
-            data     = data.groupby('time.month').mean('time')
+            data_tmean     = data.groupby('time.month').mean('time')
             # recreate time axes based on year
-            data     = data.rename_dims({'month':'time'})
+            data_tmean     = data_tmean.rename_dims({'month':'time'})
             
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             
-            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='MS')
-            data     = data.drop_vars('month')
-            data     = data.assign_coords(time=aux_time)
+            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data_tmean['time']), freq='MS')
+            data_tmean     = data_tmean.drop_vars('month')
+            data_tmean     = data_tmean.assign_coords(time=aux_time)
             del(aux_time)
             warnings.resetwarnings()
         
@@ -1249,16 +1267,16 @@ def do_time_arithmetic(data, do_tarithm):
         # daily means --> 1...365
         elif do_tarithm in ['dmean','daily']:
             import datetime
-            data     = data.groupby('time.day').mean('time')
+            data_tmean     = data.groupby('time.day').mean('time')
             # recreate time axes based on year
-            data     = data.rename_dims({'day':'time'})
+            data_tmean     = data_tmean.rename_dims({'day':'time'})
             
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             
-            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data['time']), freq='DS')
-            data     = data.drop_vars('day')
-            data     = data.assign_coords(time=aux_time).drop_vars('day')
+            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data_tmean['time']), freq='DS')
+            data_tmean     = data_tmean.drop_vars('day')
+            data_tmean     = data_tmean.assign_coords(time=aux_time).drop_vars('day')
             del(aux_time)
             warnings.resetwarnings()
         
@@ -1268,8 +1286,12 @@ def do_time_arithmetic(data, do_tarithm):
         else:
             raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
         
-    #___________________________________________________________________________
-    return(data, str_atim)
+        #_______________________________________________________________________
+        del(data)
+        gc.collect()  # Trigger garbage collection
+        return(data_tmean, str_atim)
+    else:
+        return(data, str_atim)
 
 
 
@@ -1309,41 +1331,45 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
     if do_harithm is not None:
         
         if   do_harithm=='mean':
-            data = data.mean(  dim=dim_name, keep_attrs=True, skipna=True)
+            data_hmean = data.mean(  dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_harithm=='median':
-            data = data.median(dim=dim_name, keep_attrs=True, skipna=True)
+            data_hmean = data.median(dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_harithm=='std':
-            data = data.std(   dim=dim_name, keep_attrs=True, skipna=True) 
+            data_hmean = data.std(   dim=dim_name, keep_attrs=True, skipna=True) 
         
         elif do_harithm=='var':
-            data = data.var(   dim=dim_name, keep_attrs=True, skipna=True)       
+            data_hmean = data.var(   dim=dim_name, keep_attrs=True, skipna=True)       
         
         elif do_harithm=='max':
-            data = data.max(   dim=dim_name, keep_attrs=True, skipna=True)
+            data_hmean = data.max(   dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_harithm=='min':
-            data = data.min(   dim=dim_name, keep_attrs=True, skipna=True)  
+            data_hmean = data.min(   dim=dim_name, keep_attrs=True, skipna=True)  
         
         elif do_harithm=='sum':
-            data = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)            
+            data_hmean = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)            
         
         elif do_harithm=='wint':
-            data    = data.weighted(data['w_A']).sum(dim=dim_name, keep_attrs=True, skipna=True)
+            data_hmean    = data.weighted(data['w_A']).sum(dim=dim_name, keep_attrs=True, skipna=True)
             
         elif do_harithm=='wmean':
             # this solution needs way less RAM and scales better with dask
-            data    = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
+            data_hmean    = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
             
         elif do_harithm=='None' or do_harithm is None:
             ...
         
         else:
             raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
-    
-    #___________________________________________________________________________
-    return(data)
+        
+        #_______________________________________________________________________
+        del(data)
+        gc.collect()  # Trigger garbage collection
+        return(data_hmean)
+    else:
+        return(data)
 
 
 #
@@ -1380,34 +1406,35 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
     if do_zarithm is not None:
         
         if   do_zarithm=='mean':
-            data    = data.mean(dim=dim_name, keep_attrs=True, skipna=True)
+            data_zmean    = data.mean(dim=dim_name, keep_attrs=True, skipna=True).persist()
         
         elif do_zarithm=='max':
-            data    = data.max( dim=dim_name, keep_attrs=True)
+            data_zmean    = data.max( dim=dim_name, keep_attrs=True).persist()
         
         elif do_zarithm=='min':
-            data    = data.min( dim=dim_name, keep_attrs=True)  
+            data_zmean    = data.min( dim=dim_name, keep_attrs=True).persist()  
         
         elif do_zarithm=='sum':
-            data    = data.sum( dim=dim_name, keep_attrs=True, skipna=True)
+            data_zmean    = data.sum( dim=dim_name, keep_attrs=True, skipna=True).persist()
         
         elif do_zarithm=='wint':
-            data    = data.weighted(data['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True)
+            print(data['w_z'].values)
+            data_zmean    = data.weighted(data['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True).persist()
             
         elif do_zarithm=='wmean':
-            #if   ('nod2' in data.dims):
-                #weights = data['w_A']*data['w_z']
-            #else:    
-                #weights = data['w_z']
-            data    = data.weighted(data['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True)
+            data_zmean    = data.weighted(data['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True).persist()
         
         elif do_zarithm=='None' or do_zarithm is None:
             ...
         
         else:
             raise ValueError(' the depth arithmetic of do_zarithm={} is not supported'.format(str(do_zarithm))) 
-    #___________________________________________________________________________
-    return(data)
+        #_______________________________________________________________________
+        del(data)
+        gc.collect()  # Trigger garbage collection
+        return(data_zmean)
+    else:
+        return(data)
 
 
 
@@ -1456,7 +1483,7 @@ def do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv):
             print(' > keep vector component: ', do_sclrv)
             print(' > drop vector component: ', vname_drop[-1])
             data = data.drop_vars(vname_drop)
-            
+        gc.collect()    
     #___________________________________________________________________________
     return(data)
 
@@ -1506,7 +1533,7 @@ def do_vector_norm(data, do_norm):
         
         # delet variable vname2 from Dataset
         data = data.drop_vars(vname)
-        
+        gc.collect()
     #___________________________________________________________________________    
     return(data)  
 
