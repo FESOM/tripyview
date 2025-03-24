@@ -2169,21 +2169,22 @@ def calc_hbarstreamf_dask(mesh, data_edge,
     
     # do cumulativ sum along lat dimension
     bin_hbstrmf = bin_hbstrmf.cumsum(axis=-2)
+    #bin_hbstrmf = -np.flip(np.cumsum(np.flip(bin_hbstrmf, axis=-2), axis=-2), axis=-2)
     
     if 'time' in data_edge.dims: 
         bin_hbstrmf = bin_hbstrmf-bin_hbstrmf[:, -1:, :]
         
         # impose periodic boundary condition
         bin_hbstrmf[:, :, -1] = bin_hbstrmf[:, :, -2]
-        bin_hbstrmf[:, :,  0] = bin_hbstrmf[:, :, 1]
-        bin_hbstrmf[:, :, -1] = bin_hbstrmf[:, :, 0] = (bin_hbstrmf[:, :, -1]+bin_hbstrmf[:, :, 0])*0.5
+        bin_hbstrmf[:, :,  0] = bin_hbstrmf[:, :,  1]
+        bin_hbstrmf[:, :, -1] = bin_hbstrmf[:, :,  0] = (bin_hbstrmf[:, :, -1]+bin_hbstrmf[:, :, 0])*0.5
     else                       : 
         bin_hbstrmf = bin_hbstrmf-bin_hbstrmf[   -1, :] 
         
         # impose periodic boundary condition
         bin_hbstrmf[:, -1] = bin_hbstrmf[:, -2]
         bin_hbstrmf[:,  0] = bin_hbstrmf[:,  1]
-        bin_hbstrmf[:,-1] = bin_hbstrmf[:, 0] = (bin_hbstrmf[:,-1]+bin_hbstrmf[:,0])*0.5
+        bin_hbstrmf[:, -1] = bin_hbstrmf[:,  0] = (bin_hbstrmf[:, -1]+bin_hbstrmf[:, 0])*0.5
     
     # put in land sea mask 
     bin_hbstrmf[lsmask==True] = np.nan
