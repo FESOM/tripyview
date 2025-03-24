@@ -2061,7 +2061,6 @@ def calc_hbarstreamf_dask(mesh, data_edge,
     else                       : gattr['proj'] = 'xy'
     vattr = data_edge[vnameu].attrs
     
-    
     #_______________________________________________________________________
     # determine/adapt actual chunksize
     nchunk = 1
@@ -2084,17 +2083,17 @@ def calc_hbarstreamf_dask(mesh, data_edge,
     
     #_______________________________________________________________________
     # create zonal/meridional bins
-    lon_min    = float(np.ceil(  data_edges[ do_lon ].min().compute()))
-    lon_max    = float(np.floor( data_edges[ do_lon ].max().compute()))
+    lon_min    = float(np.floor(data_edge[ do_lon ].min().compute()))
+    lon_max    = float(np.ceil( data_edge[ do_lon ].max().compute()))
     lon_bins   = np.arange(lon_min, lon_max+dlon, dlon)
     lon        = (lon_bins[1:]+lon_bins[:-1])*0.5
-    nlon       = len(lon_bins)
+    nlon       = len(lon)
     
-    lat_min    = float(np.ceil(  data_edges[ do_lat ].min().compute()))
-    lat_max    = float(np.floor( data_edges[ do_lat ].max().compute()))
+    lat_min    = float(np.floor(data_edge[ do_lat ].min().compute()))
+    lat_max    = float(np.ceil( data_edge[ do_lat ].max().compute()))
     lat_bins   = np.arange(lat_min, lat_max+dlat, dlat)
     lat        = (lat_bins[1:]+lat_bins[:-1])*0.5
-    nlat       = len(lat_bins)
+    nlat       = len(lat)
     
     #_______________________________________________________________________
     if do_persist: data_edge = data_edge.persist()
@@ -2102,7 +2101,7 @@ def calc_hbarstreamf_dask(mesh, data_edge,
     
     #_______________________________________________________________________
     # Determine ntime and drop_axis
-    ntime        = v.sizes['time'] if 'time' in data_edge.dims else 1
+    ntime        = data_edge.sizes['time'] if 'time' in data_edge.dims else 1
     drop_axis    = [0, 1] if 'time' in data_edge.dims else [0]
     chunk_slices = (slice(None), None, slice(None)) if 'time' in data_edge.dims else (slice(None), slice(None))
         
@@ -2163,11 +2162,32 @@ def calc_hbarstreamf_dask(mesh, data_edge,
                 
     #___________________________________________________________________________
     # convert zeros to nan values via counter
-    with np.errstate(divide='ignore', invalid='ignore'):
-        bin_hbstrmf = np.where(bin_hbstrmf[1]>0, bin_hbstrmf[0], np.nan)
-        
+    lsmask = (bin_hbstrmf[1]==0)
+    
     inSv = 1.0e-6
-    bin_hbstrmf = bin_hbstrmf * inSv 
+    bin_hbstrmf = bin_hbstrmf[0] * inSv 
+    
+    # do cumulativ sum along lat dimension
+    bin_hbstrmf = bin_hbstrmf.cumsum(axis=-2)
+    
+    if 'time' in data_edge.dims: 
+        bin_hbstrmf = bin_hbstrmf-bin_hbstrmf[:, -1:, :]
+        
+        # impose periodic boundary condition
+        bin_hbstrmf[:, :, -1] = bin_hbstrmf[:, :, -2]
+        bin_hbstrmf[:, :,  0] = bin_hbstrmf[:, :, 1]
+        bin_hbstrmf[:, :, -1] = bin_hbstrmf[:, :, 0] = (bin_hbstrmf[:, :, -1]+bin_hbstrmf[:, :, 0])*0.5
+    else                       : 
+        bin_hbstrmf = bin_hbstrmf-bin_hbstrmf[   -1, :] 
+        
+        # impose periodic boundary condition
+        bin_hbstrmf[:, -1] = bin_hbstrmf[:, -2]
+        bin_hbstrmf[:,  0] = bin_hbstrmf[:,  1]
+        bin_hbstrmf[:,-1] = bin_hbstrmf[:, 0] = (bin_hbstrmf[:,-1]+bin_hbstrmf[:,0])*0.5
+    
+    # put in land sea mask 
+    bin_hbstrmf[lsmask==True] = np.nan
+    
     #___________________________________________________________________________
     # define variable attributes    
     vattr['long_name' ]= 'Horizontal. Barotropic \n Streamfunction'
@@ -2175,111 +2195,122 @@ def calc_hbarstreamf_dask(mesh, data_edge,
     vattr['units'     ]= 'Sv'
     
     # define variable 
-    data_vars, coords, dim_n, dims_s = dict(), dict(), list(), list()
+    data_vars, coords, dim_n, dim_s = dict(), dict(), list(), list()
     if 'time' in data_edge.dims: dim_n.append('time')
     dim_n.append('lat')
     dim_n.append('lon')
     for dim_ni in dim_n:
         if   dim_ni=='time': dim_s.append(data_edge.sizes['time']); coords['time' ]=(['time'], data_edge['time'].data) 
-        elif dim_ni=='lat' : dim_s.append(lat_bins.size          ); coords['lat'  ]=(['lat' ], lat_bins) 
-        elif dim_ni=='lon' : dim_s.append(lon_bins.size          ); coords['lon'  ]=(['lon' ], lon_bins) 
+        elif dim_ni=='lat' : dim_s.append(lat_bins.size          ); coords['lat'  ]=(['lat' ], lat) 
+        elif dim_ni=='lon' : dim_s.append(lon_bins.size          ); coords['lon'  ]=(['lon' ], lon) 
     data_vars['hbstreamf'] = (dim_n, bin_hbstrmf, vattr)     
-    
-    hbstreamf = xr.Dataset(data_vars=data_vars, coords=coords, attrs=data.attrs)
-    
-    #___________________________________________________________________________
-    hbstreamf['hbstreamf'] =-hbstreamf['hbstreamf'].cumsum(dim='nlat', skipna=True)#+150.0 
-    hbstreamf['hbstreamf'].data = hbstreamf['hbstreamf'].data-hbstreamf['hbstreamf'].data[-1,:]
-    
-    # impose periodic boundary condition
-    hbstreamf['hbstreamf'].data[:,-1] = hbstreamf['hbstreamf'].data[:,-2]
-    hbstreamf['hbstreamf'].data[:, 0] = hbstreamf['hbstreamf'].data[:, 1]
-    
-    if do_info: print(' --> total elasped time: {:3.3f} min.'.format((clock.time()-ts)/60))   
-    del(data_vars, coords, data_attr)
-    
-    
-    #___________________________________________________________________________
-    # define function for longitudinal binning --> should be possible to parallelize
-    # this loop since each lon bin is independent
-    def hbstrfbin_over_lon(lon_i, lat, data, mdiag):
-        #_______________________________________________________________________
-        # compute which edge is cutted by the binning line along longitude
-        # to select the  lon bin cutted edges with where is by far the fastest option
-        # compared to using ...
-        # idx_lonbin  = (  (data.edge_x[0,:]-lon_i)*(data.edge_x[1,:]-lon_i) <= 0.) & \
-        #                  (abs(data.edge_x[0,:]-lon_i)<50.) & (abs(data.edge_x[1,:]-lon_i)<50. )
-        # data_lonbin = data.groupby(idx_lonbin)[True]
-        # --> groupby is here a factor 5-6 slower than using isel+np.where
-        #warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-        #warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
-        mdiag_lonbin = mdiag.isel(edg_n=np.where(  
-                        ((mdiag.edge_x[0,:]-lon_i)*(mdiag.edge_x[1,:]-lon_i) <= 0.) & \
-                        (abs(mdiag.edge_x[0,:]-lon_i)<50.) & (abs(mdiag.edge_x[1,:]-lon_i)<50. ))[0]).load()
-        
-        #data_lonbin = data.isel(elem=xr.DataArray(mdiag_lonbin.edge_tri, dims=['n2', 'edg_n'])) #, nz1=data.nzi.load())
-        data_lonbin = data.isel(elem=mdiag_lonbin.edge_tri) #, nz1=data.nzi.load())
-        data_lonbin = data_lonbin.assign_coords(edge_my=mdiag_lonbin.edge_my)
-        #warnings.resetwarnings()
-        
-        # change direction of edge to make it consistent
-        idx_direct = mdiag_lonbin.edge_x[0,:]<=lon_i
-        mdiag_lonbin.edge_dx_lr[:,idx_direct] = -mdiag_lonbin.edge_dx_lr[:,idx_direct]
-        mdiag_lonbin.edge_dy_lr[:,idx_direct] = -mdiag_lonbin.edge_dy_lr[:,idx_direct]
-        del(idx_direct)
-        
-        # compute transport u,v --> u*dx,v*dy
-        # --> this when mdiag_lonbin['edge_dx_lr'] &  mdiag_lonbin['edge_dy_lr'] is cross-edge norm vector
-        #data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
-        #data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
-        
-        # --> this when mdiag_lonbin['edge_dx_lr'] &  mdiag_lonbin['edge_dy_lr'] is cross-edge vector
-        # transform unit --> norm vector
-        mdiag_lonbin['edge_dx_lr'][0,:] = -mdiag_lonbin['edge_dx_lr'][0,:] 
-        mdiag_lonbin['edge_dy_lr'][1,:] = -mdiag_lonbin['edge_dy_lr'][1,:] 
-        data_lonbin['u'] = data_lonbin['u'] * mdiag_lonbin['edge_dy_lr'] * inSv * (-1)
-        data_lonbin['v'] = data_lonbin['v'] * mdiag_lonbin['edge_dx_lr'] * inSv * (-1)
-        del(mdiag_lonbin)
-        
-        # sum already over vflux contribution from left and right triangle 
-        data_lonbin['u'] = data_lonbin['u'].sum(dim='n2', skipna=True) * data_lonbin['dz']
-        data_lonbin['v'] = data_lonbin['v'].sum(dim='n2', skipna=True) * data_lonbin['dz']
-        
-        #_______________________________________________________________________
-        # loop over latitudinal bins, here somehow using groupby_bins is faster 
-        # than using a for loop with np.where(...)...
-        # for iy, lat_i in enumerate(lat):
-        #     data_latbin = data_lonbin.isel(edg_n=np.where( 
-        data_latbin = data_lonbin.groupby_bins('edge_my',lat)
-        del(data_lonbin)
-        data_latbin = data_latbin.sum(skipna=True).sum(dim='nz1', skipna=True)
-        return(data_latbin['u'] + data_latbin['v'])
-    
-    #___________________________________________________________________________
-    # do serial loop over longitudinal bins
-    if not do_parallel:
-        ts = ts1 = clock.time()
-        if do_info: print('\n ___loop over longitudinal bins___'+'_'*90, end='\n')
-        for ix, lon_i in enumerate(hbstreamf.lon):
-            if do_info: print('{:+06.1f}|'.format(lon_i), end='')
-            if np.mod(ix+1,15)==0 and do_info:
-                print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
-                ts1 = clock.time()
-            hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag).data
-            #hbstreamf['hbstreamf'][:,ix] = hbstrfbin_over_lon(lon_i, lat, data, mdiag)
-    
-    # do parallel loop over longitudinal bins        
-    else:
-        ts = ts1 = clock.time()
-        if do_info: print('\n ___parallel loop over longitudinal bins___'+'_'*1, end='\n')
-        from joblib import Parallel, delayed
-        results = Parallel(n_jobs=n_workers)(delayed(hbstrfbin_over_lon)(lon_i, lat, data, mdiag) for lon_i in hbstreamf.lon)
-        #hbstreamf['hbstreamf'][:,:] = xr.concat(results, dim='nlon').transpose()
-        hbstreamf['hbstreamf'][:,:] = np.column_stack(results)
-        
-       
+    hbstreamf = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattr)
+    del(data_vars, coords)
     
     #___________________________________________________________________________
     return(hbstreamf)
 
 
+
+def calc_hbarstreamf_chnk(lon_bins, lat_bins  , 
+                          chnk_edx, chnk_edy  , 
+                          chnk_tri            , 
+                          chnk_dx, chnk_dy    ,
+                          chnk_u, chnk_v      ,   # data chunk piece
+                          do_onelem):
+    
+    #___________________________________________________________________________
+    if   np.ndim(chnk_u) == 3: 
+        chnk_edx = chnk_edx[:, 0, :]
+        chnk_edy = chnk_edy[:, 0, :]
+        chnk_tri = chnk_tri[:, 0, :]
+        n2, ntime, ned = chnk_u.shape
+        # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
+        #                n2          ntime        nz    nedge 
+        #               [:         , :          , None, :          ]
+        chunk_slices = (slice(None), slice(None), slice(None))
+        
+    elif np.ndim(chnk_u) == 2: 
+        ntime     = 1
+        # expand everything to 4d (n2, ntime, nz1, edg_n) but now ntime=1
+        #                n2          ntime nz    nedge 
+        #               [:         , None, None, :          ]
+        chunk_slices = (slice(None), None, slice(None))
+    
+    # make everything 4d by creater dummy dimension of size=1    
+    chnk_dx   = chnk_dx[chunk_slices]
+    chnk_dy   = chnk_dy[chunk_slices]
+    chnk_u    = chnk_u[ chunk_slices]
+    chnk_v    = chnk_v[ chunk_slices]
+    
+    #___________________________________________________________________________
+    # only needthe additional dimension at the point where the function is started
+    lon           = (lon_bins[1:] + lon_bins[:-1])*0.5
+    binned_hstrmf = np.zeros((2, ntime, len(lat_bins)-1, len(lon_bins)-1), dtype=np.float32)
+    
+    #___________________________________________________________________________
+    # compute which edge is cutted by the longitudinal binning line. We do this 
+    # here without a binning approach since we need to know how to flip the direction 
+    # of the edge_dxdy vector --> otherwise the computation wont work
+    # --> idx_direct = chnk_edx[0, idx_cut[idx_valid]]<=lon[ii]
+    #     chnk_dx_cut[:, :, idx_direct] = -chnk_dx_cut[:, :, idx_direct]
+    #     chnk_dy_cut[:, :, idx_direct] = -chnk_dy_cut[:, :, idx_direct]
+    #     del(idx_direct)
+    # also here kick out the periodic boundary edges 
+    for ii, lon_i in enumerate(lon):
+        idx_cut = np.where( ((chnk_edx[0, :]-lon_i)*(chnk_edx[1, :]-lon_i) <= 0.0) &  
+                             (abs(chnk_edx[0,:]-chnk_edx[1,:]) < 180.0) )[0]
+                             #(abs(chnk_edx[0,:]-lon_i)<50.) & (abs(chnk_edx[1,:]-lon_i)<50. ))[0]
+        if len(idx_cut)==0: continue
+    
+        # now do binning approach in latitudinal direction, compute which edges are 
+        # within latitudinal bin 
+        lat_indices = np.digitize(chnk_edy[ :, idx_cut].sum(axis=0)*0.5, lat_bins) - 1
+        idx_valid   = ((lat_indices >= 0) & (lat_indices < len(lat_bins)-1))
+        
+        # reduce edges to the onees that are only cutted by the longitudinal 
+        # binning line
+        chnk_dx_cut = chnk_dx[ :, :, idx_cut[idx_valid]]
+        chnk_dy_cut = chnk_dy[ :, :, idx_cut[idx_valid]]
+        chnk_u_cut  = chnk_u[  :, :, idx_cut[idx_valid]]
+        chnk_v_cut  = chnk_v[  :, :, idx_cut[idx_valid]]
+        
+        # transform cross-edge vector --> norm vector
+        chnk_dx_cut[0,:] = -chnk_dx_cut[0, :] 
+        chnk_dy_cut[1,:] = -chnk_dy_cut[1, :]
+        
+        # flip norm vector dependent on edge orientation with respect to the 
+        # longitudinal binning line 
+        idx_direct = chnk_edx[0, idx_cut[idx_valid]]<=lon[ii]
+        chnk_dx_cut[:, :, idx_direct] = -chnk_dx_cut[:, :, idx_direct]
+        chnk_dy_cut[:, :, idx_direct] = -chnk_dy_cut[:, :, idx_direct]
+        del(idx_direct)
+        
+        
+        if do_onelem:
+            # make sure that value of right boundary triangle is zero when boundary edge 
+            # --> if velocities, or tu, tv are defined on elements
+            chnk_u_cut[1, :, chnk_tri[1, idx_cut[idx_valid]]<0] = 0.0
+            chnk_v_cut[1, :, chnk_tri[1, idx_cut[idx_valid]]<0] = 0.0
+            
+            # compute transport 
+            for ed_i in range(chnk_u_cut.shape[2]):
+                jj = lat_indices[ed_i]
+                aux_u_cut = (chnk_u_cut[:,:,ed_i]*chnk_dy_cut[:,:,ed_i]) + (chnk_v_cut[:,:,ed_i]*chnk_dx_cut[:,:,ed_i]) 
+                binned_hstrmf[0,:, jj, ii] = binned_hstrmf[0,:, jj, ii] + np.nansum(aux_u_cut, axis=(0,))
+                binned_hstrmf[1,:, jj, ii] = binned_hstrmf[1,:, jj, ii] + 1
+            del(aux_u_cut)
+            
+        else:
+            # compute transport 
+            for ed_i in range(chnk_u_cut.shape[2]):
+                jj = lat_indices[ed_i]
+                aux_u_cut = ((chnk_u_cut[0, :, ed_i]+chnk_u_cut[1, :, ed_i])*0.5*chnk_dy_cut[:,:,ed_i] + 
+                             (chnk_v_cut[0, :, ed_i]+chnk_v_cut[1, :, ed_i])*0.5*chnk_dx_cut[:,:,ed_i])
+                binned_hstrmf[0,:, jj, ii] = binned_hstrmf[0,:, jj, ii] + np.nansum(aux_u_cut, axis=(0,))
+                binned_hstrmf[1,:, jj, ii] = binned_hstrmf[1,:, jj, ii] + 1
+            del(aux_u_cut)
+        
+        del(chnk_dx_cut, chnk_dy_cut, chnk_u_cut, chnk_v_cut, idx_valid, lat_indices)
+        
+    return(binned_hstrmf.flatten())

@@ -53,6 +53,7 @@ def load_data_fesom2(mesh,
                      do_showtime    = False     ,
                      do_info        = True      ,
                      client         = None      , 
+                     engine         = 'netcdf4' , # 'h5netcdf'
                      **kwargs):
     """
     --> general loading of fesom2 and fesom14cmip6 data
@@ -325,18 +326,27 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________
     # load multiple files
-    # load normal FESOM2 run file
+    if   engine == 'netcdf4' : 
+        engine_dict = dict({'engine'        :"netcdf4", 
+                            'combine'       :'nested', 
+                            'compat'        :'override', 
+                            'decode_coords' :False, 
+                            'decode_times'  :False, 
+                            'autoclose'     :False, 
+                            'lock'          :False, 
+                            'backend_kwargs':{'format': 'NETCDF4', 'mode':'r'}})# load normal FESOM2 run file
+    elif engine == 'h5netcdf': 
+        engine_dict = dict({'engine':"h5netcdf",'backend_kwargs':{'phony_dims': 'sort', 'decode_vlen_strings':False, 'invalid_netcdf':'ignore'}})# load normal FESOM2 run file
+    
+    
     if do_file=='run':
         data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
                                  preprocess=partial_func, 
-                                 engine="h5netcdf", #"netcdf4", "scipy", "zarr", "cfgrib"
-                                 #autoclose=True, #only for netcdf4
-                                 #decode_times=False, 
-                                 #lock=True, 
+                                 **engine_dict, 
                                  **kwargs)
                                  
         # !!! --> this is not a good idea, to do chunking after loading requires 
-        # !!! --> massivly more RAM than giveing the chunk operation directly into 
+        # !!! --> massivly more RAM than giving the chunk operation directly into 
         # !!! --> loading routine                          
         #data = xr.open_mfdataset(pathlist, parallel=do_parallel, 
         #                         autoclose=True, preprocess=partial_func, 
@@ -354,13 +364,10 @@ def load_data_fesom2(mesh,
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
             data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
                                                          preprocess=partial_func, 
-                                                         engine="h5netcdf",  #"netcdf4", "scipy", "zarr", "cfgrib"
-                                                         #autoclose=True, # only for netcdf4
-                                                         #decode_times=False, 
-                                                         #lock=True, 
+                                                         **engine_dict, 
                                                          **kwargs)])
             # !!! --> this is not a good idea, to do chunking after loading requires 
-            # !!! --> massivly more RAM than giveing the chunk operation directly into 
+            # !!! --> massivly more RAM than giving the chunk operation directly into 
             # !!! --> loading routine                          
             #data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
             #                                             autoclose=True, preprocess=partial_func, 
