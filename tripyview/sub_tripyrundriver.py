@@ -125,7 +125,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
 
     except Exception as e:
         print(f"Unexpected Error: {e}")            
-        
+
     #___________________________________________________________________________
     # attach created figures to webpage collection
     webpage[f"image_{cnt}"] = {}
