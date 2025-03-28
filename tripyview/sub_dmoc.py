@@ -167,14 +167,16 @@ def load_dmoc_data(mesh                         ,
     if which_transf in ['srf', 'inner', 'fh', 'fw', 'fr'] or do_dflx: # add surface fluxes
         # compute combined density flux: heat_flux+freshwater_flux+restoring_flux
         if do_dflx or (which_transf in ['srf', 'inner']): 
-            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict)
             
             # Add subsequent variables one by one, freeing memory as we go
+            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict)
             for var in ['std_frwt_flux', 'std_rest_flux']:
-                data['std_heat_flux'] += load_data_fesom2(mesh, datapath, vname=var, **input_dict)[var]
+                # --> this is supposed to be more lazy computation friendly 
+                new_var = load_data_fesom2(mesh, datapath, vname=var, **input_dict)[var]
+                data['std_heat_flux'] = data['std_heat_flux'] + new_var  # Ensures proper Dask graph optimization
+                del new_var
                 gc.collect()
-            
-            data_attrs = data_dMOC.attrs # rescue attributes will get lost during multipolication
+                
             data       = data.rename({'std_heat_flux':'dmoc_fd'}).assign_coords({'ndens' :("ndens",std_dens)})
             data_dMOC  = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
             del(data)
@@ -207,6 +209,8 @@ def load_dmoc_data(mesh                         ,
         wd, w     = np.diff(std_dens), np.zeros(dens.size)
         w[0], w[1:-1], w[-1] = wd[0]/2., (wd[0:-1]+wd[1:])/2., wd[-1]/2.  # drho @  std_dens level boundary
         w_dens    = xr.DataArray(w, dims=["ndens"]).astype('float32')
+        del(w, wd)
+        gc.collect()
         
         # check if input data have been chunked
         if any(data_dMOC.chunks.values()):
@@ -214,7 +218,7 @@ def load_dmoc_data(mesh                         ,
             dens   = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         data_dMOC = data_dMOC.assign_coords({ 'dens'  :dens  , \
                                               'w_dens':w_dens })
-        del(w, wd, w_dens)
+        del(w_dens)
         gc.collect()
         
         #_______________________________________________________________________
