@@ -49,7 +49,8 @@ def load_data_fesom2(mesh,
                      do_parallel    = False     ,
                      chunks         = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
                                         'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
-                                        'ndens':'auto'},
+                                        'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
+                                        'node' :'auto'},
                      do_showtime    = False     ,
                      do_info        = True      ,
                      client         = None      , 
@@ -344,7 +345,7 @@ def load_data_fesom2(mesh,
                                  preprocess=partial_func, 
                                  **engine_dict, 
                                  **kwargs)
-                                 
+        
         # !!! --> this is not a good idea, to do chunking after loading requires 
         # !!! --> massivly more RAM than giving the chunk operation directly into 
         # !!! --> loading routine                          
@@ -475,8 +476,10 @@ def load_data_fesom2(mesh,
     elif ('nz1'  in data.dims): dimn_v = 'nz1'
     elif ('ndens'in data.dims): dimn_v = 'ndens'
     # check dimension ordering
-    if   ( len(data.dims)==3 and list(data.dims) != ['time', dimn_v, dimn_h]): data = data.transpose('time', dimn_v, dimn_h)
-    elif ( len(data.dims)==2 and list(data.dims) != [dimn_v, dimn_h])        : data = data.transpose(dimn_v, dimn_h)
+    if 'time' in data.dims:
+        if   ( len(data.dims)==3 and list(data.dims) != ['time', dimn_v, dimn_h]): data = data.transpose('time', dimn_v, dimn_h)
+    else:    
+        if ( len(data.dims)==2 and list(data.dims) != [dimn_v, dimn_h])        : data = data.transpose(dimn_v, dimn_h)
     del dimn_h, dimn_v
     
     #___________________________________________________________________________

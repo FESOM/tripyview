@@ -42,7 +42,7 @@ def load_dmoc_data(mesh                         ,
                    descript     = ''            , 
                    do_compute   = False         , 
                    do_load      = False         ,  
-                   do_persist   = False         , 
+                   do_persist   = True          , 
                    do_parallel  = False         , 
                    do_info      = True          ,
                    chunks       = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
@@ -138,7 +138,7 @@ def load_dmoc_data(mesh                         ,
     #___________________________________________________________________________
     # ensure that attributes are preserved  during operations with yarray 
     xr.set_options(keep_attrs=True)
-    
+    which_combineattrs = 'override' # "no_conflicts"
     #___________________________________________________________________________
     # number of sigma2 density levels
     dens         = xr.DataArray(std_dens, dims=["ndens"]).astype('float32')
@@ -156,7 +156,7 @@ def load_dmoc_data(mesh                         ,
     data_dMOC = xr.Dataset()
     
     #___________________________________________________________________________
-    input_dict = dict({ 'year':year, 'descript':descript , 'do_info':do_info, 'do_ie2n':False, 
+    input_dict = dict({ 'year':year, 'descript':descript , 'do_info':do_info,
                         'do_tarithm':do_tarithm, 'do_nan':False, 'do_ie2n':False,
                         'do_parallel':do_parallel, 'chunks':chunks, 
                         'do_compute':do_compute, 'do_load':do_load, 'do_persist':do_persist})
@@ -166,33 +166,38 @@ def load_dmoc_data(mesh                         ,
     if ('srf' in which_transf or 'inner' in which_transf) or do_dflx: # add surface fluxes
         # compute combined density flux: heat_flux+freshwater_flux+restoring_flux
         if do_dflx: 
-            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict).persist()
+            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict)
             
             # Add subsequent variables one by one, freeing memory as we go
             for var in ['std_frwt_flux', 'std_rest_flux']:
-                data['std_heat_flux'] += load_data_fesom2(mesh, datapath, vname=var, **input_dict)[var].persist()
+                print(var)
+                data['std_heat_flux'] += load_data_fesom2(mesh, datapath, vname=var, **input_dict)[var]
                 gc.collect()
             
             data_attrs = data_dMOC.attrs # rescue attributes will get lost during multipolication
             data       = data.rename({'std_heat_flux':'dmoc_fd'}).assign_coords({'ndens' :("ndens",std_dens)})
-            data_dMOC  = xr.merge([data_dMOC, data], combine_attrs="no_conflicts")
-            #gc.collect()
+            data_dMOC  = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
             del(data)
+            gc.collect()
+            display(data_dMOC)
             
         # compute single flux from heat_flux & freshwater_flux &restoring_flux
         else:
-            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict).rename({'std_heat_flux':'dmoc_fh'}).persist()
-            data_dMOC = xr.merge([data_dMOC, data], combine_attrs="no_conflicts") 
-            gc.collect()
+            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict).rename({'std_heat_flux':'dmoc_fh'})
+            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs) 
             del(data)
-            data = load_data_fesom2(mesh, datapath, vname='std_frwt_flux', **input_dict).rename({'std_frwt_flux':'dmoc_fw'}).persist()
-            data_dMOC = xr.merge([data_dMOC, data], combine_attrs="no_conflicts")   
             gc.collect()
+            
+            data = load_data_fesom2(mesh, datapath, vname='std_frwt_flux', **input_dict).rename({'std_frwt_flux':'dmoc_fw'})
+            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
             del (data)
-            data = load_data_fesom2(mesh, datapath, vname='std_rest_flux', **input_dict).rename({'std_rest_flux':'dmoc_fr'}).persist()
-            data_dMOC = xr.merge([data_dMOC, data], combine_attrs="no_conflicts")   
             gc.collect()
+            
+            data = load_data_fesom2(mesh, datapath, vname='std_rest_flux', **input_dict).rename({'std_rest_flux':'dmoc_fr'})
+            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
             del(data)
+            gc.collect()
+            
         #_______________________________________________________________________
         # add density levels and density level weights
         # kick out dummy ndens varaible that is wrong in the files, replace it with 
@@ -226,10 +231,10 @@ def load_dmoc_data(mesh                         ,
     #___________________________________________________________________________
     # add volume trend  
     if add_trend:  
-        data = load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', **input_dict).rename({'std_heat_flux':'dmoc_dvdt'}).drop_vars('ndens').persit()
-        data_dMOC = xr.merge([data_dMOC, data], combine_attrs="no_conflicts")
-        gc.collect()
+        data = load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', **input_dict).rename({'std_heat_flux':'dmoc_dvdt'}).drop_vars('ndens')
+        data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
         del(data)
+        gc.collect()
         
     #___________________________________________________________________________
     # skip this when doing diapycnal vertical velocity
@@ -248,10 +253,10 @@ def load_dmoc_data(mesh                         ,
         #_______________________________________________________________________
         if do_useZinfo=='std_dens_H':
             # add vertical density class thickness
-            data_h = load_data_fesom2(mesh, datapath, vname='std_dens_H', **input_dict).rename({'std_dens_H':'ndens_h'}).persist()
+            data_h = load_data_fesom2(mesh, datapath, vname='std_dens_H', **input_dict).rename({'std_dens_H':'ndens_h'})
             data_h = data_h.assign_coords({'dens':dens})
             data_h = data_h.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
-            data_dMOC = xr.merge([data_dMOC, data_h], combine_attrs="no_conflicts")
+            data_dMOC = xr.merge([data_dMOC, data_h], combine_attrs=which_combineattrs)
             if do_ndensz:
                 # compute vertical density class z position from class thickness by 
                 # cumulative summation 
@@ -259,9 +264,11 @@ def load_dmoc_data(mesh                         ,
                 data_z = data_z.cumsum(dim='ndens', skipna=True)
                 #data_z = data_z.assign_coords({'ndens' :("ndens",std_dens)})
                 data_z = data_z.where(data_h.ndens_h!=0.0,0.0)
-                data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs="no_conflicts")
+                data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs=which_combineattrs)
                 del(data_z)
+                gc.collect()
             del(data_h)
+            gc.collect()
             
         #_______________________________________________________________________
         elif do_useZinfo=='std_dens_Z':
@@ -270,8 +277,9 @@ def load_dmoc_data(mesh                         ,
             data_z = load_data_fesom2(mesh, datapath, vname='std_dens_Z', **input_dict).rename({'std_dens_Z':'ndens_z'}).persist()
             data_z = data_z.assign_coords({'dens':dens})
             data_z = data_z.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
-            data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs="no_conflicts")
+            data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs=which_combineattrs)
             del(data_z)
+            gc.collect()
             
         #_______________________________________________________________________
         elif do_useZinfo=='density_dMOC' or do_useZinfo=='hydrography':
@@ -311,8 +319,9 @@ def load_dmoc_data(mesh                         ,
             data_sigma2 = data_sigma2.where(np.isnan(data_sigma2.nz_rho)==False,0.0)
             
             # add to Dataset
-            data_dMOC = xr.merge([data_dMOC, data_sigma2], combine_attrs="no_conflicts")
+            data_dMOC = xr.merge([data_dMOC, data_sigma2], combine_attrs=which_combineattrs)
             del(data_sigma2)
+            gc.collect()
             
     #___________________________________________________________________________
     if (not do_dflx) and ( 'inner' in which_transf or 'dmoc' in which_transf ):
@@ -350,12 +359,15 @@ def load_dmoc_data(mesh                         ,
             e_i = xr.DataArray(mesh.e_i[:,2], dims=['elem'])
             aux_dmoc_div = aux_dmoc_div + data_div['dmoc'].isel(nod2=e_i)
             del(e_i)
+            gc.collect()
+            
             aux_dmoc_div = aux_dmoc_div/3.0
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             aux_dmoc_div = aux_dmoc_div.assign_attrs(data_div['dmoc'].attrs).persist()
             data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':chunks['elem'] , 'ndens':-1})
             del(aux_dmoc_div)
+            gc.collect()
             
             # data_div['dmoc']     = data_div['dmoc'].load()
             # if 'time' in list(data_div.dims):
@@ -380,8 +392,9 @@ def load_dmoc_data(mesh                         ,
             # save global attributes
             data_div = data_div.assign_attrs(gattrs)
             
-        data_dMOC = xr.merge([data_dMOC, data_div], combine_attrs="no_conflicts")  
+        data_dMOC = xr.merge([data_dMOC, data_div], combine_attrs=which_combineattrs)  
         del(data_div)
+        gc.collect()
         
         # load density class divergence from bolus velolcity
         if (do_bolus): 
@@ -412,12 +425,15 @@ def load_dmoc_data(mesh                         ,
                 e_i = xr.DataArray(mesh.e_i[:,2], dims=['elem'])
                 aux_dmoc_div = aux_dmoc_div + data_div['dmoc_bolus'].isel(nod2=e_i)
                 del(e_i)
+                gc.collect()
+                
                 aux_dmoc_div = aux_dmoc_div/3.0
                 warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
                 warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
                 aux_dmoc_div = aux_dmoc_div.assign_attrs(data_div['dmoc_bolus'].attrs).persist()
                 data_div_bolus = data_div_bolus.assign(dmoc_bolus=aux_dmoc_div).chunk({'elem':chunks['elem'] , 'ndens':-1})
                 del(aux_dmoc_div)
+                gc.collect()
                 
                 # doing this step here so that the MOC amplitude is correct, setp 1 of 2
                 # multiply with elemental area
@@ -427,11 +443,13 @@ def load_dmoc_data(mesh                         ,
             if add_bolus:
                 data_dMOC['dmoc'].data = data_dMOC['dmoc'].data + data_div_bolus['dmoc_bolus'].data
             else:     
-                data_dMOC = xr.merge([data_dMOC, data_div_bolus], combine_attrs="no_conflicts")  
+                data_dMOC = xr.merge([data_dMOC, data_div_bolus], combine_attrs=which_combineattrs)  
             del(data_div_bolus)
-    
+            gc.collect()
+            
     #___________________________________________________________________________
     # drop unnecessary coordinates
+    data_dMOC,_,_ = do_gridinfo_and_weights(mesh, data_dMOC, do_hweight=False, do_zweight=False)
     if (not do_wdiap) and (not do_dflx):
         if 'lon' in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['lon'])
     if 'elemi' in list(data_dMOC.coords): data_dMOC = data_dMOC.drop_vars(['elemi'])
@@ -1011,7 +1029,7 @@ def calc_dmoc_dask( mesh                          ,
     
     #_______________________________________________________________________
     if do_persist: data = data.persist()
-    #display(data_zm)
+    display(data)
         
     ##___________________________________________________________________________
     #if 'elem_pbnd' not in data.coords: 
