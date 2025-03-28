@@ -47,7 +47,8 @@ def load_dmoc_data(mesh                         ,
                    do_info      = True          ,
                    chunks       = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
                                     'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
-                                    'ndens':'auto'},
+                                    'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
+                                    'node' :'auto'},
                    **kwargs):
     """
     --> load data that are neccessary for density moc computation
@@ -163,14 +164,13 @@ def load_dmoc_data(mesh                         ,
     
     #___________________________________________________________________________
     # add surface transformations 
-    if ('srf' in which_transf or 'inner' in which_transf) or do_dflx: # add surface fluxes
+    if which_transf in ['srf', 'inner', 'fh', 'fw', 'fr'] or do_dflx: # add surface fluxes
         # compute combined density flux: heat_flux+freshwater_flux+restoring_flux
-        if do_dflx: 
+        if do_dflx or (which_transf in ['srf', 'inner']): 
             data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict)
             
             # Add subsequent variables one by one, freeing memory as we go
             for var in ['std_frwt_flux', 'std_rest_flux']:
-                print(var)
                 data['std_heat_flux'] += load_data_fesom2(mesh, datapath, vname=var, **input_dict)[var]
                 gc.collect()
             
@@ -179,20 +179,21 @@ def load_dmoc_data(mesh                         ,
             data_dMOC  = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
             del(data)
             gc.collect()
-            display(data_dMOC)
             
         # compute single flux from heat_flux & freshwater_flux &restoring_flux
-        else:
+        elif (which_transf in ['fh']): 
             data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict).rename({'std_heat_flux':'dmoc_fh'})
             data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs) 
             del(data)
             gc.collect()
             
+        elif (which_transf in ['fw']):     
             data = load_data_fesom2(mesh, datapath, vname='std_frwt_flux', **input_dict).rename({'std_frwt_flux':'dmoc_fw'})
             data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
             del (data)
             gc.collect()
             
+        elif (which_transf in ['fr']):     
             data = load_data_fesom2(mesh, datapath, vname='std_rest_flux', **input_dict).rename({'std_rest_flux':'dmoc_fr'})
             data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
             del(data)
@@ -214,6 +215,7 @@ def load_dmoc_data(mesh                         ,
         data_dMOC = data_dMOC.assign_coords({ 'dens'  :dens  , \
                                               'w_dens':w_dens })
         del(w, wd, w_dens)
+        gc.collect()
         
         #_______________________________________________________________________
         # rescue global attributes will get lost during multiplication
@@ -227,6 +229,7 @@ def load_dmoc_data(mesh                         ,
         # put back global attributes
         data_dMOC = data_dMOC.assign_attrs(gattrs)
         del(gattrs)
+        gc.collect()
         
     #___________________________________________________________________________
     # add volume trend  
@@ -796,6 +799,13 @@ def calc_dmoc(mesh,
                 vattr.update({'long_name':'Surface Transformation'                 , 'short_name':strmoc+'_srf'   , 'units':'Sv'   })
                 dmoc['dmoc_srf'] = dmoc['dmoc_srf'].assign_attrs(vattr)
                 if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr'])
+                
+            elif 'dmoc_fd' in dmoc.data_vars:
+                dmoc =  dmoc.rename({'dmoc_fd':'dmoc_srf'})
+                dmoc['dmoc_srf'] = -dmoc['dmoc_srf']
+                vattr = dmoc['dmoc_srf'].attrs
+                vattr.update({'long_name':'Surface Transformation'                 , 'short_name':strmoc+'_srf'   , 'units':'Sv'   })
+                dmoc['dmoc_srf'] = dmoc['dmoc_srf'].assign_attrs(vattr)
 
         elif 'inner' in which_transf:
             if 'dmoc_fh' in dmoc.data_vars and 'dmoc_fw' in dmoc.data_vars and 'dmoc_fr' in dmoc.data_vars and 'dmoc' in dmoc.data_vars:
@@ -806,6 +816,21 @@ def calc_dmoc(mesh,
                 dmoc['dmoc_inner'] = dmoc['dmoc_inner'].assign_attrs(vattr)
                 if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr', 'dmoc'])
                 
+            elif 'dmoc_fd' in dmoc.data_vars:
+                dmoc['dmoc_inner'] =  dmoc['dmoc']+dmoc['dmoc_fd']
+                
+                vattr = dmoc['dmoc'].attrs
+                vattr.update({'long_name':'Inner Transformation'                 , 'short_name':strmoc+'_inner'   , 'units':'Sv'   })
+                dmoc['dmoc_inner'] = dmoc['dmoc_inner'].assign_attrs(vattr)
+                if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fd','dmoc'])
+        
+        elif which_transf in ['fh']: 
+            dmoc['dmoc_fh'] =  -dmoc['dmoc_fh']                
+        elif which_transf in ['fw']: 
+            dmoc['dmoc_fw'] =  -dmoc['dmoc_fw']                
+        elif which_transf in ['fr']: 
+            dmoc['dmoc_fr'] =  -dmoc['dmoc_fr']                
+            
     #___________________________________________________________________________
     # compute depth of max and mean bottom topography
     elemz     = xr.DataArray(np.abs(mesh.zlev[mesh.e_iz]), dims=['elem'])
@@ -829,7 +854,7 @@ def calc_dmoc(mesh,
     if do_compute: dmoc = dmoc.compute()
     if do_load   : dmoc = dmoc.load()
     if do_persist: dmoc = dmoc.persist()
-    
+    print(dmoc)
     #___________________________________________________________________________
     return(dmoc)
 
@@ -1203,6 +1228,13 @@ def calc_dmoc_dask( mesh                          ,
                 dmoc['dmoc_srf'] = dmoc['dmoc_srf'].assign_attrs(vattr)
                 if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr'])
 
+            elif 'dmoc_fd' in dmoc.data_vars:
+                dmoc =  dmoc.rename({'dmoc_fd':'dmoc_srf'})
+                dmoc['dmoc_srf'] = -dmoc['dmoc_srf']
+                vattr = dmoc['dmoc_srf'].attrs
+                vattr.update({'long_name':'Surface Transformation'                 , 'short_name':strmoc+'_srf'   , 'units':'Sv'   })
+                dmoc['dmoc_srf'] = dmoc['dmoc_srf'].assign_attrs(vattr)
+
         elif 'inner' in which_transf:
             if 'dmoc_fh' in dmoc.data_vars and 'dmoc_fw' in dmoc.data_vars and 'dmoc_fr' in dmoc.data_vars and 'dmoc' in dmoc.data_vars:
                 dmoc['dmoc_inner'] =  dmoc['dmoc']+(dmoc['dmoc_fh']+dmoc['dmoc_fw']+dmoc['dmoc_fr'])
@@ -1211,7 +1243,24 @@ def calc_dmoc_dask( mesh                          ,
                 vattr.update({'long_name':'Inner Transformation'                 , 'short_name':strmoc+'_inner'   , 'units':'Sv'   })
                 dmoc['dmoc_inner'] = dmoc['dmoc_inner'].assign_attrs(vattr)
                 if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fh', 'dmoc_fw', 'dmoc_fr', 'dmoc'])
+            
+            elif 'dmoc_fd' in dmoc.data_vars:
+                dmoc['dmoc_inner'] =  dmoc['dmoc']+dmoc['dmoc_fd']
                 
+                vattr = dmoc['dmoc'].attrs
+                vattr.update({'long_name':'Inner Transformation'                 , 'short_name':strmoc+'_inner'   , 'units':'Sv'   })
+                dmoc['dmoc_inner'] = dmoc['dmoc_inner'].assign_attrs(vattr)
+                if do_dropvar: dmoc  = dmoc.drop_vars(['dmoc_fd','dmoc'])
+        
+        elif which_transf in ['fh']: 
+            dmoc['dmoc_fh'] =  -dmoc['dmoc_fh']
+            
+        elif which_transf in ['fw']: 
+            dmoc['dmoc_fw'] =  -dmoc['dmoc_fw']
+            
+        elif which_transf in ['fr']: 
+            dmoc['dmoc_fr'] =  -dmoc['dmoc_fr']                
+            
     #___________________________________________________________________________
     # compute depth of max topography based on zcoord
     if do_botmax_z:
