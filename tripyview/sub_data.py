@@ -1635,7 +1635,8 @@ def do_scalar_horizontal_gradient(data, mesh, vname, do_grad=None, ds_diag=None)
         :do_grad:  str (optional), orientation of gradient are to be computed.
                    Please set as either `zonal` or `meridional`. Default is `None`.
 
-        :ds_diag:  xarray dataset object (optional), containing mesh metadata.
+        :ds_diag:  xarray dataset object (optional), containing mesh metadata
+                   (e.g. fesom.mesh.diag.nc)
 
     Returns:
 
