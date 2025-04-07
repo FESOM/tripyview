@@ -164,6 +164,8 @@ def load_data_fesom2(mesh,
     do_vec  = False
     do_sclrv= None # do scalar velocity compononent
     do_norm = False
+    do_grad = None
+    ds_diag = None
     do_pdens= False
     str_adep, str_atim = '', '' # string for arithmetic
     str_ldep, str_ltim = '', '' # string for labels
@@ -551,6 +553,10 @@ def load_data_fesom2(mesh,
     ##___________________________________________________________________________
     ## compute norm of the vectors if do_norm=True    
     #data = do_rescaling(data, do_rescale)
+
+    #___________________________________________________________________________
+    ## compute horizontal gradient of scalars
+    data = do_scalar_horizontal_gradient(data, mesh, vname, do_grad, ds_diag)
 
     #___________________________________________________________________________
     # compute potential density if do_pdens=True    
@@ -1612,7 +1618,64 @@ def do_vector_norm(data, do_norm):
     #return(data)  
 
 
+#
+# ___COMPUTE SCALAR GRADIENTS__________________________________________________
+def do_scalar_horizontal_gradient(data, mesh, vname, do_grad=None, ds_diag=None):
+    """
+    --> compute gradients of scalar properties
 
+    Parameters:
+
+        :data:     xarray dataset object, containing temperature and salinity data.
+        
+        :mesh:     fesom2 mesh object.
+
+        :vname:    str, name of scalar variable.
+
+        :do_grad:  str (optional), orientation of gradient are to be computed.
+                   Please set as either `zonal` or `meridional`. Default is `None`.
+
+        :ds_diag:  xarray dataset object (optional), containing mesh metadata.
+
+    Returns:
+
+        :data:     xarray dataset object, containing scalar gradient
+    """
+
+    if do_grad is not None:
+        print("Compute scalar gradient.")
+
+        if data[vname].ndim > 1:
+            raise NotImplementedError("Node-to-element operation is not implemented for multidimensional arrays yet.")
+        else:
+            data[vname] = xr.DataArray(data[vname].values[mesh.e_i.T],
+                                       dims=["n3","elem_n"]
+                    )
+
+        if ds_diag is None:
+            raise ValueError("Metadata needs to be provided for grid spacing.")
+
+        if do_grad == "zonal":
+            # rename variable name
+            new_vname = vname+"_x"
+
+            ddx = ds_diag.gradient_sca_x
+            data[vname] = (data[vname] * ddx).sum('n3')
+
+        elif do_grad == "meridional":
+            # rename variable name
+            new_vname = vname+"_y"
+
+            ddy = ds_diag.gradient_sca_y
+            data[vname] = (data[vname] * ddy).sum('n3')
+
+        else:
+            raise NotImplementedError("Only zonal and meridional gradients are implemented.")
+    
+        # rename variable name
+        data = data.rename({vname:new_vname})
+
+    return(data)
 #
 #
 # ___COMPUTE NORM OF VECTOR DATA_______________________________________________
