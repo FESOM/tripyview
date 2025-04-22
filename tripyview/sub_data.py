@@ -54,6 +54,7 @@ def load_data_fesom2(mesh,
                      do_info        = True      ,
                      client         = None      , 
                      engine         = 'netcdf4' , # 'h5netcdf'
+                     diagpath       = None      ,
                      **kwargs):
     """
     --> general loading of fesom2 and fesom14cmip6 data
@@ -158,6 +159,11 @@ def load_data_fesom2(mesh,
         
         :client:        dask client object (default=None)
         
+        :diagpath:      str (default=None) if str give custom path to specific fesom2
+                        fesom.mesh.diag.nc file, if None routine looks automatically in    
+                        meshfolder and original datapath folder (stored as attribute in)
+                        xarray dataset object 
+        
     Returns:
     
         :data:          object, returns xarray dataset object
@@ -171,6 +177,8 @@ def load_data_fesom2(mesh,
     do_vec  = False
     do_sclrv= None # do scalar velocity compononent
     do_norm = False
+    do_gradx= False
+    do_grady= False
     do_pdens= False
     str_adep, str_atim = '', '' # string for arithmetic
     str_ldep, str_ltim = '', '' # string for labels
@@ -279,23 +287,35 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________    
     # analyse vname input if vector data should be load  "vec+vnameu+vnamev"
     vname2, vname_tmp = None, None
-    if ('vec' in vname) or ('norm' in vname):
-        if ('vec'  in vname): do_vec =True
-        if ('norm' in vname): do_norm=True
+    if ('vec' in vname) or ('norm' in vname) or ('grad' in vname):
+        if ('vec'    in vname): do_vec   = True
+        if ('norm'   in vname): do_norm  = True
+        if ('gradx'  in vname): do_gradx = True
+        if ('grady'  in vname): do_grady = True
+        if ('gradxy' in vname): do_gradx, do_grady = True, True
         
         # in case you want to plot a single scalar velocity component, the velocities
         # might still need to be rotated depending what are the settings in the model
         # for the rotation you still need both components. After rotation the unnecessary 
         # component can be kicked out. The component that needs to be keept is 
-        # defined by ":" vname = 'vec+u+v:v', the variable thast is kept
+        # defined by ":" vname = 'vec+u+v:v', the variable that is kept
         # is written into do_sclrv
         if ':' in vname: vname, do_sclrv = vname.split(':')    
         
         # determine the varaibles for the two vector component separated by "+"
         aux = vname.split('+')
-        if len(aux)==2 or aux[-1]=='': 
-            raise ValueError(" to load vector or norm of data two variables need to be defined: vec+u+v")
-        vname, vname2 = aux[1], aux[2]
+        
+        if   do_vec   : aux.remove('vec'   )
+        if   do_norm  : aux.remove('norm'  )
+        if   do_gradx and do_grady: aux.remove('gradxy') 
+        elif do_gradx : aux.remove('gradx' ) 
+        elif do_grady : aux.remove('grady' ) 
+        
+        if ((do_vec) or (do_norm)) and (not do_gradx and not do_grady):
+            if len(aux)==1: raise ValueError(" to load vector or norm of data two variables need to be defined: vec+u+v")
+            vname, vname2 = aux[0], aux[1]
+        elif do_gradx or do_grady:
+            vname = aux[0]
         del aux
         
     elif ('sigma' in vname) or ('pdens' in vname):
@@ -331,7 +351,7 @@ def load_data_fesom2(mesh,
                             'combine'       :'nested', 
                             'compat'        :'override', 
                             'decode_coords' :False, 
-                            'decode_times'  :False, 
+                            'decode_times'  :True, 
                             'autoclose'     :False, 
                             'lock'          :False, 
                             'backend_kwargs':{'format': 'NETCDF4', 'mode':'r'}})# load normal FESOM2 run file
@@ -360,7 +380,7 @@ def load_data_fesom2(mesh,
         
         # in case of vector load also meridional data and merge into 
         # dataset structure
-        if do_vec or do_norm or do_pdens:
+        if (do_vec or do_norm or do_pdens) and vname2 is not None:
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
             data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
                                                          preprocess=partial_func, 
@@ -383,7 +403,7 @@ def load_data_fesom2(mesh,
         print(pathlist)
         data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
                                  autoclose=False, preprocess=partial_func, **kwargs)
-        if do_vec or do_norm or do_pdens:
+        if (do_vec or do_norm or do_pdens) and vname2 is not None:
             # which variables should be dropped 
             vname_drop = list(data.keys())
             print(' > var in file:', vname_drop)
@@ -474,9 +494,12 @@ def load_data_fesom2(mesh,
     if   ('nz'   in data.dims): dimn_v = 'nz'
     elif ('nz1'  in data.dims): dimn_v = 'nz1'
     elif ('ndens'in data.dims): dimn_v = 'ndens'
+    
     # check dimension ordering
-    if   ( len(data.dims)==3 and list(data.dims) != ['time', dimn_v, dimn_h]): data = data.transpose('time', dimn_v, dimn_h)
-    elif ( len(data.dims)==2 and list(data.dims) != [dimn_v, dimn_h])        : data = data.transpose(dimn_v, dimn_h)
+    if 'time' in data.dims:
+        if   ( len(data.dims)==3 and list(data.dims) != ['time', dimn_v, dimn_h]): data = data.transpose('time', dimn_v, dimn_h)
+    else:    
+        if ( len(data.dims)==2 and list(data.dims) != [dimn_v, dimn_h])        : data = data.transpose(dimn_v, dimn_h)
     del dimn_h, dimn_v
     
     #___________________________________________________________________________
@@ -552,6 +575,10 @@ def load_data_fesom2(mesh,
     # only 2D data found            
     else: depth=None
     
+    #___________________________________________________________________________
+    # compute gradient,  do_gradx=True, do_grady=True
+    data = do_gradient(data, mesh, datapath, do_gradx, do_grady, diagpath=diagpath, 
+                       runid=runid, do_info=do_info, chunks=chunks)
     #___________________________________________________________________________
     # rotate the vectors if do_rot=True and do_vec=True
     data = do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv)
@@ -1001,8 +1028,8 @@ def do_select_time(data, mon, day, record, str_mtim):
         
         # than check if mon or day is defined and overwrite selction mon day
         # selction array
-        if   (mon is not None): sel_mon = np.in1d( data['time.month'], mon)
-        if   (day is not None): sel_day = np.in1d( data['time.day']  , day)
+        if   (mon is not None): sel_mon = np.isin( data['time.month'], mon)
+        if   (day is not None): sel_day = np.inin( data['time.day']  , day)
         
         # check if selection would discard all time slices 
         if np.all(sel_mon==False): 
@@ -1554,6 +1581,143 @@ def do_vector_norm(data, do_norm):
     #___________________________________________________________________________    
     return(data)  
 
+
+
+#
+#
+# ___COMPUTE NORM OF VECTOR DATA_______________________________________________
+def do_gradient(data, mesh, datapath, do_gradx, do_grady, 
+                diagpath=None, 
+                runid='fesom', 
+                chunks=dict(),
+                do_info=False):
+    """
+    --> compute gradients
+    
+    Parameters:
+    
+        :data:      xarray dataset object
+        
+        :mesh:      fesom2 tripyview mesh object,  with all mesh information
+        
+        :datapath:  str, path that leads to the FESOM2 data
+        
+        :do_gradx:  bool, compute gradient in zonal directions
+        
+        :do_grady:  bool, compute gradient in meridional directions
+    
+    Returns:
+    
+        :data:      xarray dataset object
+    
+    ____________________________________________________________________________
+    """
+    if do_gradx or do_grady:
+        print(' > compute gradient')
+
+        # Extract variable names (assuming exactly two variables exist)
+        vname = list(data.data_vars)[0]  # Use `.data_vars` instead of `keys()` to ensure only variables are considered
+        gattrs, vattrs = data.attrs, data[vname].attrs
+        
+        # Define new variable name
+        if do_gradx: vname_grdx = 'gradx_{}'.format(vname)
+        if do_grady: vname_grdy = 'grady_{}'.format(vname)
+        
+        # scan for diagnostic files in meshpath, datapath and datapath/1/ or use 
+        # diagpath directly 
+        if diagpath is None:
+            fname = runid+'.mesh.diag.nc'
+            
+            if   os.path.isfile( os.path.join(datapath, fname) ): 
+                dname = data[vname].attrs['datapath']
+            elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/'), fname) ): 
+                dname = os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/')
+            elif os.path.isfile( os.path.join(mesh.path,fname) ): 
+                dname = mesh.path
+            else:
+                raise ValueError('could not find directory with...mesh.diag.nc file')
+            
+            diagpath = os.path.join(dname,fname)
+            if do_info: print(' --> found diag in directory:{}', diagpath)
+        
+        # decide over elemental chunking of the gradients
+        if  'elem' in data.chunksizes:
+            set_chnk = {'elem': data.chunksizes['elem']}
+        elif 'elem' in chunks: 
+            set_chnk = {'elem': chunks['elem']}
+        else:
+            set_chnk = {'elem': 'auto'}
+        
+        # load gradient weights  from diagnostic file for scalar gradients
+        if   'nod2' in data.dims:
+            data   = data.drop_vars(['w_A', 'lon', 'lat', 'ispbnd', 'nodi', 'nodiz', 'nzi']) 
+            data   = data.chunk({'nod2':-1}).persist()
+            
+            w_grad_name = list()
+            if do_gradx: w_grad_name.append('gradient_sca_x')
+            if do_grady: w_grad_name.append('gradient_sca_y')
+            w_grad = xr.open_mfdataset(diagpath, parallel=True, data_vars=w_grad_name, chunks=set_chnk)
+            
+            # I do this here in a little bit weird way to be efficient in terms of 
+            # reindexing and dask operation and to avoid exeedingly high memory demand 
+            # for very large grids
+            grad_x, grad_y = 0, 0
+            for ii in range(3):
+                e_i    = xr.DataArray(mesh.e_i[:,ii], dims=['elem'])
+                data_e = data[vname].isel(nod2=e_i)
+                if do_gradx: grad_x += data_e * w_grad['gradient_sca_x'].isel(n3=ii)
+                if do_grady: grad_y += data_e * w_grad['gradient_sca_y'].isel(n3=ii)
+            del e_i, data_e
+            del w_grad
+            gc.collect
+            
+        # load gradient weights  from diagnostic file for vector gradients, they only 
+        # got added in a late version of fesom>2.6.8
+        elif 'elem' in data.dims:
+            data= data.drop_vars(['w_A', 'lon', 'lat', 'ispbnd', 'elemi', 'elemiz', 'nzi']) 
+            data = data.chunk({'elem':-1}).persist()
+            
+            w_grad_name = list()
+            if do_gradx: w_grad_name.append('gradient_vec_x')
+            if do_grady: w_grad_name.append('gradient_vec_y')
+            w_grad_name.append('face_links')
+            w_grad = xr.open_mfdataset(diagpath, parallel=True, data_vars=w_grad_name, chunks=set_chnk)
+            
+            # I do this here in a little bit weird way to be efficient in terms of 
+            # reindexing and dask operation and to avoid exeedingly high memory demand 
+            # for very large grids
+            grad_x, grad_y = 0, 0
+            for ii in range(3):
+                e_i    = w_grad['face_links'].isel(n3=ii)
+                data_e = data[vname].isel(elem=e_i)
+                if do_gradx: grad_x += data_e * w_grad['gradient_vec_x'].isel(n3=ii)
+                if do_grady: grad_y += data_e * w_grad['gradient_vec_y'].isel(n3=ii)
+            del e_i, data_e
+            del w_grad
+            gc.collect
+        
+        # add attributes
+        if do_gradx: 
+            vattrs['description'] = 'zonal ' + data[vname].attrs['description'] + ' gradient'
+            vattrs['long_name']   = 'zonal ' + data[vname].attrs['long_name'  ] + ' gradient'
+            grad_x = grad_x.assign_attrs(vattrs)
+                
+        if do_grady: 
+            vattrs['description']  = 'meridional ' + data[vname].attrs['description'] + ' gradient'
+            vattrs['long_name']    = 'meridional ' + data[vname].attrs['long_name'  ] + ' gradient'
+            grad_y = grad_y.assign_attrs(vattrs)  
+        del(data)
+        gc.collect()
+        
+        # create new gradient dataset
+        data_vars  = dict()
+        if do_gradx: data_vars[vname_grdx] = grad_x.persist()
+        if do_grady: data_vars[vname_grdy] = grad_y.persist()
+        data       = xr.Dataset(data_vars=data_vars, attrs=gattrs)
+        data, _, _ = do_gridinfo_and_weights(mesh, data, do_zweight=False, do_hweight=True)
+        
+    #___________________________________________________________________________    
+    return(data)  
 
 
 #
