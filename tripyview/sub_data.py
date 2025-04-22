@@ -49,7 +49,8 @@ def load_data_fesom2(mesh,
                      do_parallel    = False     ,
                      chunks         = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
                                         'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
-                                        'ndens':'auto'},
+                                        'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
+                                        'node' :'auto'},
                      do_showtime    = False     ,
                      do_info        = True      ,
                      client         = None      , 
@@ -364,7 +365,7 @@ def load_data_fesom2(mesh,
                                  preprocess=partial_func, 
                                  **engine_dict, 
                                  **kwargs)
-                                 
+        
         # !!! --> this is not a good idea, to do chunking after loading requires 
         # !!! --> massivly more RAM than giving the chunk operation directly into 
         # !!! --> loading routine                          
