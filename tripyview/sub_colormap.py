@@ -160,7 +160,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
             #___________________________________________________________________
             # MY different colormap definitions
             #-------------------------------------------------------------------
-            if   cname in ['blue2red', 'red2blue']: 
+            if  any(sub in cname for sub in ['blue2red', 'red2blue']): 
                 cmap_arr = np.array([[0.0, 0.19, 1.0], # blue
                                     [0.0, 0.72, 1.0],
                                     [1.0, 1.0 , 1.0], # white 
@@ -168,7 +168,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [1.0, 0.19, 0.0]])# red
                 if cname == 'red2blue': cmap_arr = np.flipud(cmap_arr)
             #-------------------------------------------------------------------
-            elif cname in ['dblue2dred', 'dred2dblue']:
+            elif any(sub in cname for sub in ['dblue2dred', 'dred2dblue']):
                 cmap_arr = np.array([[0.0, 0.19, 0.5],
                                     [0.0, 0.19, 1.0],
                                     [0.0, 0.72, 1.0],
@@ -178,7 +178,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [0.5, 0.19, 0.0]])        
                 if cname == 'dred2dblue': cmap_arr = np.flipud(cmap_arr)
             #-------------------------------------------------------------------
-            elif cname in ['green2orange', 'orange2green']:    
+            elif any(sub in cname for sub in ['green2orange', 'orange2green']):    
                 cmap_arr = np.array([
                                     [0.6039,    0.8039,      0.0],
                                     [0.8000,    1.0000,      0.0],
@@ -291,7 +291,7 @@ def colormap_c2c(cmin, cmax, cref, cnumb, cname, cstep=None, do_slog=False,
                                     [0.9603,    0.4562,    0.5268]])
             
             #-------------------------------------------------------------------
-            elif cname in ['wbgyr', 'rygbw']:
+            elif any(sub in cname for sub in ['wbgyr', 'rygbw']):    
                 cmap_arr = np.array([[1.0000,    1.0000,    1.0000],
                                     [0.2000,    0.6000,    1.0000],
                                     [0.0   ,    1.0000,    0.6000],
