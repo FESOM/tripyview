@@ -1336,7 +1336,7 @@ ___________________________________________""".format(
         ## python  sortrows algorythm --> matlab equivalent
         edge    = edge.tolist()
         edge.sort()
-        edge    = np.array(edge)
+        edge    = np.array(edge, type=np.int32)
         
         idx     = np.diff(edge,axis=0)==0
         idx     = np.all(idx,axis=1)
@@ -1347,6 +1347,11 @@ ___________________________________________""".format(
         bnde    = edge[idx==False,:]
         nbnde   = bnde.shape[0];
         del edge, idx
+        
+        #import matplotlib.pyplot as plt
+        #plt.figure()
+        #plt.plot(self.n_x[bnde.flatten()], self.n_y[bnde.flatten()], 'r*')
+        #plt.show()
         
         #_______________________________________________________________________
         run_cont        = np.zeros((1,nbnde))*np.nan
@@ -1472,7 +1477,10 @@ ___________________________________________""".format(
                 if np.any(np.diff(polygon_xy[[0,-1],:])!=0): polygon_xy = np.vstack(( (polygon_xy,polygon_xy[0,:]) ))
             
             else: 
-                self.lsmask_a.append(polygon_xy)   
+                if polygon_xy.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xy)   
                 continue
             
             #___________________________________________________________________
@@ -1514,13 +1522,15 @@ ___________________________________________""".format(
                 ## polygon must have at last 3 points
                 #if polygon_xyl.shape[0]==2: 
                     #polygon_xyl = np.vstack(( polygon_xyl, polygon_xyl[0,:] ))
-                    
-                self.lsmask_a.append(polygon_xyl)
+                if polygon_xyl.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xyl)
                 
                 #_______________________________________________________________
                 # do polygon on right periodic boundary
                 polygon_xyr = polygon_xy.copy()
-                polygon_xyr[aux_ir[0],0]   = xmax   
+                polygon_xyr[aux_ir[0],0]   = xmax
                 polygon_xyr[:aux_il[0]+1,:]= np.nan   
                 for jj in range(1,len(aux_ir)-1,2):
                     polygon_xyr[[aux_ir[jj],aux_ir[jj+1]],0] = xmax
@@ -1539,8 +1549,10 @@ ___________________________________________""".format(
                 ## polygon must have at last 3 points
                 #if polygon_xyr.shape[0]==2: 
                     #polygon_xyr = np.vstack(( polygon_xyr, polygon_xyr[0,:] ))
-                    
-                self.lsmask_a.append(polygon_xyr)
+                if polygon_xyr.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xyr)
                 
                 del polygon_xy, aux_il, aux_ir
                 
@@ -1581,8 +1593,12 @@ ___________________________________________""".format(
                 ## polygon must have at least 3 points
                 #if polygon_xy.shape[0]==2: 
                     #polygon_xy = np.vstack(( polygon_xy,polygon_xy[0,:] ))
+                if polygon_xy.shape[0]<=3: 
+                    ...
+                else:
+                    self.lsmask_a.append(polygon_xy)
                     
-                self.lsmask_a.append(polygon_xy)
+                    
                 del polygon_xy, pbndr, pcrnr, pcrnl ,pbndl, 
                 del aux_il, aux_ir, aux_i, aux_x, aux_y
                 
@@ -1634,7 +1650,8 @@ def lsmask_patch(lsmask):
     #___________________________________________________________________________
     polygonlist=[]
     #for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
-    for xycoord in lsmask: 
+    for ii, xycoord in enumerate(lsmask):
+        #print(ii, xycoord.shape)
         poly = Polygon(xycoord)
                     
         # Ensure polygons are counterclockwise
@@ -1645,14 +1662,12 @@ def lsmask_patch(lsmask):
         if not poly.is_valid:
             poly = make_valid(poly)  # Attempt to fix the geometry
         
-            
         # Check if make_valid() returned a MultiPolygon
         if isinstance(poly, MultiPolygon):
             polygonlist.extend(poly.geoms)  # Unpack MultiPolygon into list
         elif poly.is_valid:
             polygonlist.append(poly)
-            
-    #print(polygonlist)  
+        
     lsmask_p = MultiPolygon(polygonlist)
     
     #___________________________________________________________________________

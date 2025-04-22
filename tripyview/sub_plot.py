@@ -6093,15 +6093,16 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     cbl_optdefault = dict({'fontsize':fsize})
     cbl_optdefault.update(cbl_opt)
     
-    ## wrap xlabel string when they are to long
-    ## Estimate the width of the axes dynamically
-    #axes_width_px = hcb_ii.ax.get_position().height * hax_ii.fig_height * hax_ii.fig_dpi
+    # wrap xlabel string when they are to long
+    # Estimate the width of the axes dynamically
+    axes_width_px = hcb_ii.ax.get_position().height * hax_ii.fig_height * hax_ii.fig_dpi
     
-    ## Estimate the width of the axes in terms of characters
-    ## font_size = plt.rcParams['font.size']
-    #font_size = hcb_ii.ax.yaxis.get_label().get_size()
-    #max_chars_per_line = int(axes_width_px / (font_size))  # Empirical factor for font size to character width ratio
-    #cb_label = '\n'.join(textwrap.wrap(cb_label, width=max_chars_per_line))
+    # Estimate the width of the axes in terms of characters
+    # font_size = plt.rcParams['font.size']
+    max_chars_per_line = 25
+    font_size = hcb_ii.ax.yaxis.get_label().get_size()
+    max_chars_per_line = int(axes_width_px / (font_size))  # Empirical factor for font size to character width ratio
+    cb_label = '\n'.join(textwrap.wrap(cb_label, width=max_chars_per_line))
     
     #___________________________________________________________________________
     # change fontsize of colorbar label
