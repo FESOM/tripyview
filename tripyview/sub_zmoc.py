@@ -75,7 +75,7 @@ def calc_zmoc(mesh,
         :do_onelem:     bool (default=False) ... should computation be done on 
                         elements or vertices
         
-        :diagpath       str (default=None) if str give custom path to specific fesom2
+        :diagpath:      str (default=None) if str give custom path to specific fesom2
                         fesom.mesh.diag.nc file, if None routine looks automatically in    
                         meshfolder and original datapath folder (stored as attribute in)
                         xarray dataset object 

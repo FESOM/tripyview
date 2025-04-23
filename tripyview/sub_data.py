@@ -577,21 +577,22 @@ def load_data_fesom2(mesh,
     else: depth=None
     
     #___________________________________________________________________________
-    # compute gradient,  do_gradx=True, do_grady=True
-    data = do_gradient(data, mesh, datapath, do_gradx, do_grady, diagpath=diagpath, 
-                       runid=runid, do_info=do_info, chunks=chunks)
-    #___________________________________________________________________________
     # rotate the vectors if do_rot=True and do_vec=True
     data = do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv)
-    
-    #___________________________________________________________________________
-    # compute norm of the vectors if do_norm=True    
-    data = do_vector_norm(data, do_norm)
     
     #___________________________________________________________________________
     # compute potential density if do_pdens=True    
     if do_pdens and depth is None: 
         data, vname = do_potential_density(data, do_pdens, vname, vname2, vname_tmp)
+    
+    #___________________________________________________________________________
+    # compute gradient,  do_gradx=True, do_grady=True
+    data = do_gradient(data, mesh, datapath, do_gradx, do_grady, diagpath=diagpath, 
+                       runid=runid, do_info=do_info, chunks=chunks)
+    
+    #___________________________________________________________________________
+    # compute norm of the vectors if do_norm=True    
+    data = do_vector_norm(data, do_norm)
     
     #___________________________________________________________________________
     # interpolate from elements to node
@@ -1574,7 +1575,12 @@ def do_vector_norm(data, do_norm):
         #data[new_vname] = np.sqrt( np.square(data[vname[0]]) + np.square(data[vname[1]]) )
         
         # rescue attributes
-        data[new_vname].attrs = data[vname[0]].attrs.copy()
+        vattrs = data[vname[0]].attrs
+        if 'zonal'      in vattrs['long_name'  ]: vattrs['long_name'  ] = vattrs['long_name'  ].replace('zonal'     , "norm")
+        if 'meridional' in vattrs['long_name'  ]: vattrs['long_name'  ] = vattrs['long_name'  ].replace('meridional', "norm")
+        if 'zonal'      in vattrs['description']: vattrs['description'] = vattrs['description'].replace('zonal'     , "norm")
+        if 'meridional' in vattrs['description']: vattrs['description'] = vattrs['description'].replace('meridional', "norm")
+        data[new_vname] = data[new_vname].assign_attrs(vattrs)
         
         # delet variable vname2 from Dataset
         data = data.drop_vars(vname)
@@ -1654,6 +1660,7 @@ def do_gradient(data, mesh, datapath, do_gradx, do_grady,
             data   = data.drop_vars(['w_A', 'lon', 'lat', 'ispbnd', 'nodi', 'nodiz', 'nzi']) 
             data   = data.chunk({'nod2':-1}).persist()
             
+            # load only weights from diag file to compute gradients
             w_grad_name = list()
             if do_gradx: w_grad_name.append('gradient_sca_x')
             if do_grady: w_grad_name.append('gradient_sca_y')
@@ -1678,6 +1685,7 @@ def do_gradient(data, mesh, datapath, do_gradx, do_grady,
             data= data.drop_vars(['w_A', 'lon', 'lat', 'ispbnd', 'elemi', 'elemiz', 'nzi']) 
             data = data.chunk({'elem':-1}).persist()
             
+            # load only weights from diag file to compute gradients
             w_grad_name = list()
             if do_gradx: w_grad_name.append('gradient_vec_x')
             if do_grady: w_grad_name.append('gradient_vec_y')
@@ -1704,8 +1712,8 @@ def do_gradient(data, mesh, datapath, do_gradx, do_grady,
             grad_x = grad_x.assign_attrs(vattrs)
                 
         if do_grady: 
-            vattrs['description']  = 'meridional ' + data[vname].attrs['description'] + ' gradient'
-            vattrs['long_name']    = 'meridional ' + data[vname].attrs['long_name'  ] + ' gradient'
+            vattrs['description'] = 'meridional ' + data[vname].attrs['description'] + ' gradient'
+            vattrs['long_name']   = 'meridional ' + data[vname].attrs['long_name'  ] + ' gradient'
             grad_y = grad_y.assign_attrs(vattrs)  
         del(data)
         gc.collect()
@@ -1995,8 +2003,8 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0, cli
     #___________________________________________________________________________
     # create lon lat bins 
     rad     , Rearth   = np.pi/180, 6371e3
-    lon_min , lon_max  = np.floor(data['lon'].min().compute()), np.ceil( data['lon'].max().compute())
-    lat_min , lat_max  = np.floor(data['lat'].min().compute()), np.ceil( data['lat'].max().compute())
+    lon_min , lon_max  = float(np.floor(data['lon'].min().compute())), float(np.ceil( data['lon'].max().compute()))
+    lat_min , lat_max  = float(np.floor(data['lat'].min().compute())), float(np.ceil( data['lat'].max().compute()))
     lon_bins, lat_bins = np.arange(lon_min, lon_max+dlon/2, dlon), np.arange(lat_min, lat_max+dlat/2, dlat)
     nlon    , nlat     = len(lon_bins)-1, len(lat_bins)-1
     lon     , lat      = (lon_bins[1:]+lon_bins[:-1])*0.5, (lat_bins[1:]+lat_bins[:-1])*0.5

@@ -5157,11 +5157,12 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
                 
         # limit data to regional box
         if box is not None:
-            idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
-            data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
-            data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
-            data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
-            del(idx_x, idx_y)
+            if len(box)==4:
+                idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
+                data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
+                data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
+                data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
+                del(idx_x, idx_y)
         
         # vector norm --> speed
         data_s = np.sqrt(data_u**2 + data_v**2)
@@ -5207,12 +5208,14 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
                                    'dy':5, # vertical distance of legend labels in deg
                                    'dw':10, # width of lines in deg
                                    'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
+            if isinstance(hax_ii.projection, ccrs.SouthPolarStereo): leg_optdefault.update({'x': -60, 'y': box[3]-5, 'dy':10})
+            if isinstance(hax_ii.projection, ccrs.NorthPolarStereo): leg_optdefault.update({'x': 80, 'y': box[3]-25, 'dy':25})    
             leg_optdefault.update(streaml_leg_opt)
             
             x, y, dy, dw   = leg_optdefault['x'], leg_optdefault['y'], leg_optdefault['dy'], leg_optdefault['dw']
             x01, y01 = hax_ii.projection.transform_point(x-dw, y, ccrs.PlateCarree())
-            x02, y02 = hax_ii.projection.transform_point(x  , y, ccrs.PlateCarree())
-            x03, y03 = hax_ii.projection.transform_point(x+2, y, ccrs.PlateCarree())
+            x02, y02 = hax_ii.projection.transform_point(x   , y, ccrs.PlateCarree())
+            x03, y03 = hax_ii.projection.transform_point(x+2 , y, ccrs.PlateCarree())
             for i, speed in enumerate(leg_optdefault['arr_s']):
                 # This linewidth
                 lw = speed2lw(speed, speed_min, speed_max, lw_min, lw_max)
@@ -5312,11 +5315,12 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
                 
         # limit data to regional box
         if box is not None:
-            idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
-            data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
-            data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
-            data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
-            del(idx_x, idx_y)
+            if len(box)==4:
+                idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
+                data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
+                data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
+                data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
+                del(idx_x, idx_y)
         
         # vector norm --> speed
         data_s = np.sqrt(data_u**2 + data_v**2)
@@ -5349,6 +5353,8 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
                                    'dy':5, # vertical distance of legend labels in deg
                                    'dw':10, # width of lines in deg
                                    'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
+            if isinstance(hax_ii.projection, ccrs.SouthPolarStereo): leg_optdefault.update({'x': -60, 'y': box[3]-5, 'dy':10})
+            if isinstance(hax_ii.projection, ccrs.NorthPolarStereo): leg_optdefault.update({'x': 80, 'y': box[3]-25, 'dy':25})    
             leg_optdefault.update(quiver_leg_opt)
             
             x, y, dy, dw   = leg_optdefault['x'], leg_optdefault['y'], leg_optdefault['dy'], leg_optdefault['dw']
