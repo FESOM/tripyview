@@ -12,43 +12,60 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    'cartopy',
-    'bokeh!=3.0.*,>=2.4.2',
-    'cmocean',
+    #___________________________________________________________________________
+    # numerical libraries 
+    'numpy',
+    'xarray',
     'dask',
     'distributed',
-    'ipython',
-    'joblib',
-    'jupyter',
-    'jupyterlab<4.0',
-    'jupyter_lsp',
-    'matplotlib',
-    "pickle5; python_version<'3.9'",
-    'libnetcdf',
-    'hdf5plugin', 
-    'netCDF4',
-    'numba',
-    'numpy',
     'pandas',
     'geopandas',
     'scipy',
+    'numba',
+    #___________________________________________________________________________
+    # jupyter stuff 
+    'ipython',
+    'jupyter',
+    'jupyterlab<4.0',
+    'jupyter_lsp',
+    #___________________________________________________________________________
+    # plotting 
+    'matplotlib',
+    'cartopy',
+    'cmocean',
+    'bokeh!=3.0.*,>=2.4.2',
+    'shapely',
+    #___________________________________________________________________________
+    # file reading 
+    'netCDF4',
+    'libnetcdf',
+    'h5netcdf',
+    'hdf5plugin', 
+    "pickle5; python_version<'3.9'",
+    'joblib',
+    #___________________________________________________________________________
+    # ocean properties
     'seawater',
     'gsw',
-    'shapely',
-    'xarray',
-    'pyfesom2',
-    'pyresample',
-    'pytest',
+    #___________________________________________________________________________
+    # tripyrun functionaallity
     'papermill', 
     'black',
     'jinja2',
     'pyyaml',
+    #___________________________________________________________________________
+    # 3d stuff 
     'pyvista[all]', #,jupyter,trame]',
     'vtk',
     'ipyvtklink',
     'imageio[ffmpeg]', 
     'ipympl',
     'ffmpeg-python',
+    #___________________________________________________________________________
+    #'pyfesom2',
+    #'pyresample',
+    'pytest',
+    
 ]
 
 setup_requirements = ['pytest-runner']
