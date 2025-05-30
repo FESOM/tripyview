@@ -351,7 +351,7 @@ def load_data_fesom2(mesh,
         #engine_dict = dict({})
         engine_dict = dict({
                             'engine'        :"netcdf4", 
-                            'combine'       :'nested', 
+                            #'combine'       :'nested', 
                             #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
                             'decode_coords' :False, 
                             'decode_times'  :True, 
