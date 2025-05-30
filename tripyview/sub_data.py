@@ -47,8 +47,8 @@ def load_data_fesom2(mesh,
                      do_load        = True      ,
                      do_persist     = False     ,
                      do_parallel    = False     ,
-                     chunks         = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
-                                        'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
+                     chunks         = { 'time' :'auto', 'elem':'auto', 'nod2'  :'auto', \
+                                        'edg_n':'auto', 'nz'  :'auto', 'nz1'   :'auto', \
                                         'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
                                         'node' :'auto'},
                      do_showtime    = False     ,
@@ -348,14 +348,17 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # load multiple files
     if   engine == 'netcdf4' : 
-        engine_dict = dict({'engine'        :"netcdf4", 
+        #engine_dict = dict({})
+        engine_dict = dict({
+                            'engine'        :"netcdf4", 
                             'combine'       :'nested', 
-                            'compat'        :'override', 
+                            #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
                             'decode_coords' :False, 
                             'decode_times'  :True, 
                             'autoclose'     :False, 
                             'lock'          :False, 
-                            'backend_kwargs':{'format': 'NETCDF4', 'mode':'r'}})# load normal FESOM2 run file
+                            'backend_kwargs':{'format': 'NETCDF4', 'mode':'r'}
+                            })# load normal FESOM2 run file
     elif engine == 'h5netcdf': 
         engine_dict = dict({'engine':"h5netcdf",'backend_kwargs':{'phony_dims': 'sort', 'decode_vlen_strings':False, 'invalid_netcdf':'ignore'}})# load normal FESOM2 run file
     
@@ -587,7 +590,7 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________
     # compute gradient,  do_gradx=True, do_grady=True
-    data = do_gradient(data, mesh, datapath, do_gradx, do_grady, diagpath=diagpath, 
+    data = do_gradient_xy(data, mesh, datapath, do_gradx, do_grady, diagpath=diagpath, 
                        runid=runid, do_info=do_info, chunks=chunks)
     
     #___________________________________________________________________________
@@ -1593,7 +1596,7 @@ def do_vector_norm(data, do_norm):
 #
 #
 # ___COMPUTE NORM OF VECTOR DATA_______________________________________________
-def do_gradient(data, mesh, datapath, do_gradx, do_grady, 
+def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady, 
                 diagpath=None, 
                 runid='fesom', 
                 chunks=dict(),

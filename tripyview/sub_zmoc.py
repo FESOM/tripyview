@@ -174,12 +174,12 @@ def calc_zmoc(mesh,
     # do moc calculation either on nodes or on elements        
     # keep in mind that node area info is changing over depth--> therefor load from file 
     if diagpath is None:
-        fname = data['w'].attrs['runid']+'.mesh.diag.nc'
+        fname = data[vname].attrs['runid']+'.mesh.diag.nc'
         
-        if   os.path.isfile( os.path.join(data['w'].attrs['datapath'], fname) ): 
-            dname = data['w'].attrs['datapath']
-        elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data['w'].attrs['datapath'])),'1/'), fname) ): 
-            dname = os.path.join(os.path.dirname(os.path.normpath(data['w'].attrs['datapath'])),'1/')
+        if   os.path.isfile( os.path.join(data[vname].attrs['datapath'], fname) ): 
+            dname = data[vname].attrs['datapath']
+        elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/'), fname) ): 
+            dname = os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/')
         elif os.path.isfile( os.path.join(mesh.path,fname) ): 
             dname = mesh.path
         else:
@@ -216,9 +216,9 @@ def calc_zmoc(mesh,
         # average from vertices towards elements
         e_i = xr.DataArray(mesh.e_i, dims=["elem",'n3'])
         if 'time' in list(data.dims): 
-            data = data.assign(w=data['w'][:, e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
+            data = data.assign(w=data[vname][:, e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
         else:  
-            data = data.assign(w=data['w'][   e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
+            data = data.assign(w=data[vname][   e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
         
         # drop un-necessary variables 
         for vdrop in ['lon', 'lat', 'nodi', 'nodiz', 'w_A']:
@@ -564,12 +564,12 @@ def calc_zmoc_dask( mesh                      ,
     # do moc calculation either on nodes or on elements        
     # keep in mind that node area info is changing over depth--> therefor load from file 
     if diagpath is None:
-        fname = data['w'].attrs['runid']+'.mesh.diag.nc'
+        fname = data[vname].attrs['runid']+'.mesh.diag.nc'
         
-        if   os.path.isfile( os.path.join(data['w'].attrs['datapath'], fname) ): 
-            dname = data['w'].attrs['datapath']
-        elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data['w'].attrs['datapath'])),'1/'), fname) ): 
-            dname = os.path.join(os.path.dirname(os.path.normpath(data['w'].attrs['datapath'])),'1/')
+        if   os.path.isfile( os.path.join(data[vname].attrs['datapath'], fname) ): 
+            dname = data[vname].attrs['datapath']
+        elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/'), fname) ): 
+            dname = os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/')
         elif os.path.isfile( os.path.join(mesh.path,fname) ): 
             dname = mesh.path
         else:
@@ -625,9 +625,9 @@ def calc_zmoc_dask( mesh                      ,
         if nchunk<parallel_nprc*0.75:
             print(f' --> rechunk: {nchunk}', end='')
             if 'time' in data.dims:
-                data = data.chunk({'nod2': np.ceil(data.dims['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1, 'time':-1})
+                data = data.chunk({'nod2': np.ceil(data.sizes['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1, 'time':-1})
             else:
-                data = data.chunk({'nod2': np.ceil(data.dims['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1})
+                data = data.chunk({'nod2': np.ceil(data.sizes['nod2']/(parallel_nprc)).astype('int'), dimn_v:-1})
             nchunk = len(data.chunks['nod2'])
             print(f' -> {nchunk}', end='')    
             if 'time' not in data.dims: print('')
@@ -638,9 +638,9 @@ def calc_zmoc_dask( mesh                      ,
     lat_max    = float(np.ceil( data[ 'lat' ].max().compute()))
     lat_bins   = np.arange(lat_min, lat_max+dlat*0.5, dlat)
     lat        = (lat_bins[1:]+lat_bins[:-1])*0.5
-    nlat, nlev = len(lat_bins)-1, data.dims[dimn_v]
+    nlat, nlev = len(lat_bins)-1, data.sizes[dimn_v]
     
-    #_______________________________________________________________________
+    #___________________________________________________________________________
     if do_persist: data = data.persist()
     #display(data_zm)
         
@@ -657,7 +657,7 @@ def calc_zmoc_dask( mesh                      ,
     # failed. THats why i need to use shape afterwards 
     if 'time' in data.dims:
         drop_axis   = [0,1]
-        ntime       = data.dims['time']
+        ntime       = data.sizes['time']
         chnk_lat    = data['lat'].data[None, None, : ] 
         chnk_wA     = data['w_A'].data[None, : , :   ]
     else:

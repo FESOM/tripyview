@@ -533,8 +533,21 @@ def plot_hslice(mesh                   ,
                     if ax_title=='descript' and ('descript' in data[ii][vname].attrs.keys() ):
                         axl_optdefault.update({'verticalalignment':'top'})
                         axl_optdefault.update(axl_opt)
-                        hax_ii.set_title(data[ii][ vname ].attrs['descript'], **axl_optdefault )
                         
+                        str_title   = data[ii][ vname ].attrs['descript']
+                        htitl       = hax_ii.set_title(str_title, **axl_optdefault )
+                        
+                        # Convert to cm
+                        bbox        = htitl.get_window_extent()
+                        titl_w_inch = bbox.width / hfig.dpi
+                        # title width in cm
+                        titl_w_cm   = titl_w_inch * 2.54
+                        # mean width of 1 char in cm
+                        chr1_w_cm     = 0.3 #titl_w_cm/len(str_title)
+                        if titl_w_cm>hax_ii.ax_w :
+                            str_title = '\n'.join(textwrap.wrap(str_title, width=int(hax_ii.ax_w/chr1_w_cm) ))
+                            htitl.set_text(str_title)
+                            
                     else:
                         axl_optdefault.update(axl_opt)
                         hax_ii.set_title(ax_title, **axl_optdefault )
@@ -545,7 +558,7 @@ def plot_hslice(mesh                   ,
                 
         #_______________________________________________________________________
         # add colorbar 
-        if hcb_ii != 0 and hp[-1] is not None: 
+        if hcb_ii != 0: # and hp[-1] is not None: 
             if isinstance(do_rescale, list):
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
                                 cb_label[cb_plt_idx[ii_valid]-1], 
@@ -1830,7 +1843,7 @@ def plot_vslice(mesh                   ,
             # prepare regular gridded data for plotting
             data_x, data_y, data_plot = do_data_prepare_vslice(hax_ii, data[ii], box_idx,
                                                             do_smooth=do_smooth, smooth_size=smooth_size)
-           
+
             #___________________________________________________________________
             # add tripcolor or tricontourf plot 
             h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
@@ -4079,7 +4092,7 @@ def do_axes_arrange(nx, ny,
             # add more variables to axes handle 
             hax[nn].ncol, hax[nn].nrow = nx, ny
             hax[nn].coli, hax[nn].rowi = ii, jj
-            
+            hax[nn].ax_w, hax[nn].ax_h = ax_w[ii], ax_h[jj]
             #___________________________________________________________________
             # ticks for colorbar 
             if hcb[nn] != 0:
@@ -4786,6 +4799,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         # only to work in case of horizontal cartopy plot not in vertical slice 
         # plot even when which_transf=None
         if isinstance(hax_ii.projection, ccrs.CRS): plt_optdefault.update({'transform':which_transf})
+        
         h0 = hax_ii.pcolormesh(data_x, data_y, data_plot, 
                                cmap=cinfo_plot['cmap'], norm=which_norm_plot, **cminmax, **plt_optdefault)
         
@@ -6318,7 +6332,8 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         # loop over all the input data --> find out total cmin/cmax value
         cmin, cmax = np.inf, -np.inf
         for data_ii in data:
-            
+            if data_ii is None: continue
+                
             if isinstance(data_ii, np.ndarray):
                 data_plot = data_ii.copy()
             else:    

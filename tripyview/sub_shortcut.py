@@ -150,7 +150,7 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
 #
 #_______________________________________________________________________________
 # start parallel dask client
-def shortcut_setup_pathwithspinupcycles(input_paths, input_names, ref_path, ref_name, n_cycl, do_allcycl):
+def shortcut_setup_pathwithspinupcycles(input_paths, input_names, ref_path, ref_name, n_cycl, do_allcycl, fmtstr='scycle {:d}'):
     """
     --> shortcut to setup up input_paths with specific spinup cycle structure
         if n_cycl=5, do_allcycl=True
@@ -208,10 +208,18 @@ def shortcut_setup_pathwithspinupcycles(input_paths, input_names, ref_path, ref_
         aux_path, aux_name = list(), list()
         input_paths_old, input_names_old = input_paths, input_names
         for ii, (ipath,iname) in enumerate(zip(input_paths,input_names)):
+            
+            if ipath is None: 
+                aux_path.append(None)
+                aux_name.append('{}'.format(iname))
+                print(ii, aux_path[-1],aux_name[-1])  
+                continue
+                
             for ii_cycl in range(cycl_s, n_cycl+1):
                 aux_path.append(os.path.join(ipath,'{:d}/'.format(ii_cycl)))
                 if not do_allcycl: aux_name.append('{}'.format(iname))
-                else             : aux_name.append('{:d}) {}'.format(ii_cycl, iname))
+                #else             : aux_name.append('{:d}) {}'.format(ii_cycl, iname))
+                else             : aux_name.append('{}, {}'.format(fmtstr.format(ii_cycl), iname))
                 print(ii, aux_path[-1],aux_name[-1])
         input_paths, input_names = aux_path, aux_name
         
@@ -222,7 +230,8 @@ def shortcut_setup_pathwithspinupcycles(input_paths, input_names, ref_path, ref_
             for ii_cycl in range(cycl_s, n_cycl+1):
                 aux_path.append(os.path.join(ref_path,'{:d}/'.format(ii_cycl)))
                 if not do_allcycl: aux_name.append('{}'.format(ref_name))
-                else             : aux_name.append('{:d}) {}'.format(ii_cycl, ref_name))
+                #else             : aux_name.append('{:d}) {}'.format(ii_cycl, ref_name))
+                else             : aux_name.append('{}, {}'.format(fmtstr.format(ii_cycl), ref_name))
                 print('R', ref_path[-1])        
             ref_path, ref_name = aux_path, aux_name
         del(aux_path, aux_name)

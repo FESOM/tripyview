@@ -17,6 +17,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                      do_zarithm='mean', do_hinterp='linear', do_zinterp=True, 
                      descript='clim', do_ptemp=True, pref =0.0, 
                      do_compute=False, do_load=True, do_persist=False, 
+                     do_zweight=False, do_hweight=True,
                      chunks         = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
                                         'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
                                         'ndens':'auto'},
@@ -233,7 +234,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         #w_A = xr.DataArray(mesh.n_area[0,:].astype('float32'), dims=['nod2']).chunk({'nod2':data.chunksizes['nod2']})
         #data = data.assign_coords(w_A=w_A)
     #del(w_A)
-    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=False, do_hweight=True)
+    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=do_zweight, do_hweight=do_hweight)
     data = data.drop_vars(['depth'])
     
     #___________________________________________________________________________
