@@ -17,6 +17,11 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                      do_zarithm='mean', do_hinterp='linear', do_zinterp=True, 
                      descript='clim', do_ptemp=True, pref =0.0, 
                      do_compute=False, do_load=True, do_persist=False, 
+                     do_zweight=False, do_hweight=True,
+                     chunks         = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
+                                        'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
+                                        'ndens':'auto'},
+                     do_parallel=False, 
                      **kwargs):
     
     str_mdep = ''
@@ -81,7 +86,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         #data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.00)})
         data = data.assign({vname: (list(data.dims), sw.dens(data[vname_salt].data, data[vname_temp].data, pref)-1000.00)})
         #for labels in vname_drop:
-        data = data.drop(labels=vname_drop)
+        #data = data.drop_vars(labels=vname_drop)
+        data = data.drop_vars(vname_drop)
         data[vname].attrs['units'] = 'kg/m^3'
         
     else:
@@ -93,7 +99,7 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
                 data[vname_temp].attrs['long_name'] = 'Temperature'
                 data = data.drop_vars(vname_drop)
                 data = data.rename({vname_temp:vname})
-                print(vname_drop)
+                
             elif vname in ['salt', 'sss']:
                 vname_drop.remove('salt')
                 data[vname_salt].attrs['units'] = 'psu'
@@ -229,13 +235,18 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         #w_A = xr.DataArray(mesh.n_area[0,:].astype('float32'), dims=['nod2']).chunk({'nod2':data.chunksizes['nod2']})
         #data = data.assign_coords(w_A=w_A)
     #del(w_A)
-    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=False, do_hweight=True)
+    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=do_zweight, do_hweight=do_hweight)
     data = data.drop_vars(['depth'])
     
     #___________________________________________________________________________
-    data = data.transpose()    
+    #data = data.transpose()    
     data = data.astype('float32', copy=False)
     
+    #___________________________________________________________________________
+    if do_parallel: 
+        data = data.chunk({'nod2':chunks['nod2'], 'nz1':chunks['nz1']})
+        data = data.unify_chunks()
+        
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
     warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")

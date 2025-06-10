@@ -23,3 +23,5 @@ from .sub_colormap          import *
 from .sub_tripyrundriver    import *
 from .sub_tripyrun          import *
 from .sub_3dsphere          import *
+from .sub_shortcut          import *
+from .sub_notebookheader    import *

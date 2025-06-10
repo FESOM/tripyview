@@ -124,10 +124,8 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
         print(f"Error while running Notebook: {e}")
 
     except Exception as e:
-        print(f"Unexpected Error: {e}")
+        print(f"Unexpected Error: {e}")            
 
-  
-                
     #___________________________________________________________________________
     # attach created figures to webpage collection
     webpage[f"image_{cnt}"] = {}
@@ -1024,7 +1022,7 @@ def drive_transect_Xtransp_t(yaml_settings, analysis_name, webpage=dict(), image
 #
 #
 #_______________________________________________________________________________
-def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_zm_mean(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1057,7 +1055,7 @@ def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_cou
         #_______________________________________________________________________
         # make loop over box_regions
         webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
-                                               source_loop='box_regions', exec_template='transect_zmean')
+                                               source_loop='box_regions', exec_template=analysis_name)
     return webpage
 
 
@@ -1065,7 +1063,7 @@ def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_cou
 #
 #
 #_______________________________________________________________________________
-def drive_transect_zmean_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_zm_mean_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1106,7 +1104,7 @@ def drive_transect_zmean_clim(yaml_settings, analysis_name, webpage=dict(), imag
 #
 #
 #_______________________________________________________________________________
-def drive_ghflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_gmhflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1119,8 +1117,8 @@ def drive_ghflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vna
     params_vname = dict({'tripyrun_analysis':analysis_name})
     params_vname.update(params_1lvl)
     params_vname.update(params_2lvl)
-    params_vname["vname"] = 'ghflx'
-    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_ghflx')
+    params_vname["vname"] = analysis_name
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_'+analysis_name)
     return webpage
 
 

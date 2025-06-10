@@ -198,8 +198,10 @@ def tripyrun():
     analyses_driver_list["transect_transp_t"  ] = drive_transect_Xtransp_t
     analyses_driver_list["transect_hflx"      ] = drive_transect_Xtransp
     analyses_driver_list["transect_hflx_t"    ] = drive_transect_Xtransp_t
-    analyses_driver_list["transect_zmean"     ] = drive_transect_zmean
-    analyses_driver_list["transect_zmean_clim"] = drive_transect_zmean_clim
+    analyses_driver_list["transect_zmean"     ] = drive_transect_zm_mean
+    analyses_driver_list["transect_zmean_clim"] = drive_transect_zm_mean_clim
+    analyses_driver_list["transect_mmean"     ] = drive_transect_zm_mean
+    analyses_driver_list["transect_mmean_clim"] = drive_transect_zm_mean_clim
     
     analyses_driver_list["vprofile"           ] = drive_vprofile
     analyses_driver_list["vprofile_clim"      ] = drive_vprofile_clim
@@ -220,7 +222,8 @@ def tripyrun():
     analyses_driver_list["dmoc_t"             ] = drive_dmoc_t
     
     analyses_driver_list["hbarstreamf"        ] = drive_hbarstreamf
-    analyses_driver_list["ghflx"              ] = drive_ghflx
+    analyses_driver_list["gmhflx"             ] = drive_gmhflx
+    analyses_driver_list["gzhflx"             ] = drive_gmhflx
     analyses_driver_list["mhflx"              ] = drive_mhflx
     
     #___________________________________________________________________________

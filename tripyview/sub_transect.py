@@ -16,6 +16,9 @@ from   .sub_utility             import *
 from   .sub_colormap            import *
 import pandas as pd
 import warnings
+
+import dask.array               as da
+import dask
 #xr.set_options(enable_cftimeindex=True)
 
 #
@@ -217,15 +220,21 @@ def do_analyse_transects(input_transect     ,
         #_______________________________________________________________________    
         # rotate path_dx and path_dy from rot --> geo coordinates
         if do_rot:
+            #transect['path_dx'], transect['path_dy'] = vec_r2g(mesh.abg, 
+                                                        #mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
+                                                        #mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
+                                                        #transect['path_dx'], transect['path_dy'])
+            
             transect['path_dx'], transect['path_dy'] = vec_r2g(mesh.abg, 
-                                                        mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
-                                                        mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
+                                                        mesh.n_x[transect['path_cut_ni']].sum(axis=1)/2.0, 
+                                                        mesh.n_y[transect['path_cut_ni']].sum(axis=1)/2.0,
                                                         transect['path_dx'], transect['path_dy'])
-        
+            
         #_______________________________________________________________________    
         # rotate path_dx and path_dy from rot --> geo coordinates
         if transec_flowdir:
              transect['path_dx'], transect['path_dy'] =  -transect['path_dx'], -transect['path_dy']
+             transect['path_nvec_cs'] =  -transect['path_nvec_cs']
              
         #_______________________________________________________________________ 
         # buld distance from start point array [km]
@@ -301,6 +310,7 @@ def _do_init_transect():
     transect['path_dx'      ] = [] # dx of path sections
     transect['path_dy'      ] = [] # dy of path sections
     transect['path_dist'    ] = [] # dy of path sections
+    transect['path_evec_cs' ] = [] # normal vector of transection segment
     transect['path_nvec_cs' ] = [] # normal vector of transection segment
     
     #___________________________________________________________________________
@@ -329,6 +339,7 @@ def _do_concat_subtransects(sub_transect):
     transect['path_cut_ni'  ] = sub_transect['path_cut_ni'  ][0]
     transect['path_dx'      ] = sub_transect['path_dx'      ][0]
     transect['path_dy'      ] = sub_transect['path_dy'      ][0]
+    transect['path_evec_cs' ] = sub_transect['path_evec_cs' ][0]
     transect['path_nvec_cs' ] = sub_transect['path_nvec_cs' ][0]
     
     #___________________________________________________________________________
@@ -346,6 +357,7 @@ def _do_concat_subtransects(sub_transect):
             transect['path_dx'      ] = np.hstack((transect['path_dx'      ], sub_transect['path_dx'      ][ii]))
             transect['path_dy'      ] = np.hstack((transect['path_dy'      ], sub_transect['path_dy'      ][ii]))
             transect['path_nvec_cs' ] = np.vstack((transect['path_nvec_cs' ], sub_transect['path_nvec_cs' ][ii]))
+            transect['path_evec_cs' ] = np.vstack((transect['path_evec_cs' ], sub_transect['path_evec_cs' ][ii]))
             
             # if there are multiple subsection to one transect than the last point
             # of the previous subsection and the first point of the actual subsection 
@@ -374,7 +386,15 @@ def _do_calc_csect_vec(transect):
     
     # normal vector --> norm vector definition (-dy,dx) --> shows to the 
     # left of the e_vec
-    transect['n_vec' ].append(np.array([-evec[1], evec[0]])/enorm)  
+    # make sure the normal direction of section is fixed from:
+    # NW --> SE
+    #  W --> E
+    # SW --> NE´
+    #  S --> N 
+    if -evec[1]<0 or evec[0]<0:
+        transect['n_vec' ].append(np.array([ evec[1], -evec[0]])/enorm)  
+    else:     
+        transect['n_vec' ].append(np.array([-evec[1], evec[0]])/enorm)  
     del(evec, enorm)
     
     #___________________________________________________________________________
@@ -656,6 +676,10 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     aux = np.ones((transect['path_dx'][-1].size,2))
     aux[:,0], aux[:,1] = transect['n_vec'][-1][0], transect['n_vec'][-1][1]
     transect['path_nvec_cs'].append(aux)
+    
+    aux = np.ones((transect['path_dx'][-1].size,2))
+    aux[:,0], aux[:,1] = transect['e_vec'][-1][0], transect['e_vec'][-1][1]
+    transect['path_evec_cs'].append(aux)
     del(aux)
     
     # !!! Make sure positive Transport is defined S-->N and W-->E
@@ -956,8 +980,17 @@ def _do_compute_distance_from_startpoint(transect):
 #
 #
 #___COMPUTE VOLUME TRANSPORT THROUGH TRANSECT___________________________________
-def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
-                          do_transectattr=False, do_rot=False, do_info=True):
+def calc_transect_Xtransp(mesh, 
+                          data, 
+                          transects, 
+                          dataX          = None , 
+                          data_Xref      = 0.0  ,
+                          do_tarithm     = None , 
+                          do_transectattr= False, 
+                          do_rot         = False, 
+                          do_nveccs      = True , 
+                          do_info        = True , 
+                          client         = None):
     """
     --> Compute fesom2 modell accurate transport through defined transect
     
@@ -1007,10 +1040,19 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
     #___________________________________________________________________________
     # variable name of zonal meridional velocity component
     vnameU, vnameV = list(data.keys())
-    
     # variable name of Xtransp component (temp or salt)
     vnameX = None
     if dataX is not None: vnameX = list(dataX.keys())[0]
+    
+    dimn_h, dimn_v, dimn_t = None, None, None
+    if   'nod2' in data.dims: dimn_h = 'nod2'
+    elif 'elem' in data.dims: dimn_h = 'elem'
+    if   'nz'   in data.dims: dimn_v = 'nz'    
+    elif 'nz1'  in data.dims: dimn_v = 'nz1'    
+    if   'time' in data.dims: dimn_t = 'time'    
+    gattrs = data.attrs
+    vattrs = data[vnameU].attrs
+    time   = data.time
     
     #___________________________________________________________________________
     # loop over various transects
@@ -1018,7 +1060,7 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
         #_______________________________________________________________________
         # select only necessary elements 
         if 'elem' in data.dims:
-            data_uv = data.isel(elem=transect['path_ei']).load()
+            data_uv = data.isel(elem=transect['path_ei'])
             
         elif 'nod2' in data.dims:    
             warnings.warn("\n"+
@@ -1028,159 +1070,145 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
                           "    between the transport based on u+v or unod+vnod. Although the variability \n"+
                           "    seems to be unaffected. So if you have the data try to compute the \n"+
                           "    transport based on velocities on elements. \n")
-            data_uv = data.isel(nod2=xr.DataArray(transect['path_cut_ni'], dims=['nod2', 'n2'])).load()
+            data_uv = data.isel(nod2=xr.DataArray(transect['path_cut_ni'].flatten(), dims='nod2'))
             
         else:
             raise ValueError("--> Could not find proper dimension in uv velocity data")
-        vel_u   = data_uv[vnameU ].values
-        vel_v   = data_uv[vnameV].values
+        
+        # if we do first the horizontal reduction operation and afterwards the 
+        # the time reduction operation, its not neccesarily faster but the 
+        # RAM demand is significantly lower which allow for larger chunks in 
+        # the vertical --> and allow for abit of a speed up
+        if do_tarithm is not None: data_uv, _ = do_time_arithmetic(data_uv, do_tarithm)
+        
+        data_uv = data_uv.load()
+        if client is not None: client.rebalance()    
+        vel_u, vel_v = data_uv[vnameU].values, data_uv[vnameV].values
+        lon, lat     = data_uv['lon'].values, data_uv['lat'].values
+        if 'nod2' in data.dims:    
+            # reshape from [nz, npts*2]        --> [nz, npts, 2]
+            # reshape from [ntime, nz, npts*2] --> [ntime, nz, npts, 2]
+            vel_u = np.reshape(vel_u, (*data_uv[vnameU].shape[:-1], *transect['path_cut_ni'].shape))
+            vel_v = np.reshape(vel_v, (*data_uv[vnameU].shape[:-1], *transect['path_cut_ni'].shape))
+            lon   = np.reshape(lon  , (transect['path_cut_ni'].shape))
+            lat   = np.reshape(lat  , (transect['path_cut_ni'].shape))
         del(data_uv)
+        if isinstance(vel_u, da.Array): vel_u = vel_u.compute()
+        if isinstance(vel_v, da.Array): vel_v = vel_v.compute()
+        if len(transects) == 1: del(data)
         
         #_______________________________________________________________________
         # select only necessary elements from temp data
         var_X = None
         if dataX is not None:
-            var_X = dataX.isel(nod2=xr.DataArray(transect['path_cut_ni'], dims=['nod2', 'n2'])).load()
-            var_X = var_X[vnameX].values
-        
+            #var_X = dataX.isel(nod2=xr.DataArray(transect['path_cut_ni'], dims=['nod2', 'n2']))
+            data_vx = dataX.isel(nod2=xr.DataArray(transect['path_cut_ni'].flatten(), dims='nod2'))
+            
+            # if we do first the horizontal reduction operation and afterwards the 
+            # the time reduction operation, its not neccesarily faster but the 
+            # RAM demand is significantly lower which allow for larger chunks in 
+            # the vertical --> and allow for abit of a speed up
+            if do_tarithm is not None: data_vx, _ = do_time_arithmetic(data_vx, do_tarithm)
+            data_vx = data_vx.load()
+            if client is not None: client.rebalance()    
+            var_X = data_vx[vnameX].values
+            # reshape from [nz, npts*2]        --> [nz, npts, 2]
+            # reshape from [ntime, nz, npts*2] --> [ntime, nz, npts, 2]
+            var_X = np.reshape(var_X, (*data_vx[vnameX].shape[:-1], *transect['path_cut_ni'].shape))
+            del(data_vx)
+            if isinstance(var_X, da.Array): var_X = var_X.compute()
+            if len(transects) == 1: del(dataX)
+            
         #_______________________________________________________________________
         # rotate vectors insert topography as nan
-        if 'time' in list(data.dims):
+        if dimn_t == 'time' and do_tarithm is None:
             #___________________________________________________________________
-            if 'elem' in data.dims:
+            if   dimn_h=='elem':
                 # Here i introduce the vertical topography, we replace the zeros that
                 # describe the topography with nan
                 for ii, ei in enumerate(transect['path_ei']):
-                    vel_u[:,ii,mesh.e_iz[ei]:], vel_v[:,ii,mesh.e_iz[ei]:] = np.nan, np.nan
+                    vel_u[:, mesh.e_iz[ei]:, ii], vel_v[:, mesh.e_iz[ei]:, ii] = np.nan, np.nan
                 
-                # here rotate the velocities from roted frame to geo frame 
-                if do_rot:
-                    for nti in range(data.sizes['time']):
-                        vel_u[nti,:,:], vel_v[nti,:,:] = vec_r2g(mesh.abg, 
-                                            mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
-                                            mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
-                                            vel_u[nti,:,:], vel_v[nti,:,:])
-            
-            #___________________________________________________________________        
-            elif 'nod2' in data.dims:
+            elif dimn_h=='nod2':
                 for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
-                    vel_u[:, ii, 0, mesh.n_iz[ni0]:], vel_v[:, ii, 0, mesh.n_iz[ni0]:] = np.nan, np.nan
-                    vel_u[:, ii, 1, mesh.n_iz[ni1]:], vel_v[:, ii, 0, mesh.n_iz[ni1]:] = np.nan, np.nan
+                    vel_u[:, mesh.n_iz[ni0]:, ii, 0], vel_v[:, mesh.n_iz[ni0]:, ii, 0] = np.nan, np.nan
+                    vel_u[:, mesh.n_iz[ni1]:, ii, 1], vel_v[:, mesh.n_iz[ni1]:, ii, 1] = np.nan, np.nan
                     
                 # average vertice velocities to the edge centers
                 vel_u, vel_v = vel_u.sum(axis=2)*0.5, vel_v.sum(axis=2)*0.5
                 
-                # here rotate the velocities from roted frame to geo frame 
-                if do_rot:
-                    for nti in range(data.sizes['time']):
-                        vel_u[nti,:,:], vel_v[nti,:,:] = vec_r2g(mesh.abg, 
-                                            mesh.n_x[transect['path_cut_ni']].sum(axis=1)*0.5, 
-                                            mesh.n_y[transect['path_cut_ni']].sum(axis=1)*0.5,
-                                            vel_u[nti,:,:], vel_v[nti,:,:])
+            # here rotate the velocities from roted frame to geo frame 
+            if do_rot: vel_u, vel_v = vec_r2g_dask(mesh.abg, lon, lat, vel_u, vel_v)
             
             #___________________________________________________________________        
-            if dataX is not None:
+            if var_X is not None:
                 # Here i introduce the vertical topography, we replace the zeros that
                 # describe the topography with nan's
                 for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
-                    var_X[:, ii, 0, mesh.n_iz[ni0]:] = np.nan
-                    var_X[:, ii, 1, mesh.n_iz[ni1]:] = np.nan
+                    var_X[:, mesh.n_iz[ni0]:, ii, 0] = np.nan
+                    var_X[:, mesh.n_iz[ni1]:, ii, 1] = np.nan
             
                 # average vertice temperature to the edge centers
-                var_X = var_X.sum(axis=2)*0.5
+                var_X = var_X.sum(axis=3)*0.5
                 
         else: 
             #___________________________________________________________________
-            if 'elem' in data.dims:
+            if   dimn_h=='elem':
                 # Here i introduce the vertical topography, we replace the zeros that
                 # describe the topography with nan's
                 for ii, ei in enumerate(transect['path_ei']):
-                    vel_u[ii, mesh.e_iz[ei]:], vel_v[ii,mesh.e_iz[ei]:] = np.nan, np.nan
+                    vel_u[mesh.e_iz[ei]:, ii], vel_v[mesh.e_iz[ei]:, ii] = np.nan, np.nan
                 
-                # here rotate the velocities from roted frame to geo frame 
-                if do_rot:
-                    vel_u, vel_v = vec_r2g(mesh.abg, 
-                                        mesh.n_x[transect['path_ni']].sum(axis=1)/3.0, 
-                                        mesh.n_y[transect['path_ni']].sum(axis=1)/3.0,
-                                        vel_u, vel_v)
-                
-            #___________________________________________________________________        
-            elif 'nod2' in data.dims:
+            elif dimn_h=='nod2':
                 for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
-                    vel_u[ii, 0, mesh.n_iz[ni0]:], vel_v[ii, 0, mesh.n_iz[ni0]:] = np.nan, np.nan
-                    vel_u[ii, 1, mesh.n_iz[ni1]:], vel_v[ii, 0, mesh.n_iz[ni1]:] = np.nan, np.nan
+                    vel_u[mesh.n_iz[ni0]:, ii, 0], vel_v[mesh.n_iz[ni0]:, ii, 0] = np.nan, np.nan
+                    vel_u[mesh.n_iz[ni1]:, ii, 1], vel_v[mesh.n_iz[ni1]:, ii, 1] = np.nan, np.nan
                     
                 # average vertice velocities to the edge centers
                 vel_u, vel_v = vel_u.sum(axis=1)*0.5, vel_v.sum(axis=1)*0.5
                 
-                # here rotate the velocities from roted frame to geo frame 
-                if do_rot:
-                    vel_u, vel_v = vec_r2g(mesh.abg, 
-                                        mesh.n_x[transect['path_cut_ni']].sum(axis=1)*0.5, 
-                                        mesh.n_y[transect['path_cut_ni']].sum(axis=1)*0.5,
-                                        vel_u, vel_v)
+            # here rotate the velocities from roted frame to geo frame 
+            if do_rot: vel_u, vel_v = vec_r2g_dask(mesh.abg, lon, lat, vel_u, vel_v)
             
             #___________________________________________________________________        
-            if dataX is not None:
+            if var_X is not None:
                 # Here i introduce the vertical topography, we replace the zeros that
                 # describe the topography with nan's
                 for ii, (ni0, ni1) in enumerate(transect['path_cut_ni']):
-                    var_X[ii, 0, mesh.n_iz[ni0]:] = np.nan
-                    var_X[ii, 1, mesh.n_iz[ni1]:] = np.nan
+                    var_X[mesh.n_iz[ni0]:, ii, 0] = np.nan
+                    var_X[mesh.n_iz[ni1]:, ii, 1] = np.nan
                     
                 # average vertice temperature to the edge centers
-                var_X = var_X.sum(axis=1)*0.5
+                var_X = var_X.sum(axis=2)*0.5
         
         #_______________________________________________________________________
         # multiply with dz
-        if   'nz1'  in data.dims: dz = -np.diff(mesh.zlev)
-        elif 'nz_1' in data.dims: dz = -np.diff(mesh.zlev)    
-        elif 'nz'   in data.dims: dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh_zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))
-        vel_u, vel_v = vel_u*dz, vel_v*dz
+        if    dimn_v=='nz1': dz = -np.diff(mesh.zlev)
+        elif  dimn_v=='nz' : dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh_zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))
+        vel_u, vel_v = vel_u*dz[:,None], vel_v*dz[:,None]
         
         #_______________________________________________________________________
         # multiple u*dy and v*(-dx) --> vec_v * vec_n
-        dx, dy     = transect['path_dx'], transect['path_dy']
-            
+        if do_nveccs: 
+            nvecx, nvecy= transect['path_nvec_cs'][:,0], transect['path_nvec_cs'][:,1]
+            dx, dy      = np.abs(transect['path_dx'])*nvecy, np.abs(transect['path_dy'])*nvecx
+        else:
+            dx, dy      = transect['path_dx'], -transect['path_dy']    
+        if isinstance(dx, da.Array): dx = dx.compute()
+        if isinstance(dy, da.Array): dy = dy.compute()    
+        
         # proper transport sign with respect to normal vector of section 
         # normal vector definition --> norm vector definition (-dy,dx) --> shows 
         # to the left of the e_vec
-        if 'elem' in data.dims:
-            # use velocities located at left and rights handside elements with 
-            # respect to the edge
-            if 'time' in list(data.dims):
-                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))
-            else:
-                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
-                
-        elif 'nod2' in data.dims:
-            # use edge centered averaged velocities, thats why this velocity needs 
-            # to be dublicated with np.repeat along the horizontal dimension
-            if 'time' in list(data.dims):
-                #vel_u, vel_v = np.repeat(vel_u, 2, axis=1), np.repeat(vel_v, 2, axis=1)
-                aux_transp = (vel_u.transpose((0,2,1))*(-dy) + vel_v.transpose((0,2,1))*(dx))
-            else:    
-                #vel_u, vel_v = np.repeat(vel_u, 2, axis=0), np.repeat(vel_v, 2, axis=0)
-                aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
-        
-        #aux_transp = vel_u.T*(-dy)
-        #aux_transp = vel_v.T*( abs(dx))      
-        #aux_transp = (vel_u.T*(-dy) + vel_v.T*(dx))
-        #aux_transp = -(vel_u.T*abs(dy) + vel_v.T*abs(dx))
+        aux_transp = (vel_u*dy + vel_v*dx)
         
         #_______________________________________________________________________
         # multiply transp_uv with temp 
-        if dataX is not None:
-            if 'time' in list(data.dims):
-                #aux_transp = aux_transp * (np.repeat(var_X, 2, axis=1).transpose((0,2,1)) - data_Xref)
-                aux_transp = aux_transp * (var_X.transpose((0,2,1)) - data_Xref)
-            else:
-                #aux_transp = aux_transp * (np.repeat(var_X, 2, axis=0).T - data_Xref)
-                aux_transp = aux_transp * (var_X.T - data_Xref)
-            
+        if var_X is not None: aux_transp = aux_transp * (var_X - data_Xref)
+        
         #_______________________________________________________________________
         data_vars = dict()
-        aux_attr  = data[vnameU].attrs
+        aux_attr  = vattrs
 
         if (vnameX=='temp') or (vnameU=='tu' and vnameV=='tv'):
             rho0 = 1030 # kg/m^3
@@ -1213,17 +1241,16 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
         #_______________________________________________________________________
         # define dimensions
         list_dimname, list_dimsize, list_dimval = dict(), dict(), dict()
-        if   'time' in data.dims: 
-            list_dimname['time'] , list_dimsize['time'] , list_dimval['time']  = 'time', data.sizes['time'], data.time.data #pd.to_datetime(data.time)            
-        if   'nz1'  in data.dims: 
+        if dimn_t == 'time' and do_tarithm is None: 
+            list_dimname['time'] , list_dimsize['time'] , list_dimval['time']  = 'time', time.size        , time.data #pd.to_datetime(data.time)            
+        if    dimn_v=='nz1': 
             list_dimname['depth'], list_dimsize['depth'], list_dimval['depth'] = 'nz1' , mesh.zmid.size   , mesh.zmid
-        elif 'nz'   in data.dims: 
+        elif  dimn_v=='nz': 
             list_dimname['depth'], list_dimsize['depth'], list_dimval['depth'] = 'nz'  , mesh.zlev.size   , mesh.zlev
         list_dimname['horiz'], list_dimsize['horiz'] = 'npts', transect['path_dx'].size    
         
         #_______________________________________________________________________
         # define variable 
-        gattrs = data.attrs
         gattrs['proj']          = 'index+depth+xy'
         aux_attr['transect_name'] = transect['Name']
         aux_attr['transect_lon']  = transect['lon']
@@ -1233,7 +1260,7 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
         
         #_______________________________________________________________________
         # define coordinates
-        if 'time' in data.dims:
+        if dimn_t == 'time' and do_tarithm is None:
             coords = {
                       'time'  : (list_dimname['time' ], list_dimval['time']),
                       'depth' : (list_dimname['depth'], list_dimval['depth']),
@@ -1260,17 +1287,19 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
             # are not possible
-            if 'time' in data.dims: transp[-1] = transp[-1].assign_coords(time=data.time)  
+            if dimn_t == 'time' and do_tarithm is None: transp[-1] = transp[-1].assign_coords(time=time)  
             if do_info:
                 print(' --------> Name:', transp[-1][vnameFLX].attrs['transect_name'])
-                if 'time' in data.dims:
-                    print(' mean neto transport:', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
-                    print(' mean (+) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
-                    print(' mean (-) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                if dimn_t == 'time' and do_tarithm is None:
+                    print(' mean neto transport:', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].sum(dim=('nz1','npts'), skipna=True).mean(dim=('time'), skipna=True).values, aux_attr['units']))
+                    print(' mean (+) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]>0).sum(dim=('nz1','npts'), skipna=True).mean(dim=('time'), skipna=True).values, aux_attr['units']))
+                    print(' mean (-) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]<0).sum(dim=('nz1','npts'), skipna=True).mean(dim=('time'), skipna=True).values, aux_attr['units']))
                 else:
-                    print(' neto transport:', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
-                    print(' (+) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
-                    print(' (-) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
+                    print(transp[-1][vnameFLX].sum(dim=('nz1','npts'), skipna=True).data)
+                    
+                    print(' neto transport:', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].sum(dim=('nz1','npts'), skipna=True).values, aux_attr['units']))
+                    print(' (+) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]>0).sum(dim=('nz1','npts'), skipna=True).values, aux_attr['units']))
+                    print(' (-) transport :', '{:6.4f} / {:s}'.format(transp[-1][vnameFLX].where(transp[-1][vnameFLX]<0).sum(dim=('nz1','npts'), skipna=True).values, aux_attr['units']))
                 print('')
                 
         else:
@@ -1279,17 +1308,17 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
             # are not possible
-            if 'time' in data.dims: transp = transp.assign_coords(time=data.time)  
+            if dimn_t == 'time' and do_tarithm is None: transp = transp.assign_coords(time=time)  
             if do_info:
                 print(' --------> Name:', transp[vnameFLX].attrs['transect_name'])
-                if 'time' in data.dims:
-                    print(' mean neto transport:', '{:6.4f} / {:s}'.format(transp[vnameFLX].sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
-                    print(' mean (+) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
-                    print(' mean (-) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).mean(dim=('time'), skipna=True).data, aux_attr['units']))
+                if dimn_t == 'time' and do_tarithm is None:
+                    print(' mean neto transport:', '{:6.4f} / {:s}'.format(transp[vnameFLX].sum(dim=('nz1','npts'), skipna=True).mean(dim=('time'), skipna=True).values, aux_attr['units']))
+                    print(' mean (+) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]>0).sum(dim=('nz1','npts'), skipna=True).mean(dim=('time'), skipna=True).values, aux_attr['units']))
+                    print(' mean (-) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]<0).sum(dim=('nz1','npts'), skipna=True).mean(dim=('time'), skipna=True).values, aux_attr['units']))
                 else:
-                    print(' neto transport:', '{:6.4f} / {:s}'.format(transp[vnameFLX].sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
-                    print(' (+) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]>0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
-                    print(' (-) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]<0).sum(dim=('npts','nz1'), skipna=True).data, aux_attr['units']))
+                    print(' neto transport:', '{:6.4f} / {:s}'.format(transp[vnameFLX].sum(dim=('nz1','npts'), skipna=True).values, aux_attr['units']))
+                    print(' (+) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]>0).sum(dim=('nz1','npts'), skipna=True).values, aux_attr['units']))
+                    print(' (-) transport :', '{:6.4f} / {:s}'.format(transp[vnameFLX].where(transp[vnameFLX]<0).sum(dim=('nz1','npts'), skipna=True).values, aux_attr['units']))
                 print('')
     #___________________________________________________________________________
     return(transp)
@@ -1298,8 +1327,14 @@ def calc_transect_Xtransp(mesh, data, transects, dataX=None, data_Xref=0.0,
 #
 #
 #___COMPUTE TRANSECT OF SCALAR VERTICE/ELEMENTAL VARIABLE_______________________
-def calc_transect_scalar(mesh, data, transects, nodeinelem=None, 
-                         do_transectattr=False, do_info=False):
+def calc_transect_scalar(mesh, 
+                         data, 
+                         transects, 
+                         do_tarithm = None, #'mean', 
+                         nodeinelem=None, 
+                         do_transectattr=False, 
+                         do_info=False, 
+                         client=None):
     """
     --> interpolate scalar vertice values onto cutting point position where
         cross-section intersects with edge
@@ -1343,26 +1378,46 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
     
     #___________________________________________________________________________
     vname = list(data.keys())[0]
+    dimn_v = None
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h = 'nod2'
+    elif ('elem' in data.dims): dimn_h = 'elem'
+    if   'nz'  in list(data[vname].dims): 
+        dimn_v  = 'nz'    
+    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
+        dimn_v  = 'nz1'
+        
+        
     for transect in transects:
         #_______________________________________________________________________
-        if 'nod2' in list(data.dims):
-            # select only necessary vertices
-            scalarP1 = data[vname].isel(nod2=transect['edge_cut_ni'][:,0]).load().values
-            scalarP2 = data[vname].isel(nod2=transect['edge_cut_ni'][:,1]).load().values
+        if 'nod2' in data.dims:
+            
+            dataP12 = data[vname].isel({dimn_h:xr.DataArray(transect['edge_cut_ni'].flatten(), dims=dimn_h)})
+            
+            # if we do first the horizontal reduction operation and afterwards the 
+            # the time reduction operation, its not neccesarily faster but the 
+            # RAM demand is significantly lower which allow for larger chunks in 
+            # the vertical --> and allow for abit of a speed up
+            if do_tarithm is not None: dataP12, _ = do_time_arithmetic(dataP12, do_tarithm)
+            
+            dataP12 = dataP12.load()
+            if client is not None: client.rebalance()
+            dataP12 = np.reshape(dataP12.data, (dataP12.sizes[dimn_v], transect['edge_cut_ni'].shape[0], 2))
+            scalarP1  = dataP12[:, :, 0]
+            scalarP2  = dataP12[:, :, 1]
+            del(dataP12)
             
             # put back the nans 
             if 'nz1' in data.dims or 'nz_1' in data.dims:
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[ii,mesh.n_iz[ni]:] = np.nan
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[ii,mesh.n_iz[ni]:] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[mesh.n_iz[ni]:  , ii] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[mesh.n_iz[ni]:  , ii] = np.nan
             elif 'nz' in data.dims:
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[ii,mesh.n_iz[ni]+1:] = np.nan
-                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[ii,mesh.n_iz[ni]+1:] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[mesh.n_iz[ni]+1:, ii] = np.nan
+                for ii, ni in enumerate(transect['edge_cut_ni'][:,1]): scalarP2[mesh.n_iz[ni]+1:, ii] = np.nan
                 
             # interpolate scalar vertice values onto cutting point position where
             # cross-section intersects with edge
-            scalarPcut = scalarP1.T + (scalarP2.T-scalarP1.T)*transect['edge_cut_lint']
-            #scalarPcut = scalarP1.T 
-            #scalarPcut = scalarP2.T 
+            scalarPcut = scalarP1 + (scalarP2-scalarP1)*transect['edge_cut_lint']
             del(scalarP1, scalarP2)
             
             # define lon, lat , distance arrays
@@ -1371,18 +1426,28 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
             dst = transect['edge_cut_dist']
         
         #_______________________________________________________________________
-        elif 'elem' in list(data.dims):
+        elif 'elem' in data.dims:
             if nodeinelem is None:
                 # select only necessary elements 
-                scalarPcut = data[vname].isel(elem=transect['path_ei'][::2]).load().values
-                
+                dataP12 = data[vname].isel({dimn_h:xr.DataArray(transect['path_ei'][::2], dims=dimn_h)})
+            
+                # if we do first the horizontal reduction operation first and afterwards the 
+                # the time reduction operation, its not neccesarily faster but the 
+                # RAM demand is significantly lower which allow for larger chunks in 
+                # the vertical --> and allow for abit of a speed up
+                if do_tarithm is not None: dataP12, _ = do_time_arithmetic(dataP12, do_tarithm)
+            
+                scalarPcut = dataP12.load().data
+                if client is not None: client.rebalance()
+                del(dataP12)
+                    
                 # put back the nans 
-                if 'nz1' in data.dims or 'nz_1' in data.dims:
-                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[ii,mesh.e_iz[ei]:  ] = np.nan
+                if   'nz1' in data.dims or 'nz_1' in data.dims:
+                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[mesh.e_iz[ei]:  ,ii] = np.nan
                 elif 'nz' in data.dims:
-                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[ii,mesh.e_iz[ei]+1:] = np.nan
+                    for ii, ei in enumerate(transect['path_ei'][::2]): scalarPcut[mesh.e_iz[ei]+1:,ii] = np.nan
                 
-                scalarPcut = scalarPcut.T
+                scalarPcut[:, transect['path_ei'][::2]<0] = np.nan
                 
                 if scalarPcut.shape[1] == transect['edge_cut_P'][:,0].shape[0]: 
                     # define lon, lat , distance arrays
@@ -1405,23 +1470,41 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 #       \ /   \ /  
                 #        o-----o  
                 #
-                elem_i_P = nodeinelem[:,transect['edge_cut_ni'][:,0]]
-                elem_A_P = mesh.e_area[elem_i_P]
-                elem_A_P[elem_i_P<0]=0.0
-                scalarP1 = data[vname].isel(elem=elem_i_P.flatten()).load().values.T #.reshape(elem_i_P.shape)
+                elem_i_P12 = np.stack((nodeinelem[:,transect['edge_cut_ni'][:,0]], 
+                                       nodeinelem[:,transect['edge_cut_ni'][:,1]]
+                                       ), axis=-1)
+                dum0, dum01, dum02 = elem_i_P12.shape
+                
+                # select only necessary elements 
+                dataP12 = data[vname].isel({dimn_h:xr.DataArray(elem_i_P12.flatten(), dims=dimn_h)})
+                # if we do first the horizontal reduction operation first and afterwards the 
+                # the time reduction operation, its not neccesarily faster but the 
+                # RAM demand is significantly lower which allow for larger chunks in 
+                # the vertical --> and allow for abit of a speed up
+                if do_tarithm is not None: dataP12, _ = do_time_arithmetic(dataP12, do_tarithm)
+                dataP12 = dataP12.load()
+                if client is not None: client.rebalance()
+                dataP12 = np.reshape(dataP12.data, (dataP12.sizes[dimn_v], dum0*dum01, dum02))
+                scalarP1  = dataP12[:, :, 0]
+                scalarP2  = dataP12[:, :, 1]
+                del(dataP12)
+                
+                #_______________________________________________________________
+                elem_A_P1 = mesh.e_area[elem_i_P12[:,:,0]]
+                elem_A_P1[elem_i_P12[:,:,0]<0]=0.0
                 
                 # set nan's from the land sea mask to zeros
                 scalarP1[np.isnan(scalarP1)]=0
                 
                 dim1,dum = scalarP1.shape # --> dim1 depth dimension 
-                dim2,dim3= elem_i_P.shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
-                del(elem_i_P)
+                dim2,dim3= elem_i_P12[:,:,0].shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
                 
                 # weighted mean over elements that belong to node
-                scalarP1 = scalarP1*elem_A_P.flatten()
+                scalarP1 = scalarP1*elem_A_P1.flatten()
                 scalarP1 = scalarP1.reshape((dim1, dim2, dim3))
-                scalarP1 = scalarP1.sum(axis=1)/elem_A_P.sum(axis=0)
-                del(elem_A_P)
+                
+                scalarP1 = scalarP1.sum(axis=1)/elem_A_P1.sum(axis=0)
+                del(elem_A_P1)
                 
                 # put back the nans 
                 if 'nz1' in data.dims or 'nz_1' in data.dims:
@@ -1429,24 +1512,22 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
                 elif 'nz' in data.dims:
                     for ii, ni in enumerate(transect['edge_cut_ni'][:,0]): scalarP1[mesh.n_iz[ni]+1:,ii] = np.nan
                     
+                #_______________________________________________________________
                 # average elemental values to edge node 2
-                elem_i_P = nodeinelem[:,transect['edge_cut_ni'][:,1]]
-                elem_A_P = mesh.e_area[elem_i_P]
-                elem_A_P[elem_i_P<0]=0.0
-                scalarP2 = data[vname].isel(elem=elem_i_P.flatten()).load().values.T #.reshape(elem_i_P.shape)
-                
+                elem_A_P2 = mesh.e_area[elem_i_P12[:,:,1]]
+                elem_A_P2[elem_i_P12[:,:,1]<0]=0.0
                 # set nan's from the land sea mask to zeros
                 scalarP2[np.isnan(scalarP2)]=0
                 
                 dim1,dum = scalarP2.shape # --> dim1 depth dimension 
-                dim2,dim3= elem_i_P.shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
-                del(elem_i_P)
+                dim2,dim3= elem_i_P12[:,:,1].shape # --> dim2 total numbers of neighbouring elem, dim3 dimension edge nodes 
+                del(elem_i_P12)
                 
                 # weighted mean over elements that belong to node
-                scalarP2 = scalarP2*elem_A_P.flatten()
+                scalarP2 = scalarP2*elem_A_P2.flatten()
                 scalarP2 = scalarP2.reshape((dim1, dim2, dim3))
-                scalarP2 = scalarP2.sum(axis=1)/elem_A_P.sum(axis=0)
-                del(elem_A_P)
+                scalarP2 = scalarP2.sum(axis=1)/elem_A_P2.sum(axis=0)
+                del(elem_A_P2)
                 
                 # put back the nans based on node depth
                 if 'nz1' in data.dims or 'nz_1' in data.dims:
@@ -1470,7 +1551,8 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
         #_______________________________________________________________________
         # define dimensions
         list_dimname, list_dimsize, list_dimval = list(), list(), list()
-        if   'time' in data.dims: list_dimname.append('time'), list_dimsize.append(data.dims['time']), list_dimval.append(pd.to_datetime(data.time))             
+        if   'time' in data.dims and do_tarithm is None: 
+            list_dimname.append('time'), list_dimsize.append(data.dims['time']), list_dimval.append(pd.to_datetime(data.time))             
         if   'nz1'  in data.dims: list_dimname.append('nz1' ), list_dimsize.append(mesh.zmid.size), list_dimval.append(mesh.zmid) 
         elif 'nz_1' in data.dims: list_dimname.append('nz_1'), list_dimsize.append(mesh.zmid.size), list_dimval.append(mesh.zmid)  
         elif 'nz'   in data.dims: list_dimname.append('nz'  ), list_dimsize.append(mesh.zlev.size), list_dimval.append(mesh.zlev)  
@@ -1515,14 +1597,15 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
             # are not possible
-            if 'time' in data.dims: csects[-1] = csects[-1].assign_coords(time=data.time)  
+            if 'time' in data.dims and do_tarithm is None: csects[-1] = csects[-1].assign_coords(time=data.time)  
         else:
             csects = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs)
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
             # are not possible
-            if 'time' in data.dims: csects = csects.assign_coords(time=data.time)  
+            if 'time' in data.dims and do_tarithm is None:
+                csects = csects.assign_coords(time=data.time)  
             
     #___________________________________________________________________________
     if do_info: print('        elapsed time: {:3.2f}min.'.format((clock.time()-t1)/60.0))
@@ -1535,6 +1618,7 @@ def calc_transect_scalar(mesh, data, transects, nodeinelem=None,
 def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figsize=[10,10], 
                            proj='nears', box = [-180, 180,-90, 90], 
                            resolution='low', do_path=True, do_labels=True, do_title=True,
+                           do_nvec=False, do_evec_cs=False, do_nvec_cs=True, 
                            do_grid=False, ax_pos=[0.90, 0.05, 0.45, 0.45]):
     """
     --> plot transect positions
@@ -1650,9 +1734,35 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
         ax.plot(transect['path_xy'   ][ :, 0], transect['path_xy'   ][ :, 1],'m', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=1.0, transform=proj_from)
 
     # end start point [green] and end point [red]
-    ax.plot(transect['edge_cut_P'][ 0, 0], transect['edge_cut_P'][ 0, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='g', transform=proj_from)
-    ax.plot(transect['edge_cut_P'][-1, 0], transect['edge_cut_P'][-1, 1],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='r', transform=proj_from)
+    ax.plot(transect['lon'], transect['lat'],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='w', transform=proj_from)
+    ax.plot(transect['edge_cut_P'][ 0, 0], transect['edge_cut_P'][ 0, 1],'k', marker='o', linestyle='None', markersize=10, markerfacecolor='g', transform=proj_from)
+    ax.plot(transect['edge_cut_P'][-1, 0], transect['edge_cut_P'][-1, 1],'k', marker='o', linestyle='None', markersize=10, markerfacecolor='r', transform=proj_from)
     
+    # plot norm vector 
+    if do_nvec:
+        xx   , yy    = mesh.n_x[transect['path_ni'][1:-1]].sum(axis=1)/3.0, mesh.n_y[transect['path_ni'][1:-1]].sum(axis=1)/3.0
+        vecxx, vecyy = -transect['path_dy'][1:-1], transect['path_dx'][1:-1]
+        vecxx, vecyy = proj_to.transform_vectors(ccrs.PlateCarree(), xx, yy, vecxx, vecyy)
+        ax.quiver(xx, yy, vecxx, vecyy, color='c', transform=proj_from)
+    
+    if do_nvec_cs:
+        xx           = np.array(transect['Px']).sum(axis=1)/2.0
+        yy           = np.array(transect['Py']).sum(axis=1)/2.0
+        vecxx, vecyy = np.array(transect['n_vec'])[:,0], np.array(transect['n_vec'])[:,1]
+        ax.quiver(xx, yy, 
+                  vecxx, vecyy,
+                  facecolor=np.array([0, 192, 255])/255, transform=proj_from,
+                  edgecolor='w', linewidth=0.5, scale=10)
+        
+    if do_evec_cs:
+        xx           = np.array(transect['Px']).sum(axis=1)/2.0
+        yy           = np.array(transect['Py']).sum(axis=1)/2.0
+        vecxx, vecyy = np.array(transect['e_vec'])[:,0], np.array(transect['e_vec'])[:,1]
+        ax.quiver(xx, yy, 
+                  vecxx, vecyy,
+                  facecolor=np.array([255, 192, 0])/255, transform=proj_from,
+                  edgecolor='w', linewidth=0.5, scale=10)    
+        
     ## plot cross-section 
     #for ii, (Px, Py) in enumerate(zip(transect['Px'],transect['Py'])):
         ## plot evec
@@ -1963,6 +2073,398 @@ def load_zmeantransect_fesom2(mesh                  ,
         
     #___________________________________________________________________________
     return(index_list)
+
+
+
+#
+#
+#___COMPUTE ZONAL MEAN SECTION BASED ON BINNING_________________________________
+def calc_transect_zm_mean_dask(mesh                   , 
+                               data                   ,  
+                               box_list               ,  
+                               do_parallel            , 
+                               parallel_nprc          ,
+                               do_lonlat     = 'lat'  , 
+                               dlonlat       = 0.5    , 
+                               boxname       = None   ,
+                               diagpath      = None   , 
+                               do_checkbasin = False  , 
+                               do_info       = False  , 
+                               client        = None   ,
+                               do_persist    = True   ,
+                               **kwargs,):
+    """
+    --> compute zonal or meridional means transect, defined by regional box_list
+        using dask parallel approach on chunks
+    
+    Parameters:
+        
+        :mesh:      fesom2 mesh object, with all mesh information
+
+        :data:      xarray dataset object, or list of xarray dataset object with 3d vertice
+                    data
+
+        :box_list:  None, list (default: None)  list with regional box limitation for index computation box can be: 
+
+                    - ['global']   ... compute global index 
+                    - [shp.Reader] ... index region defined by shapefile 
+                    - [ [lonmin,lonmax,latmin, latmax], boxname] index region defined by rect box 
+                    - [ [ [px1,px2...], [py1,py2,...]], boxname] index region defined by polygon
+                    - [ np.array(2 x npts), boxname] index region defined by polygon
+        
+        :do_parallel: bool, (default=False) if dask cluster is running or not True/False
+        
+        :parallel_nprc: int, (default=48) how many dask workers are used if dask client is running
+        
+        :do_lonlat: str, (default='lat') is mean binning approach is done for latitudinal bins
+                         (zonal mean) or done for longitudinal bins (merdional mean)
+        
+        :dlonlat:      float, (default=0.5) resolution of latitudinal/longitudinal bins
+        
+        :diagpath:  str, (default=None), path to diagnostic file only needed when 
+                    w_A weights for area average are not given in the dataset, than 
+                    he will search for the diagnostic file_loader
+                    
+        :do_checkbasin: bool, (default=False) additional plot with selected region/
+                        basin information
+                        
+        :do_info:       bool (defalt=False), print variable info at the end 
+                      
+    Returns:
+    
+        :index_list:    list with xarray dataset of zonal/meridional mean array
+    
+    ____________________________________________________________________________
+    
+    """
+    #___________________________________________________________________________
+    # str_anod    = ''
+    index_list  = []
+    cnt         = 0
+    
+    #___________________________________________________________________________
+    # loop over box_list
+    vname = list(data.keys())[0]
+    dimn_v = None
+    dimn_h, dimn_v = 'dum', 'dum'
+    if   ('nod2' in data.dims): dimn_h, do_elem = 'nod2', False
+    elif ('elem' in data.dims): dimn_h, do_elem = 'elem', False
+    if   'nz'  in list(data[vname].dims): 
+        dimn_v  = 'nz'    
+    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
+        dimn_v  = 'nz1'
+    
+    for box in box_list:
+        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+            if   len(box)==2: boxname, box = box[1], box[0]
+            elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])
+            
+        #_______________________________________________________________________
+        # compute box mask index for nodes
+        idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+            
+        #___________________________________________________________________________
+        if do_checkbasin:
+            from matplotlib.tri import Triangulation
+            tri = Triangulation(np.hstack((mesh.n_x,mesh.n_xa)), np.hstack((mesh.n_y,mesh.n_ya)), np.vstack((mesh.e_i[mesh.e_pbnd_0,:],mesh.e_ia)))
+            plt.figure()
+            plt.triplot(tri, color='k', linewidth=0.1)
+            if 'elem' in data.dims:
+                plt.triplot(tri.x, tri.y, tri.triangles[ np.hstack((idxin[mesh.e_pbnd_0], idxin[mesh.e_pbnd_a])) ,:], color='r')
+            else:
+                plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], 'or', linestyle='None', markersize=1)
+            plt.title('Basin selection')
+            plt.show()
+        
+        #___________________________________________________________________________
+        # do zonal mean calculation either on nodes or on elements        
+        # keep in mind that node area info is changing over depth--> therefor load from file 
+        fname = data[vname].attrs['runid']+'.mesh.diag.nc'            
+        if diagpath is None:
+            if   os.path.isfile( os.path.join(data[vname].attrs['datapath'], fname) ): 
+                dname = data[vname].attrs['datapath']
+            elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/'), fname) ): 
+                dname = os.path.join(os.path.dirname(os.path.normpath(data[vname].attrs['datapath'])),'1/')
+            elif os.path.isfile( os.path.join(mesh.path,fname) ): 
+                dname = mesh.path
+            else:
+                raise ValueError('could not find directory with...mesh.diag.nc file')
+            
+            diagpath = os.path.join(dname,fname)
+            if do_info: print(' --> found diag in directory:{}', diagpath)
+        else:
+            if os.path.isfile(os.path.join(diagpath,fname)):
+                diagpath = os.path.join(diagpath,fname)
+            elif os.path.isfile(os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)) :
+                diagpath = os.path.join(os.path.join(os.path.dirname(os.path.normpath(diagpath)),'1/'),fname)
+                
+        #___________________________________________________________________________
+        # compute area weighted vertical velocities on elements
+        if 'elem' in data.dims:        
+            #_______________________________________________________________________
+            # load elem area from diag file
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['elem_area']#.chunk({'elem':1e4})
+                    if 'elem_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'elem_n':'elem'})
+                    if 'nl'     in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl'    :'nz'  })
+                    if 'nl1'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename({'nl1'   :'nz1' })
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+                data = data.assign_coords(w_A=nz_w_A)
+            
+            #___________________________________________________________________
+            # select basin to compute mean over
+            data_zm = data.isel(elem=idxin)
+        
+        # compute area weighted vertical velocities on vertices
+        else:     
+            #___________________________________________________________________
+            # load vertice cluster area from diag file
+            if 'w_A' not in list(data.coords):
+                if ( os.path.isfile(diagpath)):
+                    nz_w_A = xr.open_mfdataset(diagpath, parallel=True, **kwargs)['nod_area']
+                    if 'nod_n' in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nod_n':'nod2'})
+                    if 'nl'    in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl'   :'nz'  })
+                    if 'nl1'   in list(nz_w_A.dims): nz_w_A = nz_w_A.rename(  {'nl1'  :'nz1' })    
+                    nz_w_A = nz_w_A.drop_vars(['nz'])
+                    
+                else: 
+                    raise ValueError('could not find ...mesh.diag.nc file')
+                
+                # data are on mid depth levels
+                if dimn_v=='nz1': 
+                    nz_w_A = nz_w_A.isel(nz=slice(None, -1)).rename({'nz':'nz1'})
+                
+                data = data.assign_coords(w_A=nz_w_A)
+                
+            #___________________________________________________________________
+            # select basin to compute mean over
+            data_zm = data.isel(nod2=idxin)
+            
+            
+        #data_zm = data_zm.load()
+        #_______________________________________________________________________
+        # determine/adapt actual chunksize
+        nchunk = 1
+        if do_parallel and isinstance(data_zm[vname].data, da.Array)==True :
+            nchunk = len(data_zm.chunks[dimn_h])
+            print(' --> nchunk=', nchunk)   
+            
+            # after all the time and depth operation after the loading there will 
+            # be worker who have no chunk piece to work on  --> therfore we need
+            # to rechunk make sure the workload is distributed between all 
+            # availabel worker equally         
+            if nchunk<parallel_nprc*0.75:
+                print(' --> rechunk array size', end='')
+                data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1})
+                nchunk = len(data_zm.chunks[dimn_h])
+                print(' --> nchunk_new=', nchunk)    
+        
+        # in case of climatology data because there i need to make compute() after 
+        # interpolation which destroys the chunking so i try to rechunk it
+        elif do_parallel and isinstance(data_zm[vname].data, da.Array)==False: 
+            data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks()
+            nchunk = len(data_zm.chunks[dimn_h])
+            print(' --> nchunk_new=', nchunk)        
+        
+        #_______________________________________________________________________
+        # create zonal/meridional bins
+        lonlat_min    = float(np.floor(data_zm[do_lonlat].min().compute()))
+        lonlat_max    = float(np.ceil( data_zm[do_lonlat].max().compute()))
+        print('lonlat_min,lonlat_max=',lonlat_min,lonlat_max)
+        lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
+        lonlat        = (lonlat_bins[:-1]+lonlat_bins[1:])*0.5
+        nlonlat, nlev = len(lonlat_bins)-1, data_zm.sizes[dimn_v]
+        
+        #_______________________________________________________________________
+        if do_persist: data_zm = data_zm.persist()
+        #display(data_zm)
+        
+        #_______________________________________________________________________
+        # Apply zonal mean over chunk
+        # its important to use: 
+        # data_zm[do_lonlat  ].data[:,None]
+        # data_zm['elem_pbnd'].data[:,None]
+        # all the input to da.map_blocks(calc_transect_zm_mean_chnk... must have the
+        # same dimensionality otherwise it wont work. I also hat to use drop_axis = [1] 
+        # which drops the chunking along the second dimension only leaving  the 
+        # chunking of the first dimension. I also only managed to return the results
+        # as a flattened array the attempt to return as a more dimensional matrix
+        # failed. THats why i need to use shape afterwards 
+        chnk_lonlat = data_zm[do_lonlat].data[None, :] 
+        chnk_ispbnd = data_zm['ispbnd' ].data[None, :]
+        # when we are on elements w_A is a 1D field, whereas when we are on 
+        # vertices w_A is 2D, that why we need to add a dimension for the elem case
+        if np.ndim(data_zm['w_A'].data)==1: chnk_wA = data_zm['w_A'].data[None, :] 
+        else                              : chnk_wA = data_zm['w_A'].data
+        
+        bin_zm = da.map_blocks(calc_transect_zm_mean_chnk    ,
+                                  lonlat_bins                ,   # mean bin definitions
+                                  chnk_lonlat                ,   # lon/lat nod2 coordinates
+                                  chnk_wA                    ,   # area weight
+                                  chnk_ispbnd                ,   # if elem is pbnd element
+                                  data_zm[vname].data        ,   # data chunk piece
+                                  dtype     = np.float32     ,   # Tuple dtype
+                                  drop_axis = [0]            ,   # drop dim nz1
+                                  chunks    = (2*nlev*nlonlat, ) # Output shape
+                                )
+        
+        #_______________________________________________________________________
+        # reshape axis over chunks 
+        bin_zm = bin_zm.reshape((nchunk, 2, nlev, nlonlat))
+        
+        #_______________________________________________________________________
+        # do dask axis reduction across chunks dimension
+        bin_zm = da.reduction(bin_zm,                   
+                                 chunk     = lambda x, axis=None, keepdims=None: x,  # Updated to handle axis and keepdims
+                                 aggregate = np.sum,
+                                 dtype     = np.float32,
+                                 axis      = 0,
+                                 ).compute()
+        
+        if client is not None: client.rebalance()
+        
+        #_______________________________________________________________________
+        # compute mean velocities ber bin --> avoid division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            bin_zm = np.where(bin_zm[1]>0, bin_zm[0]/bin_zm[1], np.nan)
+        
+        #________________________________________________________________________________________________    
+        data_bin_zm = xr.Dataset(data_vars = {vname : ((dimn_v,do_lonlat), bin_zm, data_zm[vname].attrs)
+                                              }, 
+                                 coords    = {do_lonlat       : ((do_lonlat      ), lonlat)              , 
+                                              do_lonlat+'_bnd': ((do_lonlat,'n2' ), np.column_stack((lonlat_bins[:-1], lonlat_bins[1:]))), 
+                                              'depth'         : (('nz1'          ), data_zm[dimn_v].values) 
+                                              },
+                                 attrs     = data_zm.attrs)
+        
+        #_______________________________________________________________________
+        # change attributes
+        if   do_lonlat == 'lat': whichmean = 'zonal'
+        elif do_lonlat == 'lon': whichmean = 'meridional'
+    
+        if 'long_name' in data[vname].attrs:
+            data_bin_zm[vname].attrs['long_name' ] = "{} mean {}".format(whichmean, data[vname].attrs['long_name']) 
+        else:
+            data_bin_zm[vname].attrs['long_name' ] = "{} mean {}".format(whichmean, vname) 
+        
+        if 'short_name' in data[vname].attrs:
+            data_bin_zm[vname].attrs['short_name'] = "{} mean {}".format(whichmean, data[vname].attrs['short_name']) 
+        else:
+            data_bin_zm[vname].attrs['short_name'] = "{} mean {}".format(whichmean, vname) 
+        
+        #_______________________________________________________________________
+        if box is None or box == 'global': 
+            data_bin_zm[vname].attrs['transect_name'] = 'global {} mean'.format(whichmean)
+        elif isinstance(box, shp.Reader):
+            str_name = box.shapeName.split('/')[-1].replace('_',' ')
+            data_bin_zm[vname].attrs['transect_name'] = '{} {} mean'.format(str_name.lower(), whichmean)
+        else:
+            str_name = boxname.replace('_',' ')
+            data_bin_zm[vname].attrs['transect_name'] = '{} {} mean'.format(boxname, whichmean)
+        
+        # for the choice of vertical plotting mode
+        data_bin_zm.attrs['proj'] = 'index+depth+xy'
+        
+        #_______________________________________________________________________
+        # append index to list
+        index_list.append(data_bin_zm)
+        
+        #_______________________________________________________________________
+        cnt = cnt + 1
+        
+    #___________________________________________________________________________
+    return(index_list)
+
+
+
+#
+#
+#_______________________________________________________________________________  
+def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_ispbnd, chnk_d):
+    """
+
+    """
+    #___________________________________________________________________________
+    # only needthe additional dimension at the point where the function is started
+    if   np.ndim(chnk_d) == 2: 
+        chnk_lonlat= chnk_lonlat[0, :] # 2D --> now is 1D again
+        chnk_ispbnd= chnk_ispbnd[ 0, :]
+    elif np.ndim(chnk_d) == 3:
+        chnk_lonlat= chnk_lonlat[ 0, 0, :] # 3D --> now is 1D again
+        chnk_ispbnd= chnk_ispbnd[ 0, 0, :]
+        chnk_wA    = chnk_wA[     0, :, :] # 3D --> now is 2D again
+        
+    # Use np.digitize to find bin indices for longitudes and latitudes
+    idx_lonlat  = np.digitize(chnk_lonlat, lonlat_bins)-1  # Adjust to get 0-based index
+    nlonlat     = len(lonlat_bins)-1
+    
+    if   np.ndim(chnk_d) == 1: 
+        # Replace NaNs with 0 value to summation issues
+        nnod        = chnk_d.shape
+        chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
+        chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
+        binned_d    = np.zeros((2, nlonlat), dtype=np.float32)  
+        # binned_d[0, nlonlat] - data*area weight
+        # binned_d[1, nlonlat] - area weight sum
+    
+    elif np.ndim(chnk_d) == 2: 
+        # Replace NaNs with 0 value to summation issues
+        nlev, nnod  = chnk_d.shape
+        chnk_wA     = np.where(np.isnan(chnk_d), 0, chnk_wA)
+        chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
+        binned_d    = np.zeros((2, nlev, nlonlat), dtype=np.float32)  
+        # binned_d[0, nlonlat, nlev] - data*area weight
+        # binned_d[1, nlonlat, nlev] - area weight sum
+        
+    elif np.ndim(chnk_d) == 3: 
+        # Replace NaNs with 0 value to summation issues
+        ntime, nlev, nnod = chnk_d.shape
+        chnk_wA     = np.where(np.isnan(chnk_d[0,:,:]), 0, chnk_wA)
+        chnk_d      = np.where(np.isnan(chnk_d), 0, chnk_d)
+        binned_d    = np.zeros((2, nlev, ntime, nlonlat), dtype=np.float32)
+        # binned_d[0, ntime, nlonlat, nlev] - data*area weight
+        # binned_d[1, ntime, nlonlat, nlev] - area weight sum    
+        
+    # Precompute mask outside the loop
+    idx_valid   = (idx_lonlat >= 0) & (idx_lonlat < nlonlat) & (~chnk_ispbnd)
+    del(chnk_ispbnd)
+
+    # Apply mask before looping
+    idx_lonlat  = idx_lonlat[idx_valid]
+    nnod        = len(idx_lonlat)
+    
+    # Sum data based on binned indices
+    # data for zonal mean are 1d [nlonlat, ]
+    if   np.ndim(chnk_d) == 1:
+        chnk_d      = chnk_d[ idx_valid]
+        chnk_wA     = chnk_wA[idx_valid]
+        for nod_i in range(0,nnod):
+            jj = idx_lonlat[nod_i]
+            binned_d[0, jj] = binned_d[0, jj] + chnk_d[ nod_i] * chnk_wA[nod_i]
+            binned_d[1, jj] = binned_d[1, jj] + chnk_wA[nod_i]
+    
+    # data for zonal mean are 2d [nlonlat, nlev]
+    elif np.ndim(chnk_d) == 2:
+        chnk_d      = chnk_d[ :, idx_valid]
+        chnk_wA     = chnk_wA[:, idx_valid]
+        for nod_i in range(0,nnod):
+            jj = idx_lonlat[nod_i]
+            binned_d[0, :, jj] = binned_d[0, :, jj] + chnk_d[ :, nod_i] * chnk_wA[:, nod_i]
+            binned_d[1, :, jj] = binned_d[1, :, jj] + chnk_wA[:, nod_i]
+    
+    # data for zonal mean are 3d [ntime, nlonlat, nlev]
+    elif np.ndim(chnk_d) == 3:    
+        chnk_d      = chnk_d[ :, :, idx_valid]
+        chnk_wA     = chnk_wA[   :, idx_valid]
+        for nod_i in range(0,nnod):
+            jj = idx_lonlat[nod_i]
+            binned_d[0, :, :, jj] = binned_d[0, :, :, jj] + chnk_d[ :, :, nod_i] * chnk_wA[:, nod_i]
+            binned_d[1, :, :, jj] = binned_d[1, :, :, jj] + chnk_wA[:, nod_i]
+            
+    #___________________________________________________________________________
+    return binned_d.flatten()
 
 
 #

@@ -4,6 +4,7 @@ import sys
 import os
 import time as clock
 import numpy  as np
+import dask.array as da
 import pandas as pa
 import joblib
 import warnings
@@ -15,6 +16,8 @@ except ModuleNotFoundError:
     pass
 from   netCDF4 import Dataset
 from .sub_mesh import *
+
+from shapely.geometry import Polygon
 
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
 #| IMPORTANT!!!:                                                               |                                         
@@ -1333,7 +1336,7 @@ ___________________________________________""".format(
         ## python  sortrows algorythm --> matlab equivalent
         edge    = edge.tolist()
         edge.sort()
-        edge    = np.array(edge)
+        edge    = np.array(edge, type=np.int32)
         
         idx     = np.diff(edge,axis=0)==0
         idx     = np.all(idx,axis=1)
@@ -1344,6 +1347,11 @@ ___________________________________________""".format(
         bnde    = edge[idx==False,:]
         nbnde   = bnde.shape[0];
         del edge, idx
+        
+        #import matplotlib.pyplot as plt
+        #plt.figure()
+        #plt.plot(self.n_x[bnde.flatten()], self.n_y[bnde.flatten()], 'r*')
+        #plt.show()
         
         #_______________________________________________________________________
         run_cont        = np.zeros((1,nbnde))*np.nan
@@ -1377,6 +1385,12 @@ ___________________________________________""".format(
                 # add points to polygon_list
                 aux_xy = np.vstack((self.n_x[np.int64(run_cont[0,0:count_init+1])], 
                                     self.n_y[np.int64(run_cont[0,0:count_init+1])])).transpose()
+                
+                
+                ### do not allow very small polygons that are only single triangles
+                ### to take part in the lsmask polygon list. These kind of polygons 
+                ### cause a lot of trouble in projection like nps, sps
+                ##if aux_xy.shape[0]>4:
                 polygon_xy.append(aux_xy)
                 del  aux_xy
                 
@@ -1463,7 +1477,10 @@ ___________________________________________""".format(
                 if np.any(np.diff(polygon_xy[[0,-1],:])!=0): polygon_xy = np.vstack(( (polygon_xy,polygon_xy[0,:]) ))
             
             else: 
-                self.lsmask_a.append(polygon_xy)   
+                if polygon_xy.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xy)   
                 continue
             
             #___________________________________________________________________
@@ -1505,13 +1522,15 @@ ___________________________________________""".format(
                 ## polygon must have at last 3 points
                 #if polygon_xyl.shape[0]==2: 
                     #polygon_xyl = np.vstack(( polygon_xyl, polygon_xyl[0,:] ))
-                    
-                self.lsmask_a.append(polygon_xyl)
+                if polygon_xyl.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xyl)
                 
                 #_______________________________________________________________
                 # do polygon on right periodic boundary
                 polygon_xyr = polygon_xy.copy()
-                polygon_xyr[aux_ir[0],0]   = xmax   
+                polygon_xyr[aux_ir[0],0]   = xmax
                 polygon_xyr[:aux_il[0]+1,:]= np.nan   
                 for jj in range(1,len(aux_ir)-1,2):
                     polygon_xyr[[aux_ir[jj],aux_ir[jj+1]],0] = xmax
@@ -1530,8 +1549,10 @@ ___________________________________________""".format(
                 ## polygon must have at last 3 points
                 #if polygon_xyr.shape[0]==2: 
                     #polygon_xyr = np.vstack(( polygon_xyr, polygon_xyr[0,:] ))
-                    
-                self.lsmask_a.append(polygon_xyr)
+                if polygon_xyr.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xyr)
                 
                 del polygon_xy, aux_il, aux_ir
                 
@@ -1572,8 +1593,12 @@ ___________________________________________""".format(
                 ## polygon must have at least 3 points
                 #if polygon_xy.shape[0]==2: 
                     #polygon_xy = np.vstack(( polygon_xy,polygon_xy[0,:] ))
+                if polygon_xy.shape[0]<=3: 
+                    ...
+                else:
+                    self.lsmask_a.append(polygon_xy)
                     
-                self.lsmask_a.append(polygon_xy)
+                    
                 del polygon_xy, pbndr, pcrnr, pcrnl ,pbndl, 
                 del aux_il, aux_ir, aux_i, aux_x, aux_y
                 
@@ -1620,9 +1645,29 @@ def lsmask_patch(lsmask):
 
     """
     from shapely.geometry import Polygon, MultiPolygon
+    from shapely.validation import make_valid
+
     #___________________________________________________________________________
     polygonlist=[]
-    for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
+    #for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
+    for ii, xycoord in enumerate(lsmask):
+        #print(ii, xycoord.shape)
+        poly = Polygon(xycoord)
+                    
+        # Ensure polygons are counterclockwise
+        if not poly.exterior.is_ccw:
+            poly = Polygon(list(poly.exterior.coords)[::-1])
+
+        # Ensure polygon is valid
+        if not poly.is_valid:
+            poly = make_valid(poly)  # Attempt to fix the geometry
+        
+        # Check if make_valid() returned a MultiPolygon
+        if isinstance(poly, MultiPolygon):
+            polygonlist.extend(poly.geoms)  # Unpack MultiPolygon into list
+        elif poly.is_valid:
+            polygonlist.append(poly)
+        
     lsmask_p = MultiPolygon(polygonlist)
     
     #___________________________________________________________________________
@@ -1741,7 +1786,11 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
     # if an extra path is given us this to store the shapefile         
     else:
         shppath = path
-        
+    
+    #___________________________________________________________________________
+    # Ensure the GeoDataFrame has a CRS
+    newdata.set_crs("EPSG:4326", inplace=True)  # Set to the correct CRS
+
     #___________________________________________________________________________
     # write lsmask to shapefile 
     if not fname:
@@ -1780,18 +1829,18 @@ def grid_rotmat(abg):
     ga  = abg[2] * rad
         
     #___________________________________________________________________________
-    rmat= np.zeros((3,3))
-    rmat[0,0] =( np.cos(ga)*np.cos(al) - np.sin(ga)*np.cos(be)*np.sin(al) )
-    rmat[0,1] =( np.cos(ga)*np.sin(al) + np.sin(ga)*np.cos(be)*np.cos(al) )
-    rmat[0,2] =( np.sin(ga)*np.sin(be) )
+    rmat      = da.zeros((3,3))
+    rmat[0,0] =( da.cos(ga)*da.cos(al) - da.sin(ga)*da.cos(be)*da.sin(al) )
+    rmat[0,1] =( da.cos(ga)*da.sin(al) + da.sin(ga)*da.cos(be)*da.cos(al) )
+    rmat[0,2] =( da.sin(ga)*da.sin(be) )
         
-    rmat[1,0] =(-np.sin(ga)*np.cos(al) - np.cos(ga)*np.cos(be)*np.sin(al) )
-    rmat[1,1] =(-np.sin(ga)*np.sin(al) + np.cos(ga)*np.cos(be)*np.cos(al) )
-    rmat[1,2] =( np.cos(ga)*np.sin(be) )
+    rmat[1,0] =(-da.sin(ga)*da.cos(al) - da.cos(ga)*da.cos(be)*da.sin(al) )
+    rmat[1,1] =(-da.sin(ga)*da.sin(al) + da.cos(ga)*da.cos(be)*da.cos(al) )
+    rmat[1,2] =( da.cos(ga)*da.sin(be) )
         
-    rmat[2,0] =( np.sin(be)*np.sin(al) )
-    rmat[2,1] =(-np.sin(be)*np.cos(al) )        
-    rmat[2,2] =( np.cos(be) )
+    rmat[2,0] =( da.sin(be)*da.sin(al) )
+    rmat[2,1] =(-da.sin(be)*da.cos(al) )        
+    rmat[2,2] =( da.cos(be) )
         
     #___________________________________________________________________________
     return(rmat)
@@ -1830,9 +1879,9 @@ def grid_cart3d(lon,lat,R=1.0, is_deg=False):
         lat = lat * rad
         lon = lon * rad
     
-    x = R*np.cos(lat) * np.cos(lon)
-    y = R*np.cos(lat) * np.sin(lon)
-    z = R*np.sin(lat)
+    x = R*da.cos(lat) * da.cos(lon)
+    y = R*da.cos(lat) * da.sin(lon)
+    z = R*da.sin(lat)
     #___________________________________________________________________________
     return(x,y,z)
 
@@ -2032,7 +2081,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
         rlon, rlat = grid_g2r(abg, lon, lat)        
     elif any(x in gridis for x in ['rot','r','rotated']):     
         rlon, rlat = lon, lat 
-        lon,  lat  = grid_g2r(abg, rlon, rlat)
+        lon,  lat  = grid_r2g(abg, rlon, rlat)
     else:
         raise ValueError("The option gridis={} in vec_r2g is not supported.\n (only: 'geo','g','geographical', 'rot','r','rotated') ".format(str(gridis)))
     
@@ -2072,7 +2121,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     # rotation of two dimensional vector data    
     elif vrot.ndim==2 or urot.ndim==2: 
         if do_info: print('     > 2D rotation')
-        nd1,nd2=urot.shape
+        nd2,nd1=urot.shape
         ugeo, vgeo = urot.copy(), vrot.copy()
         if do_info: print('nlev:{:d}'.format(nd2))
         for nd2i in range(0,nd2):
@@ -2083,7 +2132,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
             
             #___________________________________________________________________
             t1=clock.time()
-            aux_urot, aux_vrot = urot[:,nd2i], vrot[:,nd2i]
+            aux_urot, aux_vrot = urot[nd2i,:], vrot[nd2i, :]
             
             #___________________________________________________________________
             # compute vector in rotated cartesian coordinates
@@ -2102,8 +2151,8 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
             #___________________________________________________________________
             # compute vector in geo coordinates 
             t1=clock.time()
-            vgeo[:,nd2i]= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
-            ugeo[:,nd2i]= vxg*-np.sin(lon) + vyg*np.cos(lon)
+            vgeo[nd2i,:]= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
+            ugeo[nd2i,:]= vxg*-np.sin(lon) + vyg*np.cos(lon)
             
     #___________________________________________________________________________    
     else: raise ValueError('This number of dimensions is in moment not supported for vector rotation')    
@@ -2200,7 +2249,7 @@ def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
 # ___INTERPOLATE FROM ELEMENTS TO VERTICES_____________________________________
 #|                                                                             |
 #|_____________________________________________________________________________|
-def grid_interp_e2n(mesh,data_e):
+def grid_interp_e2n(mesh,data_e, client=None):
     """
     --> interpolate data from elements to vertices e.g velocity from elements to 
     velocity on nodes
@@ -2238,13 +2287,14 @@ def grid_interp_e2n(mesh,data_e):
     #___________________________________________________________________________        
     elif data_e.ndim==2:
         
-        nd        = data_e.shape[1]
-        data_n    = np.zeros((mesh.n2dn, nd))
+        nd        = data_e.shape[0]
+        data_n    = np.zeros((nd, mesh.n2dn))
         data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
         
         #_______________________________________________________________________
         def e2n_di(di, data_e, area_e, e_i_flat, n_iz):
-            data_exa  = area_e * np.vstack((data_e[:,di],data_e[:,di],data_e[:,di])).transpose().flatten()
+            
+            data_exa  = area_e * np.vstack((data_e[di,:],data_e[di,:],data_e[di,:])).transpose().flatten()
             data_n_di = np.zeros(n_iz.shape)
             data_a_di = np.zeros(n_iz.shape)
         
@@ -2254,21 +2304,37 @@ def grid_interp_e2n(mesh,data_e):
                 if n_iz[n_i]<di: continue
                 data_n_di[n_i] = data_n_di[n_i] + data_exa[ e_i]
                 data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
-            with np.errstate(divide='ignore',invalid='ignore'):    
-                data_n_di = data_n_di/data_a_di
+            
+            # Avoid divide-by-zero errors
+            with np.errstate(divide='ignore', invalid='ignore'):
+                data_n_di = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
+    
             return(data_n_di)
         
         #_______________________________________________________________________
-        #t1 = clock.time()
-        #for di in range(0,nd):
-            #data_n[:, di] = e2n_di(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) 
-        #print(clock.time()-t1)
+        # do seriial computation 
+        if client is None:
+            t1 = clock.time()
+            for di in range(0,nd):
+                data_n[di, :] = e2n_di(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) 
+            print(clock.time()-t1)
         
-        t1 = clock.time()
-        from joblib import Parallel, delayed
-        results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
-        data_n = np.vstack(results).transpose()
-        print(' --> elapsed time:', clock.time()-t1)
+        # do computation in parallel by dask client
+        else:
+            t1 = clock.time()
+            # Submit tasks to the Dask client
+            futures = [client.submit(e2n_di, di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
+
+            # Gather results
+            results = client.gather(futures)
+
+            # Stack results to match (nd, mesh.n2dn) shape
+            data_n = da.vstack(results)
+            print(clock.time()-t1)
+        #from joblib import Parallel, delayed
+        #results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
+        #data_n = np.vstack(results).transpose()
+        #print(' --> elapsed time:', clock.time()-t1)
         
     #___________________________________________________________________________
     return(data_n)
