@@ -1336,7 +1336,9 @@ ___________________________________________""".format(
         ## python  sortrows algorythm --> matlab equivalent
         edge    = edge.tolist()
         edge.sort()
-        edge    = np.array(edge, type=np.int32)
+        
+        #edge    = np.array(edge, type=np.int32)
+        edge    = np.array(edge)
         
         idx     = np.diff(edge,axis=0)==0
         idx     = np.all(idx,axis=1)
