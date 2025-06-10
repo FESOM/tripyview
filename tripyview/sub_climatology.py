@@ -86,7 +86,8 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
         #data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.00)})
         data = data.assign({vname: (list(data.dims), sw.dens(data[vname_salt].data, data[vname_temp].data, pref)-1000.00)})
         #for labels in vname_drop:
-        data = data.drop(labels=vname_drop)
+        #data = data.drop_vars(labels=vname_drop)
+        data = data.drop_vars(vname_drop)
         data[vname].attrs['units'] = 'kg/m^3'
         
     else:

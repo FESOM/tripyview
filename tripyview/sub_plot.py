@@ -1,3 +1,4 @@
+
 import os
 import sys
 import numpy                    as np
@@ -2602,6 +2603,14 @@ def plot_vline(data                   ,
             cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
         else:
             cmap = categorical_cmap(ndat, 1, cmap="tab10")
+        
+        if np.mod(ndat,n_cycl)!=0: 
+            # add another black color infront of the colormap in case of climatology
+            from matplotlib.colors import ListedColormap
+            black_and_cmap = [np.array([0,0,0])] + list(cmap.colors)
+            cmap = ListedColormap(np.array(black_and_cmap))
+            del(black_and_cmap)
+
     else:
         cmap = categorical_cmap(ndat, 1, cmap="tab10")
         
@@ -2679,7 +2688,7 @@ def plot_vline(data                   ,
                     if jj==0: list_strboxlabel.append(str_blabel)
                     
                     #_______________________________________________________________
-                    # plot lines 
+                    # plot lines
                     optline.update({'color':cmap.colors[cnt,:]})
                     optline.update(plt_opt)
                     if allinone and nrow*ncol==1: optline.update({'linestyle':list_lstyle[bi]})
@@ -5465,13 +5474,15 @@ def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_pl
             # plotting of chunks 
             auxtriangles = tri.triangles[tri.mask_e_ok==False,:]
             arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+            nchnk = np.ceil(arrsize/chnksize).astype(int)
             print(' --> plot {:6s} chunk:'.format('bot'),end='')
-            for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+            for chnki in range(nchnk):
                 idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
                 print('{:d}|'.format(chnki), end='')
                 h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe, :], np.ones((idxe-idxs)), **bot_optdefault)
-                hfig.canvas.draw_idle()     # Updates only changed parts
-                hfig.canvas.flush_events()  # Ensures interactive update
+                if nchnk>1:
+                    hfig.canvas.draw_idle()     # Updates only changed parts
+                    hfig.canvas.flush_events()  # Ensures interactive update
             print('')
             del(auxtriangles)
             

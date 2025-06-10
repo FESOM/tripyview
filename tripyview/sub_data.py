@@ -510,6 +510,7 @@ def load_data_fesom2(mesh,
     # add depth axes since its not included in restart and blowup files
     # also add weights
     if do_zarithm in ['wmean','wint']: do_zweight=True
+    data = data.unify_chunks()
     data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=do_zweight, do_hweight=do_hweight)
     
     #___________________________________________________________________________
@@ -1775,9 +1776,9 @@ def do_potential_density(data, do_pdens, vname, vname2, vname_tmp):
         elif vname_tmp == 'sigma5' : pref=5000
         
         if 'time' in data.dims:
-            data_depth = data['nz1'].expand_dims(dict({'time':data.dims['time'], 'nod2':data.dims['nod2']}))
+            data_depth = data['nz1'].expand_dims(dict({'time':data.sizes['time'], 'nod2':data.sizes['nod2']}))
         else:
-            data_depth = data['nz1'].expand_dims(dict({'nod2':data.dims['nod2']}))
+            data_depth = data['nz1'].expand_dims(dict({'nod2':data.sizes['nod2']}))
             
         # data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.00)})
         data = data.assign({vname_tmp: (list(data[vname].dims), sw.dens(data[vname2].data, data[vname].data, pref)-1000.00)})
