@@ -13,7 +13,7 @@ from .sub_data import *
 #|        *** LOAD CLIMATOLOGY DATA INTO --> XARRAY DATASET CLASS ***          |
 #|                                                                             |
 #|_____________________________________________________________________________|
-def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
+def load_climatology(mesh, datapath, vname, mon=None, depth=None, depidx=False,
                      do_zarithm='mean', do_hinterp='linear', do_zinterp=True, 
                      descript='clim', do_ptemp=True, pref =0.0, 
                      do_compute=False, do_load=True, do_persist=False, 
@@ -32,7 +32,42 @@ def load_climatology(mesh, datapath, vname, depth=None, depidx=False,
     #___________________________________________________________________________
     # load climatology data with xarray
     data = xr.open_dataset(datapath, decode_times=False, **kwargs)
-
+   
+    #___________________________________________________________________________
+    # select timeslice in case of monthly or seasonal climatology selection
+    if 'time' in data.dims:
+        # annual climatology
+        if data.sizes['time']==1:
+            ...
+            
+        # monthly climatology    
+        elif data.sizes['time']==12:
+            #compute annual mean from monthly climatolgy
+            if mon is None:
+                data = data.mean(  dim="time", keep_attrs=True).persist()
+            # selcet single month from monthly climatolgy        
+            elif len(mon)==1:    
+                data = data.isel(time=[i-1 for i in mon]).persist()
+            # compute seasonal mean from monthly climatolgy    
+            else:
+                data = data.isel(time=[i-1 for i in mon]).mean(dim="time", keep_attrs=True).persist()
+                
+        # seasonal climatolgy --> looks like phc3.0 seasonal climatology only contains 
+        # summer and winter    
+        elif data.sizes['time']==4:    
+            if mon is None:
+                data = data.mean(  dim="time", keep_attrs=True).persist()
+            # select winter season, weirdly in PHC its [march, april,  may]   
+            # https://psc.apl.washington.edu/nonwp_projects/PHC/Data3.html 
+            elif sorted(mon) ==[3,4,5]: 
+                data = data.isel(time=0).persist()
+            # select summer season, weirdly in PHC its [July, August, September]   
+            # https://psc.apl.washington.edu/nonwp_projects/PHC/Data3.html 
+            elif sorted(mon) ==[7,8,9]: 
+                data = data.isel(time=1).persist()
+            else:
+                raise ValueError('this month list is not supported for seaonal climatoligical data! Only: [1,2,12], [3,4,5], [6,7,8], [9,10,11]')
+            
     #___________________________________________________________________________
     # delete eventual time dimension from climatology data
     if 'time' in data.dims:
