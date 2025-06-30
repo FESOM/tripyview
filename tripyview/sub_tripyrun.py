@@ -128,7 +128,12 @@ def tripyrun():
     #____DICTIONARY CONTENT_____________________________________________________
     # name of workflow runs --> also folder name 
     tripyrun_name = yaml_settings['tripyrun_name']
-
+    
+    append_run_name_to_save_path = yaml_settings.get("append_run_name_to_save_path", True)  # NOTE(PG): Preserve current behaviour
+    notebook_dir = yaml_settings.get("notebook_dir")
+    figure_dir = yaml_settings.get("figure_dir")
+    
+    
     # setup data input paths & input names
     input_paths = yaml_settings['input_paths']
     if 'input_names' in yaml_settings:
@@ -140,8 +145,11 @@ def tripyrun():
     if len(input_names) != len(input_paths): raise ValueError("The size of input_names & input_paths is not equal") 
     
     # setup save path    
-    if 'save_path' in yaml_settings: 
-        save_path = f"{yaml_settings['save_path']}/{tripyrun_name}"
+    if 'save_path' in yaml_settings:
+        if append_run_name_to_save_path:
+            save_path = f"{yaml_settings['save_path']}/{tripyrun_name}"
+        else:
+            save_path = yaml_settings['save_path']
     else:
         save_path = os.path.join(pkg_path, f"Results/{tripyrun_name}") 
     save_path = os.path.expanduser(save_path)
@@ -156,8 +164,10 @@ def tripyrun():
     yaml_settings['do_papermill']      = True
     
     yaml_settings['save_path']         = save_path
-    yaml_settings['tripyrun_spath_nb' ]= os.path.join(save_path, "notebooks")
-    yaml_settings['tripyrun_spath_fig']= os.path.join(save_path, "figures")  
+    #yaml_settings['tripyrun_spath_nb' ]= os.path.join(save_path, "notebooks")
+    #yaml_settings['tripyrun_spath_fig']= os.path.join(save_path, "figures") 
+    yaml_settings['tripyrun_spath_nb' ]= notebook_dir or os.path.join(save_path, "notebooks")
+    yaml_settings['tripyrun_spath_fig']= figure_dir or os.path.join(save_path, "figures")  
     
     # papermiller imports python None variable declaration as "None" string this causes 
     # trouble in the if VAR is None: comparison:
