@@ -1619,14 +1619,60 @@ def lsmask_patch(lsmask):
           linewidth=0.5)
 
     """
-    from shapely.geometry import Polygon, MultiPolygon
+    from shapely.geometry import Polygon, MultiPolygon, GeometryCollection
+    from shapely.validation import make_valid
+    
+    #import matplotlib.pyplot as plt 
+    #hfig = plt.figure()
+    #ax = plt.gca()
     #___________________________________________________________________________
     polygonlist=[]
-    for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
-    lsmask_p = MultiPolygon(polygonlist)
+    #for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
+    for ii, xycoord in enumerate(lsmask):
+        #print(ii, xycoord.shape)
+        poly = Polygon(xycoord)
+                    
+        # Ensure polygons are counterclockwise
+        if not poly.exterior.is_ccw:
+            poly = Polygon(list(poly.exterior.coords)[::-1])
+
+        # Ensure polygon is valid
+        if not poly.is_valid:
+            poly = make_valid(poly)  # Attempt to fix the geometry
+        
+        #npoly = len(polygonlist)
+        # Check if make_valid() returned a MultiPolygon
+        if   isinstance(poly, MultiPolygon):
+            polygonlist.extend(poly.geoms)  # Unpack MultiPolygon into list
+            
+            #for auxpoly in polygonlist[npoly:]:
+                #coords = np.array(auxpoly.exterior.coords)
+                #ax.plot(coords[:,0], coords[:,1], 'c*')
+            
+        # Check if make_valid() returned a GeometryCollection
+        elif isinstance(poly, GeometryCollection):             
+             # Extract only Polygon or MultiPolygon from the GeometryCollection
+            for geom in poly.geoms:
+                if isinstance(geom, Polygon):
+                    polygonlist.append(geom)
+                elif isinstance(geom, MultiPolygon):
+                    polygonlist.extend(geom.geoms)
+            
+            #for auxpoly in polygonlist[npoly:]:
+                #coords = np.array(auxpoly.exterior.coords)
+                #ax.plot(coords[:,0], coords[:,1], 'r*')
+        
+        elif isinstance(poly, Polygon):
+        #elif poly.is_valid:
+            polygonlist.append(poly)
+            
+            #for auxpoly in polygonlist[npoly:]:
+                #coords = np.array(auxpoly.exterior.coords)
+                #ax.plot(coords[:,0], coords[:,1], 'k*')
+        
     
-    #___________________________________________________________________________
-    return(lsmask_p)
+    lsmask_p = MultiPolygon(polygonlist)
+    #plt.show()
 
 
 
