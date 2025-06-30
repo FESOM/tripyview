@@ -1615,11 +1615,16 @@ def calc_transect_scalar(mesh,
 #
 #
 #___PLOT TRANSECT POSITION______________________________________________________
-def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figsize=[10,10], 
+def plot_transect_position(mesh, transect, edge=None, zoom=None, hfig=None,  figsize=[10,10], 
                            proj='nears', box = [-180, 180,-90, 90], 
                            resolution='low', do_path=True, do_labels=True, do_title=True,
                            do_nvec=False, do_evec_cs=False, do_nvec_cs=True, 
-                           do_grid=False, ax_pos=[0.90, 0.05, 0.45, 0.45]):
+                           do_grid=False, ax_pos=[0.90, 0.05, 0.45, 0.45],
+                           #--- save figure ----
+                           do_save    = None      , 
+                           save_dpi   = 300       ,
+                           save_opt   = dict()    ,
+                    ):
     """
     --> plot transect positions
     
@@ -1634,7 +1639,7 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
         
         :zoom:          float, (default=None), zzom factor for nearside projection
         
-        :fig:           matplotlib figure handle, (default=None)
+        :hfig:           matplotlib figure handle, (default=None)
         
         :figsize:       list, (default=[10,10]) width and height of figure
         
@@ -1692,11 +1697,11 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
     proj_to, box = do_projection(mesh, proj, box)
     
     #___________________________________________________________________________
-    if fig is None: 
-        fig = plt.figure(figsize=figsize)
+    if hfig is None: 
+        hfig = plt.figure(figsize=figsize)
         ax  = plt.axes(projection=proj_to)
     else:
-        ax = fig.add_axes(ax_pos, projection=proj_to)
+        ax = hfig.add_axes(ax_pos, projection=proj_to)
         
     pkg_path = os.path.dirname(__file__)
     bckgrndir = os.path.normpath(pkg_path+'/backgrounds/')
@@ -1785,11 +1790,13 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, fig=None,  figs
                    #transect['edge_cut_P'][:,1].max()])
     
     #___________________________________________________________________________
-    plt.show()
-    fig.canvas.draw()
+    # save figure based on do_save contains either None or pathname
+    do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
+    plt.show() 
+    hfig.canvas.draw()
     
     #___________________________________________________________________________
-    return(fig, ax)
+    return(hfig, ax)
 
 
 #
