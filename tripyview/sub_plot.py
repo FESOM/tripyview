@@ -544,7 +544,7 @@ def plot_hslice(mesh                   ,
                         # title width in cm
                         titl_w_cm   = titl_w_inch * 2.54
                         # mean width of 1 char in cm
-                        chr1_w_cm     = 0.3 #titl_w_cm/len(str_title)
+                        chr1_w_cm     = 0.25 #0.3 #titl_w_cm/len(str_title)
                         if titl_w_cm>hax_ii.ax_w :
                             str_title = '\n'.join(textwrap.wrap(str_title, width=int(hax_ii.ax_w/chr1_w_cm) ))
                             htitl.set_text(str_title)
@@ -1026,7 +1026,7 @@ def plot_hmesh( mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    plt.show()
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -2364,7 +2364,7 @@ def plot_hline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    plt.show()
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -2679,6 +2679,8 @@ def plot_vline(data                   ,
                     if ax_xunit is None:
                         if 'units' in loc_attrs: str_xlabel = str_xlabel+' / '+loc_attrs['units']
                     else: str_xlabel = str_xlabel+' / '+ ax_xunit
+                    
+                    if 'str_ltim' in loc_attrs: str_xlabel = str_xlabel+', '+loc_attrs['str_ltim']
                         
                     if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
                     if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
@@ -2783,7 +2785,7 @@ def plot_vline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    plt.show()
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -3240,7 +3242,7 @@ def plot_tline(data,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    plt.show()
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -4649,9 +4651,9 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
         # plotting of chunks 
         auxtriangles = tri.triangles[tri.mask_e_ok,:]
         arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
-        
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
         print(' --> plot {:6s} chunk:'.format('data'),end='')
-        for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+        for chnki in range(nchnk):
             idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
             print('{:d}|'.format(chnki), end='')
             if tri.x.size!=data_plot.size: idxs1, idxe1 = idxs, idxe
@@ -4659,8 +4661,9 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
             h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe,:], data_plot[idxs1: idxe1],
                                 cmap=cinfo_plot['cmap'], norm = which_norm_plot,
                                 **cminmax, **plt_optdefault)
-            hfig.canvas.draw_idle()     # Updates only changed parts
-            hfig.canvas.flush_events()  # Ensures interactive update
+            if nchnk>1:
+                hfig.canvas.draw_idle()     # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
         print('')    
         del(auxtriangles)
         
