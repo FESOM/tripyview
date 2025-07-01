@@ -1463,7 +1463,10 @@ ___________________________________________""".format(
                 if np.any(np.diff(polygon_xy[[0,-1],:])!=0): polygon_xy = np.vstack(( (polygon_xy,polygon_xy[0,:]) ))
             
             else: 
-                self.lsmask_a.append(polygon_xy)   
+                if polygon_xy.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xy)   
                 continue
             
             #___________________________________________________________________
@@ -1505,13 +1508,15 @@ ___________________________________________""".format(
                 ## polygon must have at last 3 points
                 #if polygon_xyl.shape[0]==2: 
                     #polygon_xyl = np.vstack(( polygon_xyl, polygon_xyl[0,:] ))
-                    
-                self.lsmask_a.append(polygon_xyl)
+                if polygon_xyl.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xyl)
                 
                 #_______________________________________________________________
                 # do polygon on right periodic boundary
                 polygon_xyr = polygon_xy.copy()
-                polygon_xyr[aux_ir[0],0]   = xmax   
+                polygon_xyr[aux_ir[0],0]   = xmax
                 polygon_xyr[:aux_il[0]+1,:]= np.nan   
                 for jj in range(1,len(aux_ir)-1,2):
                     polygon_xyr[[aux_ir[jj],aux_ir[jj+1]],0] = xmax
@@ -1530,8 +1535,10 @@ ___________________________________________""".format(
                 ## polygon must have at last 3 points
                 #if polygon_xyr.shape[0]==2: 
                     #polygon_xyr = np.vstack(( polygon_xyr, polygon_xyr[0,:] ))
-                    
-                self.lsmask_a.append(polygon_xyr)
+                if polygon_xyr.shape[0]<=3: 
+                    ...
+                else:    
+                    self.lsmask_a.append(polygon_xyr)
                 
                 del polygon_xy, aux_il, aux_ir
                 
@@ -1572,8 +1579,12 @@ ___________________________________________""".format(
                 ## polygon must have at least 3 points
                 #if polygon_xy.shape[0]==2: 
                     #polygon_xy = np.vstack(( polygon_xy,polygon_xy[0,:] ))
+                if polygon_xy.shape[0]<=3: 
+                    ...
+                else:
+                    self.lsmask_a.append(polygon_xy)
                     
-                self.lsmask_a.append(polygon_xy)
+                    
                 del polygon_xy, pbndr, pcrnr, pcrnl ,pbndl, 
                 del aux_il, aux_ir, aux_i, aux_x, aux_y
                 
@@ -1622,16 +1633,16 @@ def lsmask_patch(lsmask):
     from shapely.geometry import Polygon, MultiPolygon, GeometryCollection
     from shapely.validation import make_valid
     
-    #import matplotlib.pyplot as plt 
-    #hfig = plt.figure()
-    #ax = plt.gca()
+    # import matplotlib.pyplot as plt 
+    # hfig = plt.figure()
+    # ax = plt.gca()
     #___________________________________________________________________________
     polygonlist=[]
     #for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
     for ii, xycoord in enumerate(lsmask):
         #print(ii, xycoord.shape)
         poly = Polygon(xycoord)
-                    
+        
         # Ensure polygons are counterclockwise
         if not poly.exterior.is_ccw:
             poly = Polygon(list(poly.exterior.coords)[::-1])
@@ -1639,16 +1650,16 @@ def lsmask_patch(lsmask):
         # Ensure polygon is valid
         if not poly.is_valid:
             poly = make_valid(poly)  # Attempt to fix the geometry
-        
-        #npoly = len(polygonlist)
+
+        # npoly = len(polygonlist)
         # Check if make_valid() returned a MultiPolygon
         if   isinstance(poly, MultiPolygon):
             polygonlist.extend(poly.geoms)  # Unpack MultiPolygon into list
             
-            #for auxpoly in polygonlist[npoly:]:
-                #coords = np.array(auxpoly.exterior.coords)
-                #ax.plot(coords[:,0], coords[:,1], 'c*')
-            
+            # for auxpoly in polygonlist[npoly:]:
+            #     coords = np.array(auxpoly.exterior.coords)
+            #     ax.plot(coords[:,0], coords[:,1], 'c*')
+
         # Check if make_valid() returned a GeometryCollection
         elif isinstance(poly, GeometryCollection):             
              # Extract only Polygon or MultiPolygon from the GeometryCollection
@@ -1658,22 +1669,23 @@ def lsmask_patch(lsmask):
                 elif isinstance(geom, MultiPolygon):
                     polygonlist.extend(geom.geoms)
             
-            #for auxpoly in polygonlist[npoly:]:
-                #coords = np.array(auxpoly.exterior.coords)
-                #ax.plot(coords[:,0], coords[:,1], 'r*')
+            # for auxpoly in polygonlist[npoly:]:
+            #     coords = np.array(auxpoly.exterior.coords)
+            #     ax.plot(coords[:,0], coords[:,1], 'r*')
         
         elif isinstance(poly, Polygon):
         #elif poly.is_valid:
             polygonlist.append(poly)
             
-            #for auxpoly in polygonlist[npoly:]:
-                #coords = np.array(auxpoly.exterior.coords)
-                #ax.plot(coords[:,0], coords[:,1], 'k*')
+            # for auxpoly in polygonlist[npoly:]:
+            #     coords = np.array(auxpoly.exterior.coords)
+            #     ax.plot(coords[:,0], coords[:,1], 'k*')
         
     
     lsmask_p = MultiPolygon(polygonlist)
-    #plt.show()
-
+    # plt.show()
+    #___________________________________________________________________________
+    return(lsmask_p)
 
 
 #
