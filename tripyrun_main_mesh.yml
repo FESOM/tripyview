@@ -1,0 +1,45 @@
+#___i1lvl Parameter___
+tripyrun_name: "Test001"
+do_papermill: True
+do_parallel: false
+input_paths:
+    - /work/ab0246/a270092/runtime/awicm3-v3.3/REF/outdata/fesom
+input_names:
+    - test001
+   
+    
+#ref_path: /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
+#ref_name: $TKE$' 
+    
+mesh_path: '/work/ab0246/a270092/input/fesom2/core2'
+save_path: './Results/'
+
+which_clim: 'phc3'
+clim_path: '/work/ab0246/a270092/input/fesom2/hydrography/phc3.0/phc3.0_annual.nc'
+
+ncol: 2
+box: None
+
+n_cycl: None
+do_allcycl: False
+year: [1990, 1991]
+depth: None
+proj: 'rob'
+save_dpi: 150
+
+
+#_______________________________________________________________________________
+# mesh plots
+hmesh:
+    #___2lvl Parameter___
+    proj: 'ortho'
+    box: [-30,45]
+    do_mesh: True
+    do_plt: 'tpc'
+    do_lsm: 'bluemarble'
+    #___Variables________
+    None:
+        proj: 'nears'
+        box: [-30, 45, 25]
+    nresol:
+

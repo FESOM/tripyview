@@ -1,0 +1,149 @@
+/home/a/a270275/tripyview/tripyview/sub_data.py:8: UserWarning: The seawater library is deprecated! Please use gsw instead.
+  import seawater as sw
+/home/a/a270275/tripyview
+ --> start time: 2024-10-22 16:27:11
+Traceback (most recent call last):
+  File "/home/a/a270275/.conda/envs/py39/bin/tripyrun", line 33, in <module>
+    sys.exit(load_entry_point('tripyview', 'console_scripts', 'tripyrun')())
+  File "/home/a/a270275/tripyview/tripyview/sub_tripyrun.py", line 139, in tripyrun
+    if len(input_names) != len(input_paths): raise ValueError("The size of input_names & input_paths is not equal")
+ValueError: The size of input_names & input_paths is not equal
+/home/a/a270275/tripyview/tripyview/sub_data.py:8: UserWarning: The seawater library is deprecated! Please use gsw instead.
+  import seawater as sw
+/home/a/a270275/tripyview
+ --> start time: 2024-10-22 16:28:11
+Jupyter Notebooks from previous runs exist in /home/a/a270275/tripyview/Results/Test001/Test001.json,
+they will be used to generate output for diagnostics you do not run this time.
+
+
+ --> compute hmesh:
+     --> compute: None
+Executing:   0%|          | 0/7 [00:00<?, ?cell/s]Executing:  14%|█▍        | 1/7 [00:04<00:28,  4.70s/cell]Executing:  57%|█████▋    | 4/7 [00:04<00:02,  1.09cell/s]Executing:  86%|████████▌ | 6/7 [00:05<00:00,  1.74cell/s]Executing: 100%|██████████| 7/7 [00:09<00:00,  1.32s/cell]
+     --> compute: nresol
+Executing:   0%|          | 0/7 [00:00<?, ?cell/s]Executing:  14%|█▍        | 1/7 [00:03<00:22,  3.71s/cell]Executing:  57%|█████▋    | 4/7 [00:03<00:02,  1.36cell/s]Executing:  86%|████████▌ | 6/7 [00:03<00:00,  2.27cell/s]Executing: 100%|██████████| 7/7 [00:11<00:00,  1.62s/cell]
+
+
+ --> compute hslice:
+     --> compute: temp
+          --> depth: 100
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.72s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.36cell/s]Executing:  67%|██████▋   | 6/9 [00:04<00:01,  2.19cell/s]Executing:  89%|████████▉ | 8/9 [00:13<00:02,  2.06s/cell]Executing: 100%|██████████| 9/9 [00:14<00:00,  1.59s/cell]
+          --> depth: 1000
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.60s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.41cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.33cell/s]Executing:  89%|████████▉ | 8/9 [00:12<00:01,  1.90s/cell]Executing: 100%|██████████| 9/9 [00:13<00:00,  1.46s/cell]
+     --> compute: salt
+          --> depth: 100
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.59s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.41cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.34cell/s]Executing:  89%|████████▉ | 8/9 [00:12<00:01,  1.94s/cell]Executing: 100%|██████████| 9/9 [00:13<00:00,  1.51s/cell]
+          --> depth: 1000
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.63s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.40cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.33cell/s]Executing:  89%|████████▉ | 8/9 [00:12<00:02,  2.01s/cell]Executing: 100%|██████████| 9/9 [00:13<00:00,  1.54s/cell]
+     --> compute: Kv
+          --> depth: 100
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.68s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.38cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.22cell/s]Executing:  89%|████████▉ | 8/9 [00:12<00:01,  1.96s/cell]Executing: 100%|██████████| 9/9 [00:13<00:00,  1.52s/cell]
+          --> depth: 1000
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:30,  3.82s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.32cell/s]Executing:  67%|██████▋   | 6/9 [00:04<00:01,  2.12cell/s]Executing:  89%|████████▉ | 8/9 [00:12<00:01,  1.96s/cell]Executing: 100%|██████████| 9/9 [00:14<00:00,  1.57s/cell]
+     --> compute: ssh
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.59s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.40cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.31cell/s]Executing:  89%|████████▉ | 8/9 [00:10<00:01,  1.61s/cell]Executing: 100%|██████████| 9/9 [00:11<00:00,  1.30s/cell]
+     --> compute: MLD2
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.68s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.37cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.27cell/s]Executing:  89%|████████▉ | 8/9 [00:10<00:01,  1.57s/cell]Executing: 100%|██████████| 9/9 [00:11<00:00,  1.29s/cell]
+
+
+ --> compute hslice_np:
+     --> compute: a_ice
+          --> compute mon: 3
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:30,  3.83s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.33cell/s]Executing:  67%|██████▋   | 6/9 [00:04<00:01,  2.11cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.32s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.17s/cell]
+          --> compute mon: 9
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.74s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.36cell/s]Executing:  67%|██████▋   | 6/9 [00:04<00:01,  2.22cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.34s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.16s/cell]
+     --> compute: m_ice
+          --> compute mon: 3
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.50s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.45cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.39cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.30s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.13s/cell]
+          --> compute mon: 9
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.52s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.44cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.27cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.35s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.16s/cell]
+     --> compute: MLD2
+          --> compute mon: 3
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:30,  3.81s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.33cell/s]Executing:  67%|██████▋   | 6/9 [00:04<00:01,  2.20cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.31s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.13s/cell]
+          --> compute mon: 9
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.74s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.36cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.24cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.30s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.15s/cell]
+
+
+ --> compute hslice_sp:
+     --> compute: a_ice
+          --> compute mon: 9
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.55s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.42cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.36cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.33s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.15s/cell]
+          --> compute mon: 3
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.56s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.42cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.36cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.29s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.12s/cell]
+     --> compute: m_ice
+          --> compute mon: 9
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.67s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.38cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.28cell/s]Executing:  89%|████████▉ | 8/9 [00:10<00:01,  1.45s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.22s/cell]
+          --> compute mon: 3
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:27,  3.43s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.47cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.43cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.28s/cell]Executing: 100%|██████████| 9/9 [00:09<00:00,  1.08s/cell]
+     --> compute: MLD2
+          --> compute mon: 9
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:27,  3.46s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.46cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.40cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.28s/cell]Executing: 100%|██████████| 9/9 [00:09<00:00,  1.08s/cell]
+          --> compute mon: 3
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:28,  3.60s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.40cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.32cell/s]Executing:  89%|████████▉ | 8/9 [00:09<00:01,  1.31s/cell]Executing: 100%|██████████| 9/9 [00:10<00:00,  1.14s/cell]
+
+
+ --> compute hslice_clim:
+     --> compute: temp
+          --> compute depth: 100
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:31,  3.98s/cell]Executing:  44%|████▍     | 4/9 [00:04<00:03,  1.27cell/s]Executing:  67%|██████▋   | 6/9 [00:04<00:01,  2.06cell/s]Executing:  89%|████████▉ | 8/9 [00:18<00:03,  3.01s/cell]Executing: 100%|██████████| 9/9 [00:19<00:00,  2.16s/cell]
+          --> compute depth: 1000
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:04<00:39,  4.98s/cell]Executing:  44%|████▍     | 4/9 [00:05<00:04,  1.03cell/s]Executing:  67%|██████▋   | 6/9 [00:05<00:01,  1.73cell/s]Executing:  89%|████████▉ | 8/9 [00:19<00:03,  3.01s/cell]Executing: 100%|██████████| 9/9 [00:19<00:00,  2.20s/cell]
+     --> compute: salt
+          --> compute depth: 100
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:29,  3.65s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.38cell/s]Executing:  67%|██████▋   | 6/9 [00:03<00:01,  2.29cell/s]Executing:  89%|████████▉ | 8/9 [00:16<00:02,  2.62s/cell]Executing: 100%|██████████| 9/9 [00:16<00:00,  1.88s/cell]
+          --> compute depth: 1000
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:  11%|█         | 1/9 [00:03<00:30,  3.84s/cell]Executing:  44%|████▍     | 4/9 [00:03<00:03,  1.31cell/s]Executing:  67%|██████▋   | 6/9 [00:04<00:01,  2.16cell/s]Executing:  89%|████████▉ | 8/9 [00:16<00:02,  2.69s/cell]Executing: 100%|██████████| 9/9 [00:17<00:00,  1.97s/cell]
+Passed unknown parameter: quiv_hfac
+
+
+ --> compute hquiver:
+     --> compute: vec+u+v
+          --> depth: 100
+Executing:   0%|          | 0/9 [00:00<?, ?cell/s]Executing:   0%|          | 0/9 [00:00<?, ?cell/s]
+Traceback (most recent call last):
+  File "/home/a/a270275/.conda/envs/py39/bin/tripyrun", line 33, in <module>
+    sys.exit(load_entry_point('tripyview', 'console_scripts', 'tripyrun')())
+  File "/home/a/a270275/tripyview/tripyview/sub_tripyrun.py", line 294, in tripyrun
+    webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None)
+  File "/home/a/a270275/tripyview/tripyview/sub_tripyrundriver.py", line 446, in drive_hquiver
+    webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon',
+  File "/home/a/a270275/tripyview/tripyview/sub_tripyrundriver.py", line 210, in loop_over_param
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template=exec_template)
+  File "/home/a/a270275/tripyview/tripyview/sub_tripyrundriver.py", line 116, in exec_papermill
+    pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/papermill/execute.py", line 116, in execute_notebook
+    nb = papermill_engines.execute_notebook_with_engine(
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/papermill/engines.py", line 48, in execute_notebook_with_engine
+    return self.get_engine(engine_name).execute_notebook(nb, kernel_name, **kwargs)
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/papermill/engines.py", line 370, in execute_notebook
+    cls.execute_managed_notebook(nb_man, kernel_name, log_output=log_output, **kwargs)
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/papermill/engines.py", line 442, in execute_managed_notebook
+    return PapermillNotebookClient(nb_man, **final_kwargs).execute()
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/papermill/clientwrap.py", line 43, in execute
+    with self.setup_kernel(**kwargs):
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/contextlib.py", line 119, in __enter__
+    return next(self.gen)
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/nbclient/client.py", line 600, in setup_kernel
+    self.start_new_kernel(**kwargs)
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_core/utils/__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/asyncio/base_events.py", line 647, in run_until_complete
+    return future.result()
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/nbclient/client.py", line 550, in async_start_new_kernel
+    await ensure_async(self.km.start_kernel(extra_arguments=self.extra_arguments, **kwargs))
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_core/utils/__init__.py", line 198, in ensure_async
+    result = await obj
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_client/manager.py", line 90, in wrapper
+    raise e
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_client/manager.py", line 82, in wrapper
+    out = await method(self, *args, **kwargs)
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_client/manager.py", line 391, in _async_start_kernel
+    kernel_cmd, kw = await ensure_async(self.pre_start_kernel(**kw))
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_client/utils.py", line 38, in ensure_async
+    return await obj
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_client/manager.py", line 353, in _async_pre_start_kernel
+    self.kernel_spec,
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_client/manager.py", line 178, in kernel_spec
+    self._kernel_spec = self.kernel_spec_manager.get_kernel_spec(self.kernel_name)
+  File "/home/a/a270275/.conda/envs/py39/lib/python3.9/site-packages/jupyter_client/kernelspec.py", line 294, in get_kernel_spec
+    raise NoSuchKernel(kernel_name)
+jupyter_client.kernelspec.NoSuchKernel: No such kernel named python3_2023_01

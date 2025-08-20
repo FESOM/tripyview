@@ -1,0 +1,90 @@
+{
+    "image_0": {
+        "variable": "sea ice thickness",
+        "cnt": 0,
+        "name": "sea ice thickness plot 0",
+        "path": "./output/AWI-CM-v3.4/model_1990_September_SH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_0"
+    },
+    "image_1": {
+        "variable": "sea ice thickness",
+        "cnt": 1,
+        "name": "sea ice thickness plot 1",
+        "path": "./output/AWI-CM-v3.4/model_1990_September_NH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_1"
+    },
+    "image_2": {
+        "variable": "sea ice thickness",
+        "cnt": 2,
+        "name": "sea ice thickness plot 2",
+        "path": "./output/AWI-CM-v3.4/model_1990_March_SH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_2"
+    },
+    "image_3": {
+        "variable": "sea ice thickness",
+        "cnt": 3,
+        "name": "sea ice thickness plot 3",
+        "path": "./output/AWI-CM-v3.4/model_1990_March_NH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_3"
+    },
+    "image_4": {
+        "variable": "sea ice thickness",
+        "cnt": 4,
+        "name": "sea ice thickness plot 4",
+        "path": "./output/AWI-CM-v3.4/model_1991_September_SH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_4"
+    },
+    "image_5": {
+        "variable": "sea ice thickness",
+        "cnt": 5,
+        "name": "sea ice thickness plot 5",
+        "path": "./output/AWI-CM-v3.4/model_1991_September_NH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_5"
+    },
+    "image_6": {
+        "variable": "sea ice thickness",
+        "cnt": 6,
+        "name": "sea ice thickness plot 6",
+        "path": "./output/AWI-CM-v3.4/model_1991_March_SH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_6"
+    },
+    "image_7": {
+        "variable": "sea ice thickness",
+        "cnt": 7,
+        "name": "sea ice thickness plot 7",
+        "path": "./output/AWI-CM-v3.4/model_1991_March_NH_sea_ice_thickness.png",
+        "path_nb": "./notebooks/part11_zonal_plots.ipynb",
+        "short_name": "thickness_7"
+    },
+    "image_8": {
+        "variable": "p9_rad_vs_ceres",
+        "cnt": 8,
+        "name": "rad_vs_ceres 0",
+        "path": "./output/AWI-CM-v3.4/str_vs_ceres.png",
+        "path_nb": "./notebooks/part9_rad_vs_ceres.ipynb",
+        "short_name": "W/m\u00b2_0"
+    },
+    "image_9": {
+        "variable": "p9_rad_vs_ceres",
+        "cnt": 9,
+        "name": "rad_vs_ceres 1",
+        "path": "./output/AWI-CM-v3.4/ssr_vs_ceres.png",
+        "path_nb": "./notebooks/part9_rad_vs_ceres.ipynb",
+        "short_name": "W/m\u00b2_1"
+    },
+    "image_10": {
+        "variable": "p9_rad_vs_ceres",
+        "cnt": 10,
+        "name": "rad_vs_ceres 2",
+        "path": "./output/AWI-CM-v3.4/ssrd_vs_ceres.png",
+        "path_nb": "./notebooks/part9_rad_vs_ceres.ipynb",
+        "short_name": "W/m\u00b2_2"
+    }
+}

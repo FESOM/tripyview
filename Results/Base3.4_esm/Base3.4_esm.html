@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<style>
+body {
+  font-family: "Lato", sans-serif;
+}
+
+/* Add this CSS to your existing styles */
+.logo-container {
+  padding: 10px;
+  text-align: center; /* Center the logo horizontally */
+}
+
+.logo {
+  max-width: 100%; /* Ensure the logo does not exceed the container's width */
+  max-height: 100px; /* Limit the maximum height of the logo */
+  width: auto;
+  height: auto;
+}
+
+.line {
+  border: none;
+  border-top: 4px ridge #01ace9; /* Change the color as needed  #ffaa00*/
+  width: 100%;
+  margin-top: 10px; /* Adjust the margin as needed */
+}
+
+.sidenav {
+  position: relative; /* Ensure the side panel is positioned relative */
+}
+.text-mark-container {
+  text-align: center; /* Center the text horizontally */
+  margin-top: 10px; /* Adjust the distance from the horizontal line */
+}
+
+.text-mark {
+  color: #ffaa00; /* Text color */
+  font-weight: bold;
+  font-size: 25px;
+}
+
+
+/* Fixed sidenav, full height */
+.sidenav {
+  height: 100%;
+  width: 250px;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  background-color: #111;
+  overflow-x: hidden;
+  padding-top: 20px;
+}
+
+/* Style the sidenav links and the dropdown button (dark blue) */
+.sidenav a, .dropdown-btn {
+  padding: 6px 8px 6px 16px;
+  text-decoration: none;
+  font-size: 18px;
+  color: #818181;
+  background-color: #003E6E;
+  display: block;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Change the background color of links and dropdown buttons in the second layer dropdown menu */
+.dropdown-container a,
+.dropdown-container .dropdown-btn {
+  background-color: #262626; /* Change this to your desired color */
+}
+
+
+/* On mouse-over  (orange) */
+.sidenav a:hover, .dropdown-btn:hover {
+  color: #f1f1f1;
+  background-color: #ffaa00;
+}
+
+/* Main content */
+.main {
+  margin-left: 250px; /* Same as the width of the sidenav */
+  font-size: 20px; /* Increased text to enable scrolling */
+  padding: 0px 10px;
+}
+
+/* Add an active class to the active dropdown button (awi blue)*/
+.active {
+  background-color: #01ace9;
+  color: white;
+}
+
+/* Dropdown container (hidden by default). Optional: add a lighter background 
+/* color and some left padding to change the design of the dropdown content */
+.dropdown-container {
+  display: none;
+  background-color: #262626;
+  padding-left: 8px;
+}
+
+/* Optional: Style the caret down icon */
+.fa-caret-down {
+  float: right;
+  padding-right: 8px;
+}
+
+/* Some media queries for responsiveness */
+@media screen and (max-height: 450px) {
+  .sidenav {padding-top: 15px;}
+  .sidenav a {font-size: 18px;}
+}
+.card {
+  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+  transition: 0.3s;
+  width: 80%;
+}
+
+.card:hover {
+  box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+}
+
+.container {
+  padding: 2px 16px;
+}
+</style>
+</head>
+<body>
+
+<div class="sidenav">
+  <div class="logo-container">
+    <img src="/home/a/a270275/tripyview/templates_html/fesom2_logo.png" alt="logo" class="logo"/>
+    
+    <hr class="line">
+    
+    <div class="text-mark-container">
+      <div class="text-mark">
+        Tripyview
+      </div>
+    </div>
+  
+  </div>
+  
+  
+  <button class="dropdown-btn">Hslice 
+    <i class="fa fa-caret-down"></i>
+  </button>
+  <div class="dropdown-container">
+    
+    <a href="#Base3.4_esm_hslice_temp_rob_z10">temp, proj:rob, @dep:10</a>
+    
+  </div>
+  
+  
+
+  
+</div>
+
+<div class="main">
+<!-- <img src="fesom2_logo.png" alt="logo" height="50px"/> <h1> diagnostics <small>Base3.4_esm  </small></h1>
+  <div>
+    <img src="/home/a/a270275/tripyview/templates_html/fesom2_logo.png" alt="logo" style="height: 35px; display: inline-block;"/>
+    <h1 style="display: inline; margin-left: 10px;">tripyview diagnostics: <small>Base3.4_esm</small></h1>
+  </div> -->
+  <div>
+    <h1 style="display: inline; margin-left: 10px;">Diagnostics: <small>Base3.4_esm</small></h1>
+  </div>
+  
+  
+    
+    <div class="card" id="Base3.4_esm_hslice_temp_rob_z10">
+        <div class="container">
+            <h5>Hslice: temp, proj:rob, @dep:10</h5>
+        </div>
+        <a href="./figures/Base3.4_esm_hslice_temp_rob_z10.png" target="_blank">
+        <img src="./figures/Base3.4_esm_hslice_temp_rob_z10.png" alt="Avatar" style="width:100%">
+        </a>
+        <!-- <div class="container"> -->
+        <a href="./notebooks/Base3.4_esm_hslice_temp_rob_z10.ipynb" target="_blank" >Notebook</a>
+        <!-- </div> -->
+      </div>
+    
+  
+</div>
+
+<script>
+/* Loop through all dropdown buttons to toggle between hiding and showing its dropdown content - This allows the user to have multiple dropdowns without any conflict */
+var dropdown = document.getElementsByClassName("dropdown-btn");
+var i;
+
+for (i = 0; i < dropdown.length; i++) {
+  dropdown[i].addEventListener("click", function() {
+  this.classList.toggle("active");
+  var dropdownContent = this.nextElementSibling;
+  if (dropdownContent.style.display === "block") {
+  dropdownContent.style.display = "none";
+  } else {
+  dropdownContent.style.display = "block";
+  }
+  });
+}
+</script>
+
+</body>
+</html> 

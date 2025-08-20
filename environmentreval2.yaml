@@ -1,0 +1,30 @@
+name: reval2
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  - pandas
+  - numpy
+  - netcdf4
+  - joblib
+  - seawater
+  - numba
+  - scipy
+  - cartopy
+  - matplotlib
+  - shapely
+  - jupyter
+  - ipython
+  - cmocean
+  - dask
+  - xarray
+  - tqdm
+  - python-cdo
+  - seaborn
+  - basemap
+  - eofs
+  - scikit-learn
+  - natsort
+  - pip:
+    - pyfesom2

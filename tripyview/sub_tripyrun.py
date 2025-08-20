@@ -219,6 +219,16 @@ def tripyrun():
     analyses_driver_list["hbarstreamf"        ] = drive_hbarstreamf
     analyses_driver_list["ghflx"              ] = drive_ghflx
     analyses_driver_list["mhflx"              ] = drive_mhflx
+    analyses_driver_list["part11_zonal_plots"         ] = drive_part11_zonal_plots
+    analyses_driver_list["part5_sea_ice_thickness"         ] = drive_part5_sea_ice_thickness
+    analyses_driver_list["part6_ice_conc_timeseries"] = drive_part6_ice_conc_timeseries
+    analyses_driver_list["part8_t2m_vs_era5"] = drive_part8_t2m_vs_era5
+    analyses_driver_list["part9_rad_vs_ceres"] = drive_part9_rad_vs_ceres
+    analyses_driver_list["part10_clt_vs_modis"] = drive_part10_clt_vs_modis
+    analyses_driver_list["part12_qbo"] = drive_part12_qbo
+    analyses_driver_list["part13_fesom_bias_maps"] = drive_part13_fesom_bias_maps
+    analyses_driver_list["part14_fesom_salt"] = drive_part14_fesom_salt
+    analyses_driver_list["part15_enso"] = drive_part15_enso
     
     #___________________________________________________________________________
     # initialise/create webpage interface based on .json file, if it exist
@@ -272,7 +282,7 @@ def tripyrun():
                                 cnt_max = np.maximum(cnt_max,values['cnt'])
                                 if values['variable']==vname: 
                                     cnt = values['cnt']
-                                    break
+                                break
                             if cnt==-1: 
                                 print(" --> could not find variable: {vname} in loaded webpage. This variable will be attached if it exist")
                                 cnt=cnt_max+1

@@ -576,8 +576,8 @@ def __add_downsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edg
             # take care if there are periodic boundaries
             e_xR = mesh.n_x[mesh.e_i[edge_elem[1],:]]
             if np.max(e_xR)-np.min(e_xR)>180:
-                if np.sum(e_xR>0) > np.sum(e_xR<0): e_xR[e_xL<0] = e_xR[e_xL<0]+360.0
-                else                              : e_xR[e_xL>0] = e_xR[e_xL>0]-360.0
+                if np.sum(e_xR>0) > np.sum(e_xR<0): e_xR[e_xR<0] = e_xR[e_xR<0]+360.0
+                else                              : e_xR[e_xR>0] = e_xR[e_xR>0]-360.0
             e_xR, e_yR = np.sum(e_xR)/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[1],:]])/3.0
             path_xy.append(np.array([e_xR, e_yR]))
             del(e_xR, e_yR)
@@ -672,8 +672,8 @@ def __add_upsection_elem2path(mesh, transect, edi, nced, theta, edge_elem, edge_
                 # take care if there are periodic boundaries
                 e_xR = mesh.n_x[mesh.e_i[edge_elem[1],:]]
                 if np.max(e_xR)-np.min(e_xR)>180:
-                    if np.sum(e_xR>0) > np.sum(e_xR<0): e_xR[e_xL<0] = e_xR[e_xL<0]+360.0
-                    else                              : e_xR[e_xL>0] = e_xR[e_xL>0]-360.0
+                    if np.sum(e_xR>0) > np.sum(e_xR<0): e_xR[e_xR<0] = e_xR[e_xR<0]+360.0
+                    else                              : e_xR[e_xR>0] = e_xR[e_xR>0]-360.0
                 e_xR, e_yR = np.sum(e_xR)/3.0, np.sum(mesh.n_y[mesh.e_i[edge_elem[1],:]])/3.0
                 path_xy.append(np.array([e_xR, e_yR]))
                 del(e_xR, e_yR)

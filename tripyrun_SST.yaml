@@ -1,0 +1,42 @@
+#___i1lvl Parameter___
+tripyrun_name: "Base3.4_esmLevante"
+do_papermill: True
+do_parallel: false
+input_paths:
+    - /work/ab0246/a270092/runtime/awicm3-v3.4/BASE/outdata/fesom
+input_names:
+    - Base3.4_
+   
+    
+#ref_path: /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
+#ref_name: $TKE$' 
+    
+mesh_path: '/work/ab0246/a270092/input/fesom2/core2'
+save_path: './Results/'
+
+which_clim: 'phc3'
+clim_path: '/work/ab0246/a270092/input/fesom2/hydrography/phc3.0/phc3.0_annual.nc'
+
+ncol: 2
+box: None
+
+n_cycl: None
+do_allcycl: False
+year: [1990, 1992]
+depth: None
+proj: 'rob'
+save_dpi: 150
+
+
+
+#_______________________________________________________________________________
+# horizontal plots
+hslice:
+    #___2lvl Parameter___
+    depths: [10]
+        
+    #___Variables________
+    temp:
+        #___3lvl Parameter___
+        cstr: 'blue2red'
+        #cstr: 'cmocean.thermal'

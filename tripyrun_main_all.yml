@@ -1,34 +1,28 @@
-#___1lvl Parameter___
-tripyrun_name: "tripyrun_all_analysis"
+#___i1lvl Parameter___
+tripyrun_name: "Test001"
 do_papermill: True
-do_parallel: True
+do_parallel: false
 input_paths:
-    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_jayne_bin_ck0.1/5/
-    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_nycander_bin_ck0.1/5/
-    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke+idemix_stormtide_bin_ck0.1/5/
-    - /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
-
+    - /work/ab0246/a270092/runtime/awicm3-v3.4/BASE/outdata/fesom
 input_names:
-    - '$TKE{{+}}IDEMIX_{{Jayne}}$'
-    - '$TKE{{+}}IDEMIX_{{Nycander}}$'
-    - '$TKE{{+}}IDEMIX_{{Stormtide}}$'
-    - '$TKE$'
+    - Base3.4
+   
     
 #ref_path: /albedo/work/projects/p_fesom/pscholz/project_TRR181/trr181_tke_ctrl_ck0.1/5/
 #ref_name: $TKE$' 
     
-mesh_path: '/albedo/work/user/pscholz/mesh_fesom2.0/core2_srt_dep@node/'
+mesh_path: '/work/ab0246/a270092/input/fesom2/core2'
 save_path: './Results/'
 
 which_clim: 'phc3'
-clim_path: '/albedo/work/projects/p_fesom/FROM-OLLIE/FESOM2/hydrography/phc3.0/phc3.0_annual.nc'
+clim_path: '/work/ab0246/a270092/input/fesom2/hydrography/phc3.0/phc3.0_annual.nc'
 
 ncol: 2
 box: None
 
 n_cycl: None
 do_allcycl: False
-year: [1979, 2019]
+year: [1990, 1991]
 depth: None
 proj: 'rob'
 save_dpi: 150

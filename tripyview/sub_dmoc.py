@@ -245,11 +245,7 @@ def load_dmoc_data(mesh, datapath, descript, year, which_transf, std_dens, #n_ar
             dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         
         # add divergence of density classes --> diapycnal velocity
-        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV' , 
-                        year=year, descript=descript , do_info=do_info, 
-                        do_ie2n=False, do_tarithm=do_tarithm, do_nan=False, 
-                        do_compute=do_compute, do_load=do_load, do_persist=do_persist, 
-                        do_parallel=do_parallel).rename({'std_dens_DIV':'dmoc'})
+       
         data_div  = data_div.drop_vars(['ndens', 'nodi']) 
         data_div  = data_div.assign_coords({'dens':dens})
         

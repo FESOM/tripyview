@@ -19,7 +19,7 @@ env               = Environment(loader=file_loader)
 #
 #
 #_______________________________________________________________________________
-def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
+def exec_papermill(webpage, cnt, params_vname, exec_template='hslice',current_year=None):
     #___________________________________________________________________________
     # create strings for fname and labels in the webpage
     str_vname1, str_vname2, str_dep1, str_dep2, str_mon1, str_mon2, str_proj1, str_proj2 = '', '', '', '', '', '', '',''
@@ -103,20 +103,94 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
         str_all1 = f"{str_all1}{str_mon1}"
         if   exec_template in ['transp_ghflx']:  str_all2 = f"Global. Merid. Heatflx. {str_mon2}"
         elif exec_template in ['transp_mhflx']:  str_all2 = f"Dyn. Merid. Heatflx. {str_mon2}"
+   
+    elif exec_template in ['part11_zonal_plots']:
+        str_all1 = f"{str_all1}"
+        str_all2 = f"{str_vname2}"
+    
+    elif exec_template in ['part5_sea_ice_thickness']:
+        current_year = list(current_year)[0]
+        #current_year = current_year[0]
+        #str_all1 = f"{str_all1}_{{{current_year}}}"
+        str_all1 = f"{str_all1}_{current_year}"
+        #str_all1 = f"{str_all1}_{current_year}"
+        print("DEBUG current_year:", current_year, type(current_year))
+        
+        str_all2 = f"{str_vname2}"
+    elif exec_template in ['part6_ice_conc_timeseries']:
+        str_all1 = f"{str_all1}"
+        str_all2 = f"{str_vname2}"    
+    
+    elif exec_template in ['part8_t2m_vs_era5']:
+        str_all1 = f"{str_all1}"
+        str_all2 = f"{str_vname2}"
+
+    elif exec_template in ['part9_rad_vs_ceres']:
+        str_all1 = f"{str_all1}"
+        str_all2 = f"{str_vname2}"
+        
+    elif exec_template in ['part10_clt_vs_modis']:
+        str_all1 = f"{str_all1}"
+        str_all2 = f"{str_vname2}"
+         
+    elif exec_template in ['part12_qbo']:
+        str_all1 = f"{str_all1}"
+        str_all2 = f"{str_vname2}"
+        
+    elif exec_template in ['part13_fesom_bias_maps']:
+        # Hier erweitern wir str_all1 dynamisch um die Tiefe
+        if "depth" in params_vname:
+            str_all1 = f"{str_all1}_{params_vname['depth']}"  # Tiefe dranhängen
+            str_all2 = f"{str_vname2}"
+        # Falls keine Tiefe existiert, bleibt str_all1 unverändert
+        print(f"DEBUG: Neuer str_all1 (inkl. Tiefe falls vorhanden): {str_all1}")
+
+    elif exec_template in ['part14_fesom_salt']:
+        # Hier erweitern wir str_all1 dynamisch um die Tiefe
+        if "depth" in params_vname:
+            str_all1 = f"{str_all1}_{params_vname['depth']}"  # Tiefe dranhängen
+            str_all2 = f"{str_vname2}"
+        # Falls keine Tiefe existiert, bleibt str_all1 unverändert
+        print(f"DEBUG: Neuer str_all1 (inkl. Tiefe falls vorhanden): {str_all1}")
+
+    
+    elif exec_template in ['part15_enso']:
+        str_all1 = f"{str_all1}"
+        str_all2 = f"{str_vname2}"
     
     #___________________________________________________________________________
     # create filepaths for notebook and figures 
     save_fname    = f"{str_all1}.png"
+    print(save_fname)
     save_fname_nb = f"{str_all1}.ipynb"
     short_name    = f"{str_all1}"
     params_vname["save_fname"] = os.path.join(params_vname['tripyrun_spath_fig'], save_fname)
+    # Dynamisch den Pfad zum TripyView-Installationsordner ermitteln, relativ zum aktuellen Skript
+    script_dir = os.path.dirname(os.path.abspath(__file__))  # Verzeichnis des aktuellen Skripts
+    tripyview_path = os.path.join(script_dir, '..')  # Gehe eine Ebene höher und dann zum tripyview-Ordner
+
+    # Füge den TripyView-Ordner zum sys.path hinzu
+    sys.path.append(tripyview_path)
+
+    # Übergib den Pfad als Parameter an das Notebook
+    params_vname["tripyview_path"] = tripyview_path  # Übergibt den TripyView-Pfad als Parameter
     
     #___________________________________________________________________________
     # execute notebook with papermill
-    pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
-                        os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
-                        parameters=params_vname,
-                        nest_asyncio=True,)
+    print("Aktuelles Arbeitsverzeichnis vor der Ausführung:", os.getcwd())
+    try:
+        pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
+                            os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
+                            parameters=params_vname,
+                            nest_asyncio=True,)
+        print('Data found')
+    except pm.PapermillExecutionError as e:
+        print(f"Error while running Notebook: {e}")
+
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+
+    print("Continue running script")
                 
     #___________________________________________________________________________
     # attach created figures to webpage collection
@@ -128,6 +202,8 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     webpage[f"image_{cnt}"]["path"]       = os.path.join('./figures/', save_fname)
     webpage[f"image_{cnt}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
     webpage[f"image_{cnt}"]["short_name"] = short_name
+     # >>>> DEBUG PRINT HIER <<<<
+    print(f"DEBUG: Bild für Webseite: {webpage[f'image_{cnt}']['path']}")
     cnt += 1
     
     #___________________________________________________________________________
@@ -245,8 +321,7 @@ def drive_hslice(yaml_settings, analysis_name, webpage=dict(), image_count=0, vn
         params_vname.update(params_2lvl)
         params_vname.update(params_3lvl)
         params_vname["vname"] = vname
-        
-        #_______________________________________________________________________
+
         # make loop over depths
         if 'depths' in params_vname:
             depths = params_vname["depths"]
@@ -275,6 +350,8 @@ def drive_hslice(yaml_settings, analysis_name, webpage=dict(), image_count=0, vn
             webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
                                                    source_loop='months', exec_template='hslice')
     return webpage
+        
+      
 
 
 
@@ -1168,4 +1245,394 @@ def drive_var_t(yaml_settings, analysis_name, webpage=dict(), image_count=0, vna
         # make loop over box_regions
         webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
                                                source_loop='box_regions', exec_template='var_t')
+    return webpage
+def drive_part11_zonal_plots(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (keine Schleifen über Monate o.ä., nur über die Plots)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Erstelle die entsprechenden Parameter für den Plot
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        # Führe das Notebook aus und erstelle die Plots
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part11_zonal_plots')
+
+    return webpage
+"""
+def drive_part5_sea_ice_thickness(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    
+    params_1lvl = extract_params(yaml_settings)
+    
+    
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+   
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+       
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part5_sea_ice_thickness')
+
+    return webpage
+"""
+def drive_part5_sea_ice_thickness(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    
+    params_1lvl = extract_params(yaml_settings)
+    driver_vars = yaml_settings[analysis_name].copy()
+    years = params_1lvl['year']  
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    for year in years:
+        for plot_name in driver_vars:
+            print(f'     --> compute: {plot_name}, Year: {year}')
+            current_year={year}
+            params_2lvl = extract_params(driver_vars[plot_name])
+            params_vname = {
+                'tripyrun_analysis': analysis_name}
+            #    'year': year
+            
+            params_vname.update(params_1lvl)
+            params_vname.update(params_2lvl)
+            params_vname["vname"] = plot_name
+            '''
+            params_vname = {
+            'tripyrun_analysis': analysis_name,
+            'tripyrun_name': params_1lvl['tripyrun_name'],  # aus YAML
+            'year': year
+            }
+            '''
+
+            webpage, image_count = exec_papermill(
+                webpage, image_count, params_vname,
+                exec_template='part5_sea_ice_thickness',current_year=current_year
+            )
+
+    return webpage
+
+def drive_part6_ice_conc_timeseries(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (keine Schleifen über Monate o.ä., nur über die Plots)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Erstelle die entsprechenden Parameter für den Plot
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        # Führe das Notebook aus und erstelle die Plots
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part6_ice_conc_timeseries')
+
+    return webpage
+    
+def drive_part8_t2m_vs_era5(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (keine Schleifen über Monate o.ä., nur über die Plots)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Erstelle die entsprechenden Parameter für den Plot
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        # Führe das Notebook aus und erstelle die Plots
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part8_t2m_vs_era5')
+
+    return webpage
+def drive_part9_rad_vs_ceres(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (keine Schleifen über Monate o.ä., nur über die Plots)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Erstelle die entsprechenden Parameter für den Plot
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        # Führe das Notebook aus und erstelle die Plots
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part9_rad_vs_ceres')
+
+    return webpage
+
+def drive_part10_clt_vs_modis(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (keine Schleifen über Monate o.ä., nur über die Plots)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Erstelle die entsprechenden Parameter für den Plot
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        # Führe das Notebook aus und erstelle die Plots
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part10_clt_vs_modis')
+
+    return webpage
+    
+def drive_part12_qbo(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (keine Schleifen über Monate o.ä., nur über die Plots)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Erstelle die entsprechenden Parameter für den Plot
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        # Führe das Notebook aus und erstelle die Plots
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part12_qbo')
+
+    return webpage
+    
+def drive_part13_fesom_bias_maps(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (bzw. Variablen)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Extrahiere Parameter für diese Variable
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = {'tripyrun_analysis': analysis_name}
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+
+        # Prüfen ob "depths" existiert
+        if 'depths' in params_vname:
+            depths = params_vname["depths"]
+            del params_vname["depths"]  # Liste aus params entfernen
+            if depths is not None:
+                for depth in depths:
+                    print(f'          --> depth: {depth}')
+                    params_vname["depth"] = depth
+                    # Notebook für jede Tiefe ausführen
+                    webpage, image_count = exec_papermill(
+                        webpage, image_count, params_vname, exec_template='part13_fesom_bias_maps'
+                    )
+            else:
+                # Falls depths None ist, einfach ohne Tiefe ausführen
+                webpage, image_count = exec_papermill(
+                    webpage, image_count, params_vname, exec_template='part13_fesom_bias_maps'
+                )
+        elif 'depth' in params_vname:
+            # Falls einzelne "depth" definiert
+            webpage, image_count = exec_papermill(
+                webpage, image_count, params_vname, exec_template='part13_fesom_bias_maps'
+            )
+        else:
+            # Keine Tiefe definiert
+            webpage, image_count = exec_papermill(
+                webpage, image_count, params_vname, exec_template='part13_fesom_bias_maps'
+            )
+
+    return webpage
+
+
+    return webpage
+    
+def drive_part14_fesom_salt(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (bzw. Variablen)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Extrahiere Parameter für diese Variable
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = {'tripyrun_analysis': analysis_name}
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+
+        # Prüfen ob "depths" existiert
+        if 'depths' in params_vname:
+            depths = params_vname["depths"]
+            del params_vname["depths"]  # Liste aus params entfernen
+            if depths is not None:
+                for depth in depths:
+                    print(f'          --> depth: {depth}')
+                    params_vname["depth"] = depth
+                    # Notebook für jede Tiefe ausführen
+                    webpage, image_count = exec_papermill(
+                        webpage, image_count, params_vname, exec_template='part14_fesom_salt'
+                    )
+            else:
+                # Falls depths None ist, einfach ohne Tiefe ausführen
+                webpage, image_count = exec_papermill(
+                    webpage, image_count, params_vname, exec_template='part14_fesom_salts'
+                )
+        elif 'depth' in params_vname:
+            # Falls einzelne "depth" definiert
+            webpage, image_count = exec_papermill(
+                webpage, image_count, params_vname, exec_template='part14_fesom_salt'
+            )
+        else:
+            # Keine Tiefe definiert
+            webpage, image_count = exec_papermill(
+                webpage, image_count, params_vname, exec_template='part14_fesom_salt'
+            )
+
+    return webpage
+
+
+
+
+
+
+def drive_part15_enso(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+    #___________________________________________________________________________
+    # Allgemeine Parameter aus yaml_settings extrahieren
+    params_1lvl = extract_params(yaml_settings)
+    
+    # Extrahiere den Plot-Block aus dem YAML-File
+    driver_vars = yaml_settings[analysis_name].copy()
+
+    # Prüfen, ob vname angegeben ist, und nur diesen Plot ausführen
+    if vname is not None: 
+        if vname in driver_vars:
+            driver_vars = {vname: driver_vars[vname]}
+
+    #___________________________________________________________________________
+    # Schleife über die Plots (keine Schleifen über Monate o.ä., nur über die Plots)
+    for plot_name in driver_vars:
+        print(f'     --> compute: {plot_name}')
+        
+        # Erstelle die entsprechenden Parameter für den Plot
+        params_2lvl = extract_params(driver_vars[plot_name])
+        params_vname = dict({'tripyrun_analysis': analysis_name})
+        params_vname.update(params_1lvl)
+        params_vname.update(params_2lvl)
+        params_vname["vname"] = plot_name
+        
+        # Führe das Notebook aus und erstelle die Plots
+        webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='part15_enso')
+
     return webpage
