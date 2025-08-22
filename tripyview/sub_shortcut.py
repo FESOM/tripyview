@@ -54,6 +54,10 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
     
     #___________________________________________________________________________
     if do_parallel:
+        
+        if "JUPYTERHUB_SERVICE_PREFIX" not in os.environ:
+            os.environ["JUPYTERHUB_SERVICE_PREFIX"] = "/"
+
         if do_dashbrdlnk:
             dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
                         

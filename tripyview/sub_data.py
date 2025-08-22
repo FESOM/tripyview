@@ -1580,10 +1580,13 @@ def do_vector_norm(data, do_norm):
         
         # rescue attributes
         vattrs = data[vname[0]].attrs
-        if 'zonal'      in vattrs['long_name'  ]: vattrs['long_name'  ] = vattrs['long_name'  ].replace('zonal'     , "norm")
-        if 'meridional' in vattrs['long_name'  ]: vattrs['long_name'  ] = vattrs['long_name'  ].replace('meridional', "norm")
-        if 'zonal'      in vattrs['description']: vattrs['description'] = vattrs['description'].replace('zonal'     , "norm")
-        if 'meridional' in vattrs['description']: vattrs['description'] = vattrs['description'].replace('meridional', "norm")
+        if 'long_name' in vattrs:
+            if 'zonal'      in vattrs['long_name'  ]: vattrs['long_name'  ] = vattrs['long_name'  ].replace('zonal'     , "norm")
+            if 'meridional' in vattrs['long_name'  ]: vattrs['long_name'  ] = vattrs['long_name'  ].replace('meridional', "norm")
+        
+        if 'desciptiion' in vattrs:
+            if 'zonal'      in vattrs['description']: vattrs['description'] = vattrs['description'].replace('zonal'     , "norm")
+            if 'meridional' in vattrs['description']: vattrs['description'] = vattrs['description'].replace('meridional', "norm")
         data[new_vname] = data[new_vname].assign_attrs(vattrs)
         
         # delet variable vname2 from Dataset

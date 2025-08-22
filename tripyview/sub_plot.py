@@ -55,6 +55,8 @@ def plot_hslice(mesh                   ,
                 pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
+                plt_contval= False     ,
+                pltcval_opt= dict()    , # contour line label options
                 
                 #--- mesh -----------
                 do_mesh    = False     , 
@@ -73,6 +75,10 @@ def plot_hslice(mesh                   ,
                 quiver_opt = dict()    , 
                 do_quiver_leg = True   ,
                 quiver_leg_opt=dict()  , 
+                
+                #--- clim contour----
+                do_climcont = False    ,
+                climcont_opt = dict()  ,
                 
                 #--- bottom mask ----
                 do_bot     = True      , 
@@ -116,7 +122,10 @@ def plot_hslice(mesh                   ,
                 save_opt   = dict()    ,
                 
                 #--- chunk size------
-                chnksize    = 3e6      ,
+                chnksize   = 3e6       ,
+                
+                #--- time info------
+                do_info    = False     , 
                 
                 #--- set output -----
                 nargout    =['hfig', 'hax', 'hcb'],
@@ -446,28 +455,29 @@ def plot_hslice(mesh                   ,
                 # values from plotting that are bottom topo  
                 vname     = list(data[ii].keys())[0]
                 data_plot = data[ii][ vname ].data.copy()
-                data_plot, tri = do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n)
+                data_plot, tri = do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n, do_info=do_info)
                 
                 #_______________________________________________________________
                 # add color for ocean bottom
-                h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize, do_info=do_info)
                 hbot.append(h0)
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
-                                plt_opt  = plt_opt,
-                                plt_contb=plt_contb, pltcb_opt=pltcb_opt,
-                                plt_contf=plt_contf, pltcf_opt=pltcf_opt,
-                                plt_contr=plt_contr, pltcr_opt=pltcr_opt,
-                                plt_contl=plt_contl, pltcl_opt=pltcl_opt, 
-                                chnksize=chnksize)
+                                plt_opt    =plt_opt    ,
+                                plt_contb  =plt_contb  , pltcb_opt  =pltcb_opt,
+                                plt_contf  =plt_contf  , pltcf_opt  =pltcf_opt,
+                                plt_contr  =plt_contr  , pltcr_opt  =pltcr_opt,
+                                plt_contl  =plt_contl  , pltcl_opt  =pltcl_opt,
+                                plt_contval=plt_contval, pltcval_opt=pltcval_opt, 
+                                chnksize=chnksize, do_info=do_info)
                 hp.append(h0)
                 
                 #___________________________________________________________________
                 # add grid mesh on top
-                h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
+                h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize, do_info=do_info)
                 hmsh.append(h0)
             
             # plot regular gridded data
@@ -486,11 +496,12 @@ def plot_hslice(mesh                   ,
                 h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ],
                                 which_transf=ccrs.PlateCarree(), 
-                                plt_opt  = plt_opt,
-                                plt_contb=plt_contb, pltcb_opt=pltcb_opt,
-                                plt_contf=plt_contf, pltcf_opt=pltcf_opt,
-                                plt_contr=plt_contr, pltcr_opt=pltcr_opt,
-                                plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                                plt_opt    =plt_opt    ,
+                                plt_contb  =plt_contb  , pltcb_opt  =pltcb_opt,
+                                plt_contf  =plt_contf  , pltcf_opt  =pltcf_opt,
+                                plt_contr  =plt_contr  , pltcr_opt  =pltcr_opt,
+                                plt_contl  =plt_contl  , pltcl_opt  =pltcl_opt,
+                                plt_contval=plt_contval, pltcval_opt=pltcval_opt, )
                 hp.append(h0)
             
             #___________________________________________________________________
@@ -500,7 +511,8 @@ def plot_hslice(mesh                   ,
                                 streaml_dat     = streaml_dat, 
                                 streaml_opt     = streaml_opt,
                                 do_streaml_leg  = do_streaml_leg, 
-                                streaml_leg_opt = streaml_leg_opt)
+                                streaml_leg_opt = streaml_leg_opt,
+                                do_info=do_info)
             hstrm.append(h0)            
             
             #___________________________________________________________________
@@ -510,17 +522,29 @@ def plot_hslice(mesh                   ,
                                    quiver_dat     = quiver_dat, 
                                    quiver_opt     = quiver_opt,
                                    do_quiver_leg  = do_quiver_leg, 
-                                   quiver_leg_opt = quiver_leg_opt)
-            hquiv.append(h0)            
+                                   quiver_leg_opt = quiver_leg_opt, 
+                                   do_info=do_info)
+            hquiv.append(h0)   
+            
             
             #___________________________________________________________________
+            # add clim contour line, the levels of the contour lines have to be 
+            # specified in climcont_opt=dict({'levels':[0.15]})
+            if isinstance(do_climcont, xr.Dataset):
+                cvname = list(do_climcont.keys())[0]
+                climcont_optdefault= dict({'colors':'k', 'linestyles':'dashed', 'linewidths':1.0, 'zorder':2})
+                climcont_optdefault.update(climcont_opt)
+                hax_ii.contour(do_climcont.lon, do_climcont.lat, do_climcont[cvname], 
+                              **climcont_optdefault) #transform=ccrs.PlateCarree()
+                
+            #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res, do_info=do_info)
             hlsm.append(h0)  
             
             #___________________________________________________________________
             # add grids lines 
-            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt, proj=proj)
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt, proj=proj, do_info=do_info)
             hgrd.append(h0)
             
             #___________________________________________________________________
@@ -2816,7 +2840,9 @@ def plot_tline(data,
                 do_concat  = False     , 
                 do_shdw    = True      ,
                 do_mean    = True      ,
-                do_std     = False      ,
+                do_std     = False     ,
+                #--- climatology ----  
+                do_clim    = False     ,
                 #--- data -----------
                 plt_opt    = dict()    ,
                 mark_opt   = dict()    ,
@@ -2893,6 +2919,11 @@ def plot_tline(data,
                     - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
                     - log10      ... do logaritmic scaling
                     - slog10     ... do symetric logarithmic scaling
+                    
+        ___plot a climatology line__________________________                    
+        
+        :do_clim:    bool (default: False) plot also climatology line. The climatology data have to 
+                     putted at the beginning of the data list data = clim + data.
         
         ___plot data parameters_____________________________
 
@@ -3024,14 +3055,29 @@ def plot_tline(data,
 
     #___________________________________________________________________________
     # setup colormap
-    if do_allcycl: 
-        if n_cycl is not None:
-            cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
+    if do_clim==False:
+        if do_allcycl: 
+            if n_cycl is not None:
+                cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
+            else:
+                cmap = categorical_cmap(ndat, 1, cmap="tab10")
         else:
+            if do_concat: do_concat=False
             cmap = categorical_cmap(ndat, 1, cmap="tab10")
-    else:
-        if do_concat: do_concat=False
-        cmap = categorical_cmap(ndat, 1, cmap="tab10")
+    else:        
+        if do_allcycl: 
+            if n_cycl is not None:
+                cmap = categorical_cmap(np.int32(ndat-1/n_cycl), n_cycl, cmap="tab10")
+            else:
+                cmap = categorical_cmap(ndat-1, 1, cmap="tab10")
+        else:
+            if do_concat: do_concat=False
+            cmap = categorical_cmap(ndat-1, 1, cmap="tab10")
+        cmap_array = np.array(cmap.colors)
+        black = np.array([[0, 0, 0]])  # shape (1,3)
+
+        expanded_cmap_array = np.vstack([black, cmap_array])  # prepend black
+        cmap = ListedColormap(expanded_cmap_array)
     
     #___________________________________________________________________________
     # --> loop over axes
@@ -3098,9 +3144,27 @@ def plot_tline(data,
                         data_x = np.hstack((data_x0[-1], data_x))
                         data_y = np.hstack((data_y0[-1], data_y))
                         
-                        
-                    #data_x = data_x.values
-                    xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                    #_______________________________________________________________    
+                    # When climatolgy is added compute xmin,xmax limits 
+                    if do_clim:
+                        if jj>0:
+                            xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                        else:
+                            # In case climatology should be used, The steal the xmin,xmax
+                            # limits from the subsequent model data
+                            data_xp1 = data[jj+1][bi]['time'].copy()
+                            # total number of days per year considers leap years
+                            if len(np.unique(data_xp1.dt.month))==1: data_xp1 = data_xp1.dt.year
+                            else:
+                                # data contain only mean seasonal cycle 
+                                if len(np.unique(data_xp1.dt.year))==1: data_xp1 = data_xp1.dt.month
+                                else:    
+                                    dperyr = np.where(data_xp1.dt.is_leap_year, 366, 365)
+                                    data_xp1 = data_xp1.dt.year + (data_xp1.dt.dayofyear-data_xp1.dt.day[0])/dperyr   
+                            xmin, xmax = np.min([xmin, data_xp1.min()]), np.max([xmax, data_xp1.max()])
+                    else:
+                        xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                            
                     data_x0, data_y0 = data_x, data_y
                     xmax_list.append(xmax)
                     
@@ -3128,7 +3192,10 @@ def plot_tline(data,
                     else:
                         str_ylabel = ax_ylabel
                     
-                    if   'descript'       in loc_attrs: str_llabel = str_llabel +loc_attrs['descript']
+                    if   'descript'       in loc_attrs: 
+                        str_llabel = str_llabel +loc_attrs['descript']
+                    else: 
+                        str_llabel = str_llabel + 'data {:d}'.format(jj)
                     if   'boxname'        in loc_attrs: str_blabel = str_blabel +loc_attrs['boxname']
                     if   'transect_name'  in loc_attrs: str_blabel = str_blabel +loc_attrs['transect_name']
                     str_blabel = str_blabel.replace('MOC','').replace('_','')
@@ -4289,7 +4356,7 @@ def do_axes_enum(hax, do_enum, nrow, ncol, enum_dir='lr', enum_str=[], enum_x=[0
 #
 #
 #_______________________________________________________________________________
-def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
+def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n, do_info=False):
     """
     --> prepare data for plotting, augment periodic boundaries, interpolate from elements
         to nodes, kick out nan values from plotting 
@@ -4314,7 +4381,7 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
     ____________________________________________________________________________
     """  
     is_onvert = True
-    
+    t1 = clock.time()
     #___________________________________________________________________________
     # data are on vertices
     if   data_plot.size==mesh.n2dn:
@@ -4356,6 +4423,7 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
     del(isnan) 
     
     #___________________________________________________________________________
+    if do_info: print(' --> prepare untruct: {:f}'.format(clock.time()-t1))
     return(data_plot, tri)    
 
 
@@ -4569,12 +4637,13 @@ def do_data_norm(cinfo, do_rescale):
 #
 #_______________________________________________________________________________
 def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
-                plt_opt  =dict(), 
-                plt_contb=False, pltcb_opt=dict(), 
-                plt_contf=False, pltcf_opt=dict(),
-                plt_contr=False, pltcr_opt=dict(),
-                plt_contl=False, pltcl_opt=dict(),
-                chnksize=1e6):
+                plt_opt    =dict(), 
+                plt_contb  =False, pltcb_opt  =dict(), 
+                plt_contf  =False, pltcf_opt  =dict(),
+                plt_contr  =False, pltcr_opt  =dict(),
+                plt_contl  =False, pltcl_opt  =dict(),
+                plt_contval=False, pltcval_opt=dict(),
+                chnksize=1e6, do_info=False):
     """
     --> plot triangular data based on tripcolor or tricontourf
     
@@ -4630,6 +4699,7 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
     ____________________________________________________________________________
     """      
     h0=None
+    t1 = clock.time()
     if np.sum(tri.mask_e_ok)==0: return(h0)
     #___________________________________________________________________________
     # plot tripcolor
@@ -4666,6 +4736,7 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
                 hfig.canvas.flush_events()  # Ensures interactive update
         print('')    
         del(auxtriangles)
+        if do_info: print(' --> plt data tpc: {:f}'.format(clock.time()-t1))
         
     #___________________________________________________________________________
     # plot tricontour 
@@ -4681,6 +4752,7 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
         h0 = hax_ii.tricontourf(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                 norm=which_norm_plot, **plt_optdefault) 
+        if do_info: print(' --> plt data tcf: {:f}'.format(clock.time()-t1))
         
     else: 
         raise ValueError(' --> this do_plt={:s} value is not valid'.format(do_plt))            
@@ -4688,14 +4760,16 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
     #___________________________________________________________________________
     # overlay background contour lines, very thin lines 
     if plt_contb and tri.x.size==data_plot.size:
+        t1 = clock.time()
         pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
         pltcb_optdefault.update(pltcb_opt)
         h0cb = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], **pltcb_optdefault) 
-    
+        if do_info: print(' --> plt contb: {:f}'.format(clock.time()-t1))
     #___________________________________________________________________________
     # overlay foreground contour lines, of colorbar steps thicker line 
     if plt_contf and tri.x.size==data_plot.size:
+        t1 = clock.time()
         pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
         pltcf_optdefault.update(pltcf_opt)
         h0cf = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
@@ -4706,10 +4780,12 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
             h0cft = hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
+        if do_info: print(' --> plt contf: {:f}'.format(clock.time()-t1))    
     
     #___________________________________________________________________________
     # overlay reference contour lines, of colorbar reference center value
     if plt_contr and tri.x.size==data_plot.size:
+        t1 = clock.time()
         pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
         pltcr_optdefault.update(pltcr_opt)
         h0cr = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
@@ -4720,7 +4796,24 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
             h0crt= hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
-    
+        if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
+        
+    #___________________________________________________________________________
+    # overlay contour lines  of specific value
+    if isinstance(plt_contval,list) and tri.x.size==data_plot.size:
+        t1 = clock.time()
+        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcval_optdefault.update(pltcval_opt)
+        h0cv = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
+                                levels=plt_contval, **pltcval_optdefault) 
+        
+        #_______________________________________________________________________
+        if plt_contl:
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault.update(pltcl_opt)
+            h0cvt= hax_ii.clabel(h0cv, h0cv.levels, **pltcl_optdefault)
+        if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
+        
     #___________________________________________________________________________
     return(h0)
 
@@ -4730,11 +4823,13 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
 #
 #_______________________________________________________________________________
 def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_norm_plot, 
-                plt_opt=dict(), which_transf=None, 
-                plt_contb=False, pltcb_opt=dict(), 
-                plt_contf=False, pltcf_opt=dict(),
-                plt_contr=False, pltcr_opt=dict(),
-                plt_contl=False, pltcl_opt=dict()):
+                plt_opt    =dict(), which_transf=None, 
+                plt_contb  =False, pltcb_opt  =dict(), 
+                plt_contf  =False, pltcf_opt  =dict(),
+                plt_contr  =False, pltcr_opt  =dict(),
+                plt_contl  =False, pltcl_opt  =dict(), 
+                plt_contval=False, pltcval_opt=dict(),
+                do_info=False):
     """
     --> plot regular gridded data (binned, coarse grained data) via pcolormesh and contourf
 
@@ -4791,6 +4886,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     ____________________________________________________________________________
     """      
     h0=None
+    t1 = clock.time()
     #___________________________________________________________________________
     # plot pcolor
     if   do_plt in ['tpc','pc']:
@@ -4818,6 +4914,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         #0 = hax_ii.pcolormesh(data_x, data_y, data_plot,
                               #cmap=cinfo_plot['cmap'],
                               #norm=which_norm_plot, transform=which_transf, **cminmax, **plt_optdefault)
+        if do_info: print(' --> plt data_reg tpc: {:f}'.format(clock.time()-t1))
         
     #___________________________________________________________________________
     # plot contourf 
@@ -4833,6 +4930,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         h0 = hax_ii.contourf(data_x, data_y, data_plot,
                                 levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                 norm=which_norm_plot, transform=which_transf, **plt_optdefault) 
+        if do_info: print(' --> plt data_reg tcf: {:f}'.format(clock.time()-t1))
         
     else: 
         raise ValueError(' --> this do_plt={:s} value is not valid'.format(do_plt))            
@@ -4849,14 +4947,17 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     #___________________________________________________________________________
     # overlay background contour lines, very thin lines 
     if plt_contb:
+        t1 = clock.time()
         pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
         pltcb_optdefault.update(pltcb_opt)
         h0cb = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=cinfo_plot['clevel'], transform=which_transf, **pltcb_optdefault) 
+        if do_info: print(' --> plt contb: {:f}'.format(clock.time()-t1))
     
     #___________________________________________________________________________
     # overlay foreground contour lines, of colorbar steps thicker line 
-    if plt_contf:    
+    if plt_contf:   
+        t1 = clock.time()
         pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
         pltcf_optdefault.update(pltcf_opt)
         #print(data_x.shape)
@@ -4871,10 +4972,11 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
             hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
-    
+        if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
     #___________________________________________________________________________
     # overlay reference contour lines, of colorbar reference center value
-    if plt_contr:    
+    if plt_contr:  
+        t1 = clock.time()
         pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
         pltcr_optdefault.update(pltcr_opt)
         h0cr = hax_ii.contour(data_x0, data_y0, data_plot,
@@ -4884,7 +4986,22 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
             pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
             pltcl_optdefault.update(pltcl_opt)
             hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
-            
+        if do_info: print(' --> plt contr: {:f}'.format(clock.time()-t1))    
+    
+     #___________________________________________________________________________
+    # overlay re contour lines  of specific value
+    if isinstance(plt_contval,list):
+        t1 = clock.time()
+        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcval_optdefault.update(pltcval_opt)
+        h0cv = hax_ii.contour(data_x0, data_y0, data_plot,
+                                levels=plt_contval, transform=which_transf, **pltcval_optdefault) 
+        #_______________________________________________________________________
+        if plt_contl:
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault.update(pltcl_opt)
+            hax_ii.clabel(h0cv, h0cv.levels, **pltcl_optdefault)
+        if do_info: print(' --> plt contr: {:f}'.format(clock.time()-t1))    
     #___________________________________________________________________________
     return(h0)
 
@@ -5084,8 +5201,9 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         #_______________________________________________________________________
         # plotting of chunks 
         arrsize, chnksize = data_plot_u.size, np.int32(chnksize)
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
         print(' --> plot {:6s} chunk:'.format('quiver'),end='')
-        for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+        for chnki in range(nchnk):
             idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
             print('{:d}|'.format(chnki), end='')
             h0=hax_ii.quiver(tri0x[idxs:idxe], tri0y[idxs:idxe], 
@@ -5098,8 +5216,9 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
             h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
             
             # Force update & clear cache
-            hfig.canvas.draw_idle()   # Updates only changed parts
-            hfig.canvas.flush_events()  # Ensures interactive update
+            if nchnk>1:
+                hfig.canvas.draw_idle()   # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
         
         print('')    
         #h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
@@ -5114,7 +5233,7 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
 #_______________________________________________________________________________
 def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dict(), 
                    do_streaml_leg=True, streaml_leg_opt=dict(),
-                   box=None, which_transf=ccrs.PlateCarree()):
+                   box=None, which_transf=ccrs.PlateCarree(), do_info=False):
     """
     --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
         data. Data can originate either from corase graining or interpolation
@@ -5177,6 +5296,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
     h0=None
     #___________________________________________________________________________
     if do_streaml and streaml_dat is not None:
+        t1=clock.time()
         data_x, data_y = streaml_dat[ii]['lon'    ], streaml_dat[ii]['lat'    ]
         vnm = list(streaml_dat[ii].data_vars)
         data_u, data_v = streaml_dat[ii][vnm[0]].data.copy(), streaml_dat[ii][vnm[1]].data.copy()
@@ -5257,6 +5377,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
             
         #_______________________________________________________________________
         del(data_x, data_y, data_u, data_v, data_s)
+        if do_info: print(' --> plt streaml_reg: {:f}'.format(clock.time()-t1))
         
     #___________________________________________________________________________
     elif do_streaml and streaml_dat is None:
@@ -5272,7 +5393,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
 def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(), 
                    do_quiver_leg=True, quiver_leg_opt=dict(),
                    box=None, which_transf=ccrs.PlateCarree(), 
-                   quiv_scalfac=1, quiv_arrwidth=0.25):
+                   quiv_scalfac=1, quiv_arrwidth=0.25, do_info=False):
     """
     --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
         data. Data can originate either from corase graining or interpolation
@@ -5335,6 +5456,7 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
     h0=None
     #___________________________________________________________________________
     if do_quiver and quiver_dat is not None:
+        t1=clock.time()
         data_x, data_y = quiver_dat[ii]['lon'    ].data.copy(), quiver_dat[ii]['lat'    ].data.copy()
         vnm = list(quiver_dat[ii].data_vars)
         data_u, data_v = quiver_dat[ii][vnm[0]].data.copy(), quiver_dat[ii][vnm[1]].data.copy()
@@ -5404,6 +5526,7 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
             
         #_______________________________________________________________________
         del(data_x, data_y, data_u, data_v, data_s)
+        if do_info: print(' --> plt quiver_reg: {:f}'.format(clock.time()-t1))
         
     #___________________________________________________________________________
     elif do_quiver and quiver_dat is None:
@@ -5418,7 +5541,7 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
 #
 #_______________________________________________________________________________
 def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, ylim=None, 
-               bot_opt=dict(), chnksize=1e6):
+               bot_opt=dict(), chnksize=1e6, do_info=False):
     """
     --> plot bottom mask
 
@@ -5450,11 +5573,11 @@ def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_pl
     """      
     from matplotlib.colors import ListedColormap
     h0=None
-    
+    t1 = clock.time()
+            
     # plot bottom mask for cartopy plot
     if isinstance(hax_ii.projection, ccrs.CRS) and tri is not None:
         if do_bot and np.any(tri.mask_e_ok==False):
-            
             bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, 'zorder':4})
             bot_optdefault.update(bot_opt)
             
@@ -5488,11 +5611,10 @@ def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_pl
                     hfig.canvas.flush_events()  # Ensures interactive update
             print('')
             del(auxtriangles)
-            
+            if do_info: print(' --> plt bot: {:f}'.format(clock.time()-t1))
             
     # plot bottom mask for index+depth+xy
     elif hax_ii.projection=='index+depth+xy':
-        
         bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':4})
         bot_optdefault.update(bot_opt)
             
@@ -5515,7 +5637,8 @@ def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_pl
         #del(filt, aux)
         
         h0 = hax_ii.fill_between(data_x, bottom, data_y[-1], **bot_optdefault)#,alpha=0.95)
-    
+        if do_info: print(' --> plt bot: {:f}'.format(clock.time()-t1))
+        
     # plot bottom mask for zmoc
     elif 'zmoc' in hax_ii.projection or 'dmoc+depth' in hax_ii.projection:
         bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':4})
@@ -5526,7 +5649,8 @@ def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_pl
             
         bottom = data_plot
         h0 = hax_ii.fill_between(data_x, bottom, maxbot, **bot_optdefault)#,alpha=0.95)
-    
+        if do_info: print(' --> plt bot: {:f}'.format(clock.time()-t1))
+        
     return(h0)
     
 #
@@ -5599,7 +5723,7 @@ def do_plt_topo(hfig, hax_ii, do_topo, data_topo, mesh, tri,
 #
 #
 #_______________________________________________________________________________
-def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6):
+def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6, do_info=False):
     """
     --> plot overlaying triangular mesh
 
@@ -5623,22 +5747,25 @@ def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6):
     """      
     h0=None
     if do_mesh: 
+        t1 = clock.time()
         mesh_optdefault = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75})
         mesh_optdefault.update(mesh_opt)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_optdefault)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles, zorder=5, **mesh_optdefault)
         auxtriangles = tri.triangles[tri.mask_e_ok,:]
         arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
         print(' --> plot {:6s} chunk:'.format('mesh'),end='')
-        for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+        for chnki in range(nchnk):
             idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
             print('{:d}|'.format(chnki), end='')
             h0 = hax_ii.triplot(tri.x, tri.y, auxtriangles[idxs:idxe,:], zorder=5, **mesh_optdefault)
-            hfig.canvas.draw_idle()     # Updates only changed parts
-            hfig.canvas.flush_events()  # Ensures interactive update
+            if nchnk>1:
+                hfig.canvas.draw_idle()     # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
         print('')    
         del(auxtriangles)
-        
+        if do_info: print(' --> plt mesh: {:f}'.format(clock.time()-t1))
     return(h0)
 
 
@@ -5646,7 +5773,7 @@ def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6):
 #
 #
 #_______________________________________________________________________________
-def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
+def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', do_info=False):
     """
     --> plot fesom mesh inverted land sea mask
 
@@ -5681,7 +5808,7 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
     
     lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5, 'zorder':4})
     lsm_optdefault.update(lsm_opt)
-    
+    t1 = clock.time()
     #___________________________________________________________________________
     if do_lsm in ['bluemarble', 'etopo']:
         import tripyview as tpv
@@ -5695,12 +5822,14 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
 
     elif do_lsm=='fesom':
         h0=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        if do_info: print(' --> plt lsmask fesom: {:f}'.format(clock.time()-t1))
         
     elif do_lsm=='stock':  
         h01=hax_ii.stock_img()
         lsm_optdefault.update({'facecolor':'None'})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]    
+        if do_info: print(' --> plt lsmask stock: {:f}'.format(clock.time()-t1))
         
     elif do_lsm=='bluemarble': 
         # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
@@ -5710,6 +5839,7 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
         lsm_optdefault.update({'facecolor':'None'})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]  
+        if do_info: print(' --> plt lsmask bluemarble: {:f}'.format(clock.time()-t1))
         
     elif do_lsm=='etopo':   
         # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
@@ -5719,13 +5849,15 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
         lsm_optdefault.update({'facecolor':'None'})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]
+        if do_info: print(' --> plt lsmask etopo: {:f}'.format(clock.time()-t1))    
         
     else:
         raise ValueError(" > the do_lsm={} is not supported, must be either 'fesom', 'stock', 'bluemarble' or 'etopo'! ")
         
     #___________________________________________________________________________
-    hfig.canvas.draw_idle()   # Updates only changed parts
-    hfig.canvas.flush_events()  # Ensures interactive update
+    #hfig.canvas.draw_idle()   # Updates only changed parts
+    #hfig.canvas.flush_events()  # Ensures interactive update
+    
     return(h0)
 
 
@@ -5735,7 +5867,7 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
 #_______________________________________________________________________________
 def do_plt_gridlines(hax_ii, do_grid, box, ndat, 
                      data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict(), 
-                     proj=None, do_rescale=None):
+                     proj=None, do_rescale=None, do_info=False):
     """
     --> do plot cartopy gridline and general gridlines together with the limit
         scaling of the axis (see non-linear option of x and y axis)
@@ -5778,6 +5910,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
     #___________________________________________________________________________
     h0=None
     if do_grid:
+        t1 = clock.time()
         #_______________________________________________________________________
         if proj=='channel':
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':5})
@@ -5967,6 +6100,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             #___________________________________________________________________
             # set x/y limits
             if data_y is not None: 
+                print(data_y[0],data_y[-1])
                 if np.ndim(data_y)==1 : hax_ii.set_ylim(data_y[0],data_y[-1])
                 if np.ndim(data_y)==2 : hax_ii.set_ylim(np.nanmin(data_y),np.nanmax(data_y))
             
@@ -6002,7 +6136,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
             hax_ii.grid(True,which='major')
             hax_ii.grid(**grid_optdefault)
-            
+        
+        if do_info: print(' --> plt gridlines: {:f}'.format(clock.time()-t1))
     #___________________________________________________________________________
     return(h0)
 
