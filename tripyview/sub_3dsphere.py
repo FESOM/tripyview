@@ -18,10 +18,13 @@ def create_3dsphere_ocean_mesh(mesh, data, potatoefac=0.5,variable='elevation', 
     #___________________________________________________________________________
     # do topographic potatoefication of ocean mesh
     R_grid= R_earth
-    bottom_depth_2d = -mesh.n_z;
-    bottom_depth_2d[mesh.n_i==1]=0.0;
+    bottom_depth_2d = np.abs(mesh.n_z);
+    if not np.all(mesh.n_i==1):
+        bottom_depth_2d[mesh.n_i==1]=0.0;
+    
     R_grid         = R_grid-( bottom_depth_2d*100*potatoefac)
-    R_grid[mesh.n_i==1]=R_earth;
+    if not np.all(mesh.n_i==1):
+        R_grid[mesh.n_i==1]=R_earth;
     
     #___________________________________________________________________________
     tri = Triangulation(mesh.n_x, mesh.n_y, mesh.e_i)
@@ -268,7 +271,7 @@ def create_3dsphere_coastline(mesh,  box = None):
             
         xs,ys,zs = grid_cart3d(poly_x, poly_y, R_earth*1.001, is_deg=True)
         points = np.vstack((xs,ys,zs)).transpose()
-        points = np.row_stack((points,points[1,:])) 
+        points = np.vstack((points,points[1,:])) 
         
         aux_points = np.column_stack((points[:-1,:],points[1:,:]))
         aux_points = np.stack((points[:-1,:],points[1:,:]), axis=2)
@@ -326,7 +329,7 @@ def create_3dsphere_lonlat_grid(dlon=30,dlat=15,potatoefac=1.0,do_topo=False, bo
         if do_topo: xs,ys,zs = grid_cart3d(dum_lon, dum_lon*0+grid_lat[nlatline], R_earth+(6000*100*potatoefac), is_deg=True)
         else      : xs,ys,zs = grid_cart3d(dum_lon, dum_lon*0+grid_lat[nlatline], R_earth*1.005, is_deg=True)
         
-        points     = np.row_stack((xs,ys,zs)).transpose()
+        points     = np.vstack((xs,ys,zs)).transpose()
         aux_points = np.column_stack((points[:-1,:],points[1:,:]))
         aux_points = np.stack((points[:-1,:],points[1:,:]), axis=2)
         aux_points = np.moveaxis(aux_points,0,1)
@@ -367,7 +370,7 @@ def create_3dsphere_0lon0lat_grid(dlon=30,dlat=15,potatoefac=1.0,do_topo=False):
         if do_topo: xs,ys,zs = grid_cart3d(dum_lon, dum_lon*0+grid_lat[nlatline], R_earth+(6000*100*potatoefac), is_deg=True)
         else      : xs,ys,zs = grid_cart3d(dum_lon, dum_lon*0+grid_lat[nlatline], R_earth*1.005, is_deg=True)
         
-        points     = np.row_stack((xs,ys,zs)).transpose()
+        points     = np.vstack((xs,ys,zs)).transpose()
         aux_points = np.column_stack((points[:-1,:],points[1:,:]))
         aux_points = np.stack((points[:-1,:],points[1:,:]), axis=2)
         aux_points = np.moveaxis(aux_points,0,1)

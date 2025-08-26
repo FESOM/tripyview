@@ -6264,7 +6264,11 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     
     # wrap xlabel string when they are to long
     # Estimate the width of the axes dynamically
-    axes_width_px = hcb_ii.ax.get_position().height * hax_ii.fig_height * hax_ii.fig_dpi
+
+    if  which_orient=='vertical':
+        axes_width_px = hcb_ii.ax.get_position().height * hax_ii.fig_height * hax_ii.fig_dpi
+    elif which_orient=='horizontal':
+        axes_width_px = hcb_ii.ax.get_position().width * hax_ii.fig_width * hax_ii.fig_dpi
     
     # Estimate the width of the axes in terms of characters
     # font_size = plt.rcParams['font.size']
