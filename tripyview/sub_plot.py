@@ -6546,13 +6546,15 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 # size mesh.n2dna
                 if   data_plot.size == mesh.n2dn: 
                     data_plot = np.hstack((data_plot, data_plot[mesh.n_pbnd_a]))
-                    if tri.mask_n_box is not None: data_plot = data_plot[tri.mask_n_box]
+                    if hasattr(tri, "mask_n_box"):
+                        if tri.mask_n_box is not None: data_plot = data_plot[tri.mask_n_box]
                     
                 # data_plot is on elements --> add augmentation arrays --> now 
                 # size mesh.n2dea
                 elif data_plot.size == mesh.n2de: 
                     data_plot = np.hstack((data_plot[mesh.e_pbnd_0], data_plot[mesh.e_pbnd_a]))
-                    if any(tri.mask_e_box==False): data_plot = data_plot[tri.mask_e_box]
+                    if hasattr(tri, "mask_e_box"):
+                        if any(tri.mask_e_box==False): data_plot = data_plot[tri.mask_e_box]
                     
                 # compute min/max value range by histogram, computation of cumulativ 
                 # distribution function at certain cutoff treshold allow to kick out 
@@ -6561,11 +6563,13 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     if do_cweights is not None: 
                         if   do_cweights.size == mesh.n2dn: 
                             do_cweights = np.hstack((do_cweights, do_cweights[mesh.n_pbnd_a]))
-                            if tri.mask_n_box is not None: do_cweights = do_cweights[tri.mask_n_box]
+                            if hasattr(tri, "mask_n_box"):
+                                if tri.mask_n_box is not None: do_cweights = do_cweights[tri.mask_n_box]
                             
                         elif do_cweights.size == mesh.n2de: 
                             do_cweights = np.hstack((do_cweights[mesh.e_pbnd_0], do_cweights[mesh.e_pbnd_a]))
-                            if any(tri.mask_e_box==False): do_cweights = do_cweights[tri.mask_e_box]
+                            if hasattr(tri, "mask_e_box"):
+                                if any(tri.mask_e_box==False): do_cweights = do_cweights[tri.mask_e_box]
                     
                     histcmin,histcmax = do_climit_hist(data_plot, ctresh=cinfo['ctresh'], cweights=do_cweights)                    
                     cmin, cmax = np.min([cmin,histcmin]), np.max([cmax,histcmax])
