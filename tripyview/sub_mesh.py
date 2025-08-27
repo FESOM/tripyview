@@ -2279,7 +2279,7 @@ def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
 # ___INTERPOLATE FROM ELEMENTS TO VERTICES_____________________________________
 #|                                                                             |
 #|_____________________________________________________________________________|
-def grid_interp_e2n(mesh,data_e, client=None):
+def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
     """
     --> interpolate data from elements to vertices e.g velocity from elements to 
     velocity on nodes
@@ -2300,7 +2300,8 @@ def grid_interp_e2n(mesh,data_e, client=None):
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
         
-    #___________________________________________________________________________    
+    #___________________________________________________________________________   
+    # do ie2n for 1d data [nelem]
     if data_e.ndim==1:
         
         # compute data on elements times area of elements
@@ -2310,64 +2311,233 @@ def grid_interp_e2n(mesh,data_e, client=None):
         # single loop over self.e_i.flat is ~4 times faster than douple loop 
         # over for i in range(3): ,for j in range(self.n2de):
         data_n = np.zeros(mesh.n2dn)
-        for e_i, n_i in enumerate(mesh.e_i.flat): data_n[n_i] = data_n[n_i] + data_exa[e_i]
-        data_n=data_n/mesh.n_area[0,:]/3.0        
+        if data_e2 is None:
+            for e_i, n_i in enumerate(mesh.e_i.flat): 
+                data_n[n_i] = data_n[n_i] + data_exa[e_i]
+            del(data_exa)
+            data_n=data_n/mesh.n_area[0,:]/3.0        
+        
+        else:
+            data_exa2 = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)) * data_e2
+            data_exa2 = data_exa2.transpose().flatten()
+            data_n2   = np.zeros(mesh.n2dn)
+            for e_i, n_i in enumerate(mesh.e_i.flat): 
+                data_n[ n_i] = data_n [n_i] + data_exa[ e_i]
+                data_n2[n_i] = data_n2[n_i] + data_exa2[e_i]
+            data_n    = data_n /mesh.n_area[0,:]/3.0        
+            data_n2   = data_n2/mesh.n_area[0,:]/3.0        
+        
         del data_exa
         
-    #___________________________________________________________________________        
+    #___________________________________________________________________________  
+    # do ie2n for 2d data [ndi, nelem]
     elif data_e.ndim==2:
         
         nd        = data_e.shape[0]
         data_n    = np.zeros((nd, mesh.n2dn))
+        if data_e2 is not None: data_n2 = np.zeros((nd, mesh.n2dn))
         data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
         
         #_______________________________________________________________________
-        def e2n_di(di, data_e, area_e, e_i_flat, n_iz):
+        def e2n_di(di, data_e, data_e2, area_e, e_i_flat, n_iz):
             
             data_exa  = area_e * np.vstack((data_e[di,:],data_e[di,:],data_e[di,:])).transpose().flatten()
             data_n_di = np.zeros(n_iz.shape)
             data_a_di = np.zeros(n_iz.shape)
-        
-            # single loop over self.e_i.flat is ~4 times faster than douple loop 
-            # over for i in range(3): ,for j in range(self.n2de):
-            for e_i, n_i in enumerate(e_i_flat):
-                if n_iz[n_i]<di: continue
-                data_n_di[n_i] = data_n_di[n_i] + data_exa[ e_i]
-                data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
             
-            # Avoid divide-by-zero errors
-            with np.errstate(divide='ignore', invalid='ignore'):
-                data_n_di = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
+            if data_e2 is None:
+                # single loop over self.e_i.flat is ~4 times faster than douple loop 
+                # over for i in range(3): ,for j in range(self.n2de):
+                for e_i, n_i in enumerate(e_i_flat):
+                    if n_iz[n_i]<di: continue
+                    data_n_di[n_i] = data_n_di[n_i] + data_exa[ e_i]
+                    data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
+                del(data_exa)
+                
+                # Avoid divide-by-zero errors
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    data_n_di = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
+                del(data_a_di)    
     
-            return(data_n_di)
+                return(data_n_di)
+            
+            else: 
+                data_exa2  = area_e * np.vstack((data_e2[di,:],data_e2[di,:],data_e2[di,:])).transpose().flatten()
+                data_n_di2 = np.zeros(n_iz.shape)
+                for e_i, n_i in enumerate(e_i_flat):
+                    if n_iz[n_i]<di: continue
+                    data_n_di[ n_i] = data_n_di[ n_i] + data_exa[  e_i]
+                    data_n_di2[n_i] = data_n_di2[n_i] + data_exa2[ e_i]
+                    data_a_di[ n_i] = data_a_di[ n_i] + area_e[    e_i]
+                del(data_exa)
+                
+                # Avoid divide-by-zero errors
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    data_n_di  = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
+                    data_n_di2 = np.where(data_a_di != 0, data_n_di2/data_a_di, 0)
+                del(data_a_di)    
+    
+                return(data_n_di, data_n_di2)
         
         #_______________________________________________________________________
         # do seriial computation 
         if client is None:
             t1 = clock.time()
-            for di in range(0,nd):
-                data_n[di, :] = e2n_di(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) 
+            if data_e2 is None:
+                for di in range(0,nd):
+                    data_n[di, :] = e2n_di(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
+                    
+            else:        
+                for di in range(0,nd):
+                    data_n[di, :], data_n2[di, :] = e2n_di(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
             print(clock.time()-t1)
         
         # do computation in parallel by dask client
         else:
             t1 = clock.time()
-            # Submit tasks to the Dask client
-            futures = [client.submit(e2n_di, di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
+            if data_e2 is None:
+                # Submit tasks to the Dask client
+                futures = [client.submit(e2n_di, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
 
-            # Gather results
-            results = client.gather(futures)
+                # Gather results
+                results = client.gather(futures)
 
-            # Stack results to match (nd, mesh.n2dn) shape
-            data_n = da.vstack(results)
+                # Stack results to match (nd, mesh.n2dn) shape
+                data_n = da.vstack(results)
+            else:    
+                # Submit tasks to the Dask client
+                futures = [client.submit(e2n_di, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
+
+                # Gather results
+                results = client.gather(futures)
+
+                # Stack results to match (nd, mesh.n2dn) shape --> creates 
+                # array [2, nlev, nelem]
+                data_n  = da.concatenate(results, axis=1)
+                data_n2 = data_n[1]
+                data_n  = data_n[0]
+                
             print(clock.time()-t1)
+            
         #from joblib import Parallel, delayed
         #results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
         #data_n = np.vstack(results).transpose()
         #print(' --> elapsed time:', clock.time()-t1)
         
+    #___________________________________________________________________________  
+    # do ie2n for 3d data [nti, ndi, nelem]
+    elif data_e.ndim==3:
+        nt        = data_e.shape[0]
+        nd        = data_e.shape[1]
+        data_n    = np.zeros((nt, nd, mesh.n2dn))
+        if data_e2 is not None: data_n2 = np.zeros((nt, nd, mesh.n2dn))
+        data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
+        
+        #_______________________________________________________________________
+        def e2n_di_ti (di, data_e, data_e2, area_e, e_i_flat, n_iz):
+            nti, dum, nelem = data_e.shape
+            slice_di  = data_e[:, di, :]
+            data_exa  = np.repeat(slice_di[:, :, np.newaxis], 3, axis=1)
+            del(slice_di)
+            data_exa  = data_exa.reshape(nt, 3*nelem)
+            data_exa  = area_e * data_exa
+            data_exa  = data_exa[:,None,:]
+            data_n_di = np.zeros((nt, 1, n_iz.shape[0]))
+            data_a_di = np.zeros(n_iz.shape)
+            
+            if data_e2 is None:
+                # single loop over self.e_i.flat is ~4 times faster than douple loop 
+                # over for i in range(3): ,for j in range(self.n2de):
+                for e_i, n_i in enumerate(e_i_flat):
+                    if n_iz[n_i]<di: continue
+                    data_n_di[:, :, n_i] = data_n_di[:, :, n_i] + data_exa[:, :, e_i]
+                    data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
+                del(data_exa)
+                
+                # Avoid divide-by-zero errors
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    data_n_di = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
+                del(data_a_di)
+                
+                return(data_n_di)
+            
+            else:
+                # single loop over self.e_i.flat is ~4 times faster than douple loop 
+                # over for i in range(3): ,for j in range(self.n2de):
+                slice_di   = data_e2[:, di, :]
+                data_exa2  = np.repeat(slice_di[:, :, np.newaxis], 3, axis=1)
+                del(slice_di)
+                data_exa2  = data_exa2.reshape(nt, 3*nelem)
+                data_exa2  = area_e * data_exa2
+                data_exa2  = data_exa2[:,None,:]
+                data_n_di2 = np.zeros((nt, 1, n_iz.shape[0]))
+                for e_i, n_i in enumerate(e_i_flat):
+                    if n_iz[n_i]<di: continue
+                    data_n_di[ :, :, n_i] = data_n_di[ :, :, n_i] + data_exa[ :, :, e_i]
+                    data_n_di2[:, :, n_i] = data_n_di2[:, :, n_i] + data_exa2[:, :, e_i]
+                    data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
+                del(data_exa)
+                
+                # Avoid divide-by-zero errors
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    data_n_di  = np.where(data_a_di != 0, data_n_di /data_a_di, 0)
+                    data_n_di2 = np.where(data_a_di != 0, data_n_di2/data_a_di, 0)
+                del(data_a_di)
+            
+                return(data_n_di, data_n_di2)
+        
+        #_______________________________________________________________________
+        # do seriial computation 
+        if client is None:
+            t1 = clock.time()
+            if data_e2 is None:
+                for di in range(0,nd):
+                    data_n[:, di, :] = e2n_di_ti(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
+                
+            else:
+                for di in range(0,nd):
+                    data_n[:, di, :], data_n2[:, di, :] = e2n_di_ti(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
+            print(clock.time()-t1)
+        
+        # do computation in parallel by dask client
+        else:
+            t1 = clock.time()
+            if data_e2 is None:
+                # Submit tasks to the Dask client
+                futures = [client.submit(e2n_di_ti, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
+
+                # Gather results
+                results = client.gather(futures)
+
+                # Stack results to match (nd, mesh.n2dn) shape
+                data_n = da.concatenate(results, axis=1)
+            
+            else:
+                # Submit tasks to the Dask client
+                futures = [client.submit(e2n_di_ti, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
+
+                # Gather results
+                results = client.gather(futures)
+                
+                # Stack results to match (nd, mesh.n2dn) shape --> creates 
+                # array [2, nttime, nlev, nelem]
+                data_n  = da.concatenate(results, axis=2)
+                data_n2 = data_n[1]
+                data_n  = data_n[0]
+                
+            print(clock.time()-t1)
+            
+        #from joblib import Parallel, delayed
+        #results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
+        #data_n = np.vstack(results).transpose()
+        #print(' --> elapsed time:', clock.time()-t1)
+            
+        
     #___________________________________________________________________________
-    return(data_n)
+    if data_e2 is None:
+        return(data_n)
+    else:
+        return(data_n, data_n2)
 
 
 

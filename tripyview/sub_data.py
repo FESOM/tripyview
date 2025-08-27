@@ -1825,7 +1825,29 @@ def do_interp_e2n(data, mesh, do_ie2n, client=None):
     vname_list = list(data.keys())
     if ('elem' in data[vname_list[0]].dims) and do_ie2n:
         print(' > do interpolation e2n')
-        #_______________________________________________________________________
+        ##_______________________________________________________________________
+        #if len(vname_list)==2: 
+            #aux, aux2  = grid_interp_e2n(mesh,data[vname_list[0]].values, data_e2=data[vname_list[1]].values, client=client)
+            #vname_new  = 'n_'+vname_list[0]
+            #vname_new2 = 'n_'+vname_list[1]
+                    
+            #dim_list = list()
+            #if   'time' in data.dims: dim_list.append('time')
+            #if   'nz'   in data.dims: dim_list.append('nz')
+            #elif 'nz1'  in data.dims: dim_list.append('nz1')    
+            #dim_list.append('nod2')    
+                
+            #data = xr.merge([ data, xr.Dataset({vname_new: (dim_list, aux), vname_new2: (dim_list, aux2)})], combine_attrs="no_conflicts")
+            #data = data.unify_chunks()
+                
+            ## copy attributes from elem to vertice variable 
+            #data[vname_new].attrs  = data[vname_list[0]].attrs
+            #data[vname_new2].attrs = data[vname_list[1]].attrs
+                
+            ## delete elem variable from dataset
+            #data = data.drop_vars(vname_list)        
+            
+        #else:    
         for vname in vname_list:
             # interpolate elem to vertices
             #aux = grid_interp_e2n(mesh,data[vname].data)
@@ -1837,19 +1859,22 @@ def do_interp_e2n(data, mesh, do_ie2n, client=None):
             
             # add vertice interpolated variable to dataset
             #print(data)
-            if   'nz' in data.dims:
-                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nz', 'nod2'],aux)})], combine_attrs="no_conflicts")
-            elif 'nz1' in data.dims:
-                data = xr.merge([ data, xr.Dataset({vname_new: ( ['nz1', 'nod2'],aux)})], combine_attrs="no_conflicts")
-            else:
-                data = xr.merge([ data, xr.Dataset({vname_new: ( 'nod2',aux)})], combine_attrs="no_conflicts")
+            dim_list = list()
+            if   'time' in data.dims: dim_list.append('time')
+            if   'nz'   in data.dims: dim_list.append('nz')
+            elif 'nz1'  in data.dims: dim_list.append('nz1')    
+            dim_list.append('nod2')    
+            
+            data = xr.merge([ data, xr.Dataset({vname_new: (dim_list, aux)})], combine_attrs="no_conflicts")
+            data = data.unify_chunks()
+            
             # copy attributes from elem to vertice variable 
             data[vname_new].attrs = data[vname].attrs
             
             # delete elem variable from dataset
             data = data.drop_vars(vname)
-
             del(aux)
+            
         #_______________________________________________________________________
         # kick out element related coordinates 
         for coordi in list(data.coords):
@@ -1857,7 +1882,6 @@ def do_interp_e2n(data, mesh, do_ie2n, client=None):
         
         #_______________________________________________________________________
         # enter area weights for nodes
-        print(data)
         data, _ , _ = do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False)
     #___________________________________________________________________________
     return(data)
