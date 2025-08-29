@@ -347,21 +347,29 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________
     # load multiple files
+    
+    # Avoid Warning Message:
+    # SerializationWarning: Unable to decode time axis into full numpy.datetime64 
+    # objects, continuing using cftime.datetime objects instead, reason: dates out 
+    # of range dtype = _decode_cf_datetime_dtype(data, u
+    use_cftime = False
+    if year[0]>2262 or year[1]>2262: use_cftime=True
+    
     if   engine == 'netcdf4' : 
         #engine_dict = dict({})
         engine_dict = dict({
-                            'engine'        :"netcdf4", 
+                            'engine'        :"netcdf4" , 
                             #'combine'       :'nested', 
                             #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
-                            'decode_coords' :False, 
-                            'decode_times'  :True, 
-                            'autoclose'     :False, 
-                            'lock'          :False, 
+                            'decode_coords' :False     , 
+                            'decode_times'  :True      , 
+                            'use_cftime'    :use_cftime, 
+                            'autoclose'     :False     , 
+                            'lock'          :False     , 
                             'backend_kwargs':{'format': 'NETCDF4', 'mode':'r'}
                             })# load normal FESOM2 run file
     elif engine == 'h5netcdf': 
         engine_dict = dict({'engine':"h5netcdf",'backend_kwargs':{'phony_dims': 'sort', 'decode_vlen_strings':False, 'invalid_netcdf':'ignore'}})# load normal FESOM2 run file
-    
     
     if do_file=='run':
         data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
@@ -551,6 +559,7 @@ def load_data_fesom2(mesh,
                 # this seems to be in moment slightly faster  than using here the 
                 # map_blocks option!!!
                 data = data.interp(nz1=auxdepth, method="linear")
+                data['nzi'] = data['nzi'].astype("uint8")
                 
                 #template = data.isel(nz1=slice(0, 2)).interp(nz1=auxdepth, method="linear")
                 #def interp_block(data_block, new_depth=None):
@@ -561,12 +570,12 @@ def load_data_fesom2(mesh,
                 
                 if data['nz1'].size>1: 
                     data = do_depth_arithmetic(data, do_zarithm, "nz1")
-                    
+                 
             elif ('nz'  in data.dims):    
                 data = data.interp(nz=auxdepth, method="linear")
                 if data['nz'].size>1:   
                     data = do_depth_arithmetic(data, do_zarithm, "nz") 
-    
+            
     #___________________________________________________________________________
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
@@ -821,14 +830,16 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     # set vertical coordinates and grid info
     grid_info = dict()
     if   ('nz1'  in data.dims): 
-        if   ('nz1'  in data.coords): data = data.drop_vars('nz1' ) 
-        grid_info['nz1']    = xr.DataArray(np.abs(mesh.zmid).astype('float32')                , dims=dimn_v).chunk(set_chnk_v)
-        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zmid.size, dtype='uint8')         , dims=dimn_v).chunk(set_chnk_v)
+        if data.sizes['nz1'] == len(mesh.zmid):
+            if   ('nz1'  in data.coords): data = data.drop_vars('nz1' ) 
+            grid_info['nz1']    = xr.DataArray(np.abs(mesh.zmid).astype('float32')                , dims=dimn_v).chunk(set_chnk_v)
+            grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zmid.size, dtype='uint8')         , dims=dimn_v).chunk(set_chnk_v)
         
-    elif ('nz'   in data.dims): 
-        if ('nz'  in data.coords): data = data.drop_vars('nz' ) 
-        grid_info['nz' ]    = xr.DataArray(np.abs(mesh.zlev).astype('float32')                , dims=dimn_v).chunk(set_chnk_v) 
-        grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zlev.size, dtype='uint8')         , dims=dimn_v).chunk(set_chnk_v) 
+    elif ('nz'   in data.dims):
+        if data.sizes['nz'] == len(mesh.zlev):
+            if ('nz'  in data.coords): data = data.drop_vars('nz' ) 
+            grid_info['nz' ]    = xr.DataArray(np.abs(mesh.zlev).astype('float32')                , dims=dimn_v).chunk(set_chnk_v) 
+            grid_info['nzi']    = xr.DataArray(np.arange(0,mesh.zlev.size, dtype='uint8')         , dims=dimn_v).chunk(set_chnk_v) 
     
     #___________________________________________________________________________
     # set horizontal coordinates and gridinfo 
@@ -846,14 +857,26 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
         if do_hweight:
             # need area weight for 3d data on mid depth levels
             if   'nz1' == dimn_v:
-                grid_info['w_A']     = xr.DataArray(mesh.n_area[:-1,:].astype('float32')      , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
-            
+                if data.sizes['nz1'] == len(mesh.zmid):
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area[:-1,:].astype('float32')      , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+                else:
+                    # do this to add grid weights on data that have been already 
+                    # vertically selcected
+                    nzidx = data['nzi'].values.astype('uint8')
+                    grid_info['w_A'] = xr.DataArray(mesh.n_area[nzidx, :].astype('float32')      , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+                    
             # need area weight for 3d data on full depth levels
             elif 'nz'  == dimn_v:
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
                     grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[        dimn_h]).chunk(set_chnk_h)
                 else:    
-                    grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+                    if data.sizes['nz1'] == len(mesh.zmid):
+                        grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
+                    else:
+                        # do this to add grid weights on data that have been already 
+                        # vertically selcected
+                        nzidx = data['nz'].values.astype('uint8')
+                        grid_info['w_A'] = xr.DataArray(mesh.n_area[nzidx, :].astype('float32')             , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
             
             # only need area weights for 2d data
             else:   
