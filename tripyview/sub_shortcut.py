@@ -216,7 +216,7 @@ def shortcut_setup_pathwithspinupcycles(input_paths, input_names, ref_path, ref_
             if ipath is None: 
                 aux_path.append(None)
                 aux_name.append('{}'.format(iname))
-                print(ii, aux_path[-1],aux_name[-1])  
+                print('{:02d}'.format(ii), aux_path[-1],aux_name[-1])  
                 continue
                 
             for ii_cycl in range(cycl_s, n_cycl+1):
@@ -224,7 +224,7 @@ def shortcut_setup_pathwithspinupcycles(input_paths, input_names, ref_path, ref_
                 if not do_allcycl: aux_name.append('{}'.format(iname))
                 #else             : aux_name.append('{:d}) {}'.format(ii_cycl, iname))
                 else             : aux_name.append('{}, {}'.format(fmtstr.format(ii_cycl), iname))
-                print(ii, aux_path[-1],aux_name[-1])
+                print('{:02d}'.format(ii), aux_path[-1],aux_name[-1])
         input_paths, input_names = aux_path, aux_name
         
         #_______________________________________________________________________
