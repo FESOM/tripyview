@@ -1835,11 +1835,49 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
     return
 
 
-
 #
 #
 # ___COMPUTE EULER ROTATION MATRIX_____________________________________________
 def grid_rotmat(abg):
+    """
+    --> compute euler rotation matrix based on alpha, beta and gamma angle
+
+    Parameters: 
+    
+        :abg:   list, with euler angles [alpha, beta, gamma]
+
+    Returns: 
+
+        :rmat:  array, [3 x 3] rotation matrix to transform from geo to rot
+
+    """
+    #___________________________________________________________________________
+    rad = np.pi/180
+    al  = abg[0] * rad 
+    be  = abg[1] * rad
+    ga  = abg[2] * rad
+        
+    #___________________________________________________________________________
+    rmat      = np.zeros((3,3))
+    rmat[0,0] =( np.cos(ga)*np.cos(al) - np.sin(ga)*np.cos(be)*np.sin(al) )
+    rmat[0,1] =( np.cos(ga)*np.sin(al) + np.sin(ga)*np.cos(be)*np.cos(al) )
+    rmat[0,2] =( np.sin(ga)*np.sin(be) )
+        
+    rmat[1,0] =(-np.sin(ga)*np.cos(al) - np.cos(ga)*np.cos(be)*np.sin(al) )
+    rmat[1,1] =(-np.sin(ga)*np.sin(al) + np.cos(ga)*np.cos(be)*np.cos(al) )
+    rmat[1,2] =( np.cos(ga)*np.sin(be) )
+        
+    rmat[2,0] =( np.sin(be)*np.sin(al) )
+    rmat[2,1] =(-np.sin(be)*np.cos(al) )        
+    rmat[2,2] =( np.cos(be) )
+        
+    #___________________________________________________________________________
+    return(rmat)
+
+#
+#
+# ___COMPUTE EULER ROTATION MATRIX_____________________________________________
+def grid_rotmat_dask(abg):
     """
     --> compute euler rotation matrix based on alpha, beta and gamma angle
 
