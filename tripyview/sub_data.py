@@ -2229,7 +2229,7 @@ def vec_r2g_dask(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
 
     #___________________________________________________________________________
     # compute rotation matrix
-    rmat = grid_rotmat(abg)
+    rmat = grid_rotmat_dask(abg)
 
     # Use map_blocks to calculate the pseudo-inverse in parallel
     rmat = np.linalg.pinv(rmat.compute())
