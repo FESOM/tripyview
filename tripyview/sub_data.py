@@ -326,7 +326,8 @@ def load_data_fesom2(mesh,
         
     #___________________________________________________________________________
     # create path name list that needs to be loaded
-    if '~/' in datapath: datapath = os.path.abspath(os.path.expanduser(datapath))
+    if isinstance(datapath, str):
+        if '~/' in datapath: datapath = os.path.abspath(os.path.expanduser(datapath))
     pathlist, str_ltim = do_pathlist(year, datapath, do_filename, do_file, vname, runid)
     
     # if pathlist is empty jump out of the routine and return none 
@@ -732,6 +733,8 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     """
 
     pathlist=[]
+    if datapath is None: return(pathlist,'')
+
     # specific filename and path is given to load 
     if  do_filename: 
         pathlist = datapath
@@ -870,7 +873,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
                     grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[        dimn_h]).chunk(set_chnk_h)
                 else:    
-                    if data.sizes['nz1'] == len(mesh.zmid):
+                    if data.sizes['nz'] == len(mesh.zmid):
                         grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
                     else:
                         # do this to add grid weights on data that have been already 
