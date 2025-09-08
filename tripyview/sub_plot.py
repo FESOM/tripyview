@@ -1856,13 +1856,20 @@ def plot_vslice(mesh                   ,
     hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
     count_cb = 0
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
+        
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
             hax_ii.axis('off')
         elif data[ii] is None: 
-            hax_ii.axis('off')        
+            hax_ii.axis('off')
         # axis is normally fillt with data    
         else: 
+            if isinstance(data[ii],list): 
+                if data[ii][-1] is  None: 
+                    hax_ii.axis('off')
+                    continue
+            
+            
             ii_valid=ii
             #___________________________________________________________________
             # prepare regular gridded data for plotting
@@ -6485,7 +6492,10 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         # loop over all the input data --> find out total cmin/cmax value
         cmin, cmax = np.inf, -np.inf
         for data_ii in data:
+            
             if data_ii is None: continue
+            if isinstance(data_ii, list):
+                if data_ii[-1] is None: continue
                 
             if isinstance(data_ii, np.ndarray):
                 data_plot = data_ii.copy()
