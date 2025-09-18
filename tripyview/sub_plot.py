@@ -3065,21 +3065,34 @@ def plot_tline(data,
     if do_clim==False:
         if do_allcycl: 
             if n_cycl is not None:
-                cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
+                which_cmap='tab10'
+                if np.int32(ndat/n_cycl)>10: which_cmap='tab20'
+                cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap=which_cmap)
             else:
-                cmap = categorical_cmap(ndat, 1, cmap="tab10")
+                which_cmap='tab10'
+                if ndat>10: which_cmap='tab20'
+                cmap = categorical_cmap(ndat, 1, cmap=which_cmap)
         else:
             if do_concat: do_concat=False
-            cmap = categorical_cmap(ndat, 1, cmap="tab10")
+            which_cmap='tab10'
+            if ndat>10: which_cmap='tab20'
+            cmap = categorical_cmap(ndat, 1, cmap=which_cmap)
     else:        
         if do_allcycl: 
             if n_cycl is not None:
-                cmap = categorical_cmap(np.int32(ndat-1/n_cycl), n_cycl, cmap="tab10")
+                which_cmap='tab10'
+                if np.int32((ndat-1)/n_cycl)>10: which_cmap='tab20'
+                cmap = categorical_cmap(np.int32((ndat-1)/n_cycl), n_cycl, cmap=which_cmap)
             else:
-                cmap = categorical_cmap(ndat-1, 1, cmap="tab10")
+                which_cmap='tab10'
+                if ndat-1>10: which_cmap='tab20'
+                cmap = categorical_cmap(ndat-1, 1, cmap=which_cmap)
         else:
             if do_concat: do_concat=False
-            cmap = categorical_cmap(ndat-1, 1, cmap="tab10")
+            which_cmap='tab10'
+            if ndat-1>10: which_cmap='tab20'
+            cmap = categorical_cmap(ndat-1, 1, cmap=which_cmap)
+            
         cmap_array = np.array(cmap.colors)
         black = np.array([[0, 0, 0]])  # shape (1,3)
 
@@ -3128,6 +3141,12 @@ def plot_tline(data,
                 xmax_list=list()
                 if not allinone: xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
                 for jj in range(0,ndat):
+                    if data[jj][bi] is None: 
+                        cnt      = cnt+1
+                        cnt_cycl = cnt_cycl+1
+                        if n_cycl is not None:
+                            if cnt_cycl>= n_cycl: cnt_cycl=0
+                        continue
                     #_______________________________________________________________
                     vname  = list(data[jj][bi].data_vars)[0]
                     data_y = data[jj][bi][vname].data.copy()
@@ -3228,7 +3247,10 @@ def plot_tline(data,
                     
                     # plot mean value with left triangle 
                     if do_mean: 
-                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<',  **optmark)
+                        if do_clim and jj==0:
+                            hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<',  **{**optmark, 'markersize':12})
+                        else:    
+                            hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<',  **optmark)
                     
                     # plot std. range with up/dwn triangle 
                     if do_std:
@@ -3303,14 +3325,19 @@ def plot_tline(data,
                 else:
                     # make data legend:
                     hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
+                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left', 
+                                prop={'family': 'monospace'})#bbox_to_anchor=(1.5, 1.5))
                     # box label becomes here axes title
-             #___________________________________________________________________
+            #___________________________________________________________________
             # add title and axes labels
             if ax_title is not None: 
-                if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
+                if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_title)
                 else                        : 
-                    if not allinone and nbox>1: hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
+                    if not allinone and nbox>=1: 
+                        if  not  'boxname' in loc_attrs and  not 'transect_name'  in loc_attrs:
+                            hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
+                        else:
+                            hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_title)
            
          
     #___________________________________________________________________________
