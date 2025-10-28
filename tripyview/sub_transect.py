@@ -1135,7 +1135,7 @@ def calc_transect_Xtransp(mesh,
                     vel_u[:, mesh.n_iz[ni1]:, ii, 1], vel_v[:, mesh.n_iz[ni1]:, ii, 1] = np.nan, np.nan
                     
                 # average vertice velocities to the edge centers
-                vel_u, vel_v = vel_u.sum(axis=2)*0.5, vel_v.sum(axis=2)*0.5
+                vel_u, vel_v = vel_u.sum(axis=3)*0.5, vel_v.sum(axis=3)*0.5
                 
             # here rotate the velocities from roted frame to geo frame 
             if do_rot: vel_u, vel_v = vec_r2g_dask(mesh.abg, lon, lat, vel_u, vel_v)
@@ -1165,7 +1165,7 @@ def calc_transect_Xtransp(mesh,
                     vel_u[mesh.n_iz[ni1]:, ii, 1], vel_v[mesh.n_iz[ni1]:, ii, 1] = np.nan, np.nan
                     
                 # average vertice velocities to the edge centers
-                vel_u, vel_v = vel_u.sum(axis=1)*0.5, vel_v.sum(axis=1)*0.5
+                vel_u, vel_v = vel_u.sum(axis=2)*0.5, vel_v.sum(axis=2)*0.5
                 
             # here rotate the velocities from roted frame to geo frame 
             if do_rot: vel_u, vel_v = vec_r2g_dask(mesh.abg, lon, lat, vel_u, vel_v)
