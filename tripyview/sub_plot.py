@@ -4924,13 +4924,15 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     #___________________________________________________________________________
     # plot pcolor
     if   do_plt in ['tpc','pc']:
-        #plt_optdefault = dict({'shading':'gouraud'})
-        plt_optdefault = dict({'shading':'nearest', 'zorder':1})
+        # plt_optdefault = dict({'shading':'gouraud', 'zorder':1})
+        # plt_optdefault = dict({'shading':'nearest', 'zorder':1})
+        plt_optdefault = dict({'shading':'flat', 'zorder':1})
         plt_optdefault.update(plt_opt)
-        
+        print(plt_optdefault)
         if 'shading' in plt_optdefault:
             if plt_optdefault['shading']=='flat':
-                data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
+                # data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
+                data_plot = data_plot[:-1,:-1]
         
         # if which_normplot is specified like in case of log10 and slog10 scaling
         # vmin and vmax argumetns are not allows
@@ -4941,7 +4943,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         # only to work in case of horizontal cartopy plot not in vertical slice 
         # plot even when which_transf=None
         if isinstance(hax_ii.projection, ccrs.CRS): plt_optdefault.update({'transform':which_transf})
-        
+
         h0 = hax_ii.pcolormesh(data_x, data_y, data_plot, 
                                cmap=cinfo_plot['cmap'], norm=which_norm_plot, **cminmax, **plt_optdefault)
         
