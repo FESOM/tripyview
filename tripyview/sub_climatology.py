@@ -3,8 +3,8 @@ import numpy as np
 import time
 import os
 import xarray as xr
-import seawater as sw
-#import gsw as gsw
+#import seawater as sw
+import gsw as gsw
 from .sub_data import *
 
     
@@ -103,10 +103,26 @@ def load_climatology(mesh, datapath, vname, mon=None, depth=None, depidx=False,
     # compute potential temperature
     if vname == 'pdens' or 'sigma' in vname: do_ptemp=True
     if do_ptemp and (any( [a in vname for a in ['temp', 'sst', 'T', 't00', 'temperature', 'pdens']]) or 'sigma' in vname) :
-        data_depth = data[coord_zlev].expand_dims(
-                        dict({dim_lat:data[coord_lat].data, dim_lon:data[coord_lon].data})
-                        ).transpose(dim_zlev,dim_lat,dim_lon)
-        data[vname_temp].data = sw.ptmp(data[vname_salt].data, data[vname_temp].data, data_depth )
+        #data_depth = data[coord_zlev].expand_dims(
+                        #dict({dim_lat:data[coord_lat].data, dim_lon:data[coord_lon].data})
+                        #).transpose(dim_zlev,dim_lat,dim_lon)
+        #data[vname_temp].data = sw.ptmp(data[vname_salt].data, data[vname_temp].data, data_depth )
+        
+        # gsw.p_from_z want depth to be downward negative
+        data_depth = data[coord_zlev].expand_dims({coord_lon: data.sizes['lon'], coord_lat : data.sizes[coord_lat ]})
+        data_depth = data_depth.transpose(coord_zlev, coord_lat, coord_lon)
+        data_lat   = data[coord_lat ].expand_dims({coord_lon: data.sizes['lon'], coord_zlev: data.sizes[coord_zlev]})    
+        data_lat   = data_lat.transpose(coord_zlev, coord_lat, coord_lon)
+        data_lon   = data[coord_lon ].expand_dims({coord_lat: data.sizes['lat'], coord_zlev: data.sizes[coord_zlev]})    
+        data_lon   = data_lat.transpose(coord_zlev, coord_lat, coord_lon)
+        
+        data_p     = gsw.p_from_z(-data_depth, data_lat)  # mean latitude for pressure conversion
+        
+        # convert Practical Salinity SP [psu] → Absolute Salinity SA [g/kg]
+        SA = gsw.SA_from_SP( data[vname_salt].data, data_p, data_lon, data_lat)
+        
+        # compute potential temperature referenced to surface (0 dbar)
+        data[vname_temp].data = gsw.pt0_from_t(SA, data[vname_temp].data, data_depth)      
         
     #___________________________________________________________________________
     # if there are multiple variables, than kick out varaible that is not needed
@@ -118,10 +134,21 @@ def load_climatology(mesh, datapath, vname, mon=None, depth=None, depidx=False,
         elif vname == 'sigma3' : pref=3000
         elif vname == 'sigma4' : pref=4000
         elif vname == 'sigma5' : pref=5000
-        #data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.00)})
-        data = data.assign({vname: (list(data.dims), sw.dens(data[vname_salt].data, data[vname_temp].data, pref)-1000.00)})
-        #for labels in vname_drop:
-        #data = data.drop_vars(labels=vname_drop)
+        ##data = data.assign({vname: (list(data.dims), sw.pden(data[vname_salt].data, data[vname_temp].data, data_depth, pref)-1000.00)})
+        #data = data.assign({vname: (list(data.dims), sw.dens(data[vname_salt].data, data[vname_temp].data, pref)-1000.00)})
+        ##for labels in vname_drop:
+        ##data = data.drop_vars(labels=vname_drop)
+        
+        # convert Practical Salinity SP [psu] → Absolute Salinity SA [g/kg]
+        SA = gsw.SA_from_SP( data[vname_salt].data, data_depth, data_lon, data_lat)
+
+        # compute potential density referenced to pref dbar
+        # first convert potential T to Conservative T
+        CT = gsw.CT_from_pt(SA, data[vname_temp].data)
+        
+        sigma =  gsw.rho(SA, CT, pref)-1000.00
+        
+        data = data.assign({vname: (list(data.dims), sigma.data)})
         data = data.drop_vars(vname_drop)
         data[vname].attrs['units'] = 'kg/m^3'
         

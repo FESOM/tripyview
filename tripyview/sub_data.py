@@ -5,8 +5,8 @@ import os
 import warnings
 import xarray as xr
 import netCDF4 as nc
-import seawater as sw
-#import gsw as gsw
+#import seawater as sw
+import gsw as gsw
 from .sub_mesh import *
 import warnings
 import dask.array as da
@@ -1803,20 +1803,50 @@ def do_potential_density(data, do_pdens, vname, vname2, vname_tmp):
         elif vname_tmp == 'sigma3' : pref=3000
         elif vname_tmp == 'sigma4' : pref=4000
         elif vname_tmp == 'sigma5' : pref=5000
-        
-        if 'time' in data.dims:
-            data_depth = data['nz1'].expand_dims(dict({'time':data.sizes['time'], 'nod2':data.sizes['nod2']}))
-        else:
-            data_depth = data['nz1'].expand_dims(dict({'nod2':data.sizes['nod2']}))
+
+        data_depth = data['nz1'].expand_dims({'nod2':data.sizes['nod2']})
+        data_lat   = data['lat'].expand_dims({'nz1' :data.sizes['nz1' ]})        
+        data_p     =  xr.apply_ufunc(gsw.p_from_z, -data_depth, data_lat, 
+                            dask='parallelized',
+                            output_dtypes=[float])
+        # Expand p to match T,S dims, gsw.p_from_z want depth to be downward negative
+        if 'time' in data.dims: 
+            data_p =  data_p.expand_dims(time=data.sizes['time'])
+            data_p = data_p.transpose('time', 'nz1', 'nod2')
+            dims   = ['time', 'nz1', 'nod2']
             
-        # data = data.assign({vname_tmp: (list(data[vname].dims), sw.pden(data[vname2].data, data[vname].data, data_depth, pref)-1000.00)})
-        data = data.assign({vname_tmp: (list(data[vname].dims), sw.dens(data[vname2].data, data[vname].data, pref)-1000.00)})
+        else:     
+            data_p = data_p.transpose('nz1', 'nod2')
+            dims   = ['nz1', 'nod2']
+        del(data_depth, data_lat)
         
-        del(data_depth)
+        # convert Practical Salinity --> Absolute Salinity unit
+        SA = xr.apply_ufunc(gsw.SA_from_SP,
+                            data[vname2].data, data_p, data['lon'].data, data['lat'].data,
+                            dask='parallelized',
+                            output_dtypes=[float])
+        del(data_p)
         
-        data[vname_tmp] = data[vname_tmp].where(data[vname2]!=0,drop=0.0)
+        # convert Potential Temperature --> Conservative Temperature
+        CT = xr.apply_ufunc(gsw.CT_from_pt,
+                            SA, data[vname].data,
+                            dask='parallelized',
+                            output_dtypes=[float])
         
-        #data = data.drop(labels=[vname, vname2])
+        # compute density at reference pressure pref
+        rho = xr.apply_ufunc(gsw.rho,
+                            SA, CT, pref,
+                            dask='parallelized',
+                            output_dtypes=[float])
+        
+        sigma = (rho - 1000.)#.persist()
+        
+        #data = data.assign({vname_tmp: (list(data[vname].dims), sigma.data)})
+        data = data.assign({vname_tmp: (dims, sigma.data)})
+        #data[vname_tmp] = data[vname_tmp].where(data[vname2]!=0,drop=0.0)
+        data = data.persist()
+        del(SA, CT, rho, sigma)
+        
         data = data.drop_vars([vname, vname2])
         data[vname_tmp].attrs['units'] = 'kg/m^3'
         vname = vname_tmp
