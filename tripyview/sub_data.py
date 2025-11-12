@@ -1625,7 +1625,7 @@ def do_vector_norm(data, do_norm):
 
 #
 #
-# ___COMPUTE NORM OF VECTOR DATA_______________________________________________
+# ___COMPUTE GRADIENT OF SCALAR DATA____________________________________________
 def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady, 
                 diagpath=None, 
                 runid='fesom', 
