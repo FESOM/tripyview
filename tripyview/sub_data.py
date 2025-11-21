@@ -1631,7 +1631,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
                 runid    = 'fesom' , 
                 chunks   = dict()  ,
                 do_rot   = True    ,
-                do_info  = False):
+                do_info  = True):
                 #check_clockwise   = False   ,
                 
     """
@@ -1648,6 +1648,16 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         :do_gradx:  bool, compute gradient in zonal directions
         
         :do_grady:  bool, compute gradient in meridional directions
+        
+        :diagpath:  None, provide path to fesom.mesh.diag.nc file 
+        
+        :runid:     str, runid of loaded data and mesh.diag file 
+        
+        :chunks:    dict(), impose chunks 
+        
+        :do_rot:    bool, do rotation from rot2geo
+        
+        :do_info:   bool, print information
     
     Returns:
     
@@ -1656,8 +1666,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
     ____________________________________________________________________________
     """
     if do_gradx or do_grady:
-        print(' > compute gradient')
-
+        
         # Extract variable names (assuming exactly two variables exist)
         vname = list(data.data_vars)[0]  # Use `.data_vars` instead of `keys()` to ensure only variables are considered
         gattrs, vattrs = data.attrs, data[vname].attrs
@@ -1696,6 +1705,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         #_______________________________________________________________________
         # load gradient weights  from diagnostic file for scalar gradients
         if   'nod2' in data.dims:
+            if do_info: print(' > compute gradient on vertices')
             list_dropvar = list(data.coords)
             data   = data.drop_vars(list_dropvar) 
             data   = data.chunk({'nod2':-1}).persist()
@@ -1752,6 +1762,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         # load gradient weights  from diagnostic file for vector gradients, they only 
         # got added in a late version of fesom>2.6.8
         elif 'elem' in data.dims:
+            if do_info: print(' > compute gradient on elem')
             list_dropvar = list(data.coords)
             data= data.drop_vars(list_dropvar) 
             data = data.chunk({'elem':-1}).persist()
@@ -1778,7 +1789,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         # since gradient_sca_x/y is in the rotated coordinates of the model the  
         # final gradients needs to be rotated back into geo coordinates
         if do_rot:
-            print(' > do gradient rotation')
+            if do_info: print(' > do gradient rotation')
             e_i = w_grad['face_nodes'].load()-1
             lon = w_grad['lon'].isel(nod2=e_i).mean(dim='n3').chunk(set_chnk)
             lat = w_grad['lat'].isel(nod2=e_i).mean(dim='n3').chunk(set_chnk)
