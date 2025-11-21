@@ -2364,8 +2364,7 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
                 data_n2[n_i] = data_n2[n_i] + data_exa2[e_i]
             data_n    = data_n /mesh.n_area[0,:]/3.0        
             data_n2   = data_n2/mesh.n_area[0,:]/3.0        
-        
-        del data_exa
+            del data_exa, data_exa2
         
     #___________________________________________________________________________  
     # do ie2n for 2d data [ndi, nelem]
@@ -2407,7 +2406,7 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
                     data_n_di[ n_i] = data_n_di[ n_i] + data_exa[  e_i]
                     data_n_di2[n_i] = data_n_di2[n_i] + data_exa2[ e_i]
                     data_a_di[ n_i] = data_a_di[ n_i] + area_e[    e_i]
-                del(data_exa)
+                del(data_exa, data_exa2)
                 
                 # Avoid divide-by-zero errors
                 with np.errstate(divide='ignore', invalid='ignore'):
@@ -2514,7 +2513,7 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
                     data_n_di[ :, :, n_i] = data_n_di[ :, :, n_i] + data_exa[ :, :, e_i]
                     data_n_di2[:, :, n_i] = data_n_di2[:, :, n_i] + data_exa2[:, :, e_i]
                     data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
-                del(data_exa)
+                del(data_exa, data_exa2)
                 
                 # Avoid divide-by-zero errors
                 with np.errstate(divide='ignore', invalid='ignore'):
