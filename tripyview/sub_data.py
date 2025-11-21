@@ -601,8 +601,8 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________
     # compute gradient,  do_gradx=True, do_grady=True
-    data = do_gradient_xy(data, mesh, datapath, do_gradx, do_grady, diagpath=diagpath, 
-                       runid=runid, do_info=do_info, chunks=chunks)
+    data = do_gradient_xy(data, mesh, datapath, do_gradx, do_grady, do_rot=True, 
+                          diagpath=diagpath, runid=runid, do_info=do_info, chunks=chunks)
     
     #___________________________________________________________________________
     # compute norm of the vectors if do_norm=True    
@@ -1627,10 +1627,13 @@ def do_vector_norm(data, do_norm):
 #
 # ___COMPUTE GRADIENT OF SCALAR DATA____________________________________________
 def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady, 
-                diagpath=None, 
-                runid='fesom', 
-                chunks=dict(),
-                do_info=False):
+                diagpath = None    , 
+                runid    = 'fesom' , 
+                chunks   = dict()  ,
+                do_rot   = True    ,
+                do_info  = False):
+                #check_clockwise   = False   ,
+                
     """
     --> compute gradients
     
@@ -1663,13 +1666,14 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         if do_gradx: vname_grdx = 'gradx_{}'.format(vname)
         if do_grady: vname_grdy = 'grady_{}'.format(vname)
         
+        #_______________________________________________________________________
         # scan for diagnostic files in meshpath, datapath and datapath/1/ or use 
         # diagpath directly 
         if diagpath is None:
             fname = runid+'.mesh.diag.nc'
             
             if   os.path.isfile( os.path.join(datapath, fname) ): 
-                dname = data[vname].attrs['datapath']
+                dname = datapath
             elif os.path.isfile( os.path.join( os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/'), fname) ): 
                 dname = os.path.join(os.path.dirname(os.path.normpath(datapath)),'1/')
             elif os.path.isfile( os.path.join(mesh.path,fname) ): 
@@ -1680,6 +1684,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
             diagpath = os.path.join(dname,fname)
             if do_info: print(' --> found diag in directory:{}', diagpath)
         
+        #_______________________________________________________________________
         # decide over elemental chunking of the gradients
         if  'elem' in data.chunksizes:
             set_chnk = {'elem': data.chunksizes['elem']}
@@ -1688,42 +1693,75 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         else:
             set_chnk = {'elem': 'auto'}
         
+        #_______________________________________________________________________
         # load gradient weights  from diagnostic file for scalar gradients
         if   'nod2' in data.dims:
-            data   = data.drop_vars(['w_A', 'lon', 'lat', 'ispbnd', 'nodi', 'nodiz', 'nzi']) 
+            list_dropvar = list(data.coords)
+            data   = data.drop_vars(list_dropvar) 
             data   = data.chunk({'nod2':-1}).persist()
+            data   = data.persist()
             
-            # load only weights from diag file to compute gradients
-            w_grad_name = list()
-            if do_gradx: w_grad_name.append('gradient_sca_x')
-            if do_grady: w_grad_name.append('gradient_sca_y')
-            w_grad = xr.open_mfdataset(diagpath, parallel=True, data_vars=w_grad_name, chunks=set_chnk)
+            # load only weights from diag file to compute gradients, drop everything
+            # else!
+            w_grad_name = list(['gradient_sca_x', 'gradient_sca_y', 'face_nodes', 'lon', 'lat'])
+            #w_grad = xr.open_mfdataset(diagpath, parallel=True, data_vars=w_grad_name, chunks=set_chnk).persist()
+            w_grad = xr.open_mfdataset(diagpath, parallel=True, chunks=set_chnk)
+            list_dropvar = list(w_grad.data_vars)
+            for dropvar in w_grad_name: list_dropvar.remove(dropvar)
+            w_grad = w_grad.drop_vars(list_dropvar).persist()
+            
+            # uncomment this to test if the gradient computation works
+            # data[vname].values = mesh.n_y
+            # data[vname] = data[vname].persist()
+            
+            ## in fesom2 we rely on that the vertices indices in the elem array are 
+            ## clockwise sorted. This is checked in the model and if not the case
+            ## it is imposed in the model. But this can lead to the fact the elem
+            ## array in the model can be different from the elem array in elem2d.out
+            ## Here we try to check on this and impose the same correction 
+            # permute = [0, 1, 2]
+            ## check based on first triangle in the elem array if vertices orientation
+            ## is clockwise (iscw=True) or counter-clockwise (iscw=False)
+            # if check_clockwise:
+            #     x1, y1 = mesh.n_x[mesh.e_i[0,0]], mesh.n_y[mesh.e_i[0,0]]
+            #     x2, y2 = mesh.n_x[mesh.e_i[0,1]], mesh.n_y[mesh.e_i[0,1]]
+            #     x3, y3 = mesh.n_x[mesh.e_i[0,2]], mesh.n_y[mesh.e_i[0,2]]
+            #     # Signed area (2x)
+            #     area2 = (x2 - x1)*(y3 - y1) - (x3 - x1)*(y2 - y1)
+            #     iscw = np.sign(area2)==-1
+            #     if not iscw: 
+            #         print(' > found counter-clockwise orientation, do permute:', permute)
+            #         permute=[0, 2, 1]
+            
+            # !!! ATTENTION !!!
+            # to avoid here problem of clockwise or counterclockwise oriented 
+            # elem array  we will use here always the elem array of the meshdiag
+            # file (w_grad['face_nodes']) to compute the gradients !!!
             
             # I do this here in a little bit weird way to be efficient in terms of 
             # reindexing and dask operation and to avoid exeedingly high memory demand 
             # for very large grids
             grad_x, grad_y = 0, 0
             for ii in range(3):
-                e_i    = xr.DataArray(mesh.e_i[:,ii], dims=['elem'])
-                data_e = data[vname].isel(nod2=e_i)
-                if do_gradx: grad_x += data_e * w_grad['gradient_sca_x'].isel(n3=ii)
-                if do_grady: grad_y += data_e * w_grad['gradient_sca_y'].isel(n3=ii)
+                e_i     =  w_grad['face_nodes'].isel(n3=ii)-1
+                data_e  = data[vname].isel(nod2=e_i)
+                grad_x += data_e * w_grad['gradient_sca_x'].isel(n3=ii)
+                grad_y += data_e * w_grad['gradient_sca_y'].isel(n3=ii)
             del e_i, data_e
-            del w_grad
-            gc.collect
             
         # load gradient weights  from diagnostic file for vector gradients, they only 
         # got added in a late version of fesom>2.6.8
         elif 'elem' in data.dims:
-            data= data.drop_vars(['w_A', 'lon', 'lat', 'ispbnd', 'elemi', 'elemiz', 'nzi']) 
+            list_dropvar = list(data.coords)
+            data= data.drop_vars(list_dropvar) 
             data = data.chunk({'elem':-1}).persist()
             
             # load only weights from diag file to compute gradients
-            w_grad_name = list()
-            if do_gradx: w_grad_name.append('gradient_vec_x')
-            if do_grady: w_grad_name.append('gradient_vec_y')
-            w_grad_name.append('face_links')
+            w_grad_name = list(['gradient_vec_x', 'gradient_vec_y', 'face_links', 'face_nodes', 'lon', 'lat'])
             w_grad = xr.open_mfdataset(diagpath, parallel=True, data_vars=w_grad_name, chunks=set_chnk)
+            list_dropvar = list(w_grad.data_vars)
+            for dropvar in w_grad_name: list_dropvar.remove(dropvar)
+            w_grad = w_grad.drop_vars(list_dropvar).persist()
             
             # I do this here in a little bit weird way to be efficient in terms of 
             # reindexing and dask operation and to avoid exeedingly high memory demand 
@@ -1732,12 +1770,26 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
             for ii in range(3):
                 e_i    = w_grad['face_links'].isel(n3=ii)
                 data_e = data[vname].isel(elem=e_i)
-                if do_gradx: grad_x += data_e * w_grad['gradient_vec_x'].isel(n3=ii)
-                if do_grady: grad_y += data_e * w_grad['gradient_vec_y'].isel(n3=ii)
+                grad_x += data_e * w_grad['gradient_vec_x'].isel(n3=ii)
+                grad_y += data_e * w_grad['gradient_vec_y'].isel(n3=ii)
             del e_i, data_e
-            del w_grad
-            gc.collect
+            
+        #_______________________________________________________________________
+        # since gradient_sca_x/y is in the rotated coordinates of the model the  
+        # final gradients needs to be rotated back into geo coordinates
+        if do_rot:
+            print(' > do gradient rotation')
+            e_i = w_grad['face_nodes'].load()-1
+            lon = w_grad['lon'].isel(nod2=e_i).mean(dim='n3').chunk(set_chnk)
+            lat = w_grad['lat'].isel(nod2=e_i).mean(dim='n3').chunk(set_chnk)
+            grad_x.data, grad_y.data = vec_r2g_dask(mesh.abg, 
+                                                    lon.data, lat.data, 
+                                                    grad_x.data, grad_y.data, 
+                                                    gridis='geo', do_info=False)
+        del w_grad
+        gc.collect
         
+        #_______________________________________________________________________
         # add attributes
         if do_gradx: 
             vattrs['description'] = 'zonal ' + data[vname].attrs['description'] + ' gradient'
@@ -1751,6 +1803,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         del(data)
         gc.collect()
         
+        #_______________________________________________________________________
         # create new gradient dataset
         data_vars  = dict()
         if do_gradx: data_vars[vname_grdx] = grad_x.persist()
@@ -1911,7 +1964,8 @@ def do_interp_e2n(data, mesh, do_ie2n, client=None):
             aux = grid_interp_e2n(mesh,data[vname].values, client=client)
             
             # new variable name 
-            vname_new = 'n_'+vname
+            #vname_new = 'n_'+vname
+            vname_new = vname
             
             # add vertice interpolated variable to dataset
             #print(data)
