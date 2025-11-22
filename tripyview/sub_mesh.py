@@ -16,7 +16,8 @@ except ModuleNotFoundError:
     pass
 from   netCDF4 import Dataset
 from .sub_mesh import *
-
+from numba import jit, njit, float32, int32, prange
+import numba
 from shapely.geometry import Polygon
 
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
@@ -2337,244 +2338,408 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
     # compute area weights if not already exist    
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
+    e_i    = np.ascontiguousarray(mesh.e_i, dtype=np.int32)
+    e_area = np.ascontiguousarray(mesh.e_area, dtype=np.float32)
+    data_e = np.ascontiguousarray(data_e, dtype=np.float32)
         
     #___________________________________________________________________________   
     # do ie2n for 1d data [nelem]
+    t0= clock.time()
     if data_e.ndim==1:
-        
-        # compute data on elements times area of elements
-        data_exa = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)) * data_e
-        data_exa = data_exa.transpose().flatten()
-        
-        # single loop over self.e_i.flat is ~4 times faster than douple loop 
-        # over for i in range(3): ,for j in range(self.n2de):
-        data_n = np.zeros(mesh.n2dn)
         if data_e2 is None:
-            for e_i, n_i in enumerate(mesh.e_i.flat): 
-                data_n[n_i] = data_n[n_i] + data_exa[e_i]
-            del(data_exa)
-            data_n=data_n/mesh.n_area[0,:]/3.0        
-        
+            data_n, _       = jit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e)
+            print(' > jit 1d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )
         else:
-            data_exa2 = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)) * data_e2
-            data_exa2 = data_exa2.transpose().flatten()
-            data_n2   = np.zeros(mesh.n2dn)
-            for e_i, n_i in enumerate(mesh.e_i.flat): 
-                data_n[ n_i] = data_n [n_i] + data_exa[ e_i]
-                data_n2[n_i] = data_n2[n_i] + data_exa2[e_i]
-            data_n    = data_n /mesh.n_area[0,:]/3.0        
-            data_n2   = data_n2/mesh.n_area[0,:]/3.0        
-            del data_exa, data_exa2
-        
+            data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
+            data_n, data_n2 = jit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2)
+            print(' > jit 1d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )
+    
     #___________________________________________________________________________  
     # do ie2n for 2d data [ndi, nelem]
     elif data_e.ndim==2:
-        
-        nd        = data_e.shape[0]
-        data_n    = np.zeros((nd, mesh.n2dn))
-        if data_e2 is not None: data_n2 = np.zeros((nd, mesh.n2dn))
-        data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
-        
-        #_______________________________________________________________________
-        def e2n_di(di, data_e, data_e2, area_e, e_i_flat, n_iz):
-            
-            data_exa  = area_e * np.vstack((data_e[di,:],data_e[di,:],data_e[di,:])).transpose().flatten()
-            data_n_di = np.zeros(n_iz.shape)
-            data_a_di = np.zeros(n_iz.shape)
-            
-            if data_e2 is None:
-                # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                # over for i in range(3): ,for j in range(self.n2de):
-                for e_i, n_i in enumerate(e_i_flat):
-                    if n_iz[n_i]<di: continue
-                    data_n_di[n_i] = data_n_di[n_i] + data_exa[ e_i]
-                    data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
-                del(data_exa)
-                
-                # Avoid divide-by-zero errors
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    data_n_di = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
-                del(data_a_di)    
-    
-                return(data_n_di)
-            
-            else: 
-                data_exa2  = area_e * np.vstack((data_e2[di,:],data_e2[di,:],data_e2[di,:])).transpose().flatten()
-                data_n_di2 = np.zeros(n_iz.shape)
-                for e_i, n_i in enumerate(e_i_flat):
-                    if n_iz[n_i]<di: continue
-                    data_n_di[ n_i] = data_n_di[ n_i] + data_exa[  e_i]
-                    data_n_di2[n_i] = data_n_di2[n_i] + data_exa2[ e_i]
-                    data_a_di[ n_i] = data_a_di[ n_i] + area_e[    e_i]
-                del(data_exa, data_exa2)
-                
-                # Avoid divide-by-zero errors
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    data_n_di  = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
-                    data_n_di2 = np.where(data_a_di != 0, data_n_di2/data_a_di, 0)
-                del(data_a_di)    
-    
-                return(data_n_di, data_n_di2)
-        
-        #_______________________________________________________________________
-        # do seriial computation 
-        if client is None:
-            t1 = clock.time()
-            if data_e2 is None:
-                for di in range(0,nd):
-                    data_n[di, :] = e2n_di(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
-                    
-            else:        
-                for di in range(0,nd):
-                    data_n[di, :], data_n2[di, :] = e2n_di(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
-            print(clock.time()-t1)
-        
-        # do computation in parallel by dask client
+        nd       = data_e.shape[0]
+        blocksize= np.int32(12) # --> fixed vertical block size for dask 
+        if data_e2 is None:
+            data_n, _       = dask_jit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
+                                               client=client, blocksize=blocksize)
+            print(' 2d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
         else:
-            t1 = clock.time()
-            if data_e2 is None:
-                # Submit tasks to the Dask client
-                futures = [client.submit(e2n_di, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
-
-                # Gather results
-                results = client.gather(futures)
-
-                # Stack results to match (nd, mesh.n2dn) shape
-                data_n = da.vstack(results)
-            else:    
-                # Submit tasks to the Dask client
-                futures = [client.submit(e2n_di, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
-
-                # Gather results
-                results = client.gather(futures)
-
-                # Stack results to match (nd, mesh.n2dn) shape --> creates 
-                # array [2, nlev, nelem]
-                data_n  = da.concatenate(results, axis=1)
-                data_n2 = data_n[1]
-                data_n  = data_n[0]
-                
-            print(clock.time()-t1)
+            data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
+            data_n, data_n2 = dask_jit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
+                                               client=client, blocksize=blocksize)
+            print(' 2d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
             
-        #from joblib import Parallel, delayed
-        #results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
-        #data_n = np.vstack(results).transpose()
-        #print(' --> elapsed time:', clock.time()-t1)
-        
     #___________________________________________________________________________  
     # do ie2n for 3d data [nti, ndi, nelem]
     elif data_e.ndim==3:
-        nt        = data_e.shape[0]
-        nd        = data_e.shape[1]
-        data_n    = np.zeros((nt, nd, mesh.n2dn))
-        if data_e2 is not None: data_n2 = np.zeros((nt, nd, mesh.n2dn))
-        data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
-        
-        #_______________________________________________________________________
-        def e2n_di_ti (di, data_e, data_e2, area_e, e_i_flat, n_iz):
-            nti, dum, nelem = data_e.shape
-            slice_di  = data_e[:, di, :]
-            data_exa  = np.repeat(slice_di[:, :, np.newaxis], 3, axis=1)
-            del(slice_di)
-            data_exa  = data_exa.reshape(nt, 3*nelem)
-            data_exa  = area_e * data_exa
-            data_exa  = data_exa[:,None,:]
-            data_n_di = np.zeros((nt, 1, n_iz.shape[0]))
-            data_a_di = np.zeros(n_iz.shape)
-            
-            if data_e2 is None:
-                # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                # over for i in range(3): ,for j in range(self.n2de):
-                for e_i, n_i in enumerate(e_i_flat):
-                    if n_iz[n_i]<di: continue
-                    data_n_di[:, :, n_i] = data_n_di[:, :, n_i] + data_exa[:, :, e_i]
-                    data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
-                del(data_exa)
-                
-                # Avoid divide-by-zero errors
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    data_n_di = np.where(data_a_di != 0, data_n_di/data_a_di, 0)
-                del(data_a_di)
-                
-                return(data_n_di)
-            
-            else:
-                # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                # over for i in range(3): ,for j in range(self.n2de):
-                slice_di   = data_e2[:, di, :]
-                data_exa2  = np.repeat(slice_di[:, :, np.newaxis], 3, axis=1)
-                del(slice_di)
-                data_exa2  = data_exa2.reshape(nt, 3*nelem)
-                data_exa2  = area_e * data_exa2
-                data_exa2  = data_exa2[:,None,:]
-                data_n_di2 = np.zeros((nt, 1, n_iz.shape[0]))
-                for e_i, n_i in enumerate(e_i_flat):
-                    if n_iz[n_i]<di: continue
-                    data_n_di[ :, :, n_i] = data_n_di[ :, :, n_i] + data_exa[ :, :, e_i]
-                    data_n_di2[:, :, n_i] = data_n_di2[:, :, n_i] + data_exa2[:, :, e_i]
-                    data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
-                del(data_exa, data_exa2)
-                
-                # Avoid divide-by-zero errors
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    data_n_di  = np.where(data_a_di != 0, data_n_di /data_a_di, 0)
-                    data_n_di2 = np.where(data_a_di != 0, data_n_di2/data_a_di, 0)
-                del(data_a_di)
-            
-                return(data_n_di, data_n_di2)
-        
-        #_______________________________________________________________________
-        # do seriial computation 
-        if client is None:
-            t1 = clock.time()
-            if data_e2 is None:
-                for di in range(0,nd):
-                    data_n[:, di, :] = e2n_di_ti(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
-                
-            else:
-                for di in range(0,nd):
-                    data_n[:, di, :], data_n2[:, di, :] = e2n_di_ti(di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) 
-            print(clock.time()-t1)
-        
-        # do computation in parallel by dask client
+        nt       = data_e.shape[0]
+        nd       = data_e.shape[1]
+        blocksize= np.int32(12) # --> fixed vertical block size for dask 
+        if data_e2 is None:
+            data_n, _       = dask_jit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
+                                               client=client, blocksize=blocksize)
+            print(' 3d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
         else:
-            t1 = clock.time()
-            if data_e2 is None:
-                # Submit tasks to the Dask client
-                futures = [client.submit(e2n_di_ti, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
-
-                # Gather results
-                results = client.gather(futures)
-
-                # Stack results to match (nd, mesh.n2dn) shape
-                data_n = da.concatenate(results, axis=1)
+            data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
+            data_n, data_n2 = dask_jit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
+                                               client=client, blocksize=blocksize)
+            print(' 3d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
             
-            else:
-                # Submit tasks to the Dask client
-                futures = [client.submit(e2n_di_ti, di, data_e, data_e2, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(nd)]
-
-                # Gather results
-                results = client.gather(futures)
-                
-                # Stack results to match (nd, mesh.n2dn) shape --> creates 
-                # array [2, nttime, nlev, nelem]
-                data_n  = da.concatenate(results, axis=2)
-                data_n2 = data_n[1]
-                data_n  = data_n[0]
-                
-            print(clock.time()-t1)
-            
-        #from joblib import Parallel, delayed
-        #results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
-        #data_n = np.vstack(results).transpose()
-        #print(' --> elapsed time:', clock.time()-t1)
-            
-        
     #___________________________________________________________________________
     if data_e2 is None:
         return(data_n)
     else:
         return(data_n, data_n2)
+
+
+
+#
+#
+#_______________________________________________________________________________
+# inline numba protype caller routine to acumulate data from elem --> nodes
+@njit(inline='always', cache=True, fastmath=True)
+def jit_ie2n(n2dn, n2de, e_i, e_area, data_e, data_e2, out_n, out_n2, out_a, use2var):
+    """
+    Accumulate area muliplied data from elements to nodes
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    data_e2: (n2de,) float32  secondary variable (ignored if use2var=False)
+    out_n  : (n2dn,) float32  accumulated data_e*area
+    out_n2 : (n2dn,) float32  accumulated data_e2*area (or dummy)
+    out_a  : (n2dn,) float32  accumulated area per node
+    use2var: bool to use 1 or 2 variables as input 
+    """
+    
+    # this is for element blockwise treatment
+    if n2de==0: n2de = e_i.shape[0] 
+    
+    for ii in range(n2de): 
+        v  = data_e[ii]
+        # check for land sea mask it can be either 0.0 or NaN,  v == v --> fastest NaN check
+        if (v == v) and (v != 0.0):          
+            # elem --> vertices indices
+            i0 = e_i[ii, 0]
+            i1 = e_i[ii, 1]
+            i2 = e_i[ii, 2]
+            
+            # compute elem area weighted data
+            a  = e_area[ii]
+            v  *= a 
+            
+            # data_e*e_area on vertice
+            out_n[ i0] += v 
+            out_n[ i1] += v
+            out_n[ i2] += v
+            
+            # accumulated elem area  per vertice
+            out_a[ i0] += a
+            out_a[ i1] += a
+            out_a[ i2] += a
+            
+            # data2*e_area on vertice
+            if use2var:
+                v2 = data_e2[ii]*a
+                out_n2[i0] += v2
+                out_n2[i1] += v2
+                out_n2[i2] += v2
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 1 Dimensional numba optimized elem --> node interpolation for single variable 
+# and vector variable 
+@njit(cache=True, fastmath=True)
+def jit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+    """
+    compute area weighted mean from elements to nodes in 1Dimension
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    data_e2: (n2de,) float32  secondary variable (ignored if use2var=False)
+    """
+    
+    # Determine if we have 2nd variable and # Create a dummy array so worker 
+    # always receives arrays
+    use2var = data_e2 is not None
+    if not use2var: data_e2 = np.zeros(2, dtype=np.float32) # just a dummy filler array if data_e2=None
+      
+    data_n  = np.zeros(n2dn, dtype=np.float32)
+    data_a  = np.zeros(n2dn, dtype=np.float32)
+    if not use2var: data_n2 = np.zeros(2   , dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : data_n2 = np.zeros(n2dn, dtype=np.float32)
+    
+    # compute data * area  per node
+    jit_ie2n(n2dn, n2de, e_i, e_area,
+                data_e, data_e2,
+                data_n, data_n2, data_a, use2var)
+    
+    # compute area weighted mean on nodes 
+    for ii in range(n2dn):
+        a = data_a[ii]
+        if a > 0.0:
+            data_n[ ii] /= a
+            if use2var: data_n2[ii] /= a
+        else:
+            data_n[ ii] = np.nan
+            if use2var: data_n2[ii] = np.nan
+    return(data_n, data_n2)
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 2 Dimensional numba optimized elem --> node interpolation for single variable 
+# and vector variable 
+@njit(cache=True, fastmath=True)
+def jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension
+    
+    nd     : #depth levels
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (nd, n2de,) float32  primary variable
+    data_e2: (nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    """
+    
+    # Determine if we have 2nd variable and # Create a dummy array so worker 
+    # always receives arrays
+    use2var = data_e2 is not None
+    if not use2var: data_e2 = np.zeros((nd, 2), dtype=np.float32) # just a dummy filler array if data_e2=None
+    
+    data_n  = np.zeros((nd, n2dn), dtype=np.float32)
+    if not use2var: data_n2 = np.zeros((nd, 2   ), dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : data_n2 = np.zeros((nd, n2dn), dtype=np.float32)
+    
+    # auxilary arrays for each depth 
+    di_n  = np.zeros(n2dn, dtype=np.float32)
+    di_a  = np.zeros(n2dn, dtype=np.float32)
+    if not use2var: di_n2 = np.zeros(2   , dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : di_n2 = np.zeros(n2dn, dtype=np.float32)
+        
+    # depth loop
+    for di in range(nd):
+        
+        # faster than np.zeros within the loop 
+        for ni in range(n2dn):
+            di_n[ ni] = 0.0
+            di_a[ ni] = 0.0
+            if use2var: di_n2[ ni] = 0.0
+        
+        # compute data * area  per node and depth
+        jit_ie2n(n2dn, n2de, e_i, e_area,
+                    data_e[di,:], data_e2[di,:],
+                    di_n, di_n2, di_a, use2var)
+        
+        # compute area weighted mean on nodes and depth
+        for ii in range(n2dn):
+            a = di_a[ii]
+            if a > 0.0:
+                data_n[ di, ii] = di_n[ ii] / a
+                if use2var: data_n2[di, ii] = di_n2[ii] / a
+            else:
+                data_n[ di, ii] = np.nan
+                if use2var: data_n2[di, ii] = np.nan
+    return data_n, data_n2
+#
+#
+#_______________________________________________________________________________
+# 3 Dimensional numba optimized elem --> node interpolation for single variable 
+# and vector variable 
+@njit(cache=True, fastmath=True)
+def jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension
+    
+    nt     : #time slices
+    nd     : #depth levels
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (nt, nd, n2de,) float32  primary variable
+    data_e2: (nt, nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    """
+    
+    # Determine if we have 2nd variable and # Create a dummy array so worker 
+    # always receives arrays
+    use2var = data_e2 is not None
+    if not use2var: data_e2 = np.zeros((nt, nd, 2), dtype=np.float32) # just a dummy filler array if data_e2=None
+    
+    data_n  = np.zeros((nt, nd, n2dn), dtype=np.float32)
+    if not use2var: data_n2 = np.zeros((nt, nd, 2   ), dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : data_n2 = np.zeros((nt, nd, n2dn), dtype=np.float32)
+    
+    # auxilary arrays for each depth 
+    di_n  = np.zeros(n2dn, dtype=np.float32)
+    di_a  = np.zeros(n2dn, dtype=np.float32)
+    if not use2var: di_n2 = np.zeros(2   , dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : di_n2 = np.zeros(n2dn, dtype=np.float32)
+    
+    # time loop
+    for ti in range(nt):
+        
+        # depth loop
+        for di in range(nd):
+            
+            # faster than np.zeros within the loop 
+            for ni in range(n2dn):
+                di_n[ ni] = 0.0
+                di_a[ ni] = 0.0
+                if use2var: di_n2[ ni] = 0.0
+            
+            # compute data * area  per node and depth
+            jit_ie2n(n2dn, n2de, e_i, e_area,
+                    data_e[ti, di,:], data_e2[ti, di,:],
+                    di_n, di_n2, di_a, use2var)
+            
+            # compute area weighted mean on nodes and depth
+            for ii in range(n2dn):
+                a = di_a[ii]
+                if a > 0.0:
+                    data_n[ti, di, ii] = di_n[ ii] / a
+                    if use2var: data_n2[ti, di, ii] = di_n2[ii] / a
+                else:
+                    data_n[ti, di, ii] = np.nan
+                    if use2var: data_n2[ti, di, ii] = np.nan
+    return data_n, data_n2
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 2 Dimensional wrapped numba/dask optimized elem --> node interpolation for single variable 
+# and vector variable. The ie2n interpolation is parallelized with dask 
+# over the vertical dimension if a dask client is present
+def dask_jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
+                     client=None, blocksize=16):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension using dask 
+    wrapper to parallelize the vertical dimension
+    
+    nd        : #depth levels
+    n2dn      : #nodes
+    n2de      : #elements
+    e_i       : (n2de, 3) int32  element->node connectivity
+    e_area    : (n2de,) float32  element areas
+    data_e    : (nd, n2de,) float32  primary variable
+    data_e2   : (nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    client    : None or dask.client
+    blocksize : 16 vertical parallel blocksize
+    """
+    
+    # No Dask client → fallback to single-core numba version
+    if client is None:
+        print(' > use jit', end='')
+        return jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    # If nd small, Dask overhead not worth it
+    if nd <= blocksize:
+        print(' > use jit', end='')
+        return jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    print(' > use dask/jit', end='')
+    # ---- Submit blocks ----
+    futures = []
+    for start in range(0, nd, blocksize):
+        end = min(start + blocksize, nd)
+        nd_block = end-start    
+        block_e  = data_e[start:end, :].copy()
+        block_e2 = None if data_e2 is None else data_e2[start:end, :].copy()
+
+        fut = client.submit(jit_ie2n_2d ,
+                            nd_block, n2dn, n2de, e_i, e_area, block_e, block_e2,
+                            pure=False
+                            )
+        futures.append((start, end, fut))
+
+    # ---- Assemble output ----
+    data_n  = np.zeros((nd, n2dn), dtype=np.float32)
+    data_n2 = None
+    use2var = data_e2 is not None
+    if use2var: data_n2 = np.zeros((nd, n2dn), dtype=np.float32)
+
+    for start, end, fut in futures:
+        dn_block, dn2_block = fut.result()
+        data_n[start:end, :] = dn_block
+        if use2var: data_n2[start:end, :] = dn2_block
+
+    return data_n, data_n2
+#
+#
+#_______________________________________________________________________________
+# 3 Dimensional wrapped numba/dask optimized elem --> node interpolation for single variable 
+# and vector variable. The ie2n interpolation is parallelized with dask 
+# over the vertical dimension if a dask client is present
+def dask_jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
+                     client=None, blocksize=16):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension using dask 
+    wrapper to parallelize the vertical dimension
+    
+    nt        : #time slices
+    nd        : #depth levels
+    n2dn      : #nodes
+    n2de      : #elements
+    e_i       : (n2de, 3) int32  element->node connectivity
+    e_area    : (n2de,) float32  element areas
+    data_e    : (nt, nd, n2de,) float32  primary variable
+    data_e2   : (nt, nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    client    : None or dask.client
+    blocksize : 16 vertical parallel blocksize
+    """
+    
+    # No Dask client → fallback to single-core numba version
+    if client is None:
+        print(' > use jit', end='')
+        return jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    # If nd small, Dask overhead not worth it
+    if nd <= blocksize:
+        print(' > use jit', end='')
+        return jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    print(' > use dask/jit', end='')
+    
+    # allocate 
+    data_n  = np.zeros((nt, nd, n2dn), dtype=np.float32)
+    use2var = data_e2 is not None
+    data_n2 = np.zeros((nt, nd, n2dn), dtype=np.float32) if use2var else None
+        
+    # parallelized loop over depth 
+    futures = []
+    for start in range(0, nd, blocksize):
+        end = min(start + blocksize, nd)
+        nd_block = end-start    
+        block_e  = data_e[:, start:end, :].copy()
+        block_e2 = None if data_e2 is None else data_e2[:, start:end, :].copy()
+            
+        fut = client.submit(jit_ie2n_3d,
+                            nt, nd_block, n2dn, n2de, e_i, e_area, block_e, block_e2,
+                            pure=False
+                            )
+        futures.append((start, end, fut))
+        
+    # gather block together´
+    for start, end, fut in futures:
+        dn_block, dn2_block = fut.result()
+        data_n[:, start:end, :] = dn_block
+        if use2var: data_n2[:, start:end, :] = dn2_block
+
+    return data_n, data_n2
 
 
 
