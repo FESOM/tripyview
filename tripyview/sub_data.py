@@ -602,7 +602,8 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # compute gradient,  do_gradx=True, do_grady=True
     data = do_gradient_xy(data, mesh, datapath, do_gradx, do_grady, do_rot=True, 
-                          diagpath=diagpath, runid=runid, do_info=do_info, chunks=chunks)
+                          diagpath=diagpath, runid=runid, chunks=chunks, 
+                          do_info=True) 
     
     #___________________________________________________________________________
     # compute norm of the vectors if do_norm=True    
@@ -1691,7 +1692,7 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
                 raise ValueError('could not find directory with...mesh.diag.nc file')
             
             diagpath = os.path.join(dname,fname)
-            if do_info: print(' --> found diag in directory:{}', diagpath)
+            if do_info: print(' > found diag in directory: {:s}'.format(diagpath))
         
         #_______________________________________________________________________
         # decide over elemental chunking of the gradients
@@ -1945,56 +1946,56 @@ def do_interp_e2n(data, mesh, do_ie2n, client=None):
     vname_list = list(data.keys())
     if ('elem' in data[vname_list[0]].dims) and do_ie2n:
         print(' > do interpolation e2n')
-        ##_______________________________________________________________________
-        #if len(vname_list)==2: 
-            #aux, aux2  = grid_interp_e2n(mesh,data[vname_list[0]].values, data_e2=data[vname_list[1]].values, client=client)
-            #vname_new  = 'n_'+vname_list[0]
-            #vname_new2 = 'n_'+vname_list[1]
+        #_______________________________________________________________________
+        if len(vname_list)==2: 
+            aux, aux2  = grid_interp_e2n(mesh,data[vname_list[0]].values, data_e2=data[vname_list[1]].values, client=client)
+            vname_new  = 'n_'+vname_list[0]
+            vname_new2 = 'n_'+vname_list[1]
                     
-            #dim_list = list()
-            #if   'time' in data.dims: dim_list.append('time')
-            #if   'nz'   in data.dims: dim_list.append('nz')
-            #elif 'nz1'  in data.dims: dim_list.append('nz1')    
-            #dim_list.append('nod2')    
-                
-            #data = xr.merge([ data, xr.Dataset({vname_new: (dim_list, aux), vname_new2: (dim_list, aux2)})], combine_attrs="no_conflicts")
-            #data = data.unify_chunks()
-                
-            ## copy attributes from elem to vertice variable 
-            #data[vname_new].attrs  = data[vname_list[0]].attrs
-            #data[vname_new2].attrs = data[vname_list[1]].attrs
-                
-            ## delete elem variable from dataset
-            #data = data.drop_vars(vname_list)        
-            
-        #else:    
-        for vname in vname_list:
-            # interpolate elem to vertices
-            #aux = grid_interp_e2n(mesh,data[vname].data)
-            #with np.errstate(divide='ignore',invalid='ignore'):
-            aux = grid_interp_e2n(mesh,data[vname].values, client=client)
-            
-            # new variable name 
-            #vname_new = 'n_'+vname
-            vname_new = vname
-            
-            # add vertice interpolated variable to dataset
-            #print(data)
             dim_list = list()
             if   'time' in data.dims: dim_list.append('time')
             if   'nz'   in data.dims: dim_list.append('nz')
             elif 'nz1'  in data.dims: dim_list.append('nz1')    
             dim_list.append('nod2')    
-            
-            data = xr.merge([ data, xr.Dataset({vname_new: (dim_list, aux)})], combine_attrs="no_conflicts")
+                
+            data = xr.merge([ data, xr.Dataset({vname_new: (dim_list, aux), vname_new2: (dim_list, aux2)})], combine_attrs="no_conflicts")
             data = data.unify_chunks()
-            
+                
             # copy attributes from elem to vertice variable 
-            data[vname_new].attrs = data[vname].attrs
-            
+            data[vname_new].attrs  = data[vname_list[0]].attrs
+            data[vname_new2].attrs = data[vname_list[1]].attrs
+                
             # delete elem variable from dataset
-            data = data.drop_vars(vname)
-            del(aux)
+            data = data.drop_vars(vname_list).rename({vname_new:vname_list[0], vname_new2:vname_list[1]})        
+            del(aux, aux2)
+            
+        else:    
+            for vname in vname_list:
+                # interpolate elem to vertices
+                #aux = grid_interp_e2n(mesh,data[vname].data)
+                #with np.errstate(divide='ignore',invalid='ignore'):
+                aux = grid_interp_e2n(mesh,data[vname].values, client=client)
+                
+                # new variable name 
+                vname_new = 'n_'+vname
+                
+                # add vertice interpolated variable to dataset
+                #print(data)
+                dim_list = list()
+                if   'time' in data.dims: dim_list.append('time')
+                if   'nz'   in data.dims: dim_list.append('nz')
+                elif 'nz1'  in data.dims: dim_list.append('nz1')    
+                dim_list.append('nod2')    
+                
+                data = xr.merge([ data, xr.Dataset({vname_new: (dim_list, aux)})], combine_attrs="no_conflicts")
+                data = data.unify_chunks()
+                
+                # copy attributes from elem to vertice variable 
+                data[vname_new].attrs = data[vname].attrs
+                
+                # delete elem variable from dataset
+                data = data.drop_vars(vname).rename({vname_new:vname})
+                del(aux)
             
         #_______________________________________________________________________
         # kick out element related coordinates 
