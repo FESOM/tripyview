@@ -27,6 +27,7 @@ from .sub_tripyrundriver    import *
 from .sub_tripyrun          import *
 from .sub_shortcut          import *
 from .sub_notebookheader    import *
+from .sub_warmup_numba      import warmup_numba
 #from .sub_3dsphere          import *
 # Control VTK import with env var
 if os.environ.get("TRIPYVIEW_WITHOUT_VTK", "0") != "1":

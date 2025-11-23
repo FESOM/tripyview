@@ -524,7 +524,10 @@ def create_3dflat_ocean_wall(xs, ys, zs, e_i, which_wall='N', nsigma=20, box=Non
     print(' --> compute 3d flat ocean {} wall'.format(which_wall))
     #___________________________________________________________________________
     # compute boundary edge of box limitet domain
-    bnde = compute_boundary_edges(e_i)
+    # bnde = compute_boundary_edges(e_i)
+    bnde = njit_compute_boundary_edges(e_i)
+    # if sorting is necessary
+    # bnde = bnde_new[np.lexsort((bnde[:,1], bnde[:,0]))]
     
     #___COMPUTE northern ocean wall mesh with sigma layers______________________
     ed_xs, ed_ys = xs[bnde].copy(),  ys[bnde].copy()
@@ -606,8 +609,10 @@ def create_3dflat_ocean_botwall(xs, ys, zs, e_i, box, scalfac, botdepth=7000):
     
     #___________________________________________________________________________
     # compute boundary edge of box limitet domain
-    bnde = compute_boundary_edges(e_i)
-    
+    # bnde = compute_boundary_edges(e_i)
+    bnde = njit_compute_boundary_edges(e_i)
+    # if sorting is necessary
+    # bnde = bnde_new[np.lexsort((bnde[:,1], bnde[:,0]))]
         
     #___COMPUTE lower ocean box boundary____________________________________
     #box_bnde = bnde.copy()

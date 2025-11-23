@@ -16,9 +16,15 @@ except ModuleNotFoundError:
     pass
 from   netCDF4 import Dataset
 from .sub_mesh import *
-from numba import jit, njit, float32, int32, prange
+
+from numba import jit, njit, float32, int32, prange, types
+from numba.typed import Dict
 import numba
+
 from shapely.geometry import Polygon
+
+rad     = np.pi/180
+R_earth = 12735/2*1000;
 
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
 #| IMPORTANT!!!:                                                               |                                         
@@ -43,6 +49,7 @@ def load_mesh_fesom2(
                     do_loadraw  = False                 , 
                     do_pickle   = True                  , 
                     do_joblib   = False                 , 
+                    do_load     = True                  ,
                     do_f14cmip6 = False                 ,
                     do_info     = True                  , 
                     ):
@@ -98,6 +105,7 @@ def load_mesh_fesom2(
                         cant be  found it switches automatic to joblib
 
         :do_joblib:     bool, (default=False) store and load mesh from .joblib binary file
+        :do_load:       bool, (default=True) loading infrastructureshould be used
 
         :do_f14cmip6:   bool, (default=False) load FESOM1.4 mesh information and squeeze it into
                         the framework of FESOM2. Needed here to compute AMOC on fesom1.4 
@@ -683,9 +691,9 @@ class mesh_fesom2(object):
         #file_content = pa.read_csv(self.fname_nod2d, delim_whitespace=True, skiprows=1, \
         file_content = pa.read_csv(self.fname_nod2d, sep='\\s+', skiprows=1, \
                                       names=['node_number','x','y','flag'] )
-        self.n_x     = file_content.x.values.astype('float32')
-        self.n_y     = file_content.y.values.astype('float32')
-        self.n_i     = file_content.flag.values.astype('int16')   
+        self.n_x     = np.ascontiguousarray(file_content.x.values.astype('float32'))
+        self.n_y     = np.ascontiguousarray(file_content.y.values.astype('float32'))
+        self.n_i     = np.ascontiguousarray(file_content.flag.values.astype('int16'))   
         self.n2dn    = len(self.n_x)
         
         #____load 2d element matrix_____________________________________________
@@ -693,6 +701,11 @@ class mesh_fesom2(object):
         file_content = pa.read_csv(self.fname_elem2d, sep='\\s+', skiprows=1, \
                                     names=['1st_node_in_elem','2nd_node_in_elem','3rd_node_in_elem'])
         self.e_i     = file_content.values.astype('int32') - 1
+        
+        # ensure C-contiguous (row-major) format, will significantly speed up all 
+        # numba operations 
+        self.e_i     = np.ascontiguousarray(self.e_i)
+        
         self.n2de    = np.shape(self.e_i)[0]
         # print('    : #2de={:d}'.format(self.n2de))
         
@@ -713,6 +726,7 @@ class mesh_fesom2(object):
             file_content = pa.read_csv(self.fname_aux3d, skiprows=0, nrows=self.nlev*self.n2dn)
             self.n32     = file_content.values.astype('int32') - 1
             self.n32     = self.n32.reshape((self.n2dn,self.nlev)).transpose()
+            self.n32     = np.ascontiguousarray(self.n32)
             
             # Lick out bufferlayer in fesom1.4 mesh
             self.n32     = self.n32[:-1,:]
@@ -728,13 +742,13 @@ class mesh_fesom2(object):
             self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
             
             # compute bottom topography at vertice
-            self.n_z     = aux_n3z[self.n32.max(axis=0),0]
+            self.n_z     = np.ascontiguousarray(aux_n3z[self.n32.max(axis=0),0])
             del(aux_n3z)
             
             # compute bottom index at vertice
             aux_n32      = np.zeros(self.n32.shape)
             aux_n32[self.n32>=0] = 1
-            self.n_iz    = aux_n32.sum(axis=0).astype('int16')-1
+            self.n_iz    = np.ascontiguousarray((aux_n32.sum(axis=0).astype('int16')-1))
 
         
         #____load number of levels at each node_________________________________
@@ -743,8 +757,8 @@ class mesh_fesom2(object):
             file_content = pa.read_csv(self.fname_nlvls, sep='\\s+', skiprows=0, \
                                            names=['numb_of_lev'])
             self.n_iz    = file_content.values.astype('int16') - 1
-            self.n_iz    = self.n_iz.squeeze()
-            self.n_z     = np.float32(self.zlev[self.n_iz])
+            self.n_iz    = np.ascontiguousarray(self.n_iz.squeeze())
+            self.n_z     = np.ascontiguousarray(np.float32(self.zlev[self.n_iz]))
             
         elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no nlvls information!')    
         else                : raise ValueError(f' --> could not find file {self.fname_nlvls} !')
@@ -757,7 +771,7 @@ class mesh_fesom2(object):
             file_content = pa.read_csv(self.fname_elvls, sep='\\s+', skiprows=0, \
                                            names=['numb_of_lev'])
             self.e_iz    = file_content.values.astype('int16') - 1
-            self.e_iz    = self.e_iz.squeeze()
+            self.e_iz    = np.ascontiguousarray(self.e_iz.squeeze())
             
         elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no elvls information!')        
         else                : raise ValueError(f' --> could not find file {self.fname_elvls} !')
@@ -770,7 +784,7 @@ class mesh_fesom2(object):
                 file_content = pa.read_csv(self.fname_elvls_raw, sep='\\s+', skiprows=0, \
                                             names=['numb_of_lev'])
                 self.e_iz_raw    = file_content.values.astype('int16') - 1
-                self.e_iz_raw    = self.e_iz_raw.squeeze()
+                self.e_iz_raw    = np.ascontiguousarray(self.e_iz_raw.squeeze())
             else:
                 raise ValueError(f' --> could not find file {self.fname_elvls_raw} !')
         
@@ -798,7 +812,7 @@ class mesh_fesom2(object):
         if ( os.path.isfile(self.fname_cnlvls) ):
             file_content      = pa.read_csv(self.fname_cnlvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
             self.n_ic= file_content.values.astype('int16') - 1
-            self.n_ic= self.n_ic.squeeze()
+            self.n_ic= np.ascontiguousarray(self.n_ic.squeeze())
         else:
             raise ValueError(f' --> could not find file {self.fname_cnlvls} !')
         
@@ -807,7 +821,7 @@ class mesh_fesom2(object):
         if ( os.path.isfile(self.fname_cnlvls) ):
             file_content      = pa.read_csv(self.fname_celvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
             self.e_ic= file_content.values.astype('int16') - 1
-            self.e_ic= self.e_ic.squeeze()
+            self.e_ic= np.ascontiguousarray(self.e_ic.squeeze())
         else:
             raise ValueError(f' --> could not find file {self.fname_celvls} !')
         
@@ -819,7 +833,7 @@ class mesh_fesom2(object):
             if ( os.path.isfile(self.fname_celvls_raw) ): 
                 file_content    = pa.read_csv(self.fname_celvls_raw, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
                 self.e_ic_raw   = file_content.values.astype('int16') - 1
-                self.e_ic_raw   = self.e_ic_raw.squeeze()
+                self.e_ic_raw   = np.ascontiguousarray(self.e_ic_raw.squeeze())
             else:
                 raise ValueError(f' --> could not find file {self.fname_celvls_raw} !')
         
@@ -1053,7 +1067,7 @@ ___________________________________________""".format(
                 print(' > comp e_area')
                 #_______________________________________________________________
                 # pi     = 3.14159265358979
-                rad    = np.pi/180.0  
+                #rad    = np.pi/180.0  
                 cycl   = self.cyclic*rad
                 Rearth = 6367500.0
                 
@@ -1127,8 +1141,8 @@ ___________________________________________""".format(
                 del idx
                 
             # calc from geocoord to cartesian coord
-            rad        = np.pi/180
-            R_earth    = 12735/2*1000;
+            #rad        = np.pi/180
+            #R_earth    = 12735/2*1000;
             jacobian   = jacobian*R_earth*rad
             cos_theta  = np.cos(e_y*rad).mean(axis=1)
             del e_y
@@ -1853,7 +1867,7 @@ def grid_rotmat(abg):
 
     """
     #___________________________________________________________________________
-    rad = np.pi/180
+    #rad = np.pi/180
     al  = abg[0] * rad 
     be  = abg[1] * rad
     ga  = abg[2] * rad
@@ -1892,7 +1906,7 @@ def grid_rotmat_dask(abg):
 
     """
     #___________________________________________________________________________
-    rad = np.pi/180
+    
     al  = abg[0] * rad 
     be  = abg[1] * rad
     ga  = abg[2] * rad
@@ -1944,7 +1958,7 @@ def grid_cart3d(lon,lat,R=1.0, is_deg=False):
 
     """
     if is_deg: 
-        rad = np.pi/180
+        #rad = np.pi/180
         lat = lat * rad
         lon = lon * rad
     
@@ -1986,7 +2000,7 @@ def grid_r2g(abg, rlon, rlat):
 
     #___________________________________________________________________________
     # compute 3d cartesian coordinates
-    rad      = np.pi/180
+    #rad      = np.pi/180
     rlat     = rlat * rad
     rlon     = rlon * rad
     xr,yr,zr = grid_cart3d(rlon,rlat)
@@ -2035,7 +2049,7 @@ def grid_g2r(abg, lon, lat):
     
     #___________________________________________________________________________
     # compute 3d cartesian coordinates
-    rad      = np.pi/180
+    #rad      = np.pi/180
     lat      = lat * rad
     lon      = lon * rad
     xg,yg,zg = grid_cart3d(lon,lat)
@@ -2089,7 +2103,7 @@ def grid_focus(focus, rlon, rlat):
 
     #___________________________________________________________________________
     # compute 3d cartesian coordinates
-    rad      = np.pi/180
+    #rad      = np.pi/180
     rlat     = rlat * rad
     rlon     = rlon * rad
     xr,yr,zr = grid_cart3d(rlon,rlat)
@@ -2158,7 +2172,7 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     # compute rotation matrix
     rmat = grid_rotmat(abg)
     rmat = np.linalg.pinv(rmat)
-    rad  = np.pi/180 
+    #rad  = np.pi/180 
 
     #___________________________________________________________________________
     # degree --> radian  
@@ -2347,11 +2361,11 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
     t0= clock.time()
     if data_e.ndim==1:
         if data_e2 is None:
-            data_n, _       = jit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e)
+            data_n, _       = njit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e)
             print(' > jit 1d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )
         else:
             data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
-            data_n, data_n2 = jit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2)
+            data_n, data_n2 = njit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2)
             print(' > jit 1d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )
     
     #___________________________________________________________________________  
@@ -2360,12 +2374,12 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
         nd       = data_e.shape[0]
         blocksize= np.int32(12) # --> fixed vertical block size for dask 
         if data_e2 is None:
-            data_n, _       = dask_jit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
+            data_n, _       = dask_njit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
                                                client=client, blocksize=blocksize)
             print(' 2d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
         else:
             data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
-            data_n, data_n2 = dask_jit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
+            data_n, data_n2 = dask_njit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
                                                client=client, blocksize=blocksize)
             print(' 2d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
             
@@ -2376,20 +2390,18 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
         nd       = data_e.shape[1]
         blocksize= np.int32(12) # --> fixed vertical block size for dask 
         if data_e2 is None:
-            data_n, _       = dask_jit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
+            data_n, _       = dask_njit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
                                                client=client, blocksize=blocksize)
             print(' 3d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
         else:
             data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
-            data_n, data_n2 = dask_jit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
+            data_n, data_n2 = dask_njit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
                                                client=client, blocksize=blocksize)
             print(' 3d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
             
     #___________________________________________________________________________
-    if data_e2 is None:
-        return(data_n)
-    else:
-        return(data_n, data_n2)
+    if data_e2 is None: return(data_n)
+    else              : return(data_n, data_n2)
 
 
 
@@ -2398,7 +2410,7 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
 #_______________________________________________________________________________
 # inline numba protype caller routine to acumulate data from elem --> nodes
 @njit(inline='always', cache=True, fastmath=True)
-def jit_ie2n(n2dn, n2de, e_i, e_area, data_e, data_e2, out_n, out_n2, out_a, use2var):
+def njit_ie2n(n2dn, n2de, e_i, e_area, data_e, data_e2, out_n, out_n2, out_a, use2var):
     """
     Accumulate area muliplied data from elements to nodes
 
@@ -2455,7 +2467,7 @@ def jit_ie2n(n2dn, n2de, e_i, e_area, data_e, data_e2, out_n, out_n2, out_a, use
 # 1 Dimensional numba optimized elem --> node interpolation for single variable 
 # and vector variable 
 @njit(cache=True, fastmath=True)
-def jit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+def njit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
     """
     compute area weighted mean from elements to nodes in 1Dimension
 
@@ -2478,9 +2490,9 @@ def jit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
     else          : data_n2 = np.zeros(n2dn, dtype=np.float32)
     
     # compute data * area  per node
-    jit_ie2n(n2dn, n2de, e_i, e_area,
-                data_e, data_e2,
-                data_n, data_n2, data_a, use2var)
+    njit_ie2n(n2dn, n2de, e_i, e_area,
+              data_e, data_e2,
+              data_n, data_n2, data_a, use2var)
     
     # compute area weighted mean on nodes 
     for ii in range(n2dn):
@@ -2501,7 +2513,7 @@ def jit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
 # 2 Dimensional numba optimized elem --> node interpolation for single variable 
 # and vector variable 
 @njit(cache=True, fastmath=True)
-def jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+def njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
     """
     compute area weighted mean from elements to nodes in 2Dimension
     
@@ -2539,9 +2551,9 @@ def jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
             if use2var: di_n2[ ni] = 0.0
         
         # compute data * area  per node and depth
-        jit_ie2n(n2dn, n2de, e_i, e_area,
-                    data_e[di,:], data_e2[di,:],
-                    di_n, di_n2, di_a, use2var)
+        njit_ie2n(n2dn, n2de, e_i, e_area,
+                  data_e[di,:], data_e2[di,:],
+                  di_n, di_n2, di_a, use2var)
         
         # compute area weighted mean on nodes and depth
         for ii in range(n2dn):
@@ -2559,7 +2571,7 @@ def jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
 # 3 Dimensional numba optimized elem --> node interpolation for single variable 
 # and vector variable 
 @njit(cache=True, fastmath=True)
-def jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+def njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
     """
     compute area weighted mean from elements to nodes in 2Dimension
     
@@ -2601,9 +2613,9 @@ def jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
                 if use2var: di_n2[ ni] = 0.0
             
             # compute data * area  per node and depth
-            jit_ie2n(n2dn, n2de, e_i, e_area,
-                    data_e[ti, di,:], data_e2[ti, di,:],
-                    di_n, di_n2, di_a, use2var)
+            njit_ie2n(n2dn, n2de, e_i, e_area,
+                      data_e[ti, di,:], data_e2[ti, di,:],
+                      di_n, di_n2, di_a, use2var)
             
             # compute area weighted mean on nodes and depth
             for ii in range(n2dn):
@@ -2624,7 +2636,7 @@ def jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
 # 2 Dimensional wrapped numba/dask optimized elem --> node interpolation for single variable 
 # and vector variable. The ie2n interpolation is parallelized with dask 
 # over the vertical dimension if a dask client is present
-def dask_jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
+def dask_njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
                      client=None, blocksize=16):
     """
     compute area weighted mean from elements to nodes in 2Dimension using dask 
@@ -2644,12 +2656,12 @@ def dask_jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None,
     # No Dask client → fallback to single-core numba version
     if client is None:
         print(' > use jit', end='')
-        return jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+        return njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
 
     # If nd small, Dask overhead not worth it
     if nd <= blocksize:
         print(' > use jit', end='')
-        return jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+        return njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
 
     print(' > use dask/jit', end='')
     # ---- Submit blocks ----
@@ -2660,7 +2672,7 @@ def dask_jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None,
         block_e  = data_e[start:end, :].copy()
         block_e2 = None if data_e2 is None else data_e2[start:end, :].copy()
 
-        fut = client.submit(jit_ie2n_2d ,
+        fut = client.submit(njit_ie2n_2d ,
                             nd_block, n2dn, n2de, e_i, e_area, block_e, block_e2,
                             pure=False
                             )
@@ -2684,7 +2696,7 @@ def dask_jit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None,
 # 3 Dimensional wrapped numba/dask optimized elem --> node interpolation for single variable 
 # and vector variable. The ie2n interpolation is parallelized with dask 
 # over the vertical dimension if a dask client is present
-def dask_jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
+def dask_njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
                      client=None, blocksize=16):
     """
     compute area weighted mean from elements to nodes in 2Dimension using dask 
@@ -2705,12 +2717,12 @@ def dask_jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None,
     # No Dask client → fallback to single-core numba version
     if client is None:
         print(' > use jit', end='')
-        return jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+        return njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
 
     # If nd small, Dask overhead not worth it
     if nd <= blocksize:
         print(' > use jit', end='')
-        return jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+        return njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
 
     print(' > use dask/jit', end='')
     
@@ -2727,7 +2739,7 @@ def dask_jit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None,
         block_e  = data_e[:, start:end, :].copy()
         block_e2 = None if data_e2 is None else data_e2[:, start:end, :].copy()
             
-        fut = client.submit(jit_ie2n_3d,
+        fut = client.submit(njit_ie2n_3d,
                             nt, nd_block, n2dn, n2de, e_i, e_area, block_e, block_e2,
                             pure=False
                             )
@@ -2775,15 +2787,114 @@ def compute_boundary_edges(e_i):
 
     # all edges that belong to boundary own jsut one triangle 
     bnde    = edge[idx==False,:]
-    
     return(bnde)
 
 
 
 #
 #
-# ___COMPUTE LIST/ARRAY NODE_IN_ELEM____________________________________________
-def compute_nod_in_elem2D(n2dn, e_i, do_arr=False):
+# ___COMPUTE BOUNDARY EDGES____________________________________________________
+@njit(cache=True)
+def njit_compute_boundary_edges(e_i):
+    """
+    --> compute edges that have only one adjacenbt triangle
+    
+    Parameters:
+    
+        :e_i:   np.array([n2de x 3]), elemental array
+    
+    Returns:
+    
+        :bnde:
+    
+    """
+    
+    # create dict: link int64 keys -> int64 values
+    edge_count = Dict.empty(key_type=types.int64, value_type=types.int64)
+
+    #___________________________________________________________________________
+    # build edges and count occurrences
+    n2de = e_i.shape[0]
+    for ii in range(n2de):
+        
+        # vertice indices of triangle 
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # form edges --> smallest vertice index first
+        if a < b: edp11, edp12 = a, b
+        else    : edp11, edp12 = b, a
+        
+        if a < c: edp21, edp22 = a, c
+        else    : edp21, edp22 = c, a
+        
+        if b < c: edp31, edp32 = b, c
+        else    : edp31, edp32 = c, b
+        
+        # trick here: 64-bit packed keys:
+        # you originally needed to store an edge as: (low, high) tuple But Numba 
+        # has trouble with tuple keys. The workaround is to encode the pair into 
+        # a single integer.
+        # Given: 
+        #   low0  = the smaller node index
+        #   high0 = the larger node index
+        #
+        # We create a single 64-bit value: key0 = (low0 << 32) | high0
+        #  low0 << 32       This shifts all bits of low0 32 bits to the left
+        #  | high0          is bitwise OR. This fills the lower 32 bits with high0
+        #
+        # So the packed format becomes:  
+        #   key = (low << 32) + high
+        # This is reversible and unique as long as low and high are ≤ 2^32−1 
+        # (which they are for all FESOM nodes).   
+        #
+        # We reverse the process:
+        #   low  = key >> 32            shifts everything down → gets low
+        #   high = key & 0xffffffff     key & 0xffffffff masks the lower 32 bits → gets high
+        # 
+        key0 = (edp11 << 32) | edp12
+        key1 = (edp21 << 32) | edp22
+        key2 = (edp31 << 32) | edp32
+
+        # count edge occurence. If its inner edge, edge_count==2 if its boundary 
+        # edge edge count should be 1
+        edge_count[key0] = edge_count.get(key0, 0) + 1
+        edge_count[key1] = edge_count.get(key1, 0) + 1
+        edge_count[key2] = edge_count.get(key2, 0) + 1
+
+    #___________________________________________________________________________
+    # compute exact number of boundary edges to allocate boundary edge array 
+    # properly
+    nbnde = 0
+    for _, cnt in edge_count.items():
+        if cnt == 1: nbnde += 1
+    bnde = np.empty((nbnde, 2), np.int64)
+    
+    #___________________________________________________________________________
+    # fill up boundary edge array
+    k = 0
+    for key, cnt in edge_count.items():
+        # whereever edge_count==1 must be boundary edge
+        if cnt == 1:
+            
+            # extract vertice indices from 64-bit packed keys
+            edp1 = key >> 32
+            edp2 = key & 0xffffffff
+            
+            # write boundary edge vertice indices into boundary edge array
+            bnde[k, 0] = edp1
+            bnde[k, 1] = edp2
+            k += 1
+
+    return bnde
+
+
+
+#
+#
+# ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
+def compute_nINe(n2dn, e_i, do_arr=False):
     """
     --> compute element indices list that contribute to cetain vertice
     
@@ -2819,3 +2930,303 @@ def compute_nod_in_elem2D(n2dn, e_i, do_arr=False):
     else:   
         print(' --> elapsed time for nod_in_elem2D:', clock.time()-t1)
         return(nod_in_elem2D)
+
+
+
+#
+#
+# ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
+@njit(cache=True)
+def njit_compute_nINe(e_i):
+    """
+    --> compute element indices list that contribute to cetain vertice, determine
+        vertice neighborhood with respect to elements
+        
+    Parameters:
+    
+        :e_i:       np.array([n2de x 3]), elemental array
+    
+    Returns:
+    
+        :nINe:
+        :nINe_num:
+    
+    """
+    
+    n2de = e_i.shape[0]
+    n2dn = np.max(e_i) + 1
+    
+    #___________________________________________________________________________
+    # compute maximum number of elements that contribute to node
+    nINe_num = np.zeros(n2dn, dtype=np.int32)
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        nINe_num[a] += 1
+        nINe_num[b] += 1
+        nINe_num[c] += 1
+
+    # max number of elements connected to any node
+    max_nINe_num = np.max(nINe_num)
+
+    #___________________________________________________________________________
+    # allocate node in elem output array, initilaise with -1
+    nINe = -1 * np.ones((n2dn, max_nINe_num), dtype=np.int32)
+
+    # pointer array to track next insertion pos per node
+    pos_fill = np.zeros(n2dn, dtype=np.int32)
+
+    #___________________________________________________________________________
+    # fill in node in elem array, use filling pointer to keep track of fill in 
+    # position
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # take out fill position 
+        pa = pos_fill[a]
+        pb = pos_fill[b]
+        pc = pos_fill[c]
+        
+        # fill node in elem position with elem index
+        nINe[a, pa] = ii
+        nINe[b, pb] = ii
+        nINe[c, pc] = ii
+        
+        # count up fill position
+        pos_fill[a] = pa + 1
+        pos_fill[b] = pb + 1
+        pos_fill[c] = pc + 1
+
+    return nINe, nINe_num
+
+
+
+#
+#
+# ___COMPUTE ELEM NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
+@njit(cache=True)
+def njit_compute_eINe(e_i):
+    """
+    --> compute element indices list that contribute to cetain element, determine
+        elem neighborhood with respect to elements
+        
+    Parameters:
+    
+        :e_i:       np.array([n2de x 3]), elemental array
+    
+    Returns:
+    
+        :eINe:
+        :eINe_num:
+    
+    """
+    
+    #___________________________________________________________________________
+    # allocate
+    n2de = e_i.shape[0]   
+    nedg = 3 * n2de
+    key  = np.empty(nedg, dtype=np.int64)
+    elem = np.empty(nedg, dtype=np.int32)
+    
+    #___________________________________________________________________________
+    # loop over elements
+    kk = 0
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # trick here: 64-bit packed keys:
+        # you originally needed to store an edge as: (low, high) tuple But Numba 
+        # has trouble with tuple keys. The workaround is to encode the pair into 
+        # a single integer.
+        # Given: 
+        #   low0  = the smaller node index
+        #   high0 = the larger node index
+        #
+        # We create a single 64-bit value: key0 = (low0 << 32) | high0
+        #  low0 << 32       This shifts all bits of low0 32 bits to the left
+        #  | high0          is bitwise OR. This fills the lower 32 bits with high0
+        #
+        # So the packed format becomes:  
+        #   key = (low << 32) + high
+        # This is reversible and unique as long as low and high are ≤ 2^32−1 
+        # (which they are for all FESOM nodes).   
+        #
+        # We reverse the process:
+        #   low  = key >> 32            shifts everything down → gets low
+        #   high = key & 0xffffffff     key & 0xffffffff masks the lower 32 bits → gets high
+        # 
+        # sorted edges a<b<c, create unique edge key based on node indexes that 
+        # build up the edge, i have three edges --> create three keys k1,k2,k3
+        # edge 0–1
+        
+        # edge a-b
+        if a < b: key[kk] = (a << 32) | b
+        else:     key[kk] = (b << 32) | a
+        elem[kk] = ii
+        kk += 1
+        
+        # edge a-c
+        if a < c: key[kk] = (a << 32) | c
+        else:     key[kk] = (c << 32) | a
+        elem[kk] = ii
+        kk += 1
+        
+        # edge b-c
+        if b < c: key[kk] = (b << 32) | c
+        else:     key[kk] = (c << 32) | b
+        elem[kk] = ii
+        kk += 1
+    
+    #___________________________________________________________________________
+    # correct lexicographic sorting of keys that means elem that share the same 
+    # edge have the same edge key and are thus near togehther after sorting
+    idx  = np.argsort(key)
+    key  = key[idx]
+    elem = elem[idx]
+
+    #___________________________________________________________________________
+    # allocate adjacency arrays
+    eINe = -1 * np.ones((n2de, 3), dtype=np.int32)
+    eINe_num = np.zeros(n2de, dtype=np.int32)
+
+    #___________________________________________________________________________
+    # loop over all the eges 
+    ii = 0
+    while ii < nedg - 1:
+        if key[ii] == key[ii+1]:
+            a = elem[ii]
+            b = elem[ii+1]
+            
+            na = eINe_num[a]
+            nb = eINe_num[b]
+            
+            eINe[a, na] = b
+            eINe[b, nb] = a
+            
+            eINe_num[a] = na+1
+            eINe_num[b] = nb+1
+            
+            ii += 2
+        else:
+            ii += 1
+    return eINe, eINe_num
+
+
+
+#
+#
+# ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO VERTICES_________________________
+@njit(cache=True)
+def njit_compute_nINn(e_i):
+    """
+    --> compute nodes indices list that contribute to cetain vertice, determine
+        vertice neighborhood with respect to vertices
+        
+    Parameters:
+    
+        :e_i:       np.array([n2de x 3]), elemental array
+    
+    Returns:
+    
+        :nINn:
+        :nINn_num:
+    
+    """
+    n2de = e_i.shape[0]
+    n2dn = np.max(e_i) + 1
+
+    #___________________________________________________________________________
+    # count node degrees
+    nINn_num_est = np.zeros(n2dn, dtype=np.int32)
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # Each triangle connects a,b,c pairwise
+        #            o a --> a has neighbor b and c, thats why count up +2
+        #           / \ 
+        #          /   \
+        #         /     \  
+        #        /       \
+        #     c o---------o b 
+        nINn_num_est[a] += 2       # b,c
+        nINn_num_est[b] += 2       # a,c
+        nINn_num_est[c] += 2       # a,b
+
+    # BUT this counts duplicates via multiple triangles, so we will fix it
+    # by filling adjacency and removing duplicates afterwards.
+    max_nINn_num_est = np.max(nINn_num_est)
+    nINn = -1 * np.ones((n2dn, max_nINn_num_est), dtype=np.int32)
+    pos = np.zeros(n2dn, dtype=np.int32)
+
+    #___________________________________________________________________________
+    # Insert neighbors (may contain duplicates)
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+
+        # a neighbors: b,c
+        pa = pos[a]
+        nINn[a, pa] = b
+        nINn[a, pa+1] = c
+        pos[a] = pa + 2
+
+        # b neighbors: a,c
+        pb = pos[b]
+        nINn[b, pb] = a
+        nINn[b, pb+1] = c
+        pos[b] = pb + 2
+
+        # c neighbors: a,b
+        pc = pos[c]
+        nINn[c, pc] = a
+        nINn[c, pc+1] = b
+        pos[c] = pc + 2
+
+    #___________________________________________________________________________
+    # Deduplicate neighbors per node
+    nINn_num = np.zeros(n2dn, dtype=np.int32)
+    mask     = np.zeros(n2dn, dtype=np.uint8)
+    for node in range(n2dn):
+        row_end = pos[node]
+        write = 0
+
+        for i in range(row_end):
+            nb = nINn[node][i]
+            if mask[nb] == 0:
+                mask[nb] = 1
+                nINn[node][write] = nb
+                write += 1
+
+        # clear mask
+        for i in range(write):
+            mask[nINn[node][i]] = 0
+
+        # mark remainder as unused
+        for i in range(write, row_end):
+            nINn[node][i] = -1
+
+        nINn_num[node] = write
+
+    #___________________________________________________________________________
+    # Build compact adjacency array
+    real_max = 0
+    for i in range(n2dn):
+        if nINn_num[i] > real_max:
+            real_max = nINn_num[i]
+
+    nINn_compact = -1 * np.ones((n2dn, real_max), dtype=np.int32)
+    for node in range(n2dn):
+        deg = nINn_num[node]
+        for j in range(deg):
+            nINn_compact[node, j] = nINn[node, j]
+
+    return nINn_compact, nINn_num
