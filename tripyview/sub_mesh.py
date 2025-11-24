@@ -657,6 +657,7 @@ class mesh_fesom2(object):
         
         # compute lsmask
         if do_lsmask:
+            
             self.compute_lsmask()
             
             #___________________________________________________________________
@@ -887,48 +888,24 @@ ___________________________________________""".format(
         --> part of fesom mesh class, find elements that cross over the periodic
         boundary
         
-        """
-        # identify the polar triangle
-        #self.e_pbnd_p = np.argmin(90.0-self.n_y[self.e_i].sum(axis=1)/3.0)
-        #self.n_x  = np.hstack((self.n_x , self.n_x[self.e_i[self.e_pbnd_p, :]].sum()/3.0))
-        #self.n_y  = np.hstack((self.n_y , 90.0))
-        #self.n_i  = np.hstack((self.n_i , 0))
-        #self.n_iz = np.hstack((self.n_iz, self.n_iz[self.e_i[self.e_pbnd_p, :]].max() ))
-        #self.n_z  = np.hstack((self.n_z , self.n_z[self.e_i[self.e_pbnd_p, :]].min() ))
-        #if isinstance(self.n_ic, np.ndarray):
-            #self.n_ic = np.hstack((self.n_ic , self.n_ic[self.e_i[self.e_pbnd_p, :]].min() ))
-        #if isinstance(self.n_c , np.ndarray):
-            #self.n_c  = np.hstack((self.n_c , self.n_c[self.e_i[self.e_pbnd_p, :]].min() ))
+        """         
+        e0  = self.e_i[:, 0]  
+        e1  = self.e_i[:, 1]
+        e2  = self.e_i[:, 2]
         
-        ## replace with 3 new augmeted polar triangles
-        #e_i_p = np.vstack( [self.e_i[self.e_pbnd_p, :]]*3 )
-        #e_i_p[0,0], e_i_p[1,1], e_i_p[2,2] = self.n2dn, self.n2dn, self.n2dn
-        #self.e_i  = np.vstack((self.e_i, e_i_p))
-        #self.e_iz = np.hstack((self.e_iz, [self.e_iz[self.e_pbnd_p]]*3 ))
-        #if isinstance(self.e_ic , np.ndarray): 
-            #self.e_ic = np.hstack((self.e_ic, [self.e_ic[self.e_pbnd_p]]*3 ))
-            
-        ## delete orignal polar triangle elemental row 
-        #self.e_i  = np.delete(self.e_i , self.e_pbnd_p, axis=0)
-        #self.e_iz = np.delete(self.e_iz, self.e_pbnd_p, axis=0)
-        #if isinstance(self.e_ic , np.ndarray): 
-            #self.e_ic = np.delete(self.e_ic, self.e_pbnd_p, axis=0)
-        
-        #self.e_pbnd_p = np.arange(self.n2de-1, self.n2de+2,1)
-        #self.n2dn +=1
-        #self.n2de +=2
-        
-        #_______________________________________________________________________
-        # find out 1st which element contribute to periodic boundary and 2nd
-        # which nodes are involed in periodic boundary
-        dx = self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1)
-        self.e_pbnd_1 = np.argwhere(dx > self.cyclic*2/3).ravel()
-        self.e_pbnd_0 = np.argwhere(dx < self.cyclic*2/3).ravel()
-        #self.e_pbnd_1 = np.unique(np.hstack((self.e_pbnd_1, self.e_pbnd_p)))
-        
-        #_______________________________________________________________________
-        return(self)
-    
+        # compute per-element min/max in one pass without creating big (nelem,3) array
+        maxlon = np.maximum(np.maximum(self.n_x[e0], self.n_x[e1]), self.n_x[e2])
+        minlon = np.minimum(np.minimum(self.n_x[e0], self.n_x[e1]), self.n_x[e2])
+        dx     = maxlon - minlon
+
+        # threshold same as before
+        thresh = self.cyclic * (2.0/3.0)
+
+        idx_pbnd = dx > thresh
+        self.e_pbnd_1 = np.nonzero( idx_pbnd)[0]
+        self.e_pbnd_0 = np.nonzero(~idx_pbnd)[0]
+        return self
+
     
     
     # ___AUGMENT PERIODIC BOUDNARY ELEMENTS____________________________________
@@ -938,113 +915,114 @@ ___________________________________________""".format(
     def pbnd_augment(self):
         """
         --> part of fesom mesh class, adds additional elements to augment the 
-        periodic boundary on the left and right side for an even non_periodic 
-        boundary is created left and right [-180, 180] of the domain         
-
+        periodic boundary on the left and right side so that an even non_periodic 
+        boundary is created left and right [-180, 180] of the domain.
+        
+        Vectorized version, semantics matching original loop implementation.
         """
+
         self.do_augmpbnd = True
+
         #_______________________________________________________________________
         # this are all the periodic boundary element
-        e_i_pbnd   = self.e_i[self.e_pbnd_1,:]
-        e_i_pbnd_x = self.n_x[e_i_pbnd]
-        
-        # in each periodic boundary element look what is the vertices indices with 
-        # max lon value for the right boundary
-        nidxine_l, nidxine_m, nidxine_r = np.squeeze(np.split(np.argsort(e_i_pbnd_x, axis=1), 3, axis=1))
-        
-        eidx       = np.arange(e_i_pbnd.shape[0])
-        n_pbnd_i_l = e_i_pbnd[eidx, nidxine_l.squeeze()]
-        n_pbnd_i_m = e_i_pbnd[eidx, nidxine_m.squeeze()]
-        n_pbnd_i_r = e_i_pbnd[eidx, nidxine_r.squeeze()]
-        del(e_i_pbnd_x, eidx)
-        
-        # now decide if the remaining "middle" point should be attributet to left 
-        # or right periodic boundary by its distance to the already known min left and 
-        # max right vertic points
-        is_pbnd_i_m_lr = np.abs(self.n_x[n_pbnd_i_r]-self.n_x[n_pbnd_i_m]) < np.abs(self.n_x[n_pbnd_i_l]-self.n_x[n_pbnd_i_m])
-        
-        # remaining "middle" point becomes part of right boundary
-        n_pbnd_i_r = np.hstack((n_pbnd_i_r, n_pbnd_i_m[is_pbnd_i_m_lr==True]))
-        n_pbnd_i_r = np.unique(n_pbnd_i_r)
-        
-        # remaining "middle" point becomes part of left boundary
-        n_pbnd_i_l = np.hstack((n_pbnd_i_l, n_pbnd_i_m[is_pbnd_i_m_lr==False]))
-        n_pbnd_i_l = np.unique(n_pbnd_i_l)        
-        
-        # total array of left and augmented periodic boundary nodes         
-        self.n_pbnd_a   = np.hstack((n_pbnd_i_r,n_pbnd_i_l))
-        nn_il,nn_ir= n_pbnd_i_l.size, n_pbnd_i_r.size
-        
+        e_i_pbnd = self.e_i[self.e_pbnd_1]      
+        lon_tri  = self.n_x[e_i_pbnd]     
+    
+        # number of triangles that participate in periodic boudnary
+        ntri = e_i_pbnd.shape[0]
+        rows = np.arange(ntri)
+
         #_______________________________________________________________________
-        # calculate augmentation positions for new left and right periodic boundaries
-        aux_pos    = np.zeros(self.n2dn,dtype='uint32')
-        aux_i      = np.linspace(self.n2dn,self.n2dn+nn_ir-1,nn_ir,dtype='uint32')
-        aux_pos[n_pbnd_i_r] =aux_i
-        aux_i      = np.linspace(self.n2dn+nn_ir,self.n2dn+nn_ir+nn_il-1,nn_il,dtype='uint32')
-        aux_pos[n_pbnd_i_l]= aux_i 
-        del(aux_i, n_pbnd_i_l, n_pbnd_i_r, n_pbnd_i_m)
-        
+        # sort vertices by longitude per triangle: left, middle, right (by lon)
+        idx_sort = np.argsort(lon_tri, axis=1)  # (ntri, 3)
+        idx_l = idx_sort[:, 0]                  # position of left vertex in tri (0,1,2)
+        idx_m = idx_sort[:, 1]                  # middle
+        idx_r = idx_sort[:, 2]                  # right
+
+        # node indices of left/mid/right vertices
+        n_l = e_i_pbnd[rows, idx_l]
+        n_m = e_i_pbnd[rows, idx_m]
+        n_r = e_i_pbnd[rows, idx_r]
+
         #_______________________________________________________________________
-        # Augment the vertices on the right and left side 
+        # decide whether middle vertex belongs to left or right boundary
+        # is_pbnd_i_m_lr == True  => middle closer to right
+        #                         => belongs to right boundary
+        dist_m_to_r = np.abs(self.n_x[n_r] - self.n_x[n_m])
+        dist_m_to_l = np.abs(self.n_x[n_l] - self.n_x[n_m])
+        m_to_right  = dist_m_to_r < dist_m_to_l   # same criterion as original code
+
+        # build sets of boundary nodes (same as original hstack + unique)
+        n_pbnd_r = np.concatenate((n_r, n_m[ m_to_right]))
+        n_pbnd_l = np.concatenate((n_l, n_m[~m_to_right]))
+        n_pbnd_r = np.unique(n_pbnd_r)
+        n_pbnd_l = np.unique(n_pbnd_l)
+
+        # total periodic boundary nodes (augmented)
+        self.n_pbnd_a = np.concatenate((n_pbnd_r, n_pbnd_l))
+
+        #_______________________________________________________________________
+        # mapping from original node index -> augmented node index
+        nn_r = n_pbnd_r.size
+        nn_l = n_pbnd_l.size
+        
+        aux_pos = np.full(self.n2dn, -1, dtype=np.int64)
+        aux_pos[n_pbnd_r] = np.arange(self.n2dn,        self.n2dn + nn_r       , dtype=np.int64)
+        aux_pos[n_pbnd_l] = np.arange(self.n2dn + nn_r, self.n2dn + nn_r + nn_l, dtype=np.int64)
+
+        #_______________________________________________________________________
+        # new augmented node coordinates (right boundary first at xmin, left at xmax)
         if self.cyclic == 360:
-            #xmin, xmax= np.floor(xmin),np.ceil(xmax)
-            xmin, xmax= -self.cyclic/2+self.focus, self.cyclic/2+self.focus
-        else:    
-            xmin, xmax = 0, self.cyclic
-        self.n_xa  = np.concatenate((np.zeros(nn_ir)+xmin, np.zeros(nn_il)+xmax))
+            xmin = -self.cyclic / 2.0 + self.focus
+            xmax =  self.cyclic / 2.0 + self.focus
+        else:
+            xmin, xmax = 0.0, float(self.cyclic)
+
+        self.n_xa  = np.concatenate((np.full(nn_r, xmin), np.full(nn_l, xmax)))
         self.n_ya  = self.n_y[self.n_pbnd_a]
         self.n_za  = self.n_z[self.n_pbnd_a]
-        # self.n_ia = self.n_i[self.n_pbnd_a]
         self.n_iza = self.n_iz[self.n_pbnd_a]
-        
-        # if there is cavity information
-        if isinstance(self.n_c , np.ndarray): self.n_ca  = self.n_c[self.n_pbnd_a]
-        if isinstance(self.n_ic, np.ndarray): self.n_ica = self.n_ic[self.n_pbnd_a]
-        
-        # length of augmented vertice array
-        self.n2dna = self.n2dn + self.n_pbnd_a.size
-        
+
+        if isinstance(self.n_c, np.ndarray):
+            self.n_ca = self.n_c[self.n_pbnd_a]
+        if isinstance(self.n_ic, np.ndarray):
+            self.n_ica = self.n_ic[self.n_pbnd_a]
+
+        # new total node count (old + augmented)
+        self.n2dna = self.n2dn + nn_r + nn_l
+
         #_______________________________________________________________________
-        # (ii.a) 2d elements:
-        # List all triangles that touch the cyclic boundary segments
+        # augment triangles: create left and right augmented copies
+        elem_L = e_i_pbnd.copy()
+        elem_R = e_i_pbnd.copy()
+
+        # right vertex in left triangles gets augmented copy (right boundary → xmin)
+        elem_L[rows, idx_r] = aux_pos[n_r]
+        # left vertex in right triangles gets augmented copy (left boundary → xmax)
+        elem_R[rows, idx_l] = aux_pos[n_l]
+
+        # middle vertex augmentation:
+        # original code:
+        #   if is_pbnd_i_m_lr[ei] (middle closer to right):   elem_pbnd_l[...] = aux_pos[tri[idx_m]]
+        #   else:                                             elem_pbnd_r[...] = aux_pos[tri[idx_m]]
+        mid_aug = aux_pos[n_m]
+
+        # middle belongs to RIGHT boundary (m_to_right == True) → augment in LEFT element
+        elem_L[rows[m_to_right],  idx_m[m_to_right]]  = mid_aug[m_to_right]
+        # middle belongs to LEFT boundary (m_to_right == False) → augment in RIGHT element
+        elem_R[rows[~m_to_right], idx_m[~m_to_right]] = mid_aug[~m_to_right]
+
         #_______________________________________________________________________
-        elem_pbnd_l = np.copy(e_i_pbnd)
-        elem_pbnd_r = np.copy(e_i_pbnd)
-        for ei in range(0,self.e_pbnd_1.size):
-            # node indices of periodic boundary triangle
-            tri  = e_i_pbnd[ei,:]
-            
-            # which triangle points belong to left periodic bnde or right periodic
-            # boundary
-            idx_l, idx_r, idx_m = nidxine_l[ei], nidxine_r[ei], nidxine_m[ei]
-            
-            # change indices to left and right augmented boundary points
-            elem_pbnd_l[ei,idx_r]=aux_pos[tri[idx_r]]
-            elem_pbnd_r[ei,idx_l]=aux_pos[tri[idx_l]]
-            
-            # change indices of point beteen left and right vertices depending 
-            # if it will be attributet to left or the right boundary
-            if is_pbnd_i_m_lr[ei]: elem_pbnd_l[ei,idx_m]=aux_pos[tri[idx_m]]
-            else                 : elem_pbnd_r[ei,idx_m]=aux_pos[tri[idx_m]]
-                
-        del idx_l, idx_r, idx_m, tri, aux_pos
-        del nidxine_l, nidxine_m, nidxine_r, is_pbnd_i_m_lr
-        
-        #_______________________________________________________________________
-        # change existing periodic boundary triangles in elem_2d_i to augmented 
-        # left boundary triangles
-        #self.e_i[self.e_pbnd_1,:] = elem_pbnd_l
-        # add additional augmented right periodic boundary triangles
-        #self.e_ia = elem_pbnd_r
-        
-        # add augmented left, right periodic boundary triangles
-        self.e_ia     = np.vstack((elem_pbnd_r,elem_pbnd_l))
-        self.e_pbnd_a = np.hstack((self.e_pbnd_1,self.e_pbnd_1))
-        self.n2dea    = self.n2de + elem_pbnd_r.shape[0]
-        
-        #_______________________________________________________________________
-        return(self)
+        # stack augmented triangles: first right, then left (like your original)
+        self.e_ia     = np.vstack((elem_R, elem_L))
+        self.e_pbnd_a = np.hstack((self.e_pbnd_1, self.e_pbnd_1))
+        self.n2dea    = self.n2de + elem_R.shape[0]
     
+        #_______________________________________________________________________
+        return self
+
+
+
 
     #___COMPUTE/LOAD AREA OF ELEMENTS__________________________________________
     #| either load area of elements from fesom.mesh.diag.nc if its found in    |
@@ -1068,31 +1046,40 @@ ___________________________________________""".format(
             else: 
                 print(' > comp e_area')
                 #_______________________________________________________________
-                # pi     = 3.14159265358979
-                #rad    = np.pi/180.0  
                 cycl   = self.cyclic*rad
-                Rearth = 6367500.0
                 
-                e_y    = self.n_y[self.e_i].sum(axis=1)/3.0
-                e_y    = np.cos(e_y*rad)
-                        
-                n_xy   = np.vstack([self.n_x, self.n_y])*rad     
-                a      = n_xy[:,self.e_i[:,1]] - n_xy[:,self.e_i[:,0]]
-                b      = n_xy[:,self.e_i[:,2]] - n_xy[:,self.e_i[:,0]]  
-                del(n_xy)
+                # convert lon/lat to radians
+                n_x = self.n_x * rad
+                n_y = self.n_y * rad
+
+                # coordinate differences
+                dx1 = n_x[self.e_i[:,1]] - n_x[self.e_i[:,0]]
+                dy1 = n_y[self.e_i[:,1]] - n_y[self.e_i[:,0]]
+
+                dx2 = n_x[self.e_i[:,2]] - n_x[self.e_i[:,0]]
+                dy2 = n_y[self.e_i[:,2]] - n_y[self.e_i[:,0]]
+                del(n_x, n_y)
                 
-                # trim cyclic
-                a[0,a[0,:]> cycl/2.0] = a[0,a[0,:]> cycl/2.0]-cycl
-                a[0,a[0,:]<-cycl/2.0] = a[0,a[0,:]<-cycl/2.0]+cycl
-                b[0,b[0,:]> cycl/2.0] = b[0,b[0,:]> cycl/2.0]-cycl
-                b[0,b[0,:]<-cycl/2.0] = b[0,b[0,:]<-cycl/2.0]+cycl
+                # sphere angle wrap dx back into -180...180 using modulo trick
+                # dx > 360: dx = dx - 360
+                dx1 = (dx1 + cycl/2) % cycl - cycl/2
+                dx2 = (dx2 + cycl/2) % cycl - cycl/2
                 
-                a[0,:] = a[0,:]*e_y
-                b[0,:] = b[0,:]*e_y
+                # mean latitude per element (3 nodes)
+                e_y = (self.n_y[self.e_i[:,0]] +
+                       self.n_y[self.e_i[:,1]] +
+                       self.n_y[self.e_i[:,2]]) / 3.0
+                e_y = np.cos(e_y * rad)
+                
+                # scale dx by cos(lat)
+                dx1 *= e_y
+                dx2 *= e_y
                 del(e_y)
-                
-                self.e_area = 0.5 * np.abs(a[0,:]*b[1,:] - b[0,:]*a[1,:])*(Rearth**2.0)
-                del(a, b)
+
+                # area of spherical triangles (planar approx)
+                self.e_area = 0.5 * np.abs(dx1*dy2 - dx2*dy1) * (R_earth*R_earth)
+            
+            self.e_area = np.ascontiguousarray(self.e_area)
         #_______________________________________________________________________
         return(self)
     
@@ -1104,75 +1091,90 @@ ___________________________________________""".format(
     #|           "max" : resolution based on maximum element edge length       |
     #|           "min" : resolution based on minimum element edge length       |
     #|_________________________________________________________________________|
-    def compute_e_resol(self, which='mean'):
+    def compute_e_resol(self, which='height'):
         """
         --> part of fesom mesh class, compute area of elements in [m], options:
 
             Parameter:
 
                 which: str,
-                        - "mean" ... resolution based on mean element edge legth
-                        - "max"  ... resolution based on maximum element edge length
-                        - "min"  ... resolution based on minimum element edge length
+                        - "mean"  ... resolution based on mean element edge legth
+                        - "max"   ... resolution based on maximum element edge length
+                        - "min"   ... resolution based on minimum element edge length
+                        - "height"... resolution based on height of element 
 
         """
         if len(self.e_resol) == 0 :
             self.do_eresol[0]=True
             self.do_eresol[1]=which
             
-            #______________::::_________________________________________________
-            # compute mean length of triangle sides
-            e_y  = self.n_y[self.e_i]
-            e_xy = np.array([self.n_x[self.e_i], e_y])
-                
-            #__________::::_____________________________________________________
-            # calc jacobi matrix for all triangles 
-            # | dx_12 dy_12 |
-            # | dx_13 dy_13 |_i , i=1....n2dea
-            jacobian     = e_xy[:,:,1]-e_xy[:,:,0]
-            jacobian     = np.array([jacobian,
-                                        e_xy[:,:,2]-e_xy[:,:,1],
-                                        e_xy[:,:,0]-e_xy[:,:,2] ])
-                
-            # account for triangles with periodic bounaries
-            for ii in range(3):
-                idx = np.where(jacobian[ii,0,:]>180); 
-                jacobian[ii,0,idx] = jacobian[ii,0,idx]-360;
-                idx = np.where(jacobian[ii,0,:]<-180); 
-                jacobian[ii,0,idx] = jacobian[ii,0,idx]+360;
-                del idx
-                
-            # calc from geocoord to cartesian coord
-            #rad        = np.pi/180
-            #R_earth    = 12735/2*1000;
-            jacobian   = jacobian*R_earth*rad
-            cos_theta  = np.cos(e_y*rad).mean(axis=1)
-            del e_y
-            for ii in range(3):    
-                jacobian[ii,0,:] = jacobian[ii,0,:]*cos_theta;
-            del cos_theta
-                
             #___________________________________________________________________
-            # calc vector length dr = sqrt(dx^2+dy^2)
-            jacobian     = np.power(jacobian,2);
-            jacobian     = np.sqrt(jacobian.sum(axis=1));
-            jacobian     = jacobian.transpose()
+            # compute mean length of triangle sides
+            e_x = self.n_x[self.e_i]   # longitudes
+            e_y = self.n_y[self.e_i]   # latitudes
+            
+            # Mean latitude per edge (needed for dx scaling)
+            cos_lat = np.cos(e_y * rad)
+            
+            #___________________________________________________________________
+            # Longitude/Latitude differences 
+            dx = (e_x[:, [1,2,0]] - e_x[:, [0,1,2]])
+            dy = (e_y[:, [1,2,0]] - e_y[:, [0,1,2]])
+            del(e_x, e_y)
+            
+            # cyclic wrap using modulo
+            dx = (dx + 180.0) % 360.0 - 180.0  # wrapped into [-180,180]
+
+            # compute cartesian dx, dy in [m]
+            dx *= cos_lat.mean(axis=1)[:, None] * rad * R_earth
+            dy *= rad * R_earth
+            
+            #___________________________________________________________________
+            #  compute triangle edge edge lengths
+            #  sqrt( dx^2 + dy^2 )
+            edge_len = np.sqrt(dx*dx + dy*dy)
             
             #___________________________________________________________________
             # mean resolutiuon per element
             if  which=='mean': 
-                print(' > comp. e_resol from mean')
-                self.e_resol = jacobian.mean(axis=1)
+                print(' > comp. e_resol from edge mean')
+                self.e_resol = edge_len.mean(axis=1)
+                
             elif which=='max': 
-                print(' > comp. e_resol from max')
-                self.e_resol = jacobian.max(axis=1)
+                print(' > comp. e_resol from edge max')
+                self.e_resol = edge_len.max(axis=1)
+                
             elif which=='min': 
-                print(' > comp. e_resol from min')
-                self.e_resol = jacobian.min(axis=1)    
+                print(' > comp. e_resol from edge min')
+                self.e_resol = edge_len.min(axis=1)   
+                
+            elif which == 'height':
+                print(" > comp. e_resol from triangle height")
+                # semi-perimeter
+                s = edge_len.sum(axis=1) * 0.5
+
+                # Heron's formula area
+                area = np.sqrt(s * (s - edge_len[:,0]) * (s - edge_len[:,1]) * (s - edge_len[:,2]))
+
+                # height = 2*area / longest edge
+                self.e_resol = 2.0 * area / edge_len.max(axis=1)
+                
+            elif which == 'area':
+                print(" > comp. e_resol from sqrt(2*area)")
+                # semi-perimeter
+                s = edge_len.sum(axis=1) * 0.5
+
+                # Heron’s area
+                area = np.sqrt(s * (s - edge_len[:,0]) * (s - edge_len[:,1]) * (s - edge_len[:,2]))
+
+                # sqrt(2 * area)
+                self.e_resol = np.sqrt(2.0 * area)
+                
             #___________________________________________________________________    
             else:
                 raise ValueError("The option which={} in compute_e_resol is not supported.".format(str(which)))
             
+            self.e_resol = np.ascontiguousarray(self.e_resol)
         #_______________________________________________________________________
         return(self)
     
@@ -1207,20 +1209,14 @@ ___________________________________________""".format(
                     self.compute_e_area()
                     
                     #_______________________________________________________________
-                    e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
-                    e_iz_n    = np.vstack((self.e_iz  , self.e_iz  , self.e_iz  )).transpose().flatten()
+                    z = np.arange(self.nlev, dtype=np.int32)[:, None]  
+                    # mask contains bottom topography information on elements
+                    mask = (z <= self.e_iz[None, :]).astype(np.float32)
+                    self.n_area = njit_ie2n_accum_2d(self.nlev, self.n2dn, self.n2de, 
+                                                     self.e_i, self.e_area, mask)
+                    del(mask, z)
+                self.n_area = np.ascontiguousarray(self.n_area)
                     
-                    #_______________________________________________________________
-                    # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                    # over for i in range(3): ,for j in range(self.n2de):
-                    self.n_area = np.zeros((self.nlev, self.n2dn))
-                    count_e = 0
-                    for idx in self.e_i.flat:
-                        e_iz = e_iz_n[count_e]
-                        self.n_area[:e_iz, idx] = self.n_area[:e_iz, idx] + e_area_x3[count_e]
-                        count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                    self.n_area = self.n_area/3.0
-                    del e_area_x3, e_iz_n, count_e
             
             #___________________________________________________________________
             # load FESOM1.4 mesh
@@ -1248,6 +1244,7 @@ ___________________________________________""".format(
                         count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
                         self.n_area = self.n_area/3.0
                     del e_area_x3, count_e
+                self.n_area = np.ascontiguousarray(self.n_area)    
         #_______________________________________________________________________
         return(self)
 
@@ -1282,45 +1279,38 @@ ___________________________________________""".format(
                 
                 #_______________________________________________________________
                 self.compute_n_area()
-                print(' > comp n_resol from n_area')
+                print(' > comp n_resol from 2*sqrt(n_area/pi)')
                 #_______________________________________________________________
+                # You assign a single horizontal resolution length 
+                # L such that:
+                #   A=pi * (L/2)^2
+                #   
+                # Solving:
+                #   L=2*np.sqrt(A/pi)
+                #   
+                # L is the diameter of a circle with the same area as the vertex 
+                # polygon. This gives the correct effective grid spacing for scalar 
+                # and vector operators that assume an isotropic control volume.
                 self.n_resol = np.sqrt(self.n_area[0,:]/np.pi)*2.0
             
             #___________________________________________________________________
             # compute vertices resolution based on interpolation from resolution
             # of elements    
             elif any(x in which for x in ['e_resol','eresol']):
-            
+                print(' > comp n_resol from e2n interpolation of e_resol')
                 #_______________________________________________________________
                 self.compute_e_area()
                 self.compute_e_resol()
-                self.compute_n_area()
-                print(' > comp n_resol from e_resol')
-                aux = np.vstack((self.e_area,
-                                 self.e_area,
-                                 self.e_area)).transpose().flatten()
-                aux = aux * np.vstack((self.e_resol,
-                                       self.e_resol,
-                                       self.e_resol)).transpose().flatten()
-                    
-                #_______________________________________________________________
-                # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                # over for i in range(3): ,for j in range(self.n2de):
-                self.n_resol = np.zeros((self.n2dn,))
-                count = 0
-                for idx in self.e_i.flat:
-                    self.n_resol[idx]=self.n_resol[idx] + aux[count]
-                    count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                del aux, count
-                warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
-                self.n_resol=self.n_resol/self.n_area[0,:]/3.0
-                warnings.resetwarnings()
+                self.n_resol, _ = njit_ie2n_1d(self.n2dn, self.n2de, self.e_i, self.e_area, self.e_resol)
+                
             #___________________________________________________________________    
             else:
                 raise ValueError("The option which={} in compute_n_resol is not supported. either 'n_area' or 'e_resol'".format(str(which)))
             
+            self.n_resol = np.ascontiguousarray(self.n_resol)
         #_______________________________________________________________________
         return(self)
+    
     
     
     # ___COMPUTE LAND-SEA MASK CONOURLINE______________________________________
@@ -1334,113 +1324,63 @@ ___________________________________________""".format(
         periodic boundary based on boundary edges that contribute only to one triangle 
         and then checking which edges can be consequtive connected                                                   |
         """
-        print(' > compute lsmask')
+        print(" > compute lsmask")
         self.do_lsmask = True
+
         #_______________________________________________________________________
         # build land boundary edge matrix
-        t1 = clock.time()
-        edge    = np.concatenate((self.e_i[:,[0,1]], \
-                                  self.e_i[:,[0,2]], \
-                                  self.e_i[:,[1,2]]),axis=0)
-        edge    = np.sort(edge,axis=1) 
-        
-        # python  sortrows algorythm --> matlab equivalent
-        # twice as fast as list sorting
-        #sortidx = np.lexsort((edge[:,0],edge[:,1]))
-        #edge    = edge[sortidx,:].squeeze()
-        #edge    = np.array(edge)
-        
-        ## python  sortrows algorythm --> matlab equivalent
-        edge    = edge.tolist()
-        edge.sort()
-        
-        #edge    = np.array(edge, type=np.int32)
-        edge    = np.array(edge)
-        
-        idx     = np.diff(edge,axis=0)==0
-        idx     = np.all(idx,axis=1)
-        idx     = np.logical_or(np.concatenate((idx,np.array([False]))),\
-                                np.concatenate((np.array([False]),idx)))
-        
-        # all edges that belong to boundary
-        bnde    = edge[idx==False,:]
-        nbnde   = bnde.shape[0];
-        del edge, idx
-        
-        #import matplotlib.pyplot as plt
-        #plt.figure()
-        #plt.plot(self.n_x[bnde.flatten()], self.n_y[bnde.flatten()], 'r*')
-        #plt.show()
-        
+        bnde = njit_compute_boundary_edges(self.e_i)   # (nbnde, 2)
+        nbnde = bnde.shape[0]
+
         #_______________________________________________________________________
-        run_cont        = np.zeros((1,nbnde))*np.nan
-        run_cont[0,:2]  = bnde[0,:]  # initialise the first landmask edge
-        run_bnde        = bnde[1:,:] # remaining edges that still need to be distributed
-        count_init      = 1;
-        init_ind        = run_cont[0,0];
-        ind_lc_s        = 0;
-        
-        polygon_xy = []
-        for ii in range(0,nbnde):
-            #___________________________________________________________________
-            # search for next edge that contains that contains the last node index from 
-            # run_cont
-            kk_rc = np.column_stack(np.where( run_bnde==np.int32(run_cont[0,count_init]) ))
-            #kk_rc = np.argwhere( run_bnde==np.int32(run_cont[0,count_init]) ) --> slower than np.column_stack(np.where....
-            kk_r  = kk_rc[:,0]
-            kk_c  = kk_rc[:,1]
-            count_init  = count_init+1
-            
-            #___________________________________________________________________
-            if kk_c[0] == 0 :
-                run_cont[0,count_init] = run_bnde[kk_r[0],1]
-            else:
-                run_cont[0,count_init] = run_bnde[kk_r[0],0]
-                
-            #___________________________________________________________________
-            # if a land sea mask polygon is closed
-            if  np.any(run_bnde[kk_r[0],:] == init_ind):
-                #_______________________________________________________________
-                # add points to polygon_list
-                aux_xy = np.vstack((self.n_x[np.int64(run_cont[0,0:count_init+1])], 
-                                    self.n_y[np.int64(run_cont[0,0:count_init+1])])).transpose()
-                
-                
-                ### do not allow very small polygons that are only single triangles
-                ### to take part in the lsmask polygon list. These kind of polygons 
-                ### cause a lot of trouble in projection like nps, sps
-                ##if aux_xy.shape[0]>4:
-                polygon_xy.append(aux_xy)
-                del  aux_xy
-                
-                #_______________________________________________________________
-                # delete point from list
-                run_bnde   = np.delete(run_bnde,kk_r[0],0)
-                
-                #_______________________________________________________________
-                # if no points left break the while loop
-                if np.size(run_bnde)==0:
-                    break
-                
-                #_______________________________________________________________
-                # initialise new lsmask contour
-                run_cont        = np.zeros((1,nbnde))*np.nan
-                run_cont[0,:2]  = run_bnde[0,:]
-                run_bnde        = run_bnde[1:,:]
-                count_init      = 1;
-                init_ind        = run_cont[0,0]
-            else:
-                run_bnde = np.delete(run_bnde,kk_r[0],0)
-            
+        # build adjacency list, which vertice points are adjacent to each other 
+        from collections import defaultdict
+        adj = defaultdict(list)
+        for ii, jj in bnde:
+            adj[int(ii)].append(int(jj))
+            adj[int(jj)].append(int(ii))
+
         #_______________________________________________________________________
-        self.lsmask = polygon_xy
-        #t2 = clock.time()
-        #print(t2-t1)
-        return(self)
+        # 3. Find connected loops (coastlines)
+        visited = set()
+        polygons = []
+
+        # Loop over 
+        for start in adj.keys():
+            if start in visited: continue
+            
+            loop = []
+            current = start
+            prev = None
+            
+            while True:
+                loop.append(current)
+                visited.add(current)
+                
+                neighbors = adj[current]
+                
+                # we skip extremely tiny polygons later anyway
+                if len(neighbors) != 2: break
+                
+                # pick neighbor not equal to previous
+                nxt = neighbors[0] if neighbors[0] != prev else neighbors[1]
+                
+                prev, current = current, nxt
+                
+                # jump out of loop when starting point is reached again 
+                if current == start: break
+                
+            # convert to XY polygon
+            if len(loop) > 4:   # avoid tiny invalid polygons
+                xy = np.column_stack((self.n_x[loop], self.n_y[loop]))
+                polygons.append(xy)
+        
+        self.lsmask = polygons
+        return self
     
     
     
-    # ___AUGMENT PERIODIC BOUNDARIES IN LAND-SEA MASK CONOURLINE_______________
+    # ___AUGMENT PERIODIC BOUNDARIES IN LAND-SEA MASK CONTOURLINE______________
     #| spilit contourlines that span over the periodic boundary into two       |
     #| separated countourlines for the left and right side of the periodic     |
     #| boundaries                                                              |
@@ -1627,7 +1567,207 @@ ___________________________________________""".format(
         
         #_______________________________________________________________________
         return(self)
+    
+    
 
+"""
+    def augment_lsmask_unfinished(self):
+       
+        print(" > augment lsmask")
+        self.lsmask_a = []
+
+        cyclic = float(self.cyclic)
+        xmin   = np.floor(self.n_x.min())
+        xmax   = xmin + cyclic
+        xmid   = 0.5 * (xmin + xmax)
+
+        # Identify polar candidates
+        southmost_idx = np.argmin([poly[:, 1].min() for poly in self.lsmask])
+        northmost_idx = np.argmax([poly[:, 1].max() for poly in self.lsmask])
+
+        # ------------------------------------------------------------------
+        # helper functions
+        # ------------------------------------------------------------------
+        def close_poly(P):
+            #Ensure polygon is closed.
+            if not (P[0, 0] == P[-1, 0] and P[0, 1] == P[-1, 1]):
+                return np.vstack((P, P[0]))
+            return P
+
+        def split_at_seams_unwrapped(Pw):
+            # split unwrapped polygon Pw into seam-free segments.
+            x = Pw[:, 0]
+            wrap_idx = np.floor((x - xmin) / cyclic).astype(int)
+            cuts = np.where(np.diff(wrap_idx) != 0)[0] + 1
+            parts = np.split(Pw, cuts)
+            return parts
+
+        def rewrap(seg):
+            # Rewrap segment to [xmin, xmax] and close.
+            Q = seg.copy()
+            Q[:, 0] = (Q[:, 0] - xmin) % cyclic + xmin
+            return close_poly(Q)
+
+        def add_polar_cap(P, seam_idx, pole_lat):
+            # Build polar trapezoid polygon (Option A) for a ring with
+            # exactly one seam crossing.
+            # P: closed polygon (N x 2)
+            # seam_idx: index of seam edge (between i and i+1)
+            # pole_lat: -90 (Antarctic) or +90 (Arctic)
+            Pw = P[:-1].copy()  # drop duplicate last point
+            N  = Pw.shape[0]
+            s  = seam_idx
+            i0, i1 = s, (s + 1) % N
+            p0, p1 = Pw[i0], Pw[i1]
+
+            # figure left/right ends w.r.t. xmid
+            if p0[0] < xmid:
+                left_idx, right_idx = i0, i1
+            else:
+                left_idx, right_idx = i1, i0
+
+            # coast path from right_cut → ... → left_cut
+            coast_idx = np.concatenate((np.arange(right_idx, N),
+                                        np.arange(0, left_idx + 1)))
+            coast = Pw[coast_idx]
+
+            # ensure coast runs left→right in longitude (after wrapping)
+            coast_lons = (coast[:, 0] - xmin) % cyclic + xmin
+            if coast_lons[0] > coast_lons[-1]:
+                coast      = coast[::-1]
+                coast_lons = coast_lons[::-1]
+
+            # snap endpoints to boundaries
+            coast_aug = coast.copy()
+            coast_aug[0, 0]  = xmin
+            coast_aug[-1, 0] = xmax
+
+            # build trapezoid: coast + [xmax,pole_lat] + [xmin,pole_lat]
+            poly_aug = np.vstack([
+                coast_aug,
+                [xmax, pole_lat],
+                [xmin, pole_lat],
+            ])
+            poly_aug = close_poly(poly_aug)
+            return poly_aug
+
+        def split_single_seam_nonpolar(P, seam_idx):
+            # Handle non-polar polygon with exactly one seam crossing.
+            # Split into two polygons: one on the 'left' side and one on the 'right'.
+            # P: closed polygon (N x 2)
+            # seam_idx: index s where edge P[s] -> P[s+1] crosses the seam
+            Pw = P[:-1].copy()  # length N
+            N  = Pw.shape[0]
+            s  = seam_idx
+
+            i0, i1 = s, (s + 1) % N
+            p0, p1 = Pw[i0], Pw[i1]
+
+            # Decide which endpoint is "left" vs "right" using xmid
+            if p0[0] < xmid:
+                left_idx, right_idx = i0, i1
+            else:
+                left_idx, right_idx = i1, i0
+
+            # Build two open polylines:
+            #   L: from left_idx -> ... -> right_idx (around one way)
+            #   R: from right_idx -> ... -> left_idx (other way)
+            if left_idx < right_idx:
+                L = Pw[left_idx:right_idx + 1]
+                R = np.vstack((Pw[right_idx:left_idx - 1:-1],))  # reversed other side
+            else:
+                L = np.vstack((Pw[left_idx:], Pw[:right_idx + 1]))
+                R = np.vstack((Pw[right_idx:left_idx + 1],))
+
+            # Wrap both so that L is on the left side, R on the right side
+            # --- Left polygon: longitudes near xmin
+            Lw = L.copy()
+            Lw[:, 0] = (Lw[:, 0] - xmin) % cyclic + xmin
+            # snap endpoints to xmin
+            Lw[0, 0]  = xmin
+            Lw[-1, 0] = xmin
+            Lw = close_poly(Lw)
+
+            # --- Right polygon: longitudes near xmax
+            Rw = R.copy()
+            Rw[:, 0] = (Rw[:, 0] - xmin) % cyclic + xmin
+            # shift to be near xmax
+            # if mean lon is closer to xmin, add +cyclic
+            if np.abs(Rw[:, 0].mean() - xmin) < np.abs(Rw[:, 0].mean() - xmax):
+                Rw[:, 0] += cyclic
+            Rw[:, 0] = (Rw[:, 0] - xmin) % cyclic + xmin
+            # snap endpoints to xmax
+            Rw[0, 0]  = xmax
+            Rw[-1, 0] = xmax
+            Rw = close_poly(Rw)
+
+            out = []
+            if Lw.shape[0] > 3:
+                out.append(Lw)
+            if Rw.shape[0] > 3:
+                out.append(Rw)
+            return out
+
+        # ------------------------------------------------------------------
+        # main loop
+        # ------------------------------------------------------------------
+        for ii, poly in enumerate(self.lsmask):
+
+            P = close_poly(poly.copy())
+
+            # seam detection
+            dlon      = np.diff(P[:, 0])
+            seam_idx  = np.where(np.abs(dlon) > cyclic / 2.0)[0]
+            seam_count = seam_idx.size
+
+            # CASE 0: no seam crossings
+            if seam_count == 0:
+                if P.shape[0] > 3:
+                    self.lsmask_a.append(P)
+                continue
+
+            is_antarctica = (ii == southmost_idx)
+            is_arctic     = (ii == northmost_idx)
+
+            # CASE 1: polar rings with exactly 1 seam crossing
+            if seam_count == 1 and (is_antarctica or is_arctic):
+                pole_lat = -90.0 if is_antarctica else 90.0
+                poly_aug = add_polar_cap(P, seam_idx[0], pole_lat)
+                if poly_aug.shape[0] > 3:
+                    self.lsmask_a.append(poly_aug)
+                continue
+
+            # CASE 2: non-polar polygon with exactly 1 seam crossing
+            if seam_count == 1:
+                pieces = split_single_seam_nonpolar(P, seam_idx[0])
+                self.lsmask_a.extend(pieces)
+                continue
+
+            # CASE 3: non-polar polygons with >= 2 seams
+            # general unwrap/split/rewrap
+            x = P[:, 0].copy()
+            x_unwrap = x.copy()
+            for k in seam_idx:
+                if x_unwrap[k + 1] < x_unwrap[k]:
+                    x_unwrap[k + 1:] += cyclic
+                else:
+                    x_unwrap[k + 1:] -= cyclic
+
+            Pw = P.copy()
+            Pw[:, 0] = x_unwrap
+
+            for seg in split_at_seams_unwrapped(Pw):
+                if seg.shape[0] <= 3:
+                    continue
+                Q = rewrap(seg)
+                if Q.shape[0] > 3:
+                    self.lsmask_a.append(Q)
+
+        # ------------------------------------------------------------------
+        # build patch for plotting
+        self.lsmask_p = lsmask_patch(self.lsmask_a)
+        return self
+"""
 
 
 #
@@ -2544,7 +2684,90 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
 #_______________________________________________________________________________
 # inline numba protype caller routine to acumulate data from elem --> nodes
 @njit(inline='always', cache=True, fastmath=True)
-def njit_ie2n(n2dn, n2de, e_i, e_area, data_e, data_e2, out_n, out_n2, out_a, use2var):
+def njit_ie2n_accum(n2dn, n2de, e_i, e_area, data_e):
+    """
+    Accumulate area muliplied data from elements to nodes
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    """
+    
+    # this is for element blockwise treatment
+    if n2de==0: n2de = e_i.shape[0] 
+    data_n  = np.zeros(n2dn, dtype=np.float32)
+    for ii in range(n2de): 
+        v  = data_e[ii]
+        # check for land sea mask it can be either 0.0 or NaN,  v == v --> fastest NaN check
+        if (v == v) and (v != 0.0):          
+            # elem --> vertices indices
+            i0 = e_i[ii, 0]
+            i1 = e_i[ii, 1]
+            i2 = e_i[ii, 2]
+            
+            # compute elem area weighted data
+            a  = e_area[ii]
+            v  *= a 
+            
+            # data_e*e_area on vertice
+            data_n[ i0] += v 
+            data_n[ i1] += v
+            data_n[ i2] += v
+    return(data_n)       
+
+
+
+#
+#
+#_______________________________________________________________________________
+# inline numba protype caller routine to acumulate data from elem --> nodes
+@njit(inline='always', cache=True, fastmath=True)
+def njit_ie2n_accum_2d(nd, n2dn, n2de, e_i, e_area, data_e):
+    """
+    Accumulate area muliplied data from elements to nodes
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    """
+    
+    # this is for element blockwise treatment
+    if n2de==0: n2de = e_i.shape[0] 
+    data_n  = np.zeros((nd, n2dn), dtype=np.float32)
+        
+    # depth loop
+    for di in range(nd):
+        
+        for ii in range(n2de): 
+            v  = data_e[di, ii]
+            # check for land sea mask it can be either 0.0 or NaN,  v == v --> fastest NaN check
+            if (v == v) and (v != 0.0):          
+                # elem --> vertices indices
+                i0 = e_i[ii, 0]
+                i1 = e_i[ii, 1]
+                i2 = e_i[ii, 2]
+                
+                # compute elem area weighted data
+                a  = e_area[ii]
+                v  *= a 
+                
+                # data_e*e_area on vertice
+                data_n[di, i0] += v 
+                data_n[di, i1] += v
+                data_n[di, i2] += v
+    return(data_n)      
+
+
+#
+#
+#_______________________________________________________________________________
+# inline numba protype caller routine to acumulate data from elem --> nodes
+@njit(inline='always', cache=True, fastmath=True)
+def njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area, data_e, data_e2, out_n, out_n2, out_a, use2var):
     """
     Accumulate area muliplied data from elements to nodes
 
@@ -2624,9 +2847,9 @@ def njit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
     else          : data_n2 = np.zeros(n2dn, dtype=np.float32)
     
     # compute data * area  per node
-    njit_ie2n(n2dn, n2de, e_i, e_area,
-              data_e, data_e2,
-              data_n, data_n2, data_a, use2var)
+    njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area,
+                           data_e, data_e2,
+                           data_n, data_n2, data_a, use2var)
     
     # compute area weighted mean on nodes 
     for ii in range(n2dn):
@@ -2685,9 +2908,9 @@ def njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
             if use2var: di_n2[ ni] = 0.0
         
         # compute data * area  per node and depth
-        njit_ie2n(n2dn, n2de, e_i, e_area,
-                  data_e[di,:], data_e2[di,:],
-                  di_n, di_n2, di_a, use2var)
+        njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area,
+                               data_e[di,:], data_e2[di,:],
+                               di_n, di_n2, di_a, use2var)
         
         # compute area weighted mean on nodes and depth
         for ii in range(n2dn):
@@ -2747,9 +2970,9 @@ def njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
                 if use2var: di_n2[ ni] = 0.0
             
             # compute data * area  per node and depth
-            njit_ie2n(n2dn, n2de, e_i, e_area,
-                      data_e[ti, di,:], data_e2[ti, di,:],
-                      di_n, di_n2, di_a, use2var)
+            njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area,
+                                   data_e[ti, di,:], data_e2[ti, di,:],
+                                   di_n, di_n2, di_a, use2var)
             
             # compute area weighted mean on nodes and depth
             for ii in range(n2dn):
