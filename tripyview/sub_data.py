@@ -199,13 +199,16 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # Create xarray dataset object with all grid information 
     if vname in ['topography','zcoord', 
-                 'narea', 'n_area', 'clusterarea', 'scalararea', 
-                 'earea', 'e_area', 'triarea',
-                 'nresol', 'n_resol', 'resolution', 'resol', 
-                 'eresol','e_resol','triresolution','triresol',
-                 'edepth','etopo','e_depth','e_topo',
-                 'ndepth', 'ntopo', 'n_depth', 'n_topo', ]:
-        data = xr.Dataset()                        
+                 'narea' , 'n_area' , 'clusterarea', 'scalararea', 
+                 'earea' , 'e_area' , 'triarea',
+                 'nresol', 'n_resol', 'resolution', 
+                 'eresol', 'e_resol', 'triresolution','triresol',
+                 'edepth', 'e_depth', 
+                 'etopo' , 'e_topo' ,
+                 'ndepth', 'n_depth', 
+                 'ntopo' , 'n_topo' , ]:
+        data = xr.Dataset()     
+        print(vname)
         #___________________________________________________________________________
         # store topography in data
         if   any(x in vname for x in ['ndepth', 'ntopo', 'n_depth', 'n_topo', 'topography', 'zcoord']):
@@ -240,7 +243,7 @@ def load_data_fesom2(mesh,
             data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh,data,do_zweight=do_zarithm)
         
         # store vertice resolution in data               
-        elif any(x in vname for x in ['nresol', 'n_resol', 'resolution', 'resol']):
+        elif any(x in vname for x in ['nresol', 'n_resol', 'resolution']):
             if len(mesh.n_resol)==0: mesh=mesh.compute_n_resol()
             data['nresol'] = ("nod2", mesh.n_resol/1000)
             data['nresol'].attrs["description"]='Resolution'
@@ -278,6 +281,18 @@ def load_data_fesom2(mesh,
         if do_compute: data = data.compute()
         if do_load   : data = data.load()
         if do_persist: data = data.persist()
+        
+        for vname in list(data.keys()):
+            attr_dict=dict({'datapath':datapath, 'runid':runid, 'do_file':do_file, 'do_filename':do_filename, 
+                            'year':year, 'mon':mon, 'day':day, 'record':record, 'depth':depth, 
+                            'depidx':depidx, 'do_tarithm':str_atim,
+                            'do_zarithm':str_adep, 'str_ltim':'','str_ldep':'','str_lsave':'',
+                            'is_ie2n':is_ie2n, 'descript':descript})
+        
+            # in case of icepack data write thickness class as attribute
+            if ('ncat' in data.dims) and (depth is not None): attr_dict.update({'ncat':depth})
+                
+            data = do_additional_attrs(data, vname, attr_dict)
         return(data)
     
     #___________________________________________________________________________
@@ -1792,11 +1807,11 @@ def do_gradient_xy(data, mesh, datapath, do_gradx, do_grady,
         # since gradient_sca_x/y is in the rotated coordinates of the model the  
         # final gradients needs to be rotated back into geo coordinates
         if do_rot:
-            if do_info: print(' > do gradient rotation')
+            if do_info: print(' > do gradient rotation ', end='')
             e_i = w_grad['face_nodes'].load()-1
             lon = w_grad['lon'].isel(nod2=e_i).mean(dim='n3').chunk(set_chnk)
             lat = w_grad['lat'].isel(nod2=e_i).mean(dim='n3').chunk(set_chnk)
-            grad_x.data, grad_y.data = vec_r2g_dask(mesh.abg, 
+            grad_x.data, grad_y.data = dask_vec_r2g(mesh.abg, 
                                                     lon.data, lat.data, 
                                                     grad_x.data, grad_y.data, 
                                                     gridis='geo', do_info=False)
