@@ -1543,9 +1543,9 @@ def do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv):
         vname = list(data.keys())
         
         # vector data are on vertices 
-        #if ('nod2' in data[vname[0]].dims) or ('node' in data[vname[0]].dims):
-        print(' > do vector rotation')
-        data[vname[0]].data, data[vname[1]].data = vec_r2g_dask(mesh.abg      , 
+        print(' > do vector rotation ', end='')
+        t1 = clock.time()
+        data[vname[0]].data, data[vname[1]].data = dask_vec_r2g(mesh.abg      , 
                                                     data['lon'].data     , 
                                                     data['lat'].data     , 
                                                     data[vname[0]].data  ,  
@@ -1560,7 +1560,9 @@ def do_vector_rotation(data, mesh, do_vec, do_rot, do_sclrv):
             print(' > keep vector component: ', do_sclrv)
             print(' > drop vector component: ', vname_drop[-1])
             data = data.drop_vars(vname_drop)
-        gc.collect()    
+        gc.collect()  
+        
+        print(' > elapsed time: {:2.3f} sec.'.format(clock.time()-t1))
     #___________________________________________________________________________
     return(data)
 
@@ -1945,7 +1947,7 @@ def do_interp_e2n(data, mesh, do_ie2n, client=None):
     # which variables are stored in dataset
     vname_list = list(data.keys())
     if ('elem' in data[vname_list[0]].dims) and do_ie2n:
-        print(' > do interpolation e2n')
+        print(' > do interpolation e2n ', end='')
         #_______________________________________________________________________
         if len(vname_list)==2: 
             aux, aux2  = grid_interp_e2n(mesh,data[vname_list[0]].values, data_e2=data[vname_list[1]].values, client=client)
@@ -2309,69 +2311,6 @@ def coarsegrain_h_chnk(lon_bins, lat_bins, chnk_lon, chnk_lat, chnk_wA, chnk_pbn
             binned_d[2, jj, ii] = binned_d[2, jj, ii] + chnk_wA[nod_i] # area weight counter
 
     return binned_d.flatten()
-
-
-def vec_r2g_dask(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
-    """
-    Rotate vector data from rotated coordinates into geographical coordinates.
-    This version uses Dask for parallelization.
-    """
-    #___________________________________________________________________________
-    # create grid coorinates for geo and rotated frame
-    if any(x in gridis for x in ['geo', 'g', 'geographical']):
-        rlon, rlat = grid_g2r(abg, lon, lat)
-    elif any(x in gridis for x in ['rot', 'r', 'rotated']):
-        rlon, rlat = lon, lat
-        lon , lat  = grid_r2g(abg, rlon, rlat)
-    else:
-        raise ValueError(f"Unsupported gridis={gridis}, expected 'geo' or 'rot'.")
-
-    #___________________________________________________________________________
-    # compute rotation matrix
-    rmat = grid_rotmat_dask(abg)
-
-    # Use map_blocks to calculate the pseudo-inverse in parallel
-    rmat = np.linalg.pinv(rmat.compute())
-    
-    #___________________________________________________________________________
-    # degree --> radian 
-    rad        = np.pi / 180  # Degree to radian conversion
-    lon , lat  = lon  * rad, lat  * rad
-    rlon, rlat = rlon * rad, rlat * rad
-    if   vrot.ndim == 2 or urot.ndim == 2: 
-        lon , lat  =  lon[None, :],  lat[None, :]
-        rlon, rlat = rlon[None, :], rlat[None, :]
-    elif vrot.ndim == 3 or urot.ndim == 3: 
-        lon ,  lat =  lon[None, None, :] ,  lat[None, None, :]
-        rlon, rlat = rlon[None, None, :] , rlat[None, None, :]
-        
-    #___________________________________________________________________________
-    # Precompute trigonometric functions for efficiency (avoid recalculating in 
-    # loop)
-    sin_lat , cos_lat  = da.sin(lat ), da.cos(lat )
-    sin_lon , cos_lon  = da.sin(lon ), da.cos(lon )
-    sin_rlat, cos_rlat = da.sin(rlat), da.cos(rlat)
-    sin_rlon, cos_rlon = da.sin(rlon), da.cos(rlon)
-
-    #___________________________________________________________________________
-    # rotation of one dimensional vector data
-    # Handle 1D/2d/3d data (vectorized with Dask)
-    
-    # Compute vector in rotated cartesian coordinates
-    vxr = -vrot*sin_rlat*cos_rlon - urot*sin_rlon
-    vyr = -vrot*sin_rlat*sin_rlon + urot*cos_rlon
-    vzr =  vrot*cos_rlat
-
-    # Compute vector in geo cartesian coordinates
-    vxg = rmat[0, 0]*vxr + rmat[0, 1]*vyr + rmat[0, 2]*vzr
-    vyg = rmat[1, 0]*vxr + rmat[1, 1]*vyr + rmat[1, 2]*vzr
-    vzg = rmat[2, 0]*vxr + rmat[2, 1]*vyr + rmat[2, 2]*vzr
-
-    # Compute vector in geo coordinates
-    vgeo = vxg*-sin_lat*cos_lon - vyg*sin_lat*sin_lon + vzg*cos_lat
-    ugeo = vxg*-sin_lon         + vyg*cos_lon
-
-    return ugeo.astype(np.float32), vgeo.astype(np.float32)
 
 
 

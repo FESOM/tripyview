@@ -1850,6 +1850,7 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
     return
 
 
+
 #
 #
 # ___COMPUTE EULER ROTATION MATRIX_____________________________________________
@@ -1866,14 +1867,20 @@ def grid_rotmat(abg):
         :rmat:  array, [3 x 3] rotation matrix to transform from geo to rot
 
     """
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
+    #___________________________________________________________________________
+    return njit_grid_rotmat(al, be, ga)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_rotmat(alpha_deg, beta_deg, gamma_deg):
     #___________________________________________________________________________
     #rad = np.pi/180
-    al  = abg[0] * rad 
-    be  = abg[1] * rad
-    ga  = abg[2] * rad
+    al  = alpha_deg * rad 
+    be  = beta_deg  * rad
+    ga  = gamma_deg * rad
         
     #___________________________________________________________________________
-    rmat      = np.zeros((3,3))
+    rmat      = np.zeros((3,3), dtype=np.float64)
     rmat[0,0] =( np.cos(ga)*np.cos(al) - np.sin(ga)*np.cos(be)*np.sin(al) )
     rmat[0,1] =( np.cos(ga)*np.sin(al) + np.sin(ga)*np.cos(be)*np.cos(al) )
     rmat[0,2] =( np.sin(ga)*np.sin(be) )
@@ -1885,46 +1892,6 @@ def grid_rotmat(abg):
     rmat[2,0] =( np.sin(be)*np.sin(al) )
     rmat[2,1] =(-np.sin(be)*np.cos(al) )        
     rmat[2,2] =( np.cos(be) )
-        
-    #___________________________________________________________________________
-    return(rmat)
-
-#
-#
-# ___COMPUTE EULER ROTATION MATRIX_____________________________________________
-def grid_rotmat_dask(abg):
-    """
-    --> compute euler rotation matrix based on alpha, beta and gamma angle
-
-    Parameters: 
-    
-        :abg:   list, with euler angles [alpha, beta, gamma]
-
-    Returns: 
-
-        :rmat:  array, [3 x 3] rotation matrix to transform from geo to rot
-
-    """
-    #___________________________________________________________________________
-    
-    al  = abg[0] * rad 
-    be  = abg[1] * rad
-    ga  = abg[2] * rad
-        
-    #___________________________________________________________________________
-    rmat      = da.zeros((3,3))
-    rmat[0,0] =( da.cos(ga)*da.cos(al) - da.sin(ga)*da.cos(be)*da.sin(al) )
-    rmat[0,1] =( da.cos(ga)*da.sin(al) + da.sin(ga)*da.cos(be)*da.cos(al) )
-    rmat[0,2] =( da.sin(ga)*da.sin(be) )
-        
-    rmat[1,0] =(-da.sin(ga)*da.cos(al) - da.cos(ga)*da.cos(be)*da.sin(al) )
-    rmat[1,1] =(-da.sin(ga)*da.sin(al) + da.cos(ga)*da.cos(be)*da.cos(al) )
-    rmat[1,2] =( da.cos(ga)*da.sin(be) )
-        
-    rmat[2,0] =( da.sin(be)*da.sin(al) )
-    rmat[2,1] =(-da.sin(be)*da.cos(al) )        
-    rmat[2,2] =( da.cos(be) )
-        
     #___________________________________________________________________________
     return(rmat)
 
@@ -1933,40 +1900,40 @@ def grid_rotmat_dask(abg):
 #
 #
 # ___COMPUTE3D CARTESIAN COORDINAT_____________________________________________
-def grid_cart3d(lon,lat,R=1.0, is_deg=False):
+def grid_cart3d(lon, lat, R=1.0, is_deg=False):
     """
     --> compute 3d cartesian coordinates from spherical geo coordinates (lon, lat, R=1.0)                                                           |
         
     Parameters: 
     
         :lon:       array, longitude coordinates in radians
-        
         :lat:       array, latitude coordinates in radians
-        
         :R:         float, (default=1.0), Radius of sphere
-        
         :is_deg:    bool, (default=False) is lon,lat in degree (True) otherwise 
                     otherwise (False) assumed its in radians
     
     Returns:
 
         :x:         array, x y z cartesian coordinates 
-        
         :y:         ...
-        
         :z:         ...
 
     """
-    if is_deg: 
-        #rad = np.pi/180
-        lat = lat * rad
+    lon = np.asarray(lon)
+    lat = np.asarray(lat)
+    if is_deg:
         lon = lon * rad
-    
-    x = R*da.cos(lat) * da.cos(lon)
-    y = R*da.cos(lat) * da.sin(lon)
-    z = R*da.sin(lat)
+        lat = lat * rad
     #___________________________________________________________________________
-    return(x,y,z)
+    return njit_grid_cart3d(lon, lat, R)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_cart3d(lon_rad, lat_rad, R=1.0):
+    x = R * np.cos(lat_rad) * np.cos(lon_rad)
+    y = R * np.cos(lat_rad) * np.sin(lon_rad)
+    z = R * np.sin(lat_rad)
+    #___________________________________________________________________________
+    return(x, y, z)
 
 
 
@@ -1980,30 +1947,35 @@ def grid_r2g(abg, rlon, rlat):
     
     Parameters:
     
-        :abg:    list, with euler angles [alpha, beta, gamma]    
-
+        :abg:    list, with euler angles [alpha, beta, gamma]   
         :rlon:   array, longitude coordinates of sperical rotated frame in degree
-
         :rlat:   array,  latitude coordinates of sperical rotated frame in degree
 
     Returns: 
 
         :lon:    array, longitude coordinates in normal geo frame in degree
-
         :lat:    array, latitude coordinates in normal geo frame in degree
 
     """
+    rlon = np.asarray(rlon, dtype=np.float64)
+    rlat = np.asarray(rlat, dtype=np.float64)
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
     #___________________________________________________________________________
-    # build rotation matrix
-    rmat = grid_rotmat(abg)
-    rmat = np.linalg.pinv(rmat)
+    return njit_grid_r2g(al, be, ga, rlon, rlat)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_r2g(alpha_deg, beta_deg, gamma_deg, rlon_deg, rlat_deg):
+
+    #___________________________________________________________________________
+    # build inverse rotation matrix
+    rmat0= njit_grid_rotmat(alpha_deg, beta_deg, gamma_deg)
+    rmat = rmat0.T # --> inverse
 
     #___________________________________________________________________________
     # compute 3d cartesian coordinates
-    #rad      = np.pi/180
-    rlat     = rlat * rad
-    rlon     = rlon * rad
-    xr,yr,zr = grid_cart3d(rlon,rlat)
+    rlat_rad   = rlat_deg * rad
+    rlon_rad   = rlon_deg * rad
+    xr, yr, zr = njit_grid_cart3d(rlon_rad, rlat_rad, 1.0)
     
     #___________________________________________________________________________
     # rotate to geographical cartesian coordinates:
@@ -2013,16 +1985,19 @@ def grid_r2g(abg, rlon, rlat):
     
     #___________________________________________________________________________
     # compute to geographical coordinates:
-    lon, lat = np.arctan2(yg,xg), np.arcsin(zg)        
-    lon, lat = lon/rad, lat/rad
+    lon_rad = np.arctan2(yg, xg)
+    lat_rad = np.arcsin(zg)   
+    lon_deg = lon_rad/rad 
+    lat_deg = lat_rad/rad
     
     #___________________________________________________________________________
-    return(lon,lat)
+    return(lon_deg, lat_deg)
+
 
 
 #
 #
-# ___ROTATE GRID FROM: GEO-->ROT_______________________________________________
+# ___ROTATE GRID FROM: GEO-->ROT________________________________________________
 def grid_g2r(abg, lon, lat):
     """
     --> compute grid rotation from normal geo frame towards sperical rotated
@@ -2043,16 +2018,23 @@ def grid_g2r(abg, lon, lat):
         :rlat:   array, latitude coordinates in sperical rotated frame in degree
     
     """
+    lon = np.asarray(lon, dtype=np.float64)
+    lat = np.asarray(lat, dtype=np.float64)
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
+    #___________________________________________________________________________
+    return njit_grid_g2r(al, be, ga, lon, lat)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_g2r(alpha_deg, beta_deg, gamma_deg, lon_deg, lat_deg):
     #___________________________________________________________________________
     # build rotation matrix
-    rmat = grid_rotmat(abg)
+    rmat = njit_grid_rotmat(alpha_deg, beta_deg, gamma_deg)
     
     #___________________________________________________________________________
     # compute 3d cartesian coordinates
-    #rad      = np.pi/180
-    lat      = lat * rad
-    lon      = lon * rad
-    xg,yg,zg = grid_cart3d(lon,lat)
+    lat_rad    = lat_deg * rad
+    lon_rad    = lon_deg * rad
+    xg, yg, zg = njit_grid_cart3d(lon_rad, lat_rad, 1.0)
 
     #___________________________________________________________________________
     # rotate to geographical cartesian coordinates:
@@ -2062,13 +2044,13 @@ def grid_g2r(abg, lon, lat):
 
     #___________________________________________________________________________
     # compute to geographical coordinates:
-    rlon = np.arctan2(yr,xr)     
-    rlat = np.arcsin(zr)        
-    rlon = rlon/rad
-    rlat = rlat/rad
+    rlon_rad = np.arctan2(yr,xr)     
+    rlat_rad = np.arcsin(zr)        
+    rlon_deg = rlon_rad/rad
+    rlat_deg = rlat_rad/rad
     
     #___________________________________________________________________________
-    return(rlon,rlat)
+    return(rlon_deg,rlat_deg)
 
 
 
@@ -2095,33 +2077,18 @@ def grid_focus(focus, rlon, rlat):
         :lat:   array, latitude in lon=[-180+focus...180+focus] frame in degree
 
     """
-    #___________________________________________________________________________
-    # build rotation matrix
-    abg = [-focus, 0, 0]
-    rmat = grid_rotmat(abg)
-    rmat = np.linalg.pinv(rmat)
-
-    #___________________________________________________________________________
-    # compute 3d cartesian coordinates
-    #rad      = np.pi/180
-    rlat     = rlat * rad
-    rlon     = rlon * rad
-    xr,yr,zr = grid_cart3d(rlon,rlat)
-
-    #___________________________________________________________________________
-    # rotate to geographical cartesian coordinates:
-    xg=rmat[0,0]*xr + rmat[0,1]*yr + rmat[0,2]*zr;
-    yg=rmat[1,0]*xr + rmat[1,1]*yr + rmat[1,2]*zr;
-    zg=rmat[2,0]*xr + rmat[2,1]*yr + rmat[2,2]*zr;
-
-    #___________________________________________________________________________
-    # compute to geographical coordinates:
-    lon, lat = np.arctan2(yg,xg), np.arcsin(zg)        
-    lon, lat = lon/rad, lat/rad
-    lon      = lon + focus
+    rlon = np.asarray(rlon, dtype=np.float64)
+    rlat = np.asarray(rlat, dtype=np.float64)
+    al = -float(focus)
+    be = 0.0
+    ga = 0.0
     
     #___________________________________________________________________________
-    return(lon,lat)
+    lon_deg, lat_deg = njit_grid_r2g(al, be, ga, rlon, rlat)
+    lon_deg = lon_deg + focus
+    
+    #___________________________________________________________________________
+    return lon_deg, lat_deg
     
     
 
@@ -2160,6 +2127,11 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     """
     #___________________________________________________________________________
     # create grid coorinates for geo and rotated frame
+    lon = np.asarray(lon, dtype=np.float64)
+    lat = np.asarray(lat, dtype=np.float64)
+    urot = np.asarray(urot, dtype=np.float64)
+    vrot = np.asarray(vrot, dtype=np.float64)
+    
     if any(x in gridis for x in ['geo','g','geographical']): 
         rlon, rlat = grid_g2r(abg, lon, lat)        
     elif any(x in gridis for x in ['rot','r','rotated']):     
@@ -2170,80 +2142,240 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     
     #___________________________________________________________________________
     # compute rotation matrix
-    rmat = grid_rotmat(abg)
-    rmat = np.linalg.pinv(rmat)
-    #rad  = np.pi/180 
-
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
+    rmat0 = njit_grid_rotmat(al, be, ga)
+    rmat  = rmat0.T
+    
     #___________________________________________________________________________
     # degree --> radian  
-    lon , lat  = lon*rad , lat*rad
-    rlon, rlat = rlon*rad, rlat*rad
+    lon_rad  = lon  * rad
+    lat_rad  = lat  * rad
+    rlon_rad = rlon * rad
+    rlat_rad = rlat * rad
     
     #___________________________________________________________________________
     # rotation of one dimensional vector data
-    if vrot.ndim==1 or urot.ndim==1: 
+    if   vrot.ndim==1 and urot.ndim==1: 
         if do_info: print('     > 1D rotation')
-        #_______________________________________________________________________
-        # compute vector in rotated cartesian coordinates
-        vxr = -vrot*np.sin(rlat)*np.cos(rlon) - urot*np.sin(rlon)
-        vyr = -vrot*np.sin(rlat)*np.sin(rlon) + urot*np.cos(rlon)
-        vzr =  vrot*np.cos(rlat)
-        
-        #_______________________________________________________________________
-        # compute vector in geo cartesian coordinates
-        vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
-        vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
-        vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
-        
-        #_______________________________________________________________________
-        # compute vector in geo coordinates 
-        vgeo= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
-        ugeo= vxg*-np.sin(lon) + vyg*np.cos(lon)
-        
-    #___________________________________________________________________________
-    # rotation of two dimensional vector data    
-    elif vrot.ndim==2 or urot.ndim==2: 
+    elif vrot.ndim==2 and urot.ndim==2: 
         if do_info: print('     > 2D rotation')
-        nd2,nd1=urot.shape
-        ugeo, vgeo = urot.copy(), vrot.copy()
-        if do_info: print('nlev:{:d}'.format(nd2))
-        for nd2i in range(0,nd2):
-            #___________________________________________________________________
-            if do_info: 
-                print('{:02d}|'.format(nd2i), end='')
-                if np.mod(nd2i+1,10)==0: print('')
-            
-            #___________________________________________________________________
-            t1=clock.time()
-            aux_urot, aux_vrot = urot[nd2i,:], vrot[nd2i, :]
-            
-            #___________________________________________________________________
-            # compute vector in rotated cartesian coordinates
-            t1=clock.time()
-            vxr = -aux_vrot*np.sin(rlat)*np.cos(rlon) - aux_urot*np.sin(rlon)
-            vyr = -aux_vrot*np.sin(rlat)*np.sin(rlon) + aux_urot*np.cos(rlon)
-            vzr =  aux_vrot*np.cos(rlat)
-            
-            #___________________________________________________________________
-            # compute vector in geo cartesian coordinates
-            t1=clock.time()
-            vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
-            vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
-            vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
-            
-            #___________________________________________________________________
-            # compute vector in geo coordinates 
-            t1=clock.time()
-            vgeo[nd2i,:]= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
-            ugeo[nd2i,:]= vxg*-np.sin(lon) + vyg*np.cos(lon)
-            
-    #___________________________________________________________________________    
-    else: raise ValueError('This number of dimensions is in moment not supported for vector rotation')    
+    elif vrot.ndim==3 and urot.ndim==3: 
+        if do_info: print('     > 3D rotation')
+    else: raise ValueError('This number of dimensions is in not supported for vector rotation \n' +
+                           ' or the number of dimensions between u and v does not match' )    
+    ugeo, vgeo = njit_vec_r2g_123d(rmat, lon_rad, lat_rad, rlon_rad, rlat_rad, urot, vrot)
+    
     #___________________________________________________________________________
     return(ugeo, vgeo)
 
 
+def dask_vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
+    """
+    Rotate vector data from rotated coordinates into geographical coordinates.
+    This version uses Dask for parallelization.
+    """
+    # --- FAST PATH: if vector data is 1D, do NOT use Dask ---
+    if urot.ndim == 1:
+        #if do_info:
+        print("vec_r2g_dask: using fast direct numba kernel for 1D vector rotation")
 
+        # Convert all to numpy arrays
+        lon  = np.asarray(lon)
+        lat  = np.asarray(lat)
+        urot = np.asarray(urot)
+        vrot = np.asarray(vrot)
+        
+        # Compute rotated coordinate frame
+        if any(x in gridis for x in ['geo', 'g', 'geographical']):
+            rlon, rlat = grid_g2r(abg, lon, lat)
+        else:
+            rlon, rlat = lon, lat
+            lon, lat = grid_r2g(abg, rlon, rlat)
+
+        rad = np.pi / 180
+        lon_rad  = lon  * rad
+        lat_rad  = lat  * rad
+        rlon_rad = rlon * rad
+        rlat_rad = rlat * rad
+
+        rmat = grid_rotmat(abg).T  # inv rotation
+        
+        #t1 = clock.time()
+        
+        # DIRECT numba call → super fast
+        ugeo, vgeo = njit_vec_r2g_123d(rmat, lon_rad, lat_rad, rlon_rad, rlat_rad,
+                                       urot, vrot)
+            
+        #print(' elapsed time 1d fast', clock.time()-t1)
+        return ugeo, vgeo
+    
+    #___________________________________________________________________________
+    lon = np.asarray(lon)
+    lat = np.asarray(lat)
+    if lon.ndim != 1 or lat.ndim != 1:
+        raise ValueError("vec_r2g_dask: lon and lat must be 1D arrays (node coords).")
+    if lon.shape != lat.shape:
+        raise ValueError("vec_r2g_dask: lon and lat must have the same shape.")
+    npts = lon.size
+    
+    #___________________________________________________________________________
+    # create grid coorinates for geo and rotated frame
+    if any(x in gridis for x in ['geo', 'g', 'geographical']):
+        rlon, rlat = grid_g2r(abg, lon, lat)
+    elif any(x in gridis for x in ['rot', 'r', 'rotated']):
+        rlon, rlat = lon, lat
+        lon , lat  = grid_r2g(abg, rlon, rlat)
+    else:
+        raise ValueError(f"Unsupported gridis={gridis}, expected 'geo' or 'rot'.")
+
+    #___________________________________________________________________________
+    # compute rotation matrix
+    rmat0 = grid_rotmat(abg)
+    rmat  = rmat0.T
+    
+    #___________________________________________________________________________
+    # degree --> radian 
+    rad        = np.pi / 180  # Degree to radian conversion
+    lon_rad  = lon  * rad
+    lat_rad  = lat  * rad
+    rlon_rad = rlon * rad
+    rlat_rad = rlat * rad
+    
+    #___________________________________________________________________________
+    # 5. Ensure urot, vrot are dask arrays and chunked only in non-node dims
+    u_da = da.asarray(urot)
+    v_da = da.asarray(vrot)
+
+    if u_da.shape != v_da.shape:
+        raise ValueError("vec_r2g_dask: urot and vrot must have the same shape.")
+
+    if u_da.shape[-1] != npts:
+        raise ValueError("vec_r2g_dask: last dimension of urot/vrot ({}) "
+                         "must match len(lon)=={} as node dimension."
+                        .format(u_da.shape[-1], npts))
+
+    ## Rechunk so that the last axis (nodes) is a single chunk of length npts
+    ## and we only split along time/depth axes
+    #chunks = list(u_da.chunks)
+    ## Replace last-dim chunks with a single chunk spanning all nodes
+    #chunks[-1] = (npts,)
+    #u_da = u_da.rechunk(chunks)
+    #v_da = v_da.rechunk(chunks)
+
+    if do_info:
+        print("vec_r2g_dask:")
+        print("  u/v shape :", u_da.shape)
+        print("  chunks    :", u_da.chunks)
+        print("  npts      :", npts)
+
+    
+    
+    #___________________________________________________________________________
+    # Block function: calls the numba kernel on each Dask block
+    # NOTE: lon/lat/rmat are closed over as NumPy objects
+    def _block(u_block, v_block):
+        ugeo_block, vgeo_block = njit_vec_r2g_123d(
+            rmat, lon_rad, lat_rad, rlon_rad, rlat_rad,
+            u_block, v_block
+        )
+        return np.stack((ugeo_block, vgeo_block), axis=0)  # (2, ...)
+
+    #___________________________________________________________________________
+    # Use map_blocks: output has an extra leading axis (2, ...)
+    #t1 = clock.time()
+    stacked = da.map_blocks(_block, u_da, v_da, dtype=u_da.dtype,
+                            chunks=( (2,), ) + u_da.chunks,
+                            new_axis=0,
+                            )
+
+    #___________________________________________________________________________
+    ugeo_da = stacked[0]
+    vgeo_da = stacked[1]
+    #print(' elapsed time 123d', clock.time()-t1)
+    #___________________________________________________________________________
+    return ugeo_da, vgeo_da
+
+
+@njit(cache=True, fastmath=True)
+def njit_vec_r2g_0d(rmat, 
+                    sin_lat , cos_lat , sin_lon , cos_lon ,
+                    sin_rlat, cos_rlat, sin_rlon, cos_rlon, 
+                    urot, vrot):
+    
+    # rotated cartesian components
+    vxr = -vrot*sin_rlat*cos_rlon - urot*sin_rlon
+    vyr = -vrot*sin_rlat*sin_rlon + urot*cos_rlon
+    vzr =  vrot*cos_rlat
+
+    # geo cartesian
+    vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
+    vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
+    vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
+
+    # back to lon/lat components
+    vgeo = (- vxg*sin_lat*cos_lon 
+            - vyg*sin_lat*sin_lon 
+            + vzg*cos_lat)
+    ugeo = (- vxg*sin_lon
+            + vyg*cos_lon)
+    
+    #___________________________________________________________________________
+    return ugeo, vgeo
+
+@njit(cache=True, fastmath=True)
+def njit_vec_r2g_123d(rmat, lon_rad, lat_rad,
+                      rlon_rad, rlat_rad,
+                      urot, vrot):
+
+    ndim = urot.ndim
+
+    # __________________________________________________________________________
+    # precompute trig values (1D arrays)
+    sin_lat  = np.sin(lat_rad);  cos_lat  = np.cos(lat_rad)
+    sin_lon  = np.sin(lon_rad);  cos_lon  = np.cos(lon_rad)
+    sin_rlat = np.sin(rlat_rad); cos_rlat = np.cos(rlat_rad)
+    sin_rlon = np.sin(rlon_rad); cos_rlon = np.cos(rlon_rad)
+
+    #___________________________________________________________________________
+    # 1 Dimensional urot, vrot = [npts] 
+    if ndim == 1:
+        ugeo, vgeo = njit_vec_r2g_0d(rmat,
+                                     sin_lat , cos_lat , sin_lon , cos_lon ,
+                                     sin_rlat, cos_rlat, sin_rlon, cos_rlon,
+                                     urot, vrot)
+        return ugeo, vgeo
+    #___________________________________________________________________________
+    # 2 Dimensional urot, vrot = [nlev, npts] 
+    elif ndim == 2:
+        nd, npts = urot.shape
+        ugeo = np.empty_like(urot)
+        vgeo = np.empty_like(vrot)
+        for di in range(nd):
+            ugeo[di,:], vgeo[di,:] = njit_vec_r2g_0d(
+                                                    rmat,
+                                                    sin_lat , cos_lat , sin_lon , cos_lon ,
+                                                    sin_rlat, cos_rlat, sin_rlon, cos_rlon,
+                                                    urot[di,:], vrot[di,:])
+        return ugeo, vgeo
+    #___________________________________________________________________________
+    # 3 Dimensional urot, vrot = [ntime, nlev, npts] 
+    elif ndim == 3:
+        nt, nd, npts = urot.shape
+        ugeo = np.empty_like(urot)
+        vgeo = np.empty_like(vrot)
+        for ti in range(nt):
+            for di in range(nd):
+                ugeo[ti, di, :], vgeo[ti, di, :] = njit_vec_r2g_0d(
+                                                    rmat,
+                                                    sin_lat , cos_lat , sin_lon , cos_lon ,
+                                                    sin_rlat, cos_rlat, sin_rlon, cos_rlon,
+                                                    urot[ti, di, :], vrot[ti, di, :])
+        return ugeo, vgeo
+    #___________________________________________________________________________
+    else: raise ValueError("invalid ndim")
+   
+        
+        
 #
 #
 # ___CUTOUT REGION BASED ON BOX________________________________________________
