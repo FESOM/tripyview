@@ -41,15 +41,15 @@ def load_mesh_fesom2(
                     do_augmpbnd = True                  , 
                     do_cavity   = False                 , 
                     do_lsmask   = True                  , 
-                    do_lsmshp   = True                  , 
+                    do_lsmshp   = False                 , 
                     do_earea    = True                  , 
                     do_narea    = True                  , 
                     do_eresol   = [False,'mean']        , 
                     do_nresol   = [False,'e_resol']     ,
                     do_loadraw  = False                 , 
-                    do_pickle   = True                  , 
-                    do_joblib   = False                 , 
-                    do_load     = True                  ,
+                    do_pickle   = False                 , 
+                    do_joblib   = True                  , 
+                    do_redosave = True                  ,
                     do_f14cmip6 = False                 ,
                     do_info     = True                  , 
                     ):
@@ -144,7 +144,7 @@ def load_mesh_fesom2(
     #___________________________________________________________________________
     # check if pickle file can be found somewhere either in mesh folder or in 
     # cache folder 
-    picklefname = 'tripyview_fesom2_{}_focus{}.pckl'.format(meshid,focus)
+    picklefname = 'tripyview_mesh_{:s}_focus{:d}.pckl'.format(meshid,focus)
     if do_pickle:
         # check if mypy pickle meshfile is found in meshfolder
         if    ( os.path.isfile(os.path.join(meshpath, picklefname)) ):
@@ -160,7 +160,7 @@ def load_mesh_fesom2(
             loadpicklepath = 'None'
             print(' > found no .pckl file in cach or mesh path')
     
-    joblibfname = 'tripyview_fesom2_{}_focus{}.jlib'.format(meshid,focus)
+    joblibfname = 'tripyview_mesh_{:s}_focus{:d}.jlib'.format(meshid,focus)
     if do_joblib:
         # check if mypy pickle meshfile is found in meshfolder
         if    ( os.path.isfile(os.path.join(meshpath, joblibfname)) ):
@@ -180,8 +180,9 @@ def load_mesh_fesom2(
     # load pickle file if it exists and load it from .pckl file, if it does not 
     # exist create mesh object with fesom_mesh
     # do_pickle==True and .pckl file exists
-    if  ( do_pickle and ( os.path.isfile(loadpicklepath) )) or \
-        ( do_joblib and ( os.path.isfile(loadjoblibpath) )): 
+    if  (( do_pickle and ( os.path.isfile(loadpicklepath) )) or \
+        ( do_joblib and ( os.path.isfile(loadjoblibpath) ))) and \
+          (do_redosave==False): 
             
         
         #_______________________________________________________________________
@@ -293,7 +294,8 @@ def load_mesh_fesom2(
     
     # (do_pickle==True and .pckl file does not exists) or (do_pickle=False)
     elif ((do_pickle and not ( os.path.isfile(loadpicklepath)) ) or not do_pickle) or \
-         ((do_joblib and not ( os.path.isfile(loadjoblibpath)) ) or not do_joblib):
+         ((do_joblib and not ( os.path.isfile(loadjoblibpath)) ) or not do_joblib) or \
+           do_redosave:
              
         if do_info: print(' > load mesh from *.out files: {}'.format(meshpath))
         #_______________________________________________________________________
@@ -660,7 +662,7 @@ class mesh_fesom2(object):
             #___________________________________________________________________
             # save land-sea mask with periodic boundnaries to shapefile
             if do_lsmshp:
-                shpfname = 'tripyview_fesom2'+'_'+self.id+'_'+'pbnd'
+                shpfname = 'tripyview_lsmask_{:s}_pbnd.shp'.format(self.id)
                 lsmask_2shapefile(self, lsmask=self.lsmask, fname=shpfname)
             
             #___________________________________________________________________
@@ -1839,12 +1841,12 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
     #___________________________________________________________________________
     # write lsmask to shapefile 
     if not fname:
-        shpfname = 'tripyview_fesom2'+'_'+mesh.id+'_'+'{}={}'.format('focus',mesh.focus)+'.shp'
-    else:
-        shpfname = fname+'.shp'
+        shpfname = 'tripyview_lsmask_{:s}_focus{:d}.shp'.format(mesh.id, mesh.focus)
+    else: 
+        shpfname = fname
     shppath = os.path.join(shppath,shpfname)
     if do_info: print(' > save *.shp to {}'.format(shppath))
-    newdata.to_file(shppath)
+    newdata.to_file(str(shppath))
     
     #___________________________________________________________________________
     return

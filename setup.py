@@ -41,7 +41,7 @@ requirements = [
     'libnetcdf',
     'h5netcdf',
     'hdf5plugin', 
-    "pickle5; python_version<'3.9'",
+    'pickle5', #"pickle5; python_version<'3.9'",
     'joblib',
     #___________________________________________________________________________
     # ocean properties
