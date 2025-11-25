@@ -18,7 +18,7 @@ from   netCDF4 import Dataset
 from .sub_mesh import *
 
 from numba import jit, njit, float32, int32, prange, types
-from numba.typed import Dict
+from numba.typed import Dict, List
 import numba
 
 from shapely.geometry import Polygon
@@ -505,7 +505,7 @@ class mesh_fesom2(object):
                  do_eresol=[False,'mean'], do_narea=False, do_nresol=[False,'n_area'], 
                  do_lsmask=True, do_lsmshp=True, do_pickle=True, do_loadraw=True,
                  do_f14cmip6=False):
-        
+        if do_info: t0 = clock.time()
         #_______________________________________________________________________
         # define meshpath and mesh id 
         self.path               = os.path.normpath(meshpath)
@@ -632,6 +632,7 @@ class mesh_fesom2(object):
             self.n_xo, self.n_yo = self.n_x.copy(), self.n_y.copy()
             self.n_x, self.n_y = grid_focus(self.focus, self.n_xo, self.n_yo)
         
+        if do_info: t1 = clock.time()
         # find periodic boundary
         self.pbnd_find()
         
@@ -639,6 +640,7 @@ class mesh_fesom2(object):
         if do_augmpbnd and any(self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1) > self.cyclic/2):
             self.pbnd_augment()
         
+        if do_info: t2 = clock.time()
         # compute/load element area
         if do_earea:
             self.compute_e_area()
@@ -656,6 +658,7 @@ class mesh_fesom2(object):
             self.compute_n_resol(which=do_nresol[1])
         
         # compute lsmask
+        if do_info: t3 = t4 = clock.time()
         if do_lsmask:
             
             self.compute_lsmask()
@@ -669,6 +672,7 @@ class mesh_fesom2(object):
             #___________________________________________________________________
             # augment periodic boundaries of land sea mask
             if do_augmpbnd:
+                if do_info: t4 = clock.time()
                 self.augment_lsmask()
                 
                 #_______________________________________________________________
@@ -678,8 +682,14 @@ class mesh_fesom2(object):
             
         if do_info:
             print(self.info())
-
-
+            t5=clock.time()
+            print(' --> total elapsed time for loading mesh: {:2.3f} sec'.format(t5-t0))
+            print('  |--> read + rot mesh: {:2.3f} sec'.format(t1-t0))
+            print('  |--> pbnd augment   : {:2.3f} sec'.format(t2-t1))
+            print('  |--> area compute   : {:2.3f} sec'.format(t3-t2))
+            print('  |--> lsmask compute : {:2.3f} sec'.format(t4-t3))
+            print('  +--> lsmask augment : {:2.3f} sec'.format(t5-t4))
+    
     
     # ___READ FESOM2 MESH FROM: nod2d.out, elem2d.out,...______________________
     #| read files: nod2d.out, elem2d.out, aux3d.out, nlvls.out, elvls.out      |                                                         
@@ -690,114 +700,115 @@ class mesh_fesom2(object):
         aux3d.out, nlvls.out and elvls.out   
         
         """
+
         #____load 2d node matrix________________________________________________
-        #file_content = pa.read_csv(self.fname_nod2d, delim_whitespace=True, skiprows=1, \
-        file_content = pa.read_csv(self.fname_nod2d, sep='\\s+', skiprows=1, \
-                                      names=['node_number','x','y','flag'] )
-        self.n_x     = np.ascontiguousarray(file_content.x.values.astype('float32'))
-        self.n_y     = np.ascontiguousarray(file_content.y.values.astype('float32'))
-        self.n_i     = np.ascontiguousarray(file_content.flag.values.astype('int16'))   
-        self.n2dn    = len(self.n_x)
+        with open(self.fname_nod2d, "r") as f:
+            self.n2dn = int(f.readline().strip())
+            nod2 = np.loadtxt(f, dtype=np.float32, usecols=(1, 2, 3), ndmin=2)
+        
+        if nod2.shape[0] != self.n2dn:
+            raise ValueError(f"nod2d: header={self.n2dn}, rows={nod2.shape[0]}")
+        
+        # x, y, flag
+        self.n_x = np.ascontiguousarray(nod2[:, 0])
+        self.n_y = np.ascontiguousarray(nod2[:, 1])
+        self.n_i = np.ascontiguousarray(nod2[:, 2].astype(np.int16))
+        del nod2
         
         #____load 2d element matrix_____________________________________________
-        #file_content = pa.read_csv(self.fname_elem2d, delim_whitespace=True, skiprows=1, \
-        file_content = pa.read_csv(self.fname_elem2d, sep='\\s+', skiprows=1, \
-                                    names=['1st_node_in_elem','2nd_node_in_elem','3rd_node_in_elem'])
-        self.e_i     = file_content.values.astype('int32') - 1
+        with open(self.fname_elem2d, "r") as f:
+            self.n2de = int(f.readline().strip())
+            elem = np.loadtxt(f, dtype=np.int32, usecols=(0, 1, 2), ndmin=2)
         
-        # ensure C-contiguous (row-major) format, will significantly speed up all 
-        # numba operations 
-        self.e_i     = np.ascontiguousarray(self.e_i)
+        if elem.shape[0] != self.n2de:
+            raise ValueError(f"elem2d: header={self.n2de}, rows={elem.shape[0]}")
         
-        self.n2de    = np.shape(self.e_i)[0]
-        # print('    : #2de={:d}'.format(self.n2de))
+        self.e_i = np.ascontiguousarray(elem - 1)
+        del elem
         
         #____load 3d nodes alligned under 2d nodes______________________________
         if not self.do_f14cmip6:
-            with open(self.fname_aux3d) as f:
-                self.nlev= int(next(f))
-                self.zlev= np.array([next(f).rstrip() for x in range(self.nlev)]).astype(float)
-                self.zlev= -np.abs(self.zlev)
-            self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
+            #___________________________________________________________________
+            # FESOM2
+            with open(self.fname_aux3d, "r") as f:
+                self.nlev = int(f.readline().strip())
+                zlev = np.loadtxt(f, dtype=np.float32, max_rows=self.nlev, ndmin=1)
             
+            if zlev.size != self.nlev: raise ValueError(f"aux3d: header nlev={self.nlev}, values={zlev.size}")
+            
+            self.zlev = np.ascontiguousarray(-np.abs(zlev))
+            self.zmid = (self.zlev[:-1] + self.zlev[1:]) * 0.5
+
         else:
-            t1=clock.time()
-            # number of vertical levels
-            with open(self.fname_aux3d) as f: self.nlev= int(next(f))
+            #___________________________________________________________________
+            # FESOM1.4
+            with open(self.fname_aux3d, "r") as f:
+                # number of vertical levels
+                self.nlev = int(f.readline().strip())
+                
+                # 3d vertice index below surface vertices index
+                n32_flat = np.loadtxt(f, dtype=np.int32, ndmin=1)
             
-            # 3d vertice index below surface vertices index
-            file_content = pa.read_csv(self.fname_aux3d, skiprows=0, nrows=self.nlev*self.n2dn)
-            self.n32     = file_content.values.astype('int32') - 1
-            self.n32     = self.n32.reshape((self.n2dn,self.nlev)).transpose()
-            self.n32     = np.ascontiguousarray(self.n32)
+            nsmpl = self.nlev * self.n2dn
+            if n32_flat.size < nsmpl: raise ValueError(f"aux3d: expected {nsmpl}, got {n32_flat.size}")
             
-            # Lick out bufferlayer in fesom1.4 mesh
-            self.n32     = self.n32[:-1,:]
-            self.nlev    = self.nlev-1
+            # kick out bufferlayer in fesom1.4 mesh that why [:-1,:] and nlev = nlev-1
+            self.n32  = np.ascontiguousarray((n32_flat[:nsmpl].reshape(self.nlev, self.n2dn) - 1))[:-1, :] 
+            self.nlev = self.nlev-1
+            del n32_flat
             
-            # identify the vertical levels
-            with open(self.fname_nod3d) as f: n3dn= int(next(f))
-            #file_content = pa.read_csv(self.fname_nod3d, delim_whitespace=True, usecols=[3])
-            file_content = pa.read_csv(self.fname_nod3d, sep='\\s+', usecols=[3])
-            aux_n3z      = file_content.values.astype('int16') 
-            self.zlev    = np.unique(aux_n3z)[::-1]
-            #self.zlev    = np.hstack((self.zlev, self.zlev[-1]+(self.zlev[-1]-self.zlev[-2])))
-            self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
+            # nod3d: header n3dn ; columns: id x y zIndex
+            with open(self.fname_nod3d, "r") as f:
+                _ = int(f.readline().strip())
+                nod3 = np.loadtxt(f, dtype=np.int16, usecols=(3,), ndmin=1)
+            
+            self.zlev = np.unique(nod3)[::-1]
+            self.zmid = (self.zlev[:-1] + self.zlev[1:]) * 0.5
             
             # compute bottom topography at vertice
-            self.n_z     = np.ascontiguousarray(aux_n3z[self.n32.max(axis=0),0])
-            del(aux_n3z)
+            self.n_z = np.ascontiguousarray(nod3[self.n32.max(axis=0)].astype(np.float32))
             
             # compute bottom index at vertice
-            aux_n32      = np.zeros(self.n32.shape)
-            aux_n32[self.n32>=0] = 1
-            self.n_iz    = np.ascontiguousarray((aux_n32.sum(axis=0).astype('int16')-1))
+            self.n_iz = np.ascontiguousarray((self.n32 >= 0).sum(axis=0).astype(np.int16) - 1)
+            del nod3
 
-        
         #____load number of levels at each node_________________________________
-        if ( os.path.isfile(self.fname_nlvls) ):
-            #file_content = pa.read_csv(self.fname_nlvls, delim_whitespace=True, skiprows=0, \
-            file_content = pa.read_csv(self.fname_nlvls, sep='\\s+', skiprows=0, \
-                                           names=['numb_of_lev'])
-            self.n_iz    = file_content.values.astype('int16') - 1
-            self.n_iz    = np.ascontiguousarray(self.n_iz.squeeze())
-            self.n_z     = np.ascontiguousarray(np.float32(self.zlev[self.n_iz]))
+        if os.path.isfile(self.fname_nlvls):
+            nlev = np.loadtxt(self.fname_nlvls, dtype=np.int16, ndmin=1)
+            if nlev.size != self.n2dn: raise ValueError(f"nlvls: expected {self.n2dn}, got {nlev.size}")
             
-        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no nlvls information!')    
-        else                : raise ValueError(f' --> could not find file {self.fname_nlvls} !')
-            #self.n_iz    = np.zeros((self.n2dn,)) 
-            #self.n_z     = np.zeros((self.n2dn,)) 
-        
+            self.n_iz = np.ascontiguousarray(nlev - 1)
+            self.n_z = np.ascontiguousarray(self.zlev[self.n_iz].astype(np.float32))
+            del nlev
+            
+        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no nlvls information!') 
+        else                 : raise ValueError(f' --> could not find file {self.fname_nlvls} !')
+
         #____load number of levels at each elem_________________________________
-        if ( os.path.isfile(self.fname_elvls) ):
-            #file_content = pa.read_csv(self.fname_elvls, delim_whitespace=True, skiprows=0, \
-            file_content = pa.read_csv(self.fname_elvls, sep='\\s+', skiprows=0, \
-                                           names=['numb_of_lev'])
-            self.e_iz    = file_content.values.astype('int16') - 1
-            self.e_iz    = np.ascontiguousarray(self.e_iz.squeeze())
-            
-        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no elvls information!')        
-        else                : raise ValueError(f' --> could not find file {self.fname_elvls} !')
-            #self.e_iz    = np.zeros((self.n2de,)) 
-        
+        if os.path.isfile(self.fname_elvls):
+            elev = np.loadtxt(self.fname_elvls, dtype=np.int16, ndmin=1)
+            if elev.size != self.n2de: raise ValueError(f"elvls: expected {self.n2de}, got {elev.size}")
+
+            self.e_iz = np.ascontiguousarray(elev - 1)
+            del elev
+
+        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no elvls information!')   
+        else                 :raise ValueError(f' --> could not find file {self.fname_elvls} !')
+
         #____load number of raw levels at each elem_____________________________
-        if (self.do_loadraw and  not self.do_f14cmip6):
-            if ( os.path.isfile(self.fname_elvls_raw) ):
-                #file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
-                file_content = pa.read_csv(self.fname_elvls_raw, sep='\\s+', skiprows=0, \
-                                            names=['numb_of_lev'])
-                self.e_iz_raw    = file_content.values.astype('int16') - 1
-                self.e_iz_raw    = np.ascontiguousarray(self.e_iz_raw.squeeze())
+        if self.do_loadraw and not self.do_f14cmip6:
+            if os.path.isfile(self.fname_elvls_raw):
+                elev = np.loadtxt(self.fname_elvls_raw, dtype=np.int16, ndmin=1)
+                if elev.size != self.n2de: raise ValueError(f"elvls_raw: expected {self.n2de}, got {elev.size}")
+                
+                self.e_iz_raw = np.ascontiguousarray(elev - 1)
+                del elev
             else:
                 raise ValueError(f' --> could not find file {self.fname_elvls_raw} !')
         
         #_______________________________________________________________________
-        # vertical level information of fesom1.4 mesh
-        #if self.do_f14cmip6:
+        return self
 
-        #_______________________________________________________________________
-        return(self)    
-    
     
     
     # ___READ FESOM2 MESH CAVITY INFO__________________________________________
@@ -811,34 +822,28 @@ class mesh_fesom2(object):
         """
         
         #____load number of cavity levels at each node__________________________
-        self.fname_cnlvls = os.path.join(self.path,'cavity_nlvls.out')
-        if ( os.path.isfile(self.fname_cnlvls) ):
-            file_content      = pa.read_csv(self.fname_cnlvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
-            self.n_ic= file_content.values.astype('int16') - 1
-            self.n_ic= np.ascontiguousarray(self.n_ic.squeeze())
-        else:
-            raise ValueError(f' --> could not find file {self.fname_cnlvls} !')
+        self.fname_cnlvls = os.path.join(self.path, "cavity_nlvls.out")
+        if not os.path.isfile(self.fname_cnlvls): raise ValueError(f" --> could not find file {self.fname_cnlvls} !")
+        n_ic = np.loadtxt(self.fname_cnlvls, dtype=np.int16, ndmin=1)
+        self.n_ic = np.ascontiguousarray(n_ic - 1)
+        del n_ic
         
         #____load number of cavity levels at each elem__________________________
-        self.fname_celvls = os.path.join(self.path,'cavity_elvls.out')
-        if ( os.path.isfile(self.fname_cnlvls) ):
-            file_content      = pa.read_csv(self.fname_celvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
-            self.e_ic= file_content.values.astype('int16') - 1
-            self.e_ic= np.ascontiguousarray(self.e_ic.squeeze())
-        else:
-            raise ValueError(f' --> could not find file {self.fname_celvls} !')
+        self.fname_celvls = os.path.join(self.path, "cavity_elvls.out")
+        if not os.path.isfile(self.fname_celvls): raise ValueError(f" --> could not find file {self.fname_celvls} !")
+        e_ic = np.loadtxt(self.fname_celvls, dtype=np.int16, ndmin=1)
+        self.e_ic = np.ascontiguousarray(e_ic - 1)
+        del e_ic
         
         #____load number of raw cavity levels at each elem______________________
         # number of cavity levels before it becomes iteratively optimse to avoid 
         # isolated cells 
         if self.do_loadraw:
-            self.fname_celvls_raw = os.path.join(self.path,'cavity_elvls_raw.out')
-            if ( os.path.isfile(self.fname_celvls_raw) ): 
-                file_content    = pa.read_csv(self.fname_celvls_raw, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
-                self.e_ic_raw   = file_content.values.astype('int16') - 1
-                self.e_ic_raw   = np.ascontiguousarray(self.e_ic_raw.squeeze())
-            else:
-                raise ValueError(f' --> could not find file {self.fname_celvls_raw} !')
+            self.fname_celvls_raw = os.path.join(self.path, "cavity_elvls_raw.out")
+            if not os.path.isfile(self.fname_celvls_raw): raise ValueError(f" --> could not find file {self.fname_celvls_raw} !")
+            e_ic_raw = np.loadtxt(self.fname_celvls_raw, dtype=np.int16, ndmin=1)
+            self.e_ic_raw = np.ascontiguousarray(e_ic_raw - 1)
+            del e_ic_raw
         
         #_______________________________________________________________________
         return(self)
@@ -1324,59 +1329,35 @@ ___________________________________________""".format(
         periodic boundary based on boundary edges that contribute only to one triangle 
         and then checking which edges can be consequtive connected                                                   |
         """
-        print(" > compute lsmask")
+        print(" > compute lsmask fast")
         self.do_lsmask = True
-
-        #_______________________________________________________________________
-        # build land boundary edge matrix
-        bnde = njit_compute_boundary_edges(self.e_i)   # (nbnde, 2)
-        nbnde = bnde.shape[0]
-
-        #_______________________________________________________________________
-        # build adjacency list, which vertice points are adjacent to each other 
-        from collections import defaultdict
-        adj = defaultdict(list)
-        for ii, jj in bnde:
-            adj[int(ii)].append(int(jj))
-            adj[int(jj)].append(int(ii))
-
-        #_______________________________________________________________________
-        # 3. Find connected loops (coastlines)
-        visited = set()
-        polygons = []
-
-        # Loop over 
-        for start in adj.keys():
-            if start in visited: continue
-            
-            loop = []
-            current = start
-            prev = None
-            
-            while True:
-                loop.append(current)
-                visited.add(current)
-                
-                neighbors = adj[current]
-                
-                # we skip extremely tiny polygons later anyway
-                if len(neighbors) != 2: break
-                
-                # pick neighbor not equal to previous
-                nxt = neighbors[0] if neighbors[0] != prev else neighbors[1]
-                
-                prev, current = current, nxt
-                
-                # jump out of loop when starting point is reached again 
-                if current == start: break
-                
-            # convert to XY polygon
-            if len(loop) > 4:   # avoid tiny invalid polygons
-                xy = np.column_stack((self.n_x[loop], self.n_y[loop]))
-                polygons.append(xy)
         
+        # compute boundary edges (already fast)
+        bnde = njit_compute_boundary_edges(self.e_i)
+        bnde_nodes = np.unique(bnde.ravel())
+        nbnde_nodes = bnde_nodes.size
+        
+        # compute mapping global --> local
+        mapping = -np.ones(self.n2dn, dtype=np.int32)
+        for loc, glo in enumerate(bnde_nodes): mapping[glo] = loc
+    
+        # build adjacency using numba
+        adj     = njit_lsmask_build_adjacency(bnde, mapping, nbnde_nodes)
+
+        # trace contour loops
+        loops   = njit_lsmask_trace_loops(adj)
+
+        # convert loops to XY polygons
+        polygons= []
+        n_x     = self.n_x
+        n_y     = self.n_y
+        for loop in loops:
+            # loop is in local numbering --> map to global via bnde_nodes
+            idx = bnde_nodes[loop]
+            polygons.append(np.column_stack((n_x[idx], n_y[idx])))
         self.lsmask = polygons
-        return self
+        #_______________________________________________________________________
+        return(self)
     
     
     
@@ -2715,6 +2696,7 @@ def njit_ie2n_accum(n2dn, n2de, e_i, e_area, data_e):
             data_n[ i0] += v 
             data_n[ i1] += v
             data_n[ i2] += v
+    #___________________________________________________________________________
     return(data_n)       
 
 
@@ -2759,7 +2741,9 @@ def njit_ie2n_accum_2d(nd, n2dn, n2de, e_i, e_area, data_e):
                 data_n[di, i0] += v 
                 data_n[di, i1] += v
                 data_n[di, i2] += v
+    #___________________________________________________________________________
     return(data_n)      
+
 
 
 #
@@ -2860,6 +2844,7 @@ def njit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
         else:
             data_n[ ii] = np.nan
             if use2var: data_n2[ii] = np.nan
+    #___________________________________________________________________________
     return(data_n, data_n2)
 
 
@@ -2921,7 +2906,11 @@ def njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
             else:
                 data_n[ di, ii] = np.nan
                 if use2var: data_n2[di, ii] = np.nan
+    #___________________________________________________________________________
     return data_n, data_n2
+
+
+
 #
 #
 #_______________________________________________________________________________
@@ -2983,6 +2972,7 @@ def njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
                 else:
                     data_n[ti, di, ii] = np.nan
                     if use2var: data_n2[ti, di, ii] = np.nan
+    #___________________________________________________________________________
     return data_n, data_n2
 
 
@@ -3045,8 +3035,11 @@ def dask_njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None,
         dn_block, dn2_block = fut.result()
         data_n[start:end, :] = dn_block
         if use2var: data_n2[start:end, :] = dn2_block
-
+    #___________________________________________________________________________
     return data_n, data_n2
+
+
+
 #
 #
 #_______________________________________________________________________________
@@ -3107,44 +3100,8 @@ def dask_njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None,
         dn_block, dn2_block = fut.result()
         data_n[:, start:end, :] = dn_block
         if use2var: data_n2[:, start:end, :] = dn2_block
-
+    #___________________________________________________________________________
     return data_n, data_n2
-
-
-
-#
-#
-# ___COMPUTE BOUNDARY EDGES____________________________________________________
-def compute_boundary_edges(e_i):
-    """
-    --> compute edges that have only one adjacenbt triangle
-    
-    Parameters:
-    
-        :e_i:   np.array([n2de x 3]), elemental array
-    
-    Returns:
-    
-        :bnde:
-    
-    """
-    # set boundary depth to zero
-    edge    = np.concatenate((e_i[:,[0,1]], e_i[:,[0,2]], e_i[:,[1,2]]),axis=0)
-    edge    = np.sort(edge,axis=1) 
-        
-    ## python  sortrows algorythm --> matlab equivalent
-    edge    = edge.tolist()
-    edge.sort()
-    edge    = np.array(edge)
-        
-    idx     = np.diff(edge,axis=0)==0
-    idx     = np.all(idx,axis=1)
-    idx     = np.logical_or(np.concatenate((idx,np.array([False]))),\
-                            np.concatenate((np.array([False]),idx)))
-
-    # all edges that belong to boundary own jsut one triangle 
-    bnde    = edge[idx==False,:]
-    return(bnde)
 
 
 
@@ -3243,50 +3200,8 @@ def njit_compute_boundary_edges(e_i):
             bnde[k, 0] = edp1
             bnde[k, 1] = edp2
             k += 1
-
+    #___________________________________________________________________________
     return bnde
-
-
-
-#
-#
-# ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
-def compute_nINe(n2dn, e_i, do_arr=False):
-    """
-    --> compute element indices list that contribute to cetain vertice
-    
-    Parameters:
-    
-        :n2dn:      int, number of vertices
-        :e_i:       np.array([n2de x 3]), elemental array
-        :do_arr:    bool (default=False) shut output be list or numpy array
-    
-    Returns:
-    
-        :nod_in_elem2D:
-    
-    """
-    t1=clock.time()
-    # allocate list of size n2dn, create independent empty lists for each entry, 
-    nod_in_elem2D     = [[] for _ in range(n2dn)]
-    nod_in_elem2D_num = [0]*n2dn
-    
-    # append element index to each vertice list entry where it appears
-    for e_i, n_i in enumerate(e_i.flatten()): 
-        nod_in_elem2D[    n_i].append(np.int32(e_i/3))
-        nod_in_elem2D_num[n_i] += 1
-    
-    # convert list into numpy array
-    if do_arr:
-        nod_in_elem2D_arr = np.full((n2dn, max(nod_in_elem2D_num)), -1, dtype=np.int32)
-        for ii, lst_ii in enumerate(nod_in_elem2D):
-            nod_in_elem2D_arr[ii, :len(lst_ii)] = lst_ii
-        nod_in_elem2D = nod_in_elem2D_arr    
-        print(' --> elapsed time for nod_in_elem2D:', clock.time()-t1)
-        return(nod_in_elem2D, nod_in_elem2D_num)
-    else:   
-        print(' --> elapsed time for nod_in_elem2D:', clock.time()-t1)
-        return(nod_in_elem2D)
 
 
 
@@ -3309,7 +3224,6 @@ def njit_compute_nINe(e_i):
         :nINe_num:
     
     """
-    
     n2de = e_i.shape[0]
     n2dn = np.max(e_i) + 1
     
@@ -3357,7 +3271,7 @@ def njit_compute_nINe(e_i):
         pos_fill[a] = pa + 1
         pos_fill[b] = pb + 1
         pos_fill[c] = pc + 1
-
+    #___________________________________________________________________________
     return nINe, nINe_num
 
 
@@ -3381,7 +3295,6 @@ def njit_compute_eINe(e_i):
         :eINe_num:
     
     """
-    
     #___________________________________________________________________________
     # allocate
     n2de = e_i.shape[0]   
@@ -3472,6 +3385,7 @@ def njit_compute_eINe(e_i):
             ii += 2
         else:
             ii += 1
+    #___________________________________________________________________________        
     return eINe, eINe_num
 
 
@@ -3585,5 +3499,99 @@ def njit_compute_nINn(e_i):
         deg = nINn_num[node]
         for j in range(deg):
             nINn_compact[node, j] = nINn[node, j]
-
+    #___________________________________________________________________________
     return nINn_compact, nINn_num
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit(cache=True)
+def njit_lsmask_build_adjacency(bnde, bnde_mapping, bnde_nodes):
+    """
+    Build adjacency for compressed boundary-node space.
+
+    bnde          : (nbnde, 2)
+    bnde_mapping  : global -> compressed id
+    bnde_nodes    : number of compressed nodes (len(b_nodes))
+
+    RETURNS:
+        adj : (nb_nodes, 2)   with neighbor indices
+    """
+    adj   = -np.ones((bnde_nodes, 2), dtype=np.int32)
+    count =  np.zeros(bnde_nodes    , dtype=np.int32)
+
+    for ii in range(bnde.shape[0]):
+        a             = bnde[ii, 0]
+        b             = bnde[ii, 1]
+        
+        idxa          = bnde_mapping[a]
+        idxb          = bnde_mapping[b]
+        
+        # neighbothood mapping of first bnde node
+        ka            = count[idxa]
+        adj[idxa, ka] = idxb
+        count[idxa]   = ka + 1
+        
+        # neighbothood mapping of second bnde node
+        kb            = count[idxb]
+        adj[idxb, kb] = idxa
+        count[idxb]   = kb + 1
+    #___________________________________________________________________________
+    return adj
+
+
+
+#
+#
+#_______________________________________________________________________________
+def njit_lsmask_trace_loops(adj):
+    """
+    Trace coastline loops using compact adjacency.
+
+    adj : (nb_nodes, 2)
+
+    RETURNS:
+        loops : list of compressed index lists
+    """
+    nbnde_nodes = adj.shape[0]
+    visited  = np.zeros(nbnde_nodes, dtype=np.int8)
+    loops    = []
+    
+    # loop over all the boundary edge nodes 
+    for start in range(nbnde_nodes):
+        
+        # check if point has already been checked out 
+        if visited[start]: continue
+        
+        # set start index as current index to check out 
+        cur  = start
+        prev = -1
+        loop = []
+        
+        # walk step by step through neighbor connectivity
+        while True:
+            # add point to contour loop list 
+            loop.append(cur)
+            
+            # set current neighbor node as visited
+            visited[cur] = 1
+            
+            # check out whos is the next node in neighborhood 
+            a    = adj[cur, 0]
+            b    = adj[cur, 1]
+            nxt  = a if a != prev else b
+            
+            prev = cur
+            cur  = nxt
+            
+            # if starting point is reached again contour loop is closed again 
+            # finish while loop. start with next accumaulation of closed coastline 
+            # loop 
+            if cur == start: break
+        
+        # only if loop is large enough add it ti the contour list 
+        if len(loop) > 4: loops.append(loop)
+    #___________________________________________________________________________
+    return loops

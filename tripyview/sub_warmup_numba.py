@@ -24,6 +24,8 @@ from .sub_mesh import (
     njit_vec_r2g_0d,
     njit_vec_r2g_123d,
     njit_grid_rotmat,
+    njit_lsmask_build_adjacency,
+    njit_lsmask_trace_loops, 
     )
 
 
@@ -134,8 +136,53 @@ def warmup_vec_r2g_kernels():
 
     print(" → Numba warm-up complete.")
 
+def warmup_lsmask():
+    """
+    Warm-up for lsmask Numba kernels:
+    - njit_compute_boundary_edges
+    - njit_build_adjacency
+    - njit_trace_loops
+    - njit_build_polygons
+
+    Only compiles kernels; does not compute real polygons.
+    """
+    n2dn = 6
+
+    # Node coordinates (simple 2x3 grid)
+    n_x = np.array([0.0, 1.0, 2.0,   0.0, 1.0, 2.0], dtype=np.float32)
+    n_y = np.array([0.0, 0.0, 0.0,   1.0, 1.0, 1.0], dtype=np.float32)
+
+    # Triangles (4 elems) defined by (node1, node2, node3)
+    # Here a simple quad split into triangles
+    #
+    #  (0)----(1)----(2)
+    #   |   /  |    / |
+    #   |  /   |   /  |
+    #  (3)----(4)----(5)
+    #
+    e_i = np.array([
+        [0, 1, 4],   # triangle 0
+        [0, 4, 3],   # triangle 1
+        [1, 2, 5],   # triangle 2
+        [1, 5, 4],   # triangle 3
+    ], dtype=np.int32)
+
+    # 1. boundary edges (this kernel is already warm in many cases)
+    bnde = njit_compute_boundary_edges(e_i)
+    bnde_nodes = np.unique(bnde.ravel())
+    nbnde_nodes = bnde_nodes.size
+    mapping = -np.ones(n_x.size, dtype=np.int32)
+    for ii, gg in enumerate(bnde_nodes): mapping[gg] = ii
+    
+    # 2. adjacency builder
+    adj = njit_lsmask_build_adjacency(bnde, mapping, nbnde_nodes)
+
+    # 3. loop tracer
+    loops = njit_lsmask_trace_loops(adj)
+
 
 # Execute warm-up at module import
 warmup_compute_xINx()
 warmup_grid_kernels()
 warmup_vec_r2g_kernels()
+warmup_lsmask()
