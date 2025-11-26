@@ -1077,7 +1077,7 @@ def do_select_time(data, mon, day, record, str_mtim):
         # than check if mon or day is defined and overwrite selction mon day
         # selction array
         if   (mon is not None): sel_mon = np.isin( data['time.month'], mon)
-        if   (day is not None): sel_day = np.inin( data['time.day']  , day)
+        if   (day is not None): sel_day = np.isin( data['time.day']  , day)
         
         # check if selection would discard all time slices 
         if np.all(sel_mon==False): 
