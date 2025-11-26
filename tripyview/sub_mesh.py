@@ -593,6 +593,15 @@ class mesh_fesom2(object):
         self.lsmask_p           = []
         
         #_______________________________________________________________________
+        # neighborhood arrays
+        self.n_nghbr_e          = []
+        self.e_nghbr_e          = []
+        self.n_nghbr_n          = []
+        self.num_n_nghbr_e      = []
+        self.num_e_nghbr_e      = []
+        self.num_n_nghbr_n      = []
+        
+        #_______________________________________________________________________
         #  ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||  
         # _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ 
         # \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / 
@@ -1550,6 +1559,125 @@ ___________________________________________""".format(
         return(self)
     
     
+    #
+    #
+    #___________________________________________________________________________
+    # compute nodal neighborhood with respect to elements 
+    def compute_n_nghbr_e(self):
+        self.n_nghbr_e, self.num_n_nghbr_e = njit_compute_n_nghbr_e(self.e_i)
+        
+        #_______________________________________________________________________
+        return(self)
+    
+    #
+    #
+    #___________________________________________________________________________
+    # compute element neighborhood with respect to elements 
+    def compute_e_nghbr_e(self):
+        self.e_nghbr_e, self.num_e_nghbr_e = njit_compute_e_nghbr_e(self.e_i)
+        
+        #_______________________________________________________________________
+        return(self)
+
+    #
+    #
+    #___________________________________________________________________________
+    # compute nodal neighborhood with respect to nodes
+    def compute_n_nghbr_n(self):
+        self.n_nghbr_n, self.num_n_nghbr_n = njit_compute_n_nghbr_n(self.e_i)
+        
+        #_______________________________________________________________________
+        return(self)
+
+
+
+    #
+    #
+    #___________________________________________________________________________
+    # smooth data on nodes
+    def smooth_nodes(self, data_n, num_iter=3, weaksmth_boxlist=False, rel_center_weight=1.0):
+        
+        #_______________________________________________________________________
+        # compute node neighborhood with respect to nodes if not already computed
+        if len(self.n_nghbr_n)==0: self.compute_n_nghbr_n()
+        
+        #_______________________________________________________________________
+        # Convert Python list-of-lists into Numba friendly ndarray
+        if weaksmth_boxlist:
+            weak_boxes = np.asarray(weaksmth_boxlist, dtype=np.float64)
+        else:
+            weak_boxes = np.zeros((0, 5), dtype=np.float64)
+
+        #_______________________________________________________________________
+        # convert xarray --> numpy
+        if hasattr(data_n, "values"):       # xarray.DataArray
+            data_n_arr = data_n.values
+            is_xarray = True
+        else:
+            data_n_arr = data_n
+            is_xarray = False
+        
+        #_______________________________________________________________________
+        # call numba kernel
+        data_n_smth = njit_node_smoothing(self.n2dn, self.n_x, self.n_y, 
+                                          self.n_nghbr_n, self.num_n_nghbr_n,
+                                          data_n_arr, num_iter, weak_boxes, rel_center_weight)
+        
+        #_______________________________________________________________________
+        # write output back to xarray or numpy
+        if is_xarray:
+            data_n[:] = data_n_smth
+            return data_n
+        else:
+            return data_n_smth
+    
+    
+    
+    #
+    #
+    #___________________________________________________________________________
+    def smooth_elems(self, data_e, num_iter=3, weaksmth_boxlist=False, rel_center_weight=1.0):
+
+        #_______________________________________________________________________
+        # compute elem neighborhood with respect to elements if not already computed
+        if len(self.e_nghbr_e) == 0: self.compute_e_nghbr_e()   # you already have this
+        
+        #_______________________________________________________________________
+        # ensure centroids exist
+        if not hasattr(self, "e_x"):
+            self.e_x = self.n_x[self.e_i].mean(axis=1)
+            self.e_y = self.n_y[self.e_i].mean(axis=1)
+        
+        #_______________________________________________________________________
+        # Convert Python list-of-lists into Numba friendly ndarray
+        if weaksmth_boxlist:
+            weak_boxes = np.asarray(weaksmth_boxlist, dtype=np.float64)
+        else:
+            weak_boxes = np.zeros((0, 5), dtype=np.float64)
+        
+        #_______________________________________________________________________
+        # convert xarray --> numpy
+        if hasattr(data_e, "values"):
+            data_e_arr = data_e.values
+            is_xarray = True
+        else:
+            data_e_arr = data_e
+            is_xarray = False
+        
+        #_______________________________________________________________________
+        # call numba kernel
+        data_e_smth = njit_elem_smoothing(self.n2de, self.e_x, self.e_y,
+                                        self.e_nghbr_e, self.num_e_nghbr_e,
+                                        data_e_arr, num_iter, weak_boxes, rel_center_weight)
+        
+        #_______________________________________________________________________
+        # write output back to xarray or numpy
+        if is_xarray:
+            data_e[:] = data_e_smth
+            return data_e
+        else:
+            return data_e_smth
+
 
 """
     def augment_lsmask_unfinished(self):
@@ -3209,7 +3337,7 @@ def njit_compute_boundary_edges(e_i):
 #
 # ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
 @njit(cache=True)
-def njit_compute_nINe(e_i):
+def njit_compute_n_nghbr_e(e_i):
     """
     --> compute element indices list that contribute to cetain vertice, determine
         vertice neighborhood with respect to elements
@@ -3244,7 +3372,7 @@ def njit_compute_nINe(e_i):
 
     #___________________________________________________________________________
     # allocate node in elem output array, initilaise with -1
-    nINe = -1 * np.ones((n2dn, max_nINe_num), dtype=np.int32)
+    n_nghbr_e = -1 * np.ones((n2dn, max_nINe_num), dtype=np.int32)
 
     # pointer array to track next insertion pos per node
     pos_fill = np.zeros(n2dn, dtype=np.int32)
@@ -3263,16 +3391,16 @@ def njit_compute_nINe(e_i):
         pc = pos_fill[c]
         
         # fill node in elem position with elem index
-        nINe[a, pa] = ii
-        nINe[b, pb] = ii
-        nINe[c, pc] = ii
+        n_nghbr_e[a, pa] = ii
+        n_nghbr_e[b, pb] = ii
+        n_nghbr_e[c, pc] = ii
         
         # count up fill position
         pos_fill[a] = pa + 1
         pos_fill[b] = pb + 1
         pos_fill[c] = pc + 1
     #___________________________________________________________________________
-    return nINe, nINe_num
+    return n_nghbr_e, nINe_num
 
 
 
@@ -3280,7 +3408,7 @@ def njit_compute_nINe(e_i):
 #
 # ___COMPUTE ELEM NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
 @njit(cache=True)
-def njit_compute_eINe(e_i):
+def njit_compute_e_nghbr_e(e_i):
     """
     --> compute element indices list that contribute to cetain element, determine
         elem neighborhood with respect to elements
@@ -3291,7 +3419,7 @@ def njit_compute_eINe(e_i):
     
     Returns:
     
-        :eINe:
+        :e_nghbr_e:
         :eINe_num:
     
     """
@@ -3362,7 +3490,7 @@ def njit_compute_eINe(e_i):
 
     #___________________________________________________________________________
     # allocate adjacency arrays
-    eINe = -1 * np.ones((n2de, 3), dtype=np.int32)
+    e_nghbr_e = -1 * np.ones((n2de, 3), dtype=np.int32)
     eINe_num = np.zeros(n2de, dtype=np.int32)
 
     #___________________________________________________________________________
@@ -3376,8 +3504,8 @@ def njit_compute_eINe(e_i):
             na = eINe_num[a]
             nb = eINe_num[b]
             
-            eINe[a, na] = b
-            eINe[b, nb] = a
+            e_nghbr_e[a, na] = b
+            e_nghbr_e[b, nb] = a
             
             eINe_num[a] = na+1
             eINe_num[b] = nb+1
@@ -3386,7 +3514,7 @@ def njit_compute_eINe(e_i):
         else:
             ii += 1
     #___________________________________________________________________________        
-    return eINe, eINe_num
+    return e_nghbr_e, eINe_num
 
 
 
@@ -3394,7 +3522,7 @@ def njit_compute_eINe(e_i):
 #
 # ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO VERTICES_________________________
 @njit(cache=True)
-def njit_compute_nINn(e_i):
+def njit_compute_n_nghbr_n(e_i):
     """
     --> compute nodes indices list that contribute to cetain vertice, determine
         vertice neighborhood with respect to vertices
@@ -3494,13 +3622,13 @@ def njit_compute_nINn(e_i):
         if nINn_num[i] > real_max:
             real_max = nINn_num[i]
 
-    nINn_compact = -1 * np.ones((n2dn, real_max), dtype=np.int32)
+    n_nghbr_n = -1 * np.ones((n2dn, real_max), dtype=np.int32)
     for node in range(n2dn):
         deg = nINn_num[node]
         for j in range(deg):
-            nINn_compact[node, j] = nINn[node, j]
+            n_nghbr_n[node, j] = nINn[node, j]
     #___________________________________________________________________________
-    return nINn_compact, nINn_num
+    return n_nghbr_n, nINn_num
 
 
 
@@ -3546,6 +3674,7 @@ def njit_lsmask_build_adjacency(bnde, bnde_mapping, bnde_nodes):
 #
 #
 #_______________________________________________________________________________
+@njit(cache=True)
 def njit_lsmask_trace_loops(adj):
     """
     Trace coastline loops using compact adjacency.
@@ -3595,3 +3724,108 @@ def njit_lsmask_trace_loops(adj):
         if len(loop) > 4: loops.append(loop)
     #___________________________________________________________________________
     return loops
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit(cache=True, fastmath=True)
+def njit_node_smoothing(n2dn, n_x, n_y, n_nghbr_n, num_n_nghbr_n, 
+                        data_n_orig, num_iter, weak_boxes, rel_cent_weight):
+    
+    #___________________________________________________________________________
+    data_n_smth = data_n_orig.copy()
+    for iteri in range(num_iter):
+        
+        # sort nodes by decreasing value (replacement for argmax + masking)
+        order = np.argsort(-data_n_smth)
+        
+        #_______________________________________________________________________
+        for kk in range(n2dn):
+            idx = order[kk]
+            
+            #___________________________________________________________________
+            # region-dependent weight
+            coeff1 = 1.0
+            for b in range(weak_boxes.shape[0]):
+                xmin = weak_boxes[b, 0]
+                xmax = weak_boxes[b, 1]
+                ymin = weak_boxes[b, 2]
+                ymax = weak_boxes[b, 3]
+                cf   = weak_boxes[b, 4]
+                if (n_x[idx] >= xmin and n_x[idx] <= xmax and
+                    n_y[idx] >= ymin and n_y[idx] <= ymax):
+                    coeff1 = cf
+                    break
+            
+            #___________________________________________________________________
+            # sum over neighbours 
+            nn = num_n_nghbr_n[idx]          # number of neighbours for node idx
+            dsum = 0.0
+            for j in range(nn):
+                nb = n_nghbr_n[idx, j]
+                dsum += data_n_smth[nb]  # Gauss–Seidel style: uses updated values
+            
+            #___________________________________________________________________
+            # center contribution
+            center_w = coeff1 * rel_cent_weight * (nn - 1.0) - 1.0
+            dsum    += center_w * data_n_smth[idx]
+            denom    = nn + center_w
+            data_n_smth[idx] = dsum / denom
+            
+    #___________________________________________________________________________
+    return data_n_smth
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit(cache=True, fastmath=True)
+def njit_elem_smoothing(n2de, elem_x, elem_y, e_nghbr_e, eINe_num,
+                        data_e_orig, num_iter, weak_boxes, rel_cent_weight):
+
+    #___________________________________________________________________________
+    data_e_smth = data_e_orig.copy()
+    for _ in range(num_iter):
+        
+        # Sort elements by decreasing data value
+        order = np.argsort(-data_e_smth)
+        
+        #_______________________________________________________________________
+        for kk in range(n2de):
+            idx = order[kk]
+            
+            #___________________________________________________________________
+            # region-dependent weight (using element centroid)
+            coeff1 = 1.0
+            x = elem_x[idx]
+            y = elem_y[idx]
+            for b in range(weak_boxes.shape[0]):
+                xmin = weak_boxes[b, 0]
+                xmax = weak_boxes[b, 1]
+                ymin = weak_boxes[b, 2]
+                ymax = weak_boxes[b, 3]
+                cf   = weak_boxes[b, 4]
+                if (x >= xmin and x <= xmax and y >= ymin and y <= ymax):
+                    coeff1 = cf
+                    break
+            
+            #___________________________________________________________________
+            # sum over neighbouring elements
+            nne  = eINe_num[idx]
+            dsum = 0.0
+            for j in range(nne):
+                nb = e_nghbr_e[idx, j]
+                dsum += data_e_smth[nb]    # Gauss–Seidel: uses updated values
+            
+            #___________________________________________________________________
+            # center weight contribution
+            center_w = coeff1 * rel_cent_weight * (nne - 1.0) - 1.0
+            dsum    += center_w * data_e_smth[idx]
+            denom    = nne + center_w
+            data_e_smth[idx] = dsum / denom
+            
+    #___________________________________________________________________________
+    return data_e_smth
