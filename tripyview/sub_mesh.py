@@ -683,7 +683,6 @@ class mesh_fesom2(object):
             if do_augmpbnd:
                 if do_info: t4 = clock.time()
                 self.augment_lsmask()
-                
                 #_______________________________________________________________
                 # save land-sea mask with augmented  pbnd to shapefile
                 if do_lsmshp:
@@ -918,6 +917,7 @@ ___________________________________________""".format(
         idx_pbnd = dx > thresh
         self.e_pbnd_1 = np.nonzero( idx_pbnd)[0]
         self.e_pbnd_0 = np.nonzero(~idx_pbnd)[0]
+        #_______________________________________________________________________
         return self
 
     
@@ -991,7 +991,7 @@ ___________________________________________""".format(
             xmax =  self.cyclic / 2.0 + self.focus
         else:
             xmin, xmax = 0.0, float(self.cyclic)
-
+        
         self.n_xa  = np.concatenate((np.full(nn_r, xmin), np.full(nn_l, xmax)))
         self.n_ya  = self.n_y[self.n_pbnd_a]
         self.n_za  = self.n_z[self.n_pbnd_a]
@@ -1363,7 +1363,18 @@ ___________________________________________""".format(
         for loop in loops:
             # loop is in local numbering --> map to global via bnde_nodes
             idx = bnde_nodes[loop]
-            polygons.append(np.column_stack((n_x[idx], n_y[idx])))
+            
+            # check clockwise direction --> Signed area (shoelace formula)   
+            # roll x,y by -1 to get xi+1, yi+1
+            aux_nx, aux_ny = n_x[idx], n_y[idx]
+            area2 = np.sum(aux_nx * np.roll(aux_ny, -1) - np.roll(aux_nx, -1) * aux_ny)    
+            
+            # make all polygons clockwise rotated
+            if area2 > 0: aux_nx, aux_ny = aux_nx[::-1], aux_ny[::-1]
+            polygons.append(np.column_stack((aux_nx, aux_ny)))
+            
+            del(aux_nx, aux_ny)
+            
         self.lsmask = polygons
         #_______________________________________________________________________
         return(self)
@@ -1376,189 +1387,120 @@ ___________________________________________""".format(
     #| boundaries                                                              |
     #|_________________________________________________________________________|
     def augment_lsmask(self):
-        """
-        --> part of fesom mesh class, split contourlines that span over the 
-        periodic boundary into two separated countourlines for the left and 
-        right side of the periodic boundaries
-        """
-        print(' > augment lsmask')
-        #self.lsmask_a = self.lsmask.copy()
+        print(" > augment lsmask")
         self.lsmask_a = []
-        #_______________________________________________________________________
-        # build land boundary edge matrix
-        nlsmask = len(self.lsmask)
+
+        cyclic = self.cyclic
+        half_cyclic =  cyclic * 0.5
+        xmin   = np.floor(self.n_x.min())
+        xmax   = xmin + cyclic
+        xmid   = 0.5 * (xmin + xmax)
         
-        # min/max of longitude box 
-        # xmin,xmax = -180+self.focus, 180+self.focus
-        xmin, xmax = np.floor(self.n_x.min()), np.ceil(self.n_x.max())
-        
-        for ii in range(0,nlsmask):
-            #___________________________________________________________________
-            polygon_xy = self.lsmask[ii].copy()
-            
-            #___________________________________________________________________
-            #import matplotlib.pyplot as plt 
-            #plt.figure()
-            #plt.plot(polygon_xy[:,0], polygon_xy[:,1])
-            #plt.show()
-            
-            #___________________________________________________________________
-            # idx compute how many periodic boudnaries are in the polygon 
-            idx        = np.argwhere(np.abs(self.lsmask[ii][1:,0]-self.lsmask[ii][:-1,0])>self.cyclic/2).ravel()
-            
-            #___________________________________________________________________
-            if len(idx)!=0:
-                # unify starting point of polygon, the total polygon should start
-                # at the left periodic boudnary at the most northward periodic point
-                aux_i      = np.hstack((idx,idx+1))
-                aux_x      = polygon_xy[aux_i,0]
-                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])
-                isort_y    = np.flip(np.argsort(polygon_xy[aux_il,1]))
-                aux_il     = aux_il[isort_y]
-                del isort_y, aux_x, aux_i
-                
-                # shift polygon indices so that new starting point is at index 0
-                polygon_xy = np.vstack(( (polygon_xy[aux_il[0]:,:]),(polygon_xy[:aux_il[0],:]) ))
-                del aux_il
-                
-                # ensure that total polygon is closed
-                if np.any(np.diff(polygon_xy[[0,-1],:])!=0): polygon_xy = np.vstack(( (polygon_xy,polygon_xy[0,:]) ))
-            
-            else: 
-                if polygon_xy.shape[0]<=3: 
-                    ...
-                else:    
-                    self.lsmask_a.append(polygon_xy)   
-                continue
-            
-            #___________________________________________________________________
-            # recompute indices of periodic boundaries 
-            # check if lsmask contour contains 0 (no periodic boundary), 1 (polar
-            # contour) or >2 (non polar contour) pbnd edges. 
-            # idx = np.argwhere(np.abs(self.lsmask[ii][1:,0]-self.lsmask[ii][:-1,0])>self.cyclic/2).ravel()
-            idx = np.argwhere(np.abs(polygon_xy[1:,0]-polygon_xy[:-1,0])>self.cyclic/2).ravel()
-            
-            #___________________________________________________________________
-            # none polar lsmask contour with pbnd boundary that needs to be cutted
-            # in two or more polygons
-            if   len(idx) >= 2:
-                aux_i      = np.hstack((idx,idx+1))
-                aux_x      = polygon_xy[aux_i,0]
-                
-                # compure index location of left and right pbnd points
-                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
-                #aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])
-                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > (xmin+xmax)*0.5).ravel()])
-                del aux_x, aux_i
-                
-                #_______________________________________________________________
-                # do polygon on left periodic boundary
-                polygon_xyl = polygon_xy.copy()
-                for jj in range(0,len(aux_il),2):
-                    polygon_xyl[[aux_il[jj],aux_il[jj+1]],0]=xmin
-                    polygon_xyl[aux_ir[jj]:aux_ir[jj+1]+1,:]=np.nan
-                    
-                # eliminate nab points from right boundary    
-                polygon_xyl = np.delete(polygon_xyl,
-                                        np.argwhere(np.isnan(polygon_xyl[:,0])).ravel(),axis=0)    
-                
-                # close polygon
-                if np.any(np.diff(polygon_xyl[[0,-1],:])!=0): 
-                    polygon_xyl = np.vstack(( (polygon_xyl,polygon_xyl[0,:]) ))
-                
-                ## polygon must have at last 3 points
-                #if polygon_xyl.shape[0]==2: 
-                    #polygon_xyl = np.vstack(( polygon_xyl, polygon_xyl[0,:] ))
-                if polygon_xyl.shape[0]<=3: 
-                    ...
-                else:    
-                    self.lsmask_a.append(polygon_xyl)
-                
-                #_______________________________________________________________
-                # do polygon on right periodic boundary
-                polygon_xyr = polygon_xy.copy()
-                polygon_xyr[aux_ir[0],0]   = xmax
-                polygon_xyr[:aux_il[0]+1,:]= np.nan   
-                for jj in range(1,len(aux_ir)-1,2):
-                    polygon_xyr[[aux_ir[jj],aux_ir[jj+1]],0] = xmax
-                    polygon_xyr[aux_il[jj]:aux_il[jj+1]+1,:] = np.nan
-                polygon_xyr[aux_ir[-1],0]  = xmax
-                polygon_xyr[aux_il[-1]:,:] = np.nan  
-                
-                # eliminate nan points from left boudnary
-                polygon_xyr = np.delete(polygon_xyr,
-                                        np.argwhere(np.isnan(polygon_xyr[:,0])).ravel(),axis=0)    
-                
-                # close polygon
-                if np.any(np.diff(polygon_xyr[[0,-1],:])!=0): 
-                    polygon_xyr = np.vstack(( (polygon_xyr,polygon_xyr[0,:]) ))
-                
-                ## polygon must have at last 3 points
-                #if polygon_xyr.shape[0]==2: 
-                    #polygon_xyr = np.vstack(( polygon_xyr, polygon_xyr[0,:] ))
-                if polygon_xyr.shape[0]<=3: 
-                    ...
-                else:    
-                    self.lsmask_a.append(polygon_xyr)
-                
-                del polygon_xy, aux_il, aux_ir
-                
-            #polar lsmask contour with pbnd boundary
-            elif len(idx) == 1:
-                #_______________________________________________________________
-                # create single  polar polygon
-                aux_i      = np.hstack((idx,idx+1))
-                #aux_x,aux_y= self.lsmask_a[ii][aux_i,0], self.lsmask_a[ii][aux_i,1]
-                aux_x,aux_y= polygon_xy[aux_i,0], polygon_xy[aux_i,1]
-                
-                # indeces for left and right pbnd points
-                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])[0]
-                #aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])[0]
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])[0]
-                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > (xmin+xmax)*0.5).ravel()])[0]
-                #polygon_xy = self.lsmask_a[ii]
-                
-                # set corner points for polar polygon
-                pbndl   ,pbndr    = polygon_xy[aux_ir,:], polygon_xy[aux_il,:]
-                pbndl[0],pbndr[0] = xmin, xmax
-                if np.all(aux_y<0): 
-                    pcrnl, pcrnr = np.array([xmin, -90],ndmin=2), np.array([xmax,-90],ndmin=2)
-                else:
-                    pcrnl, pcrnr = np.array([xmin, 90],ndmin=2), np.array([xmax,90],ndmin=2)
-                
-                # augment and close polygon wit corner points
-                if aux_ir<aux_il:
-                    polygon_xy = np.vstack((  polygon_xy[:aux_ir,:], 
-                                           pbndr, pcrnr, pcrnl ,pbndl, 
-                                           polygon_xy[aux_il+1:,:]  ))
-                    
-                else:
-                    polygon_xy = np.vstack((  polygon_xy[:aux_il,:], 
-                                           pbndl, pcrnl, pcrnr ,pbndr, 
-                                           polygon_xy[aux_ir+1:,:]  ))
-                
-                ## polygon must have at least 3 points
-                #if polygon_xy.shape[0]==2: 
-                    #polygon_xy = np.vstack(( polygon_xy,polygon_xy[0,:] ))
-                if polygon_xy.shape[0]<=3: 
-                    ...
-                else:
-                    self.lsmask_a.append(polygon_xy)
-                    
-                    
-                del polygon_xy, pbndr, pcrnr, pcrnl ,pbndl, 
-                del aux_il, aux_ir, aux_i, aux_x, aux_y
-                
         #_______________________________________________________________________
-        # create lsmask patch to plot 
+        # main loop
+        for ii, poly in enumerate(self.lsmask):
+            
+            ## ensure polygon is clsoed 
+            if not (poly[0, 0] == poly[-1, 0] and poly[0, 1] == poly[-1, 1]):
+                poly = np.vstack((poly, poly[0])) 
+            
+            # check how many edges the contour has that span across the periodic 
+            # boudary. If there is 1 edge its a polar cap countour lines if it has
+            # two edges its a non-poalr contour like eurasia date includes the 
+            # dateline 
+            lon       = poly[:, 0]
+            lat       = poly[:, 1]
+            
+            dlon      = np.diff(lon)
+            crosspbnde_idx = np.where(np.abs(dlon) > half_cyclic)[0]
+            crosspbnde_nmb = crosspbnde_idx.size
+            #crosspbnde_idx = njit_find_period_crossings(lon, half_cyclic)
+            #crosspbnde_nmb = len(crosspbnde_idx)
+            
+            #___________________________________________________________________
+            # CASE 0: no seam crossings
+            if crosspbnde_nmb == 0: 
+                if poly.shape[0] > 3: self.lsmask_a.append(poly)
+            
+            
+            #___________________________________________________________________
+            # CASE 1: polar rings with exactly 1 seam crossing
+            elif crosspbnde_nmb == 1 :
+                pole_lat = -90.0 if np.all(poly[:,1]<0) else 90.0
+                idxpbnd = crosspbnde_idx[0]
+                
+                # determine left/right boudnary index build seam ponts 
+                if lon[idxpbnd] > lon[idxpbnd+1]:
+                    idxL, idxR = idxpbnd+1, idxpbnd
+                    x1, x2, x3, x4 = xmax, xmax, xmin, xmin 
+                    y1, y2, y3, y4 = lat[idxR], pole_lat, pole_lat, lat[idxL]
+                    
+                else:
+                    idxL, idxR = idxpbnd, idxpbnd+1
+                    x1, x2, x3, x4 = xmin, xmin, xmax, xmax 
+                    y1, y2, y3, y4 = lat[idxL], pole_lat, pole_lat, lat[idxR]
+                
+                # build seam edge for polar countours
+                seam = np.array([ [ x1, y1], [ x2, y2], [ x3, y3], [ x4, y4] ], dtype=float)                    
+                    
+                # add seam augmented polygon to final polygon list    
+                poly = np.vstack([ poly[:idxpbnd, :], seam,  poly[idxpbnd+1:, :] ])
+                if poly.shape[0] > 3: self.lsmask_a.append(poly)
+                
+            
+            #___________________________________________________________________    
+            # CASE 3: non-polar polygons with >= 2 seams    
+            elif crosspbnde_nmb>=2:
+                
+                # create main polygon 
+                #main_poly = poly.copy()
+                
+                # determine to which side L/R the main polygon is attributed to, 
+                # automatically the augmented polygons must be attributed to the 
+                # opposite side
+                if lon[crosspbnde_idx[0]]>xmid: main_xpos, augm_xpos= xmax, xmin
+                else                          : main_xpos, augm_xpos= xmin, xmax
+                
+                # loop over number of lsmask periodic boundary segments 
+                for ii in range(0, crosspbnde_nmb, 2):
+                    
+                    # vertice start indices of the first to segments that cross 
+                    # the periodic boundary. Between these two indices the first 
+                    # augmetned polygon is located 
+                    idxpbnd1 = crosspbnde_idx[ii]
+                    idxpbnd2 = crosspbnde_idx[ii+1]
+                    
+                    # Create an close augmented polygon 
+                    augm_poly= np.vstack([poly[idxpbnd1+1:idxpbnd2,:],
+                                          np.array([[augm_xpos, lat[idxpbnd2+1]],
+                                                    [augm_xpos, lat[idxpbnd1]]
+                                                    ])
+                                          ])
+                                          
+                    # add augmented polygon to final polygon list                       
+                    if augm_poly.shape[0] > 3: self.lsmask_a.append(augm_poly)
+                    
+                    # marke the vertice point of the augmetned polygon in the main
+                    # polygon with NaN, marker them to b e later deleted
+                    poly[idxpbnd2           ,0] = main_xpos
+                    poly[idxpbnd1+1         ,0] = main_xpos
+                    poly[idxpbnd1+2:idxpbnd2,0] = np.nan
+                    
+                # delete the augmented polygon points within the mainpolygon     
+                poly = poly[ ~np.isnan(poly[:,0]), :] 
+                
+                # add main polygon to final polygon list                       
+                if poly.shape[0] > 3: self.lsmask_a.append(poly)
+        
+        #_______________________________________________________________________
+        # build patch for plotting
         self.lsmask_p = lsmask_patch(self.lsmask_a)
         
         #_______________________________________________________________________
-        return(self)
-    
-    
+        return self
+
+
+
     #
     #
     #___________________________________________________________________________
@@ -1569,6 +1511,8 @@ ___________________________________________""".format(
         #_______________________________________________________________________
         return(self)
     
+    
+    
     #
     #
     #___________________________________________________________________________
@@ -1578,6 +1522,8 @@ ___________________________________________""".format(
         
         #_______________________________________________________________________
         return(self)
+
+
 
     #
     #
@@ -1679,204 +1625,6 @@ ___________________________________________""".format(
             return data_e_smth
 
 
-"""
-    def augment_lsmask_unfinished(self):
-       
-        print(" > augment lsmask")
-        self.lsmask_a = []
-
-        cyclic = float(self.cyclic)
-        xmin   = np.floor(self.n_x.min())
-        xmax   = xmin + cyclic
-        xmid   = 0.5 * (xmin + xmax)
-
-        # Identify polar candidates
-        southmost_idx = np.argmin([poly[:, 1].min() for poly in self.lsmask])
-        northmost_idx = np.argmax([poly[:, 1].max() for poly in self.lsmask])
-
-        # ------------------------------------------------------------------
-        # helper functions
-        # ------------------------------------------------------------------
-        def close_poly(P):
-            #Ensure polygon is closed.
-            if not (P[0, 0] == P[-1, 0] and P[0, 1] == P[-1, 1]):
-                return np.vstack((P, P[0]))
-            return P
-
-        def split_at_seams_unwrapped(Pw):
-            # split unwrapped polygon Pw into seam-free segments.
-            x = Pw[:, 0]
-            wrap_idx = np.floor((x - xmin) / cyclic).astype(int)
-            cuts = np.where(np.diff(wrap_idx) != 0)[0] + 1
-            parts = np.split(Pw, cuts)
-            return parts
-
-        def rewrap(seg):
-            # Rewrap segment to [xmin, xmax] and close.
-            Q = seg.copy()
-            Q[:, 0] = (Q[:, 0] - xmin) % cyclic + xmin
-            return close_poly(Q)
-
-        def add_polar_cap(P, seam_idx, pole_lat):
-            # Build polar trapezoid polygon (Option A) for a ring with
-            # exactly one seam crossing.
-            # P: closed polygon (N x 2)
-            # seam_idx: index of seam edge (between i and i+1)
-            # pole_lat: -90 (Antarctic) or +90 (Arctic)
-            Pw = P[:-1].copy()  # drop duplicate last point
-            N  = Pw.shape[0]
-            s  = seam_idx
-            i0, i1 = s, (s + 1) % N
-            p0, p1 = Pw[i0], Pw[i1]
-
-            # figure left/right ends w.r.t. xmid
-            if p0[0] < xmid:
-                left_idx, right_idx = i0, i1
-            else:
-                left_idx, right_idx = i1, i0
-
-            # coast path from right_cut → ... → left_cut
-            coast_idx = np.concatenate((np.arange(right_idx, N),
-                                        np.arange(0, left_idx + 1)))
-            coast = Pw[coast_idx]
-
-            # ensure coast runs left→right in longitude (after wrapping)
-            coast_lons = (coast[:, 0] - xmin) % cyclic + xmin
-            if coast_lons[0] > coast_lons[-1]:
-                coast      = coast[::-1]
-                coast_lons = coast_lons[::-1]
-
-            # snap endpoints to boundaries
-            coast_aug = coast.copy()
-            coast_aug[0, 0]  = xmin
-            coast_aug[-1, 0] = xmax
-
-            # build trapezoid: coast + [xmax,pole_lat] + [xmin,pole_lat]
-            poly_aug = np.vstack([
-                coast_aug,
-                [xmax, pole_lat],
-                [xmin, pole_lat],
-            ])
-            poly_aug = close_poly(poly_aug)
-            return poly_aug
-
-        def split_single_seam_nonpolar(P, seam_idx):
-            # Handle non-polar polygon with exactly one seam crossing.
-            # Split into two polygons: one on the 'left' side and one on the 'right'.
-            # P: closed polygon (N x 2)
-            # seam_idx: index s where edge P[s] -> P[s+1] crosses the seam
-            Pw = P[:-1].copy()  # length N
-            N  = Pw.shape[0]
-            s  = seam_idx
-
-            i0, i1 = s, (s + 1) % N
-            p0, p1 = Pw[i0], Pw[i1]
-
-            # Decide which endpoint is "left" vs "right" using xmid
-            if p0[0] < xmid:
-                left_idx, right_idx = i0, i1
-            else:
-                left_idx, right_idx = i1, i0
-
-            # Build two open polylines:
-            #   L: from left_idx -> ... -> right_idx (around one way)
-            #   R: from right_idx -> ... -> left_idx (other way)
-            if left_idx < right_idx:
-                L = Pw[left_idx:right_idx + 1]
-                R = np.vstack((Pw[right_idx:left_idx - 1:-1],))  # reversed other side
-            else:
-                L = np.vstack((Pw[left_idx:], Pw[:right_idx + 1]))
-                R = np.vstack((Pw[right_idx:left_idx + 1],))
-
-            # Wrap both so that L is on the left side, R on the right side
-            # --- Left polygon: longitudes near xmin
-            Lw = L.copy()
-            Lw[:, 0] = (Lw[:, 0] - xmin) % cyclic + xmin
-            # snap endpoints to xmin
-            Lw[0, 0]  = xmin
-            Lw[-1, 0] = xmin
-            Lw = close_poly(Lw)
-
-            # --- Right polygon: longitudes near xmax
-            Rw = R.copy()
-            Rw[:, 0] = (Rw[:, 0] - xmin) % cyclic + xmin
-            # shift to be near xmax
-            # if mean lon is closer to xmin, add +cyclic
-            if np.abs(Rw[:, 0].mean() - xmin) < np.abs(Rw[:, 0].mean() - xmax):
-                Rw[:, 0] += cyclic
-            Rw[:, 0] = (Rw[:, 0] - xmin) % cyclic + xmin
-            # snap endpoints to xmax
-            Rw[0, 0]  = xmax
-            Rw[-1, 0] = xmax
-            Rw = close_poly(Rw)
-
-            out = []
-            if Lw.shape[0] > 3:
-                out.append(Lw)
-            if Rw.shape[0] > 3:
-                out.append(Rw)
-            return out
-
-        # ------------------------------------------------------------------
-        # main loop
-        # ------------------------------------------------------------------
-        for ii, poly in enumerate(self.lsmask):
-
-            P = close_poly(poly.copy())
-
-            # seam detection
-            dlon      = np.diff(P[:, 0])
-            seam_idx  = np.where(np.abs(dlon) > cyclic / 2.0)[0]
-            seam_count = seam_idx.size
-
-            # CASE 0: no seam crossings
-            if seam_count == 0:
-                if P.shape[0] > 3:
-                    self.lsmask_a.append(P)
-                continue
-
-            is_antarctica = (ii == southmost_idx)
-            is_arctic     = (ii == northmost_idx)
-
-            # CASE 1: polar rings with exactly 1 seam crossing
-            if seam_count == 1 and (is_antarctica or is_arctic):
-                pole_lat = -90.0 if is_antarctica else 90.0
-                poly_aug = add_polar_cap(P, seam_idx[0], pole_lat)
-                if poly_aug.shape[0] > 3:
-                    self.lsmask_a.append(poly_aug)
-                continue
-
-            # CASE 2: non-polar polygon with exactly 1 seam crossing
-            if seam_count == 1:
-                pieces = split_single_seam_nonpolar(P, seam_idx[0])
-                self.lsmask_a.extend(pieces)
-                continue
-
-            # CASE 3: non-polar polygons with >= 2 seams
-            # general unwrap/split/rewrap
-            x = P[:, 0].copy()
-            x_unwrap = x.copy()
-            for k in seam_idx:
-                if x_unwrap[k + 1] < x_unwrap[k]:
-                    x_unwrap[k + 1:] += cyclic
-                else:
-                    x_unwrap[k + 1:] -= cyclic
-
-            Pw = P.copy()
-            Pw[:, 0] = x_unwrap
-
-            for seg in split_at_seams_unwrapped(Pw):
-                if seg.shape[0] <= 3:
-                    continue
-                Q = rewrap(seg)
-                if Q.shape[0] > 3:
-                    self.lsmask_a.append(Q)
-
-        # ------------------------------------------------------------------
-        # build patch for plotting
-        self.lsmask_p = lsmask_patch(self.lsmask_a)
-        return self
-"""
 
 
 #
@@ -3829,3 +3577,22 @@ def njit_elem_smoothing(n2de, elem_x, elem_y, e_nghbr_e, eINe_num,
             
     #___________________________________________________________________________
     return data_e_smth
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit
+def njit_find_period_crossings(x, half):
+    """
+    Find indices i where edge (i → i+1) crosses periodic boundary.
+    """
+    n = x.size - 1
+    out = []
+    for i in range(n):
+        dx = x[i+1] - x[i]
+        if dx > half or dx < -half:
+            out.append(i)
+    #___________________________________________________________________________        
+    return out

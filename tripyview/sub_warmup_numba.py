@@ -167,6 +167,10 @@ def warmup_lsmask():
 
     # 3. loop tracer
     loops = njit_lsmask_trace_loops(adj)
+    
+    # 4. warmup find_period_crossings
+    n_x = np.array([-180, 180, 75], dtype=np.float32)
+    _ = njit_find_period_crossings(n_x, 180.0)
 
 
 def warmup_smoothing_kernels():
