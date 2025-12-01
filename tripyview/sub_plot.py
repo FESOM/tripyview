@@ -171,6 +171,7 @@ def plot_hslice(mesh                   ,
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :do_ie2n:   bool, (default: False) do interpolation of data on elements towards nodes
 
@@ -358,7 +359,7 @@ def plot_hslice(mesh                   ,
     """
     #___________________________________________________________________________
     # --> create box
-    if (box is None or box=="None") and proj!='channel': box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
+    if (box is None or box=="None") and proj!='channel' and proj!='neverworld2': box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
     
     #___________________________________________________________________________
     # --> check if input data is a list
@@ -742,6 +743,7 @@ def plot_hmesh( mesh                   ,
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :do_ie2n:   bool, (default: False) do interpolation of data on elements towards nodes
 
@@ -1187,6 +1189,7 @@ def plot_hquiver(mesh                  ,
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :do_ie2n:    bool, (default: False) do interpolation of data on elements towards nodes
 
@@ -3380,6 +3383,7 @@ def do_projection(mesh, proj, box):
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :box:       None, list (default: None) regional limitation of plot. For 
                     ortho box = [lonc, latc], nears [lonc, latc, zoom], for all
@@ -3453,6 +3457,11 @@ def do_projection(mesh, proj, box):
     elif proj=='channel':
         proj_to = ccrs.PlateCarree()
         if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
+    
+    elif proj=='neverworld2':
+        proj_to = ccrs.PlateCarree()
+        if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
+    
     
         print(proj, box)
     #___Vertical "Projection"___________________________________________________
@@ -3869,7 +3878,7 @@ def do_axes_arrange(nx, ny,
         if ax_asp==1.0:        
             #___________________________________________________________________
             # projection[0] is an arbitrary cartopy-projection object
-            if isinstance(projection[0], ccrs.CRS) and proj!='channel':
+            if isinstance(projection[0], ccrs.CRS) and proj!='channel' and proj!='neverworld2':
                 if isinstance(projection[0], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Orthographic, ccrs.NearsidePerspective) ):
                     ax_asp = 1.0
                     
@@ -3885,6 +3894,7 @@ def do_axes_arrange(nx, ny,
             #___________________________________________________________________
             # channel 
             elif isinstance(projection[0], ccrs.CRS) and proj=='channel': ax_asp = 2.0
+            elif isinstance(projection[0], ccrs.CRS) and proj=='neverworld2': ax_asp = 0.5
                 
             #___________________________________________________________________
             # projection is vertical section
@@ -4125,7 +4135,7 @@ def do_axes_arrange(nx, ny,
             nn+=1
             #___________________________________________________________________
             # axes
-            if isinstance(projection[nn], ccrs.CRS) and proj=='channel':
+            if   isinstance(projection[nn], ccrs.CRS) and (proj=='channel' or proj=='neverworld2'):
                 hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn], aspect='auto' )
             elif isinstance(projection[nn], ccrs.CRS):
                 hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])    
@@ -5948,7 +5958,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
     if do_grid:
         t1 = clock.time()
         #_______________________________________________________________________
-        if proj=='channel':
+        if proj=='channel' or proj=='neverworld2':
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':5})
             grid_optdefault.update(grid_opt)
             #___________________________________________________________________
