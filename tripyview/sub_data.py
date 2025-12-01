@@ -448,6 +448,7 @@ def load_data_fesom2(mesh,
         #data = data.drop(labels=vname_drop)
         data = data.drop_vars(vname_drop)
     
+    
     #___________________________________________________________________________    
     if do_parallel and do_info: display(data)
     
@@ -545,6 +546,7 @@ def load_data_fesom2(mesh,
     # do time arithmetic on data
     if 'time' in data.dims: data, str_atim = do_time_arithmetic(data, do_tarithm)
     
+    
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
@@ -572,22 +574,27 @@ def load_data_fesom2(mesh,
             if isinstance(depth,list) and len(depth)==1: auxdepth = depth[0]
                 
             if   ('nz1' in data.dims):
+                # if the interpolated depth doesnt exist set to first or last layer
+                if   np.all(data['nz1'].data>auxdepth): 
+                    auxdepth = data['nz1'].isel(nz1= 0).data
+                    str_ldep = ', dep:{}m'.format(str(auxdepth))
+                elif np.all(data['nz1'].data<auxdepth): 
+                    auxdepth = data['nz1'].isel(nz1=-1).data
+                    str_ldep = ', dep:{}m'.format(str(auxdepth))
                 # this seems to be in moment slightly faster  than using here the 
                 # map_blocks option!!!
                 data = data.interp(nz1=auxdepth, method="linear")
                 data['nzi'] = data['nzi'].astype("uint8")
-                
-                #template = data.isel(nz1=slice(0, 2)).interp(nz1=auxdepth, method="linear")
-                #def interp_block(data_block, new_depth=None):
-                    #return data_block.interp(nz1=new_depth, method="linear")
-                #data = data.chunk({dim_vert: -1}).map_blocks(interp_block, 
-                                                          #kwargs={"new_depth": auxdepth}, 
-                                                          #template=template)
-                
                 if data['nz1'].size>1: 
                     data = do_depth_arithmetic(data, do_zarithm, "nz1")
                  
-            elif ('nz'  in data.dims):    
+            elif ('nz'  in data.dims):
+                if   np.all(data['nz'].data>auxdepth): 
+                    auxdepth = data['nz'].isel(nz1= 0).data
+                    str_ldep = ', dep:{}m'.format(str(auxdepth))
+                elif np.all(data['nz'].data<auxdepth): 
+                    auxdepth = data['nz'].isel(nz1=-1).data
+                    str_ldep = ', dep:{}m'.format(str(auxdepth))
                 data = data.interp(nz=auxdepth, method="linear")
                 if data['nz'].size>1:   
                     data = do_depth_arithmetic(data, do_zarithm, "nz") 
@@ -604,6 +611,8 @@ def load_data_fesom2(mesh,
     
     # only 2D data found            
     else: depth=None
+    
+    
     
     #___________________________________________________________________________
     # rotate the vectors if do_rot=True and do_vec=True
