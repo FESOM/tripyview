@@ -49,7 +49,7 @@ def load_mesh_fesom2(
                     do_loadraw  = False                 , 
                     do_pickle   = False                 , 
                     do_joblib   = True                  , 
-                    do_redosave = True                  ,
+                    do_redosave = False                 ,
                     do_f14cmip6 = False                 ,
                     do_info     = True                  , 
                     ):
@@ -105,7 +105,8 @@ def load_mesh_fesom2(
                         cant be  found it switches automatic to joblib
 
         :do_joblib:     bool, (default=False) store and load mesh from .joblib binary file
-        :do_load:       bool, (default=True) loading infrastructureshould be used
+        
+        :do_redosave:   bool, (default=False) enforce overwritting of existing mesh object files
 
         :do_f14cmip6:   bool, (default=False) load FESOM1.4 mesh information and squeeze it into
                         the framework of FESOM2. Needed here to compute AMOC on fesom1.4 
@@ -119,7 +120,9 @@ def load_mesh_fesom2(
 
     """
     
-    pickleprotocol=4
+    pickleprotocol = 4
+    loadpicklepath = ''
+    loadjoblibpath = ''
     #___________________________________________________________________________
     if foundmodpickle==False and do_pickle==True:
         print(' > warning: pickle5 module could not be found, no do_pickle \n is possible! Therefor switch to joblib saving/loading')
@@ -181,7 +184,7 @@ def load_mesh_fesom2(
     # exist create mesh object with fesom_mesh
     # do_pickle==True and .pckl file exists
     if  (( do_pickle and ( os.path.isfile(loadpicklepath) )) or \
-        ( do_joblib and ( os.path.isfile(loadjoblibpath) ))) and \
+         ( do_joblib and ( os.path.isfile(loadjoblibpath) ))) and \
           (do_redosave==False): 
             
         
@@ -322,7 +325,8 @@ def load_mesh_fesom2(
         # save mypy mesh .pckl file
         # --> try 1.st to store it in the mesh in the meshfolder, will depend of 
         #     there is permission to write
-        if do_pickle:
+        if (do_pickle   and not ( os.path.isfile(loadpicklepath)) ) or \
+           (do_redosave and     ( os.path.isfile(loadpicklepath)) ):
             try: 
                 savepicklepath = os.path.join(meshpath,picklefname)
                 if do_info: print(' > save mesh to *.pckl in {}'.format(savepicklepath))
@@ -346,7 +350,8 @@ def load_mesh_fesom2(
         # save mypy mesh .jlib file
         # --> try 1.st to store it in the mesh in the meshfolder, will depend of 
         #     there is permission to write
-        if do_joblib:
+        if (do_joblib   and not ( os.path.isfile(loadjoblibpath)) ) or \
+           (do_redosave and     ( os.path.isfile(loadjoblibpath)) ):
             try: 
                 savejoblibpath = os.path.join(meshpath, joblibfname)
                 if do_info: print(' > save mesh to *.jlib in {}'.format(savejoblibpath))
@@ -468,14 +473,27 @@ class mesh_fesom2(object):
                         
         ___land sea mask (if do_lsmask == True)______________
         
-        lsmask: list(array1[npts,2], array2[npts,2], ...), contains all land-sea mask polygons for FESOM2 mesh, with periodic boundary
-
-        lsmask_a: list(array1[npts,2], array2[npts,2], ...)contains all land-sea mask polygons for FESOM2 mesh, with augmented 
-        periodic boundary
-
-        lsmask_p: polygon, contains polygon collection that can be plotted as 
-        closed polygon patches with ax.add_collection(PatchCollection
-        (mesh.lsmask_p,facecolor=[0.7,0.7,0.7], edgecolor='k', linewidth=0.5))
+        lsmask:         list(array1[npts,2], array2[npts,2], ...), contains all land-sea mask polygons for FESOM2 mesh, with periodic boundary
+    
+        lsmask_a:       list(array1[npts,2], array2[npts,2], ...)contains all land-sea mask polygons for FESOM2 mesh, with augmented 
+                        periodic boundary
+    
+        lsmask_p:       polygon, contains polygon collection that can be plotted as 
+                        closed polygon patches with ax.add_collection(PatchCollection
+                        (mesh.lsmask_p,facecolor=[0.7,0.7,0.7], edgecolor='k', linewidth=0.5))
+                        
+        
+        ___neigborhood arrays_______________________________
+        n_nghbr_e:      array, node neighborhood with respect to elements
+        num_n_nghbr_e:  array, number of neighboring elements with respect to node
+        
+        e_nghbr_e:      array, elem neighborhood with respect to elements
+        num_e_nghbr_e:  array, number of neighboring elements with respect to elem
+                        (considering missing elements due to being boudnary elem)
+        
+        n_nghbr_n:      array, node neighborhood with respect to nodes
+        num_n_nghbr_n:  array, number of neighboring nodes with respect to node
+        
     
     __________________________________________________
     
@@ -1115,7 +1133,8 @@ ___________________________________________""".format(
                         - "mean"  ... resolution based on mean element edge legth
                         - "max"   ... resolution based on maximum element edge length
                         - "min"   ... resolution based on minimum element edge length
-                        - "height"... resolution based on height of element 
+                        - "height"... resolution based on height of element
+                        - "area"  ... resolution based on sqrt(2*area) of element
 
         """
         if len(self.e_resol) == 0 :
@@ -1387,9 +1406,11 @@ ___________________________________________""".format(
     #| boundaries                                                              |
     #|_________________________________________________________________________|
     def augment_lsmask(self):
+        """
+        --> part of fesom mesh class, compute periodic boundary augmentation of 
+            land-sea mask contourline 
+        """
         print(" > augment lsmask")
-        self.lsmask_a = []
-
         cyclic = self.cyclic
         half_cyclic =  cyclic * 0.5
         xmin   = np.floor(self.n_x.min())
@@ -1398,6 +1419,7 @@ ___________________________________________""".format(
         
         #_______________________________________________________________________
         # main loop
+        self.lsmask_a = []
         for ii, poly in enumerate(self.lsmask):
             
             ## ensure polygon is clsoed 
@@ -1506,6 +1528,11 @@ ___________________________________________""".format(
     #___________________________________________________________________________
     # compute nodal neighborhood with respect to elements 
     def compute_n_nghbr_e(self):
+        """
+        --> part of fesom mesh class, compute node neighborhood connectivity with 
+            respect to elements
+            
+        """
         self.n_nghbr_e, self.num_n_nghbr_e = njit_compute_n_nghbr_e(self.e_i)
         
         #_______________________________________________________________________
@@ -1518,6 +1545,11 @@ ___________________________________________""".format(
     #___________________________________________________________________________
     # compute element neighborhood with respect to elements 
     def compute_e_nghbr_e(self):
+        """
+        --> part of fesom mesh class, compute element neighborhood connectivity with 
+            respect to elements
+            
+        """
         self.e_nghbr_e, self.num_e_nghbr_e = njit_compute_e_nghbr_e(self.e_i)
         
         #_______________________________________________________________________
@@ -1530,6 +1562,11 @@ ___________________________________________""".format(
     #___________________________________________________________________________
     # compute nodal neighborhood with respect to nodes
     def compute_n_nghbr_n(self):
+        """
+        --> part of fesom mesh class, compute node neighborhood connectivity with 
+            respect to nodes
+            
+        """
         self.n_nghbr_n, self.num_n_nghbr_n = njit_compute_n_nghbr_n(self.e_i)
         
         #_______________________________________________________________________
@@ -1542,7 +1579,20 @@ ___________________________________________""".format(
     #___________________________________________________________________________
     # smooth data on nodes
     def smooth_nodes(self, data_n, num_iter=3, weaksmth_boxlist=False, rel_center_weight=1.0):
+        """
+        --> part of fesom mesh class, smooth data on nodes with a convolution filter
         
+        Parameter: 
+            
+            data_n:  np.array or xr.DataArray with 1D vertice data
+            
+            num_iter: number of convolution cycles 
+            
+            weaksmth_boxlist: list (default=False) with box [lonmin, lonmax, latmin, latmax, coeff]
+                              where a weak smoothing should be applied
+            
+            rel_center_weight: float (default=1.0), center weight for convolution kernel
+        """
         #_______________________________________________________________________
         # compute node neighborhood with respect to nodes if not already computed
         if len(self.n_nghbr_n)==0: self.compute_n_nghbr_n()
@@ -1583,6 +1633,20 @@ ___________________________________________""".format(
     #
     #___________________________________________________________________________
     def smooth_elems(self, data_e, num_iter=3, weaksmth_boxlist=False, rel_center_weight=1.0):
+        """
+        --> part of fesom mesh class, smooth data on elements with a convolution filter
+        
+        Parameter: 
+            
+            data_e:  np.array or xr.DataArray with 1D element data
+            
+            num_iter: number of convolution cycles 
+            
+            weaksmth_boxlist: list (default=False) with box [lonmin, lonmax, latmin, latmax, coeff]
+                              where a weak smoothing should be applied
+            
+            rel_center_weight: float (default=1.0), center weight for convolution kernel
+        """
 
         #_______________________________________________________________________
         # compute elem neighborhood with respect to elements if not already computed
@@ -2170,8 +2234,34 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
 
 def dask_vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
     """
-    Rotate vector data from rotated coordinates into geographical coordinates.
+    --> In FESOM2 the vector variables are usually given in the rotated coordinate 
+    frame in which the model works and need to be rotated into normal geo    
+    coordinates, however in the latest FESOM2 version there is also the option that
+    they are rotated in the model via a flag. So make sure what applies to you                                                           
     This version uses Dask for parallelization.
+    
+    Parameters:
+        
+        :abg:       list, with euler angles [alpha, beta, gamma]
+        
+        :lon:       array, longitude
+        
+        :lat:       array, latitude
+        
+        :urot:      array, zonal velocities in rotated frame
+        
+        :vrot:      array, meridional velocities in rotated frame
+        
+        :gridis:    str, in which coordinate frame are given lon, lat
+                    'geo','g','geographical': lon,lat is given in geo coordinates
+                    'rot','r','rotated'     : lon,lat is given in rot coordinates
+                    
+    Returns:
+    
+        :ugeo:      array, zonal velocities in normal geo frame
+        
+        :vgeo:      array, meridional velocities in normal geo frame
+    
     """
     # --- FAST PATH: if vector data is 1D, do NOT use Dask ---
     if urot.ndim == 1:
@@ -2266,8 +2356,6 @@ def dask_vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
         print("  u/v shape :", u_da.shape)
         print("  chunks    :", u_da.chunks)
         print("  npts      :", npts)
-
-    
     
     #___________________________________________________________________________
     # Block function: calls the numba kernel on each Dask block
@@ -2281,16 +2369,12 @@ def dask_vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
 
     #___________________________________________________________________________
     # Use map_blocks: output has an extra leading axis (2, ...)
-    #t1 = clock.time()
     stacked = da.map_blocks(_block, u_da, v_da, dtype=u_da.dtype,
                             chunks=( (2,), ) + u_da.chunks,
                             new_axis=0,
                             )
-
-    #___________________________________________________________________________
     ugeo_da = stacked[0]
     vgeo_da = stacked[1]
-    #print(' elapsed time 123d', clock.time()-t1)
     #___________________________________________________________________________
     return ugeo_da, vgeo_da
 
@@ -2373,8 +2457,8 @@ def njit_vec_r2g_123d(rmat, lon_rad, lat_rad,
     #___________________________________________________________________________
     else: raise ValueError("invalid ndim")
    
-        
-        
+
+
 #
 #
 # ___CUTOUT REGION BASED ON BOX________________________________________________
@@ -2472,7 +2556,11 @@ def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
     
         :mesh: fesom2 mesh object
         
-        :data_e: np.array with datas on elements either 2d or 3d 
+        :data_e: np.array with datas on elements either 2d or 3d
+        
+        :data_e2: np.array optional for vector data
+        
+        :client: provide load dask client
         
     Returns:
     
