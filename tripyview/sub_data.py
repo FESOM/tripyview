@@ -43,6 +43,7 @@ def load_data_fesom2(mesh,
                      do_prec        = 'float32' ,
                      do_f14cmip6    = False     ,
                      do_multiio     = False     ,
+                     do_cftime      = False     ,
                      do_compute     = False     ,
                      do_load        = True      ,
                      do_persist     = False     ,
@@ -370,6 +371,7 @@ def load_data_fesom2(mesh,
     # of range dtype = _decode_cf_datetime_dtype(data, u
     use_cftime = False
     if year[0]>2262 or year[1]>2262: use_cftime=True
+    if (do_cftime): use_cftime=True
     
     if   engine == 'netcdf4' : 
         #engine_dict = dict({})

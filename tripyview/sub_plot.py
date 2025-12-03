@@ -3460,7 +3460,8 @@ def do_projection(mesh, proj, box):
     
     elif proj=='neverworld2':
         proj_to = ccrs.PlateCarree()
-        if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
+        if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), 
+                                              np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
     
     
         print(proj, box)
@@ -4157,7 +4158,7 @@ def do_axes_arrange(nx, ny,
                 hax[nn].sharey     = ax_sharey
             # set position of axes
             hax[nn].set_position(pos_ax[nn,:])
-            
+            hax[nn].box            = box
             #if box is not None: hax[nn].set_extent(box, crs=projection[nn])
             if box is not None and isinstance(projection[nn], ccrs.CRS): 
                 if  not isinstance(projection[nn], (ccrs.Orthographic, ccrs.NearsidePerspective ) ): #ccrs.NorthPolarStereo, ccrs.SouthPolarStereo,
@@ -5897,6 +5898,34 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', 
         h0 = [h01,h02]
         if do_info: print(' --> plt lsmask etopo: {:f}'.format(clock.time()-t1))    
         
+    elif do_lsm=='neverworld2':       
+        yn, ys  = np.max(mesh.n_y), np.min(mesh.n_y)
+        xw, xe  = np.min(mesh.n_x), np.max(mesh.n_x)
+        ynp, ysp= np.max(mesh.n_ya), np.min(mesh.n_ya)       
+        w       = abs(hax_ii.box[0]-mesh.n_x.min())
+        lsmask  = list()
+        lsmask.append([   [xw  , ynp ], 
+                          [xw-w, ynp ], 
+                          [xw-w, yn+w], 
+                          [xe+w, yn+w],
+                          [xe+w, ynp ], 
+                          [xe  , ynp ],
+                          [xe  , yn  ], 
+                          [xw  , yn  ],
+                          [xw  , ynp ], ])
+        lsmask.append([   [xw  , ysp ], 
+                          [xw-w, ysp ], 
+                          [xw-w, ys-w], 
+                          [xe+w, ys-w],
+                          [xe+w, ysp ], 
+                          [xe  , ysp ],
+                          [xe  , ys  ], 
+                          [xw  , ys  ],
+                          [xw  , ysp ], ])
+        lsmask_p = lsmask_patch(lsmask)
+        h0=hax_ii.add_geometries(lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        if do_info: print(' --> plt lsmask neverworld2: {:f}'.format(clock.time()-t1))
+        
     else:
         raise ValueError(" > the do_lsm={} is not supported, must be either 'fesom', 'stock', 'bluemarble' or 'etopo'! ")
         
@@ -5965,7 +5994,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             h0=hax_ii.gridlines(**grid_optdefault )
             if hax_ii.do_ylabel: h0.left_labels   = True
             if hax_ii.do_xlabel: h0.bottom_labels = True
-
+            
         #_______________________________________________________________________
         elif isinstance(hax_ii.projection, ccrs.CRS):
             #___________________________________________________________________
