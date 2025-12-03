@@ -82,6 +82,9 @@ vertice/element- resolution and area)
 </p>
 
 * `hslice_neverworld2`- plot horizontal slices of variables in the neverworld2 configuration (provide routine to make neverworld2 movie)
+<p align="center" width="100%">
+  <img width=40% src="docs/images/tripyview_neverworld_curl.png">
+</p>
 
 * `hquiver`          - plot horizontal arrow vector field in various projections
 <p align="center" width="100%">
