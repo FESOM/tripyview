@@ -198,11 +198,12 @@ def do_analyse_transects(input_transect     ,
             #___________________________________________________________________
             # compute which edges are intersected by cross-section line 
             #sub_transect = _do_find_intersected_edges(mesh, sub_transect, edge, idx_edlimit)
-            sub_transect = _do_find_intersected_edges_fast(mesh, sub_transect, edge, idx_edlimit)
+            #sub_transect = _do_find_intersected_edges_fast(mesh, sub_transect, edge, idx_edlimit)
+            sub_transect = _do_find_intersected_edges_fastnew(mesh, sub_transect, edge, idx_edlimit)
             
             #___________________________________________________________________
             # sort intersected edges after distance from cross-section start point
-            sub_transect = _do_sort_intersected_edges(sub_transect)
+            ##sub_transect = _do_sort_intersected_edges(sub_transect)
             
             #___________________________________________________________________
             # build transport path
@@ -214,7 +215,7 @@ def do_analyse_transects(input_transect     ,
         del(sub_transect)
         
         #_______________________________________________________________________    
-        # insert land pts (nan) when there are 2 onsecutive cutted boundary 
+        # insert land pts (nan) when there are 2 consecutive cutted boundary 
         transect = _do_insert_landpts(transect, edge_tri)
         
         #_______________________________________________________________________    
@@ -562,6 +563,122 @@ def _do_find_intersected_edges_fast(mesh, transect, edge, idx_ed):
     ))
     transect['edge_cut_lint'][-1] = X0_valid / normA0_valid
     transect['edge_cut_ni'  ][-1] = edge[:, valid_idx].T
+    
+    #___________________________________________________________________________
+    return transect
+
+
+
+def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
+    # Based on Line Equation:
+    # 
+    #                    vec_d 
+    #    o----------------------------------->o      vec_d = (   x1-x0, y1-y0)
+    # (x0,y0)                              (x1,y1)   vec_n = (-(y1-y0), x1-x0)
+    # 
+    # 
+    # L(x,y) = a*x + b*y + c = 0
+    # 
+    # vec_n * | x | = - c
+    #         | y | 
+    #          
+    # a,b are the components of the normal vector thus c is 
+    #  c = (y1-y0)*x0 - (x1-x0)*y0   
+    #    = y1*x0 - y0*x0 - x1*y0 + x0*y0    
+    #    = y1*x0 - x1*y0
+    #
+    # Triangle vertrices: A(x_A, y_A), B(x_B, y_B), C(x_C, y_C)         
+    #
+    # Compute signed distances of triangle vertices to the line
+    # s_A = a*x_A + b*y_A + c
+    # s_B = a*x_B + b*y_B + c
+    # s_C = a*x_C + b*y_C + c
+    # 
+    # edge is cut iff the signed distances at its endpoints have opposite sign
+    # AB: s_A⋅s_B < 0
+    # BC: s_B⋅s_C < 0
+    # CA: s_C⋅s_A < 0
+    
+    # Initialize lists
+    for key in ['edge_cut_i', 'edge_cut_evec', 'edge_cut_P', 'edge_cut_midP', 'edge_cut_lint', 'edge_cut_ni']:
+        transect[key].append([])
+
+    n_x  = mesh.n_x
+    n_y  = mesh.n_y
+    
+    # points of finite  section line
+    x0   = transect['Px'][-1][0]
+    y0   = transect['Py'][-1][0]
+    x1   = transect['Px'][-1][1]
+    y1   = transect['Py'][-1][1]
+
+    # compute section line coefficents
+    a    = y0 - y1 # y0-y1 = ()y1-y0
+    b    = x1 - x0 # x1-x0
+    c    = x0*y1 - x1*y0#y1*x0 - x1*y0
+    
+    # already limit edge vertice indices
+    ed0  = edge[0, idx_ed]
+    ed1  = edge[1, idx_ed]    
+    x0ed = n_x[ed0]
+    y0ed = n_y[ed0]
+    x1ed = n_x[ed1]
+    y1ed = n_y[ed1]
+    dxed = x1ed - x0ed
+    dyed = y1ed - y0ed
+    del(ed0, ed1)
+    
+    # compute distance to line 
+    s0   = a*x0ed + b*y0ed + c
+    s1   = a*x1ed + b*y1ed + c
+    del(x1ed, y1ed, a, b, c, n_x, n_y)
+    
+    # compute intersection point
+    t    = s0/(s0-s1)
+    xi   = x0ed + t* dxed
+    yi   = y0ed + t* dyed
+    
+    # direction vector of cutting segment
+    dx10 = x1 - x0
+    dy10 = y1 - y0
+    dd10 = dx10*dx10 + dy10*dy10   # squared length
+    dxi0 = xi - x0
+    dyi0 = yi - y0
+    
+    # projection factor
+    lam  = (dxi0*dx10 + dyi0*dy10) / dd10
+    
+    # check if intersected
+    mask = ((s0*s1)<0) & (lam >= 0) & (lam <= 1)
+    del(s0, s1, dxi0, dyi0)
+    
+    # Select only valid intersections
+    idx      = idx_ed[mask]
+    xi_srt   = xi[    mask]
+    yi_srt   = yi[    mask]
+    dxed_srt = dxed[  mask]
+    dyed_srt = dyed[  mask]
+    x0ed_srt = x0ed[  mask]
+    y0ed_srt = y0ed[  mask]
+    t_srt    = t[     mask]
+    
+    # already sort edges here by distance from start point of line segment
+    idxs     = np.argsort(lam[mask])
+    xi_srt   = xi_srt[  idxs]
+    yi_srt   = yi_srt[  idxs]
+    dxed_srt = dxed_srt[idxs]
+    dyed_srt = dyed_srt[idxs]
+    x0ed_srt = x0ed_srt[idxs]
+    y0ed_srt = y0ed_srt[idxs]
+    t_srt    = t_srt[   idxs] 
+    
+    # Store results
+    transect['edge_cut_i'   ][-1] = idx[idxs]
+    transect['edge_cut_evec'][-1] = np.column_stack((dxed_srt,  dyed_srt))
+    transect['edge_cut_P'   ][-1] = np.column_stack((xi_srt  ,  yi_srt))
+    transect['edge_cut_midP'][-1] = np.column_stack((x0ed_srt+dxed_srt*0.5, y0ed_srt+dyed_srt*0.5))
+    transect['edge_cut_lint'][-1] = t_srt
+    transect['edge_cut_ni'  ][-1] = edge[:, idx[idxs]].T
     
     #___________________________________________________________________________
     return transect
@@ -1080,9 +1197,9 @@ def calc_transect_Xtransp(mesh,
         # RAM demand is significantly lower which allow for larger chunks in 
         # the vertical --> and allow for abit of a speed up
         if do_tarithm is not None: data_uv, _ = do_time_arithmetic(data_uv, do_tarithm)
-        
         data_uv = data_uv.load()
-        if client is not None: client.rebalance()    
+        if client is not None: client.rebalance() 
+        
         vel_u, vel_v = data_uv[vnameU].values, data_uv[vnameV].values
         lon, lat     = data_uv['lon'].values, data_uv['lat'].values
         if 'nod2' in data.dims:    
