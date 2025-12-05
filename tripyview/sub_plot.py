@@ -3573,8 +3573,9 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=None,
     # add some more varaibles i need
     tri.mask_e_box     = e_box_mask
     tri.mask_n_box     = n_box_mask
-    del(e_box_mask, n_box_mask)
     tri.n2dn, tri.n2de = mesh.n2dn, mesh.n2de
+    tri.mask_e_ok      = np.ones(np.sum(e_box_mask), dtype=bool)
+    del(e_box_mask, n_box_mask)
     
     #___________________________________________________________________________
     if do_narea:
@@ -5799,6 +5800,7 @@ def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6, do_in
         mesh_optdefault.update(mesh_opt)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_optdefault)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles, zorder=5, **mesh_optdefault)
+        
         auxtriangles = tri.triangles[tri.mask_e_ok,:]
         arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
         nchnk = np.ceil(arrsize/chnksize).astype(int)
