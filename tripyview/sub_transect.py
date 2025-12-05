@@ -203,7 +203,7 @@ def do_analyse_transects(input_transect     ,
             
             #___________________________________________________________________
             # sort intersected edges after distance from cross-section start point
-            ##sub_transect = _do_sort_intersected_edges(sub_transect)
+            #sub_transect = _do_sort_intersected_edges(sub_transect)
             
             #___________________________________________________________________
             # build transport path
@@ -613,9 +613,9 @@ def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
     y1   = transect['Py'][-1][1]
 
     # compute section line coefficents
-    a    = y0 - y1 # y0-y1 = ()y1-y0
-    b    = x1 - x0 # x1-x0
-    c    = x0*y1 - x1*y0#y1*x0 - x1*y0
+    a    = y0    - y1 
+    b    = x1    - x0 
+    c    = x0*y1 - x1*y0
     
     # already limit edge vertice indices
     ed0  = edge[0, idx_ed]
@@ -641,15 +641,15 @@ def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
     # direction vector of cutting segment
     dx10 = x1 - x0
     dy10 = y1 - y0
-    dd10 = dx10*dx10 + dy10*dy10   # squared length
+    dd10 = dx10*dx10 + dy10*dy10
     dxi0 = xi - x0
     dyi0 = yi - y0
     
     # projection factor
-    lam  = (dxi0*dx10 + dyi0*dy10) / dd10
+    fac  = (dxi0*dx10 + dyi0*dy10) / dd10
     
     # check if intersected
-    mask = ((s0*s1)<0) & (lam >= 0) & (lam <= 1)
+    mask = ((s0*s1)<0) & (fac >= 0) & (fac <= 1)
     del(s0, s1, dxi0, dyi0)
     
     # Select only valid intersections
@@ -663,7 +663,7 @@ def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
     t_srt    = t[     mask]
     
     # already sort edges here by distance from start point of line segment
-    idxs     = np.argsort(lam[mask])
+    idxs     = np.argsort(fac[mask])
     xi_srt   = xi_srt[  idxs]
     yi_srt   = yi_srt[  idxs]
     dxed_srt = dxed_srt[idxs]
@@ -1066,32 +1066,32 @@ def _do_insert_landpts(transect, edge_tri):
 
 
 
-#
-#
-#_______________________________________________________________________________    
-def _do_compute_distance_from_startpoint(transect):
-    # build distance from start point for transport path [km]
-    Rearth = 6367.5  # [km]
-    x,y,z  = grid_cart3d(transect['path_xy'][:,0], transect['path_xy'][:,1], is_deg=True)
-    dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
-    # avoid nan's in arccos from numerics
-    dist[dist>=1.0] = 1.0
-    dist   = np.arccos(dist)*Rearth
-    transect['path_dist'] = dist.cumsum()   
-    transect['path_dist'] = transect['path_dist']-transect['path_dist'][0]
-    del(dist, x, y, z)
+##
+##
+##_______________________________________________________________________________    
+#def _do_compute_distance_from_startpoint(transect):
+    ## build distance from start point for transport path [km]
+    #Rearth = 6367.5  # [km]
+    #x,y,z  = grid_cart3d(transect['path_xy'][:,0], transect['path_xy'][:,1], is_deg=True)
+    #dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
+    ## avoid nan's in arccos from numerics
+    #dist[dist>=1.0] = 1.0
+    #dist   = np.arccos(dist)*Rearth
+    #transect['path_dist'] = dist.cumsum()   
+    #transect['path_dist'] = transect['path_dist']-transect['path_dist'][0]
+    #del(dist, x, y, z)
     
-    # build distance from start point for edge cut mid points [km]
-    x,y,z  = grid_cart3d(transect['edge_cut_midP'][:,0], transect['edge_cut_midP'][:,1], is_deg=True)
-    dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
-    # avoid nan's in arccos from numerics
-    dist[dist>=1.0] = 1.0
-    dist   = np.arccos(dist)*Rearth
-    transect['edge_cut_dist'] = np.hstack([0,dist.cumsum()])
-    del(dist, x, y, z)
+    ## build distance from start point for edge cut mid points [km]
+    #x,y,z  = grid_cart3d(transect['edge_cut_midP'][:,0], transect['edge_cut_midP'][:,1], is_deg=True)
+    #dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
+    ## avoid nan's in arccos from numerics
+    #dist[dist>=1.0] = 1.0
+    #dist   = np.arccos(dist)*Rearth
+    #transect['edge_cut_dist'] = np.hstack([0,dist.cumsum()])
+    #del(dist, x, y, z)
     
-    #___________________________________________________________________________
-    return(transect)
+    ##___________________________________________________________________________
+    #return(transect)
     
 
 #
