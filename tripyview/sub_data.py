@@ -4,6 +4,7 @@ import time  as clock
 import os
 import warnings
 import xarray as xr
+#from xarray.coders import CFDatetimeCoder
 import netCDF4 as nc
 #import seawater as sw
 import gsw as gsw
@@ -339,7 +340,7 @@ def load_data_fesom2(mesh,
         do_pdens=True 
         vname_tmp = vname
         vname, vname2 = 'temp', 'salt'
-        
+    
     #___________________________________________________________________________
     # create path name list that needs to be loaded
     if isinstance(datapath, str):
@@ -369,9 +370,16 @@ def load_data_fesom2(mesh,
     # SerializationWarning: Unable to decode time axis into full numpy.datetime64 
     # objects, continuing using cftime.datetime objects instead, reason: dates out 
     # of range dtype = _decode_cf_datetime_dtype(data, u
+    warnings.filterwarnings("ignore", message="datetime.datetime.utcnow")
+    warnings.filterwarnings("ignore", message="The specified chunks separate the stored chunks")
     use_cftime = False
     if year[0]>2262 or year[1]>2262: use_cftime=True
     if (do_cftime): use_cftime=True
+    
+    # Build decode_times argument correctly
+    decode_times=True
+    # if use_cftime: decode_times = CFDatetimeCoder(use_cftime=True)
+    # else         : decode_times = True
     
     if   engine == 'netcdf4' : 
         #engine_dict = dict({})
@@ -380,7 +388,7 @@ def load_data_fesom2(mesh,
                             #'combine'       :'nested', 
                             #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
                             'decode_coords' :False     , 
-                            'decode_times'  :True      , 
+                            'decode_times'  :decode_times      ,  
                             'use_cftime'    :use_cftime, 
                             'autoclose'     :False     , 
                             'lock'          :False     , 
@@ -449,7 +457,6 @@ def load_data_fesom2(mesh,
         # remove variables that are not needed
         #data = data.drop(labels=vname_drop)
         data = data.drop_vars(vname_drop)
-    
     
     #___________________________________________________________________________    
     if do_parallel and do_info: display(data)
@@ -548,7 +555,6 @@ def load_data_fesom2(mesh,
     # do time arithmetic on data
     if 'time' in data.dims: data, str_atim = do_time_arithmetic(data, do_tarithm)
     
-    
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
@@ -600,7 +606,7 @@ def load_data_fesom2(mesh,
                 data = data.interp(nz=auxdepth, method="linear")
                 if data['nz'].size>1:   
                     data = do_depth_arithmetic(data, do_zarithm, "nz") 
-            
+    
     #___________________________________________________________________________
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
@@ -613,8 +619,6 @@ def load_data_fesom2(mesh,
     
     # only 2D data found            
     else: depth=None
-    
-    
     
     #___________________________________________________________________________
     # rotate the vectors if do_rot=True and do_vec=True

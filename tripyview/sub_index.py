@@ -123,7 +123,7 @@ def load_index_fesom2(mesh                  ,
             boxname = os.path.basename(box.shapeName).replace('_',' ')  
             shape_data = [shape.points for shape in box.shapes()]  # Extract raw data
             box = MultiPolygon([Polygon(shape) for shape in shape_data])
-            
+          
         #_______________________________________________________________________
         # compute  mask index to select index region 
         if do_idxin_in is None:
@@ -140,7 +140,7 @@ def load_index_fesom2(mesh                  ,
                 idxin = None
         else:
             idxin = do_idxin_in[bi]
-            
+        
         #_______________________________________________________________________
         # check basin selection
         if do_checkbasin and idxin is not None:
@@ -155,7 +155,7 @@ def load_index_fesom2(mesh                  ,
                 plt.plot(mesh.n_x[tri.triangles[idxin,:]].sum(axis=1)/3.0, mesh.n_y[tri.triangles[idxin,:]].sum(axis=1)/3.0, '*r', linestyle='None', markersize=1)
             plt.title('Basin selection')
             plt.show()
-                
+        
         #_______________________________________________________________________
         # selected points in xarray dataset object and  average over selected 
         # points
@@ -169,7 +169,7 @@ def load_index_fesom2(mesh                  ,
         # select index region from data
         if box != 'global': index = data.sel({dimn_h:idxin})
         else              : index = data    
-            
+        
         #_______________________________________________________________________
         # do volume averaged mean (apply horiz. and vertical)
         if   do_harithm=='wmean' and do_zarithm=='wmean':
