@@ -167,8 +167,12 @@ def load_index_fesom2(mesh                  ,
         
         #_______________________________________________________________________
         # select index region from data
-        if box != 'global': index = data.sel({dimn_h:idxin})
-        else              : index = data    
+        if box != 'global': 
+            index = data.sel({dimn_h:idxin})
+            #index = data.sel({dimn_h:idxin}).persist()
+        else              : 
+            index = data    
+            #index = data.persist()
         
         #_______________________________________________________________________
         # do volume averaged mean (apply horiz. and vertical)

@@ -1066,32 +1066,32 @@ def _do_insert_landpts(transect, edge_tri):
 
 
 
-##
-##
-##_______________________________________________________________________________    
-#def _do_compute_distance_from_startpoint(transect):
-    ## build distance from start point for transport path [km]
-    #Rearth = 6367.5  # [km]
-    #x,y,z  = grid_cart3d(transect['path_xy'][:,0], transect['path_xy'][:,1], is_deg=True)
-    #dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
-    ## avoid nan's in arccos from numerics
-    #dist[dist>=1.0] = 1.0
-    #dist   = np.arccos(dist)*Rearth
-    #transect['path_dist'] = dist.cumsum()   
-    #transect['path_dist'] = transect['path_dist']-transect['path_dist'][0]
-    #del(dist, x, y, z)
+#
+#
+#_______________________________________________________________________________    
+def _do_compute_distance_from_startpoint(transect):
+    # build distance from start point for transport path [km]
+    Rearth = 6367.5  # [km]
+    x,y,z  = grid_cart3d(transect['path_xy'][:,0], transect['path_xy'][:,1], is_deg=True)
+    dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
+    # avoid nan's in arccos from numerics
+    dist[dist>=1.0] = 1.0
+    dist   = np.arccos(dist)*Rearth
+    transect['path_dist'] = dist.cumsum()   
+    transect['path_dist'] = transect['path_dist']-transect['path_dist'][0]
+    del(dist, x, y, z)
     
-    ## build distance from start point for edge cut mid points [km]
-    #x,y,z  = grid_cart3d(transect['edge_cut_midP'][:,0], transect['edge_cut_midP'][:,1], is_deg=True)
-    #dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
-    ## avoid nan's in arccos from numerics
-    #dist[dist>=1.0] = 1.0
-    #dist   = np.arccos(dist)*Rearth
-    #transect['edge_cut_dist'] = np.hstack([0,dist.cumsum()])
-    #del(dist, x, y, z)
+    # build distance from start point for edge cut mid points [km]
+    x,y,z  = grid_cart3d(transect['edge_cut_midP'][:,0], transect['edge_cut_midP'][:,1], is_deg=True)
+    dist   = x[:-1]*x[1:] + y[:-1]*y[1:] + z[:-1]*z[1:]
+    # avoid nan's in arccos from numerics
+    dist[dist>=1.0] = 1.0
+    dist   = np.arccos(dist)*Rearth
+    transect['edge_cut_dist'] = np.hstack([0,dist.cumsum()])
+    del(dist, x, y, z)
     
-    ##___________________________________________________________________________
-    #return(transect)
+    #___________________________________________________________________________
+    return(transect)
     
 
 #
@@ -1255,7 +1255,7 @@ def calc_transect_Xtransp(mesh,
                 vel_u, vel_v = vel_u.sum(axis=3)*0.5, vel_v.sum(axis=3)*0.5
                 
             # here rotate the velocities from roted frame to geo frame 
-            if do_rot: vel_u, vel_v = vec_r2g_dask(mesh.abg, lon, lat, vel_u, vel_v)
+            if do_rot: vel_u, vel_v = dask_vec_r2g(mesh.abg, lon, lat, vel_u, vel_v)
             
             #___________________________________________________________________        
             if var_X is not None:
@@ -1285,7 +1285,7 @@ def calc_transect_Xtransp(mesh,
                 vel_u, vel_v = vel_u.sum(axis=2)*0.5, vel_v.sum(axis=2)*0.5
                 
             # here rotate the velocities from roted frame to geo frame 
-            if do_rot: vel_u, vel_v = vec_r2g_dask(mesh.abg, lon, lat, vel_u, vel_v)
+            if do_rot: vel_u, vel_v = dask_vec_r2g(mesh.abg, lon, lat, vel_u, vel_v)
             
             #___________________________________________________________________        
             if var_X is not None:
@@ -1399,7 +1399,7 @@ def calc_transect_Xtransp(mesh,
         #_______________________________________________________________________
         # create dataset
         if is_list:
-            transp.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs))
+            transp.append(xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs).load())
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']
@@ -1420,7 +1420,7 @@ def calc_transect_Xtransp(mesh,
                 print('')
                 
         else:
-            transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs )
+            transp = xr.Dataset(data_vars=data_vars, coords=coords, attrs=gattrs ).load()
             # we have to set the time here with assign_coords otherwise if its 
             # setted in xr.Dataset(..., coords=dict(...),...)xarray does not 
             # recognize the cfttime format and things like data['time.year']

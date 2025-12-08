@@ -122,7 +122,7 @@ def plot_hslice(mesh                   ,
                 save_opt   = dict()    ,
                 
                 #--- chunk size------
-                chnksize   = 3e6       ,
+                chnksize   = 6.5e6       ,
                 
                 #--- time info------
                 do_info    = False     , 
@@ -6177,7 +6177,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             #___________________________________________________________________
             # set x/y limits
             if data_y is not None: 
-                print(data_y[0],data_y[-1])
+                # print(data_y[0],data_y[-1])
                 if np.ndim(data_y)==1 : hax_ii.set_ylim(data_y[0],data_y[-1])
                 if np.ndim(data_y)==2 : hax_ii.set_ylim(np.nanmin(data_y),np.nanmax(data_y))
             

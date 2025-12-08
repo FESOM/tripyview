@@ -1,7 +1,7 @@
 #___1lvl Parameter___
 tripyrun_name: "tripyrun_all_analysis"
 # If do_parallel=True us dask client to allocate several worker, and process in parallel
-do_parallel: False
+do_parallel: True
 #parallel_tnprc: 128    # total number of available CPUs
 #parallel_nprc: 72      # number of allocated dask workers
 #parallel_tmem: 200     # total availabel RAM on compute node

@@ -2,18 +2,35 @@
 import numpy as np
 import time  as clock
 import os
+#___________________________________________________________________________
+# switch off certain warnings
 import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="distributed.client",
+                        message=r".*Sending large graph of size.*")
+warnings.filterwarnings("ignore", category=UserWarning, module="distributed.client",
+                        message=r".*Large object of size \\d+\\.\\d+ detected in task graph.*")
+    
 import xarray as xr
-#from xarray.coders import CFDatetimeCoder
+from xarray.coding.times import encode_cf_datetime
+from xarray.coding.cftimeindex import CFTimeIndex
+
+import pandas as pd
+import cftime
+
 import netCDF4 as nc
 #import seawater as sw
 import gsw as gsw
-from .sub_mesh import *
-import warnings
+
 import dask.array as da
-from dask.array import broadcast_arrays
+from   dask.array import broadcast_arrays
+import h5py
+h5py.get_config().track_order = True  # faster attribute lookup
+
+import psutil
 import gc
 
+from .sub_mesh import *
+    
 
 #xr.set_options(enable_cftimeindex=False)
 # ___LOAD FESOM2 DATA INTO XARRAY DATASET CLASS________________________________
@@ -49,14 +66,13 @@ def load_data_fesom2(mesh,
                      do_load        = True      ,
                      do_persist     = False     ,
                      do_parallel    = False     ,
-                     chunks         = { 'time' :'auto', 'elem':'auto', 'nod2'  :'auto', \
-                                        'edg_n':'auto', 'nz'  :'auto', 'nz1'   :'auto', \
-                                        'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
-                                        'node' :'auto'},
+                     opti_dim       = 'h'       ,
+                     opti_chunkfrac = 0.10      , 
+                     chunks         = dict()    ,
                      do_showtime    = False     ,
                      do_info        = True      ,
                      client         = None      , 
-                     engine         = 'netcdf4' , # 'h5netcdf'
+                     engine         = 'h5netcdf', #'netcdf4' , # 'h5netcdf'
                      diagpath       = None      ,
                      **kwargs):
     """
@@ -187,6 +203,13 @@ def load_data_fesom2(mesh,
     str_ldep, str_ltim = '', '' # string for labels
     str_lsave = ''    
     xr.set_options(keep_attrs=True)
+    
+    chunks_all = { 'time' :'auto', 'elem':'auto', 'nod2'  :'auto', \
+                   'edg_n':'auto', 'nz'  :'auto', 'nz1'   :'auto', \
+                   'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
+                   'node' :'auto'}
+    chunks_all.update(chunks)
+    chunks = chunks_all
     
     #___________________________________________________________________________
     # Related to bug especially on albedo netcdf-c not being threat save since netcdf1.6.1: 
@@ -365,41 +388,55 @@ def load_data_fesom2(mesh,
     
     #___________________________________________________________________________
     # load multiple files
-    
     # Avoid Warning Message:
     # SerializationWarning: Unable to decode time axis into full numpy.datetime64 
     # objects, continuing using cftime.datetime objects instead, reason: dates out 
     # of range dtype = _decode_cf_datetime_dtype(data, u
-    warnings.filterwarnings("ignore", message="datetime.datetime.utcnow")
-    warnings.filterwarnings("ignore", message="The specified chunks separate the stored chunks")
     use_cftime = False
     if year[0]>2262 or year[1]>2262: use_cftime=True
     if (do_cftime): use_cftime=True
     
     # Build decode_times argument correctly
-    decode_times=True
-    # if use_cftime: decode_times = CFDatetimeCoder(use_cftime=True)
-    # else         : decode_times = True
-    
+    decode_times  = True
+    decode_coords = False
     if   engine == 'netcdf4' : 
-        #engine_dict = dict({})
-        engine_dict = dict({
-                            'engine'        :"netcdf4" , 
-                            #'combine'       :'nested', 
-                            #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
-                            'decode_coords' :False     , 
-                            'decode_times'  :decode_times      ,  
-                            'use_cftime'    :use_cftime, 
-                            'autoclose'     :False     , 
-                            'lock'          :False     , 
-                            'backend_kwargs':{'format': 'NETCDF4', 'mode':'r'}
-                            })# load normal FESOM2 run file
+        engine_dict = dict({'engine'        :'netcdf4'     ,
+                            'backend_kwargs':{
+                                'format': 'NETCDF4', 
+                                'mode':'r',
+                                #'lock': False,  !!! ATTENTION THIS CAUSES ERROR
+                                }})# load normal FESOM2 run file
     elif engine == 'h5netcdf': 
-        engine_dict = dict({'engine':"h5netcdf",'backend_kwargs':{'phony_dims': 'sort', 'decode_vlen_strings':False, 'invalid_netcdf':'ignore'}})# load normal FESOM2 run file
-    
+        engine_dict = dict({'engine'        :"h5netcdf"   ,
+                            'backend_kwargs':{
+                                'phony_dims': 'sort', 
+                                'decode_vlen_strings':False,
+                                'invalid_netcdf':'ignore',
+                                #'lock': False,  !!! ATTENTION THIS CAUSES ERROR
+                                }})# load normal FESOM2 run file
+    engine_dict.update({'combine'       :'by_coords'   , 
+                        'decode_coords' :decode_coords , 
+                        'decode_times'  :decode_times  ,  
+                        'use_cftime'    :use_cftime    , })
+                        #'combine'       :'nested', 
+                        #'concat_dim'    :'time'
+                        #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
+                        
+    #___________________________________________________________________________
+    # compute optimal chunking size depending on worker memory size
+    if do_parallel and opti_dim != 'off':
+        chunks = compute_optimal_chunks(pathlist[0], client=client, varname=vname, 
+                                        opti_dim=opti_dim, opti_chunkfrac=opti_chunkfrac, 
+                                        do_info=do_info)
+        
+    #___________________________________________________________________________
+    # load data in parallel    
     if do_file=='run':
-        data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
+        warnings.filterwarnings("ignore", category=UserWarning, message=r".*The specified chunks separate the stored chunks.*")
+        data = xr.open_mfdataset(pathlist, 
+                                 parallel=do_parallel, 
                                  preprocess=partial_func, 
+                                 chunks=chunks, 
                                  **engine_dict, 
                                  **kwargs)
         
@@ -419,9 +456,12 @@ def load_data_fesom2(mesh,
         # in case of vector load also meridional data and merge into 
         # dataset structure
         if (do_vec or do_norm or do_pdens) and vname2 is not None:
+            warnings.filterwarnings("ignore", category=UserWarning, message=r".*The specified chunks separate the stored chunks.*")
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
-            data     = xr.merge([data, xr.open_mfdataset(pathlist,  parallel=do_parallel, chunks=chunks, 
+            data     = xr.merge([data, xr.open_mfdataset(pathlist,  
+                                                         parallel=do_parallel, 
                                                          preprocess=partial_func, 
+                                                         chunks=chunks, 
                                                          **engine_dict, 
                                                          **kwargs)])
             # !!! --> this is not a good idea, to do chunking after loading requires 
@@ -439,8 +479,13 @@ def load_data_fesom2(mesh,
     # load restart or blowup files
     else:
         print(pathlist)
-        data = xr.open_mfdataset(pathlist, parallel=do_parallel, chunks=chunks, 
-                                 autoclose=False, preprocess=partial_func, **kwargs)
+        data = xr.open_mfdataset(pathlist, 
+                                 parallel=do_parallel, 
+                                 preprocess=partial_func, 
+                                 chunks=chunks, 
+                                 **engine_dict, 
+                                 **kwargs)
+        
         if (do_vec or do_norm or do_pdens) and vname2 is not None:
             # which variables should be dropped 
             vname_drop = list(data.keys())
@@ -554,11 +599,11 @@ def load_data_fesom2(mesh,
     
     # do time arithmetic on data
     if 'time' in data.dims: data, str_atim = do_time_arithmetic(data, do_tarithm)
-    
+
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
-    data = do_setbottomnan(mesh, data, do_nan)
+    data = do_setbottomnan(mesh, data, do_nan, do_info=do_info)
     
     #___________________________________________________________________________
     # select depth levels also for vertical interpolation 
@@ -572,51 +617,42 @@ def load_data_fesom2(mesh,
         #_______________________________________________________________________
         if do_pdens: 
             data, vname = do_potential_density(data, do_pdens, vname, vname2, vname_tmp)
-            
+        
         #_______________________________________________________________________
         # do vertical interpolation and summation over interpolated levels 
         if depidx==False:
             str_adep = ', '+str(do_zarithm)
             
-            auxdepth = depth
+            # interpolation target depth
             if isinstance(depth,list) and len(depth)==1: auxdepth = depth[0]
+            else                                       : auxdepth = depth
                 
-            if   ('nz1' in data.dims):
-                # if the interpolated depth doesnt exist set to first or last layer
-                if   np.all(data['nz1'].data>auxdepth): 
-                    auxdepth = data['nz1'].isel(nz1= 0).data
-                    str_ldep = ', dep:{}m'.format(str(auxdepth))
-                elif np.all(data['nz1'].data<auxdepth): 
-                    auxdepth = data['nz1'].isel(nz1=-1).data
-                    str_ldep = ', dep:{}m'.format(str(auxdepth))
-                # this seems to be in moment slightly faster  than using here the 
-                # map_blocks option!!!
-                data = data.interp(nz1=auxdepth, method="linear")
-                data['nzi'] = data['nzi'].astype("uint8")
-                if data['nz1'].size>1: 
-                    data = do_depth_arithmetic(data, do_zarithm, "nz1")
-                 
-            elif ('nz'  in data.dims):
-                if   np.all(data['nz'].data>auxdepth): 
-                    auxdepth = data['nz'].isel(nz1= 0).data
-                    str_ldep = ', dep:{}m'.format(str(auxdepth))
-                elif np.all(data['nz'].data<auxdepth): 
-                    auxdepth = data['nz'].isel(nz1=-1).data
-                    str_ldep = ', dep:{}m'.format(str(auxdepth))
-                data = data.interp(nz=auxdepth, method="linear")
-                if data['nz'].size>1:   
-                    data = do_depth_arithmetic(data, do_zarithm, "nz") 
-    
+            # get z-coordinate as numpy (FAST)
+            
+            # handle out-of-range depth
+            auxdepth = np.atleast_1d(np.asarray(auxdepth, dtype=float))
+            if   dim_vert == 'nz1': auxdepth = np.clip(auxdepth, abs(mesh.zmid[0]), abs(mesh.zmid[-1]))
+            elif dim_vert == 'nz ': auxdepth = np.clip(auxdepth, abs(mesh.zlev[0]), abs(mesh.zlev[-1]))
+            if auxdepth.size==1: str_ldep = f", dep:{auxdepth[0]}m"
+            else               : str_ldep = f", dep:{auxdepth[0]}-{auxdepth[-1]}m" 
+            
+            # this seems to be in moment slightly faster  than using here the 
+            # map_blocks option!!!
+            data = data.interp(nz1=auxdepth, method="linear")
+            #data['nzi'] = data['nzi'].astype("uint8")
+            
+            # do depth arithmetic over interpolated layers 
+            if data[dim_vert].size>=1: 
+                data = do_depth_arithmetic(data, do_zarithm, dim_vert)
+                
     #___________________________________________________________________________
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
     elif ( (bool(set(['nz1', 'nz', 'ncat', 'ndens']).intersection(data.dims))) and 
            (depth is None) and 
            (do_zarithm in ['sum','mean','wmean','wint', 'max', 'min']) ): 
-        if   ('nz1'  in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz1" )
-        elif ('nz'   in data.dims): data = do_depth_arithmetic(data, do_zarithm, "nz"  )
-        elif ('ncat' in data.dims): data = do_depth_arithmetic(data, do_zarithm, "ncat")     
-    
+        data = do_depth_arithmetic(data, do_zarithm, dim_vert)
+        
     # only 2D data found            
     else: depth=None
     
@@ -663,15 +699,20 @@ def load_data_fesom2(mesh,
         data = do_additional_attrs(data, vname, attr_dict)
     
     #___________________________________________________________________________
-    warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-    warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
-    if   do_compute: data = data.compute()
-    elif do_load   : data = data.load()
-    elif do_persist: data = data.persist()
-    if any([do_compute, do_load, do_persist]): data.close()
-    gc.collect()  # Trigger garbage collection
-    if client is not None: client.rebalance()
-    warnings.resetwarnings()
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning, message=r".*datetime.datetime.utcnow.*")
+        warnings.filterwarnings("ignore", category=UserWarning, message=r".*The specified chunks separate the stored chunks.*")
+        #warnings.filterwarnings("ignore", category=UserWarning, message=r".*Sending large graph of size.*")
+        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+
+        if   do_compute: data = data.compute()
+        elif do_load   : data = data.load()
+        elif do_persist: data = data.persist()
+        if any([do_compute, do_load, do_persist]): data.close()
+        
+        gc.collect()  # Trigger garbage collection
+        if client is not None: client.rebalance()
+    
     #___________________________________________________________________________
     if do_info: 
         info_txt ="""___FESOM2 DATA INFO________________________
@@ -963,13 +1004,13 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     data = data.assign_coords(grid_info)
     gc.collect()
     return(data, dimn_v, dimn_h)
-
     
+
 
 #
 #
 # ___SET 3D BOTTOM VALUES TO NAN_______________________________________________
-def do_setbottomnan(mesh, data, do_nan):
+def do_setbottomnan(mesh, data, do_nan, do_info=True):
     """
     --> replace bottom fill values with nan (default value is zero)
     
@@ -989,10 +1030,14 @@ def do_setbottomnan(mesh, data, do_nan):
     """
     # set bottom to nan --> in moment the bottom fill value is zero would be 
     # better to make here a different fill value in the netcdf files !!!
-    if do_nan and any(x in data.dims for x in ['nz1','nz']): 
-        
+    if do_nan and any(x in data.dims for x in ['nz1','nz']):
+    
+        if do_info: print(' --> put nan lsmask ')
         dimn_v = 'nz1' if 'nz1'  in data.dims else 'nz'
         dimn_h = 'nod2'if 'nod2' in data.dims else 'elem'
+        
+        # check if the data have already nans from directly loading. recent fesom data
+        # include already the fill_value option 
         if   ('nod2' in data.dims):
             # from Shape (n,)  --> Shape (1, n)
             mat_nhor_iz = data['nodiz'].expand_dims(dim=dimn_v) 
@@ -1073,64 +1118,75 @@ def do_select_time(data, mon, day, record, str_mtim):
     
     #___________________________________________________________________________
     # select time based on record index --> overwrites mon and day selection        
-    elif (record is not None):
+    if (record is not None):
+        if isinstance(record, int): record = [record]
         data = data.isel(time=record)
         # do time information string 
-        str_mtim = '{}, rec: {}'.format(str_mtim, record)
+        if len(record)==1: 
+            str_mtim = '{}, rec:{}.'.format(  str_mtim, str(record))
+        else:
+            str_mtim = '{}, rec:{}-{}'.format(str_mtim, str(record[0]), str(record[-1]) )
+        return(data, mon, day, str_mtim)   
     
     #___________________________________________________________________________
     # select time based on mon and or day selection 
-    elif (mon is not None) or (day is not None):
-        
-        if isinstance(mon, int): mon = [mon]
-        if isinstance(day, int): day = [day]
-        
-        # by default select everything
-        sel_mon = np.full((data['time'].size, ), True, dtype=bool)
-        sel_day = np.full((data['time'].size, ), True, dtype=bool)
-        
-        # than check if mon or day is defined and overwrite selction mon day
-        # selction array
-        if   (mon is not None): sel_mon = np.isin( data['time.month'], mon)
-        if   (day is not None): sel_day = np.isin( data['time.day']  , day)
-        
-        # check if selection would discard all time slices 
-        if np.all(sel_mon==False): 
-            sel_mon = np.full((data['time'].size, ), True, dtype=bool)
-            mon     = None
-            print(" > your mon selection was discarded, no time slice would have been selected!")
-            print("   The loaded data might be only annual mean")
-        if np.all(sel_day==False): 
-            sel_mday = np.full((data['time'].size, ), True, dtype=bool)
-            day      = None
-            print(" > your day selection was discarded, no time slice would have been selected!")
-            print("   The loaded data might be only annual or monthly mean")
+    
+    # start with full selection mask
+    if isinstance(mon, int): mon = [mon]
+    if isinstance(day, int): day = [day]
+    time = data.time
+    sel = xr.ones_like(time, dtype=bool)
+    
+    # selection of month
+    if (mon is not None) and (len(mon)!=12): 
+        sel_mask = time.dt.month.isin(mon)
+        if (sel_mask.sum() == 0):
+            mon = None
+            print(" --> your mon selection was discarded, no time slice would have been selected!")
+            print("     The loaded data might be only annual mean")
+        else:
+            sel = sel & sel_mask
             
-        # select matching time slices
-        data = data.isel(time=np.logical_and(sel_mon,sel_day))
+    # selection of day        
+    if (day is not None) and (len(day)!=31):
+        sel_mask = time.dt.day.isin(day)
+        if sel_mask.sum() == 0:
+            print(" --> your day selection was discarded, no time slice would have been selected!")
+            print("     The loaded data might be only annual or monthly mean")
+            
+            day = None
+        else:
+            sel = sel & sel_mask
+            
+    # apply selection 
+    if (sel.sum() == 0):
+        print(" --> no valid time slices after selection. Returning all data.")
+        return data, None, None, str_mtim
+
+    # select data
+    data = data.sel(time=sel)
+    
+    # do time information string for month
+    if (mon is not None) and len(mon)!=12:
+        mon_list_short='JFMAMJJASOND'
+        mon_list_lon=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        if len(mon)==1: 
+            str_mtim = '{}, m:{}.'.format(str_mtim, mon_list_lon[mon[0]-1])
+        else:
+            aux_mon = ''
+            aux_mon = ['{}{}'.format(aux_mon,mon_list_short[i-1]) for i in mon]
+            aux_mon = ''.join(aux_mon)
+            str_mtim = '{}, m:{}'.format(str_mtim, str(aux_mon) )
         
-        # do time information string for month
-        if (mon is not None) and len(mon)!=12:
-            mon_list_short='JFMAMJJASOND'
-            mon_list_lon=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            if len(mon)==1: 
-                str_mtim = '{}, m:{}.'.format(str_mtim, mon_list_lon[mon[0]-1])
-            else:
-                aux_mon = ''
-                aux_mon = ['{}{}'.format(aux_mon,mon_list_short[i-1]) for i in mon]
-                aux_mon = ''.join(aux_mon)
-                str_mtim = '{}, m:{}'.format(str_mtim, str(aux_mon) )
-        
-        # do time information string for day
-        if (day is not None):
-            if len(mon)==1: 
-                str_mtim = '{}, d:{}.'.format(str_mtim, str(day))
-            else:
-                str_mtim = '{}, d:{}-{}'.format(str_mtim, str(day[0]), str(day[-1]) )
-        
+    # do time information string for day
+    if (day is not None):
+        if len(mon)==1: 
+            str_mtim = '{}, d:{}.'.format(str_mtim, str(day))
+        else:
+            str_mtim = '{}, d:{}-{}'.format(str_mtim, str(day[0]), str(day[-1]) )
+    
     #___________________________________________________________________________
-    gc.collect()
     return(data, mon, day, str_mtim)    
 
 
@@ -1246,30 +1302,40 @@ def do_comp_sel_levidx(zlev, depth, depidx, ndimax):
     if   isinstance(depth,(int, float)):
         # select index closest to depth
         if depidx:
-            sel_levidx = np.argmin(abs(zlev-depth))
+            return int(np.argmin(abs(zlev-depth)))
+        
         # select index for interpoaltion 
-        else:
-            auxidx  = np.searchsorted(zlev,depth)
-            if   auxidx>ndimax : sel_levidx = [ndimax-1,ndimax]       
-            elif auxidx>=1     : sel_levidx = [auxidx-1,auxidx]
-            else               : sel_levidx = [auxidx,auxidx+1]   
+        idx  = np.searchsorted(zlev,depth)
+        if   idx<=0      : return [0, 1]       
+        elif idx>=ndimax : return [ndimax-1,ndimax]       
+        else             : return [idx-1,idx]   
         
     #___________________________________________________________________________
     # select indices for vertical interpolation for multiple defined 
     # depth layer
     elif isinstance(depth,(list, np.ndarray, range)):   
-        sel_levidx=[]
-        for depi in depth:
-            auxidx     = np.searchsorted(zlev, depi)
-            if auxidx>ndimax and ndimax not in sel_levidx: sel_levidx.append(ndimax)    
-            if auxidx>=1 and auxidx-1 not in sel_levidx: sel_levidx.append(auxidx-1)
-            if (auxidx not in sel_levidx): sel_levidx.append(auxidx)
-            if (auxidx==0 and 1 not in sel_levidx): sel_levidx.append(auxidx+1)
-    
-    #___________________________________________________________________________
-    return(sel_levidx)
-    
-    
+        depth = np.asarray(depth, dtype=float)
+        
+        # use vectorized searchsorted
+        idx = np.searchsorted(zlev, depth)
+        
+        # candidate indices:
+        # idx-1, idx, idx+1 (but idx+1 only when idx==0)
+        cand = np.concatenate([
+                np.clip(idx - 1, 0, ndimax),
+                np.clip(idx,     0, ndimax),
+                np.where(idx == 0, 1, idx)  # for lower boundary
+        ])
+        
+        # deduplicate & sort
+        sel = np.unique(cand)
+        
+        # ensure within bounds
+        sel = sel[(sel >= 0) & (sel <= ndimax)]
+        
+        return sel.tolist()
+
+  
 
 #
 #    
@@ -1307,92 +1373,176 @@ def do_time_arithmetic(data, do_tarithm):
     """
     str_atim = None
     if do_tarithm is not None:
-        
+        do_tarithm = do_tarithm.lower()
         str_atim = str(do_tarithm)
+        warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph")
+        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
         
         #_______________________________________________________________________
         if   do_tarithm=='mean':
-            data_tmean = data.mean(  dim="time", keep_attrs=True).persist()
+            return data.mean(  dim="time", keep_attrs=True), str_atim
         
         elif do_tarithm=='median':
-            data_tmean = data.median(dim="time", keep_attrs=True).persist()
+            return data.median(dim="time", keep_attrs=True), str_atim
         
         elif do_tarithm=='std':
-            data_tmean = data.std(   dim="time", keep_attrs=True).persist()
+            return data.std(   dim="time", keep_attrs=True), str_atim
         
         elif do_tarithm=='var':
-            data_tmean = data.var(   dim="time", keep_attrs=True).persist()       
+            return data.var(   dim="time", keep_attrs=True), str_atim
         
         elif do_tarithm=='max':
-            data_tmean = data.max(   dim="time", keep_attrs=True).persist()
+            return data.max(   dim="time", keep_attrs=True), str_atim
         
         elif do_tarithm=='min':
-            data_tmean = data.min(   dim="time", keep_attrs=True).persist()  
+            return data.min(   dim="time", keep_attrs=True), str_atim
         
         elif do_tarithm=='sum':
-            data_tmean = data.sum(   dim="time", keep_attrs=True).persist()    
+            return data.sum(   dim="time", keep_attrs=True), str_atim
         
-        #_______________________________________________________________________
-        # yearly means 
-        elif do_tarithm in ['ymean','annual']:
-            import datetime
-            data_tmean     = data.groupby('time.year').mean('time')
-            # recreate time axes based on year
-            data_tmean     = data_tmean.rename_dims({'year':'time'})
+        else: 
             
-            warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-            warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+            #___________________________________________________________________
+            # annual means 
+            if   do_tarithm in ['ymean', 'annual']:
+                # 'AS' = year-start based on original calendar
+                return data.resample(time='AS').mean(keep_attrs=True), str_atim
+                
+            #___________________________________________________________________
+            # monthly means 
+            elif do_tarithm == 'monthly':
+                # 'MS' = month-start
+                return data.resample(time='MS').mean(keep_attrs=True), str_atim
+                
+            #___________________________________________________________________
+            # daily means
+            elif do_tarithm == 'daily':
+                # '1D' = daily means
+                return data.resample(time='1D').mean(keep_attrs=True), str_atim
             
-            aux_time = xr.cftime_range(start='{:d}-01-01'.format(data_tmean.year[1]), periods=len(data['time']), freq='YS')
-            data_tmean     = data_tmean.drop_vars('year')
-            data_tmean     = data_tmean.assign_coords(time=aux_time)
-            del(aux_time)
-            warnings.resetwarnings()
-        
-        #_______________________________________________________________________
-        # monthly means --> seasonal cycle 
-        elif do_tarithm in ['mmean','monthly']:
-            import datetime
-            data_tmean     = data.groupby('time.month').mean('time')
-            # recreate time axes based on year
-            data_tmean     = data_tmean.rename_dims({'month':'time'})
+            #___________________________________________________________________
+            # seasonla means
+            elif do_tarithm == 'seasonal':
+                # DJF means
+                data_seas = data.resample(time="QS-DEC").mean(keep_attrs=True)
+                return data_seas, str_atim
             
-            warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-            warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+            #___________________________________________________________________
+            # DJF means
+            elif do_tarithm == 'djf':
+                # QS stands for quarter start mean
+                data_djf = data.resample(time="QS-DEC").mean()
+                data_djf = data_djf.where(data_djf['time.month'] == 12, drop=True)
+                return data_djf, str_atim
             
-            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data_tmean['time']), freq='MS')
-            data_tmean     = data_tmean.drop_vars('month')
-            data_tmean     = data_tmean.assign_coords(time=aux_time)
-            del(aux_time)
-            warnings.resetwarnings()
-        
-        #_______________________________________________________________________
-        # daily means --> 1...365
-        elif do_tarithm in ['dmean','daily']:
-            import datetime
-            data_tmean     = data.groupby('time.day').mean('time')
-            # recreate time axes based on year
-            data_tmean     = data_tmean.rename_dims({'day':'time'})
+            # MAM means
+            elif do_tarithm == 'mam':
+                # QS stands for quarter start mean: Mar-Apr-May
+                data_mam = data.resample(time="QS-DEC").mean()
+                data_mam = data_mam.where(data_mam['time.month'] == 3, drop=True)
+                return data_mam, str_atim
             
-            warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-            warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
+            # JJA means
+            elif do_tarithm == 'jja':
+                # QS stands for quarter start mean: Jun-Jul-Aug
+                data_jja = data.resample(time="QS-DEC").mean()
+                data_jja = data_jja.where(data_jja['time.month'] == 6, drop=True)
+                return data_jja, str_atim
             
-            aux_time = xr.cftime_range(start='0001-01-01', periods=len(data_tmean['time']), freq='DS')
-            data_tmean     = data_tmean.drop_vars('day')
-            data_tmean     = data_tmean.assign_coords(time=aux_time).drop_vars('day')
-            del(aux_time)
-            warnings.resetwarnings()
-        
-        elif do_tarithm=='None':
-            return(data, str_atim)
-        
-        else:
-            raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
-        
-        #_______________________________________________________________________
-        del(data)
-        gc.collect()  # Trigger garbage collection
-        return(data_tmean, str_atim)
+            # SON means
+            elif do_tarithm == 'son':
+                # QS stands for quarter start mean: Sep-Oct-Nov
+                data_son = data.resample(time="QS-DEC").mean()
+                data_son = data_son.where(data_son['time.month'] == 9, drop=True)
+                return data_son, str_atim
+            
+            #___________________________________________________________________
+            # seasonal cycle mean --> 1...12
+            elif do_tarithm == 'mmean':
+                # group by month and average over all years 
+                data_tmean = data.groupby('time.month').mean('time', keep_attrs=True)
+                # rename 'month' dimension to 'time' to keep your interface
+                if 'month' in data_tmean.dims  : data_tmean = data_tmean.rename_dims({'month': 'time'})
+                if 'month' in data_tmean.coords: data_tmean = data_tmean.rename({'month': 'time'})
+                nmon = data_tmean.sizes['time']
+                
+                # build a new monthly time axis 0001-01-01 .. 0001-12-01
+                time_index = data.indexes['time']
+                if isinstance(time_index, CFTimeIndex):
+                    calendar = time_index.calendar
+                    aux_time = xr.cftime_range(start=cftime.datetime(1, 1, 1, calendar=calendar),
+                                               periods=nmon, freq='MS', calendar=calendar,)
+                else:
+                    aux_time = pd.date_range(start='2000-01-01', periods=nmon, freq='MS')
+                
+                data_tmean = data_tmean.assign_coords(time=aux_time)
+                return data_tmean, str_atim
+                
+            #___________________________________________________________________
+            # daily cycle mean -->  daily cycle 1...365
+            elif do_tarithm == 'dmean':
+                # group by day of year and average over all years
+                # works for CFTimeIndex as well in xarray>=0.16 / your version
+                data_tmean = data.groupby('time.dayofyear').mean('time', keep_attrs=True)
+                
+                # rename 'dayofyear' to 'time'
+                if 'dayofyear' in data_tmean.dims  : data_tmean = data_tmean.rename_dims({'dayofyear': 'time'})
+                if 'dayofyear' in data_tmean.coords: data_tmean = data_tmean.rename({'dayofyear': 'time'})
+                ndays = data_tmean.sizes['time']
+                
+                time_index = data.indexes['time']
+                if isinstance(time_index, CFTimeIndex):
+                    calendar = time_index.calendar
+                    aux_time = xr.cftime_range(start=cftime.datetime(1, 1, 1, calendar=calendar),
+                                               periods=ndays, freq='D', calendar=calendar,)
+                else:
+                    aux_time = pd.date_range(start='2000-01-01', periods=ndays, freq='D')
+                
+                data_tmean = data_tmean.assign_coords(time=aux_time)
+                return data_tmean, str_atim
+            
+            #___________________________________________________________________
+            # seasonal mean 
+            elif do_tarithm in ['smean']:
+                
+                # assign each time step a season label
+                data_season = data.groupby("time.season").mean("time", keep_attrs=True)
+                
+                # reorder seasons to DJF, MAM, JJA, SON
+                season_order = ["DJF", "MAM", "JJA", "SON"]
+                data_season = data_season.sel(season=season_order)
+                    
+                # rename dimension back to 'time'
+                data_season = data_season.rename_dims({"season": "time"})
+                data_season = data_season.rename({"season": "time"})
+                
+                # build synthetic seasonal coordinate: e.g., 2000-DJF, 2000-MAM, ...
+                # need a safe year for pandas
+                if isinstance(data.indexes['time'], CFTimeIndex):
+                    calendar = data.indexes['time'].calendar
+                    aux_time = [
+                        cftime.datetime(2000,  1, 15, calendar=calendar),  # DJF
+                        cftime.datetime(2000,  4, 15, calendar=calendar),  # MAM
+                        cftime.datetime(2000,  7, 15, calendar=calendar),  # JJA
+                        cftime.datetime(2000, 10, 15, calendar=calendar)   # SON
+                    ]
+                else:
+                    aux_time = pd.to_datetime(
+                        ["2000-01-15","2000-04-15","2000-07-15","2000-10-15"]
+                    )
+                
+                data_season = data_season.assign_coords(time=aux_time)
+                return(data_season, str_atim)
+            
+            #___________________________________________________________________
+            elif do_tarithm=='none':
+                return(data, str_atim)
+            
+            #___________________________________________________________________
+            else:
+                raise ValueError(' the time arithmetic of do_tarithm={} is not supported'.format(str(do_tarithm))) 
+    
+    #___________________________________________________________________________
     else:
         return(data, str_atim)
 
@@ -1432,6 +1582,7 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
 
     """
     if do_harithm is not None:
+        do_harithm = do_harithm.lower()
         
         if   do_harithm=='mean':
             data_hmean = data.mean(  dim=dim_name, keep_attrs=True, skipna=True)
@@ -1461,7 +1612,7 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
             # this solution needs way less RAM and scales better with dask
             data_hmean    = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
             
-        elif do_harithm=='None' or do_harithm is None:
+        elif do_harithm=='none':
             return(data)
         
         else:
@@ -1509,27 +1660,23 @@ def do_depth_arithmetic(data, do_zarithm, dim_name):
     if do_zarithm is not None:
         
         if   do_zarithm=='mean':
-            data_zmean    = data.mean(dim=dim_name, keep_attrs=True, skipna=True).persist()
+            data_zmean    = data.mean(dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_zarithm=='max':
-            data_zmean    = data.max( dim=dim_name, keep_attrs=True).persist()
+            data_zmean    = data.max( dim=dim_name, keep_attrs=True)
         
         elif do_zarithm=='min':
-            data_zmean    = data.min( dim=dim_name, keep_attrs=True).persist()  
+            data_zmean    = data.min( dim=dim_name, keep_attrs=True)
         
         elif do_zarithm=='sum':
-            data_zmean    = data.sum( dim=dim_name, keep_attrs=True, skipna=True).persist()
+            data_zmean    = data.sum( dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_zarithm=='wint':
-            #print(data['w_z'].values)
-            #data_zmean    = data.weighted(data['w_z']).sum(dim=dim_name, keep_attrs=True, skipna=True).persist()
-            
-            
             data_zmean    = data*data['w_z']
-            data_zmean    = data_zmean.sum( dim=dim_name, keep_attrs=True, skipna=True).persist()
+            data_zmean    = data_zmean.sum( dim=dim_name, keep_attrs=True, skipna=True)
             
         elif do_zarithm=='wmean':
-            data_zmean    = data.weighted(data['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True).persist()
+            data_zmean    = data.weighted(data['w_z']).mean(dim=dim_name, keep_attrs=True, skipna=True)
         
         elif do_zarithm=='None' or do_zarithm is None:
             return(data)
@@ -2351,6 +2498,7 @@ def isotherm_depth_dask(data, which_isotherm, client=None,):
     if   'nod2'  in data.dims: dimn_h = 'nod2'
     elif 'elem'  in data.dims: dimn_h = 'elem'
     elif 'edg_n' in data.dims: dimn_h = 'edg_n'
+    
     #___________________________________________________________________________
     # Apply function to chunks over dask client 
     isothermz = da.map_blocks(isotherm_depth_chnk            , # input function isotherm_depth_chnk 
@@ -2360,16 +2508,17 @@ def isotherm_depth_dask(data, which_isotherm, client=None,):
                               dtype=np.float32, 
                               drop_axis=0,
                              )
+    
     isothermz = isothermz.compute()
     if client is not None: client.rebalance()
         
     #___________________________________________________________________________
     # build xarray dataset
     isotdep = xr.Dataset(data_vars = {'isotdep': ('nod2', isothermz, data[vname].attrs)},
-                             coords    = {'lon'    : data.coords['lon'], 
+                         coords    = {'lon'    : data.coords['lon'], 
                                           'lat'    : data.coords['lat'], 
                                           'w_A'    : data.coords['w_A'].isel(nz1=0)},
-                             attrs     = data.attrs)
+                         attrs     = data.attrs)
     isotdep['isotdep'].attrs['long_name'  ] = 'depth of {}°C isotherm'.format(which_isotherm)
     isotdep['isotdep'].attrs['description'] = 'depth of {}°C isotherm'.format(which_isotherm)
     isotdep['isotdep'].attrs['units'      ] = 'm'
@@ -2388,7 +2537,7 @@ def isotherm_depth_chnk(temp_chnk, depth_vals, which_isotherm):
     nz1, nod2    = temp_chnk.shape
     
     # Replace NaNs with a large negative value to avoid issues
-    temp_chnk    = da.where(da.isnan(temp_chnk), da.inf, temp_chnk)
+    temp_chnk    = da.where(da.isnan(temp_chnk), np.inf, temp_chnk)
 
     # Find below indices where temp crosses isotherm
     idx_below    = da.argmax(temp_chnk < which_isotherm, axis=0)
@@ -2404,8 +2553,8 @@ def isotherm_depth_chnk(temp_chnk, depth_vals, which_isotherm):
     depth_above  = depth_vals[idx_above]
 
     # if there is no valid isotherm crossing set depth layers to NaN
-    depth_above  = da.where(idx_above<=-1, da.nan, depth_above)
-    depth_below  = da.where(idx_above<=-1, da.nan, depth_below)
+    depth_above  = da.where(idx_above<=-1, np.nan, depth_above)
+    depth_below  = da.where(idx_above<=-1, np.nan, depth_below)
     
     # Create a tuple of indices for (nod2, idx_below)
     # Convert the tuple of indices into a linear index for the flattened temp_block
@@ -2421,10 +2570,204 @@ def isotherm_depth_chnk(temp_chnk, depth_vals, which_isotherm):
 
     # avoid division by zero
     denom_temp   = temp_below - temp_above
-    denom_temp   = da.where(denom_temp == 0, da.nan, denom_temp)
+    denom_temp   = da.where(denom_temp == 0, np.nan, denom_temp)
     
     # linearly interpolate isotherm depth
     isothermz = depth_above + ((which_isotherm - temp_above) * (depth_below - depth_above) / denom_temp)
     
     return (isothermz)
     #return np.stack([nz1, nod2])
+
+
+
+def get_datachunk_dict(path, varname):
+    #dims = get_dims_without_loading(path, varname)
+    ds = xr.open_dataset(path, decode_times=False, chunks={})
+    dims = ds[varname].dims
+    ds.close()
+    
+    #chunks = get_chunks_from_h5(path, varname)
+    with h5py.File(path, "r") as f:
+        chunks=f[varname].chunks
+    return dict(zip(dims, chunks))
+
+
+
+#
+#
+#_______________________________________________________________________________
+def compute_optimal_chunks(path, client=None, varname=None, opti_dim='hori',
+                           opti_chunkfrac=0.06, dtype_bytes=4, min_horiz=8000,
+                           do_info=True):
+    
+    """
+    Determine optimal chunking based on:
+      - On-disk chunking (HDF5 metadata)
+      - Worker memory (from Dask client or psutil)
+      - Dimension sizes
+      
+    Parameters
+    ----------
+    path : str
+        Path to a single NetCDF file.
+    client : dask.distributed.Client or None
+        If given, use worker memory limits from Dask.
+    varname : str or None
+        Variable to base chunking on. If None, use first data_var.
+    opti_dim : {'hori','horiz','horizontal','vert','verti','vertical','time'}
+        Which dimension to optimize.
+    opti_chunkfrac : float
+        Fraction of worker memory to target for a single chunk.
+    dtype_bytes : int
+        Bytes per element (4 for float32, 8 for float64).
+    """
+    
+    b2Mb = 1/(1024**2)
+    if client is None: return dict()
+    #___________________________________________________________________________
+    # Open just metadata
+    ds    = xr.open_dataset(path, decode_times=False, chunks={})
+    if varname is None: varname = list(ds.data_vars)[0]
+    dims  = ds[varname].dims
+    sizes = ds[varname].sizes
+    ds.close()
+
+    #___________________________________________________________________________
+    # Get stored chunking from HDF5
+    with h5py.File(path, "r") as f:
+        dset = f[varname]
+        h5chunks = dset.chunks  # may be None if contiguous
+    
+    if h5chunks is None:
+        # Contiguous on disk → use full dimension sizes as "stored" chunks
+        h5chunks = tuple(sizes[d] for d in dims)
+        
+    # Map chunks to dims
+    stored_chunks = dict(zip(dims, h5chunks))
+    
+    #___________________________________________________________________________
+    # Identify horiz + vert dimensions
+    hori_all   = ["nod2", "elem", "edg_n", "x", "ncells", "node"]
+    vert_all   = ["nz", "nz1", "nz_1", "ncat", "ndens"]
+
+    # determine which dimensions are in data
+    hori_dim   = next((d for d in dims if d in hori_all), None)
+    vert_dim   = next((d for d in dims if d in vert_all), None)
+    time_dim   = "time" if "time" in dims else None
+    if hori_dim is None: raise ValueError(f"Could not detect horizontal dimension from dims={dims}")
+
+    # compute sizes of data
+    hori_size  = sizes[hori_dim]
+    vert_size  = sizes[vert_dim] if vert_dim else 1
+    time_size  = sizes[time_dim] if time_dim else 1
+    
+    # compute stored chunk sizes
+    hori_chunk = stored_chunks[hori_dim]
+    vert_chunk = stored_chunks[vert_dim] if vert_dim else 1
+    time_chunk = stored_chunks[time_dim] if time_dim else 1
+    
+    chunks = dict()
+    if time_dim: chunks[time_dim] = time_chunk   
+    if vert_dim: chunks[vert_dim] = vert_chunk       
+    chunks[hori_dim] = hori_chunk     
+    
+    #___________________________________________________________________________
+    # Get worker memory
+    if client is not None:
+        try:
+            info = client.scheduler_info()
+            mem_limits = [w["memory_limit"] for w in info["workers"].values()]
+            worker_memory_bytes = min(mem_limits)
+        except:
+            worker_memory_bytes = psutil.virtual_memory().total
+    else:
+        worker_memory_bytes = psutil.virtual_memory().total
+    target_bytes = opti_chunkfrac * worker_memory_bytes
+    strchnk_bytes= (hori_chunk*vert_chunk*time_chunk*dtype_bytes)
+    if do_info:
+        print('')
+        print(' --> worker   mem: {:4.3f} Mb'.format(worker_memory_bytes * b2Mb))
+        print(' --> target   mem: {:4.3f} Mb'.format(target_bytes        * b2Mb))
+        print(' --> strchnk  mem: {:4.3f} Mb'.format(strchnk_bytes       * b2Mb))
+        print(" --> stored chunks =", stored_chunks)
+    
+    # If stored chunk already fits into target, keep it
+    # --> this optin seems to be slower in general larger chunks have faster 
+    #     processing
+    # --> hslice operation on dart mesh 
+    # stored chunks = {'time': 1, 'nz1':  4, 'nod2':  210690} : 0.76 min  
+    # optim  chunks = {'time': 1, 'nz1':  4, 'nod2': 3160340} : 0.34 min
+    # optim  chunks = {'time': 1, 'nz1': 14, 'nod2': 3160340} : 0.43 min 
+    #if strchnk_bytes <= target_bytes:
+        #print(" --> stored chunks already within target; using stored chunks.")
+        #print(" --> stored chunks =", stored_chunks)
+        #print(" --> optim  chunks =", chunks)
+        #return chunks
+    
+    #___________________________________________________________________________
+    # select which dimension should be optimized
+    if opti_dim == 'h' and hori_dim:
+        # Compute optimized horizontal chunk
+        # memory ≈ horiz_chunk * vert_chunk *time_chunk * 4 bytes
+        hori_chunk       = int(target_bytes / (time_chunk*vert_chunk * dtype_bytes))
+        hori_chunk       = min(hori_size, max(min_horiz, hori_chunk))
+        chunks[hori_dim] = hori_chunk
+        strchnk_bytes    = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
+            
+    elif opti_dim == 'hv' and hori_dim:
+        # Compute optimized horizontal chunk
+        # memory ≈ horiz_chunk * vert_chunk *time_chunk * 4 bytes
+        hori_chunk       = int(target_bytes / (time_chunk*vert_chunk * dtype_bytes))
+        hori_chunk       = min(hori_size, max(min_horiz, hori_chunk))
+        chunks[hori_dim] = hori_chunk
+        strchnk_bytes    = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
+        if strchnk_bytes<target_bytes and vert_dim:
+            vert_chunk_strd  = vert_chunk        
+            vert_chunk       = int(target_bytes / (time_chunk*hori_chunk * dtype_bytes))
+            vert_chunk       = min(vert_size, max(1, vert_chunk))
+            # make sure we combine full stored chunks
+            vert_chunk       = vert_chunk - np.mod(vert_chunk, vert_chunk_strd)
+            chunks[vert_dim] = vert_chunk
+        
+    elif opti_dim == 'v' and vert_dim :   
+        # Compute optimized vertical chunk
+        # memory ≈ horiz_chunk * vert_chunk *time_chunk * 4 bytes
+        vert_chunk       = int(target_bytes / (time_chunk*hori_chunk * dtype_bytes))
+        vert_chunk       = min(vert_size, max(1, vert_chunk))
+        chunks[vert_dim] = vert_chunk
+        strchnk_bytes    = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
+    
+    elif opti_dim == 'vh' and vert_dim :   
+        # Compute optimized vertical chunk
+        # memory ≈ horiz_chunk * vert_chunk *time_chunk * 4 bytes
+        vert_chunk       = int(target_bytes / (time_chunk*hori_chunk * dtype_bytes))
+        vert_chunk       = min(vert_size, max(1, vert_chunk))
+        chunks[vert_dim] = vert_chunk
+        strchnk_bytes    = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
+        if strchnk_bytes<target_bytes and hori_dim:
+            hori_chunk_strd  = hori_chunk        
+            hori_chunk       = int(target_bytes / (time_chunk*vert_chunk * dtype_bytes))
+            hori_chunk       = min(hori_size, max(2000, hori_chunk))
+            # make sure we combine full stored chunks
+            hori_chunk       = hori_chunk - np.mod(hori_chunk, hori_chunk_strd)
+            chunks[hori_dim] = hori_chunk
+    
+    elif opti_dim == 't' and time_dim:   
+        # Compute optimized vertical chunk
+        # memory ≈ horiz_chunk * vert_chunk *time_chunk * 4 bytes
+        time_chunk       = int(target_bytes / (vert_chunk*hori_chunk * dtype_bytes))
+        time_chunk       = min(time_size, max(1, time_chunk))
+        chunks[time_dim] = time_chunk   # respect stored chunking
+        
+    elif opti_dim in ['off', None]:    
+        pass
+    
+    else:
+        raise ValueError(r' --> This optidim option {opti_dim} is not supported')
+        
+    final_bytes = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
+    if do_info:
+        print(' --> finchunk mem: {:4.3f} Mb'.format(final_bytes * b2Mb))
+        print(" --> optim  chunks =", chunks)
+    
+    return chunks
