@@ -28,7 +28,7 @@ h5py.get_config().track_order = True  # faster attribute lookup
 
 import psutil
 import gc
-
+import glob
 from .sub_mesh import *
     
 
@@ -431,7 +431,7 @@ def load_data_fesom2(mesh,
         
     #___________________________________________________________________________
     # load data in parallel    
-    if do_file=='run':
+    if do_file=='run' or do_file=='run*':
         warnings.filterwarnings("ignore", category=UserWarning, message=r".*The specified chunks separate the stored chunks.*")
         data = xr.open_mfdataset(pathlist, 
                                  parallel=do_parallel, 
@@ -763,10 +763,12 @@ def do_fnamemask(do_file,vname,runid,year):
     ____________________________________________________________________________
     """
     if   do_file=='run'            : fname = '{}.{}.{}.nc'.format(   vname,runid,year)
+    elif do_file=='run*'           : fname = '{}.{}.{}.nc*'.format(   vname,runid,year)
     elif do_file=='restart_oce'    : fname = '{}.{}.oce.restart/{}.nc'.format(runid,year,vname)
     elif do_file=='restart_ice'    : fname = '{}.{}.ice.restart/{}.nc'.format(runid,year,vname)
     elif do_file=='restart_icepack': fname = '{}.{}.icepack.restart/{}.nc'.format(runid,year,vname)
     elif do_file=='blowup'         : fname = '{}.{}.oce.blowup.nc'.format( runid,year)
+    elif do_file=='run*'           : fname = '{}.{}.{}.nc*'.format(   vname,runid,year)
     #elif do_file=='restart_oce': fname = '{}.{}.oce.restart.nc'.format(runid,year)
     #elif do_file=='restart_ice': fname = '{}.{}.ice.restart.nc'.format(runid,year)
     
@@ -833,20 +835,48 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
         # loop over year to create filename list 
         for yr in year_in:
             fname = do_fnamemask(do_file,vname,runid,yr)
-            path  = os.path.join(datapath,fname)
-            if os.path.isfile(path):
-                pathlist.append(path)  
-            else:
-                print(f'--> No file: {path}')
+            if '*' in fname:
+                pattern  = os.path.join(datapath,fname)    
+                # paths = sorted(glob.glob(pattern))
+                # sort out links
+                paths = [
+                        p for p in glob.glob(pattern)
+                        if os.path.isfile(p) and not os.path.islink(p)
+                        ]
+                for path in paths:
+                    if os.path.isfile(path):
+                        pathlist.append(path)  
+                    else:
+                        print(f'--> No file: {path}')
+            else:    
+                path  = os.path.join(datapath,fname)        
+                if os.path.isfile(path):
+                    pathlist.append(path)  
+                else:
+                    print(f'--> No file: {path}')
     
     # a single year is given to load
     elif isinstance(year, int):
         fname = do_fnamemask(do_file,vname,runid,year)
-        path  = os.path.join(datapath,fname)
-        if os.path.isfile(path):
-            pathlist.append(path)  
-        else:
-            print(f'--> No file: {path}')
+        if '*' in fname:
+            pattern  = os.path.join(datapath,fname)    
+            #paths = sorted(glob.glob(pattern))
+            # sort out links
+            paths = [
+                    p for p in glob.glob(pattern)
+                    if os.path.isfile(p) and not os.path.islink(p)
+                    ]
+            for path in paths:
+                if os.path.isfile(path):
+                    pathlist.append(path)  
+                else:
+                    print(f'--> No file: {path}')
+        else:    
+            path  = os.path.join(datapath,fname)        
+            if os.path.isfile(path):
+                pathlist.append(path)  
+            else:
+                print(f'--> No file: {path}')
         str_mtim = 'y:{}'.format(year)
     else:
         raise ValueError( " year can be integer, list, np.array or range(start,end)")
