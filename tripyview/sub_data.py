@@ -638,7 +638,7 @@ def load_data_fesom2(mesh,
             
             # this seems to be in moment slightly faster  than using here the 
             # map_blocks option!!!
-            data = data.interp(nz1=auxdepth, method="linear")
+            data = data.interp({dim_vert:auxdepth}, method="linear")
             #data['nzi'] = data['nzi'].astype("uint8")
             
             # do depth arithmetic over interpolated layers 
