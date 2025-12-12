@@ -3188,7 +3188,22 @@ def plot_tline(data,
                                 # data contain only mean seasonal cycle 
                                 if len(np.unique(data_xp1.dt.year))==1: data_xp1 = data_xp1.dt.month
                                 else:    
-                                    dperyr = np.where(data_xp1.dt.is_leap_year, 366, 365)
+                                    # dperyr = np.where(data_xp1.dt.is_leap_year, 366, 365)
+                                    if isinstance(data_xp1.indexes["time"], xr.CFTimeIndex):
+                                        # CFTime → assume constant year length
+                                        cal = data_xp1.encoding.get("calendar", "noleap")
+                                        if cal in ("noleap", "365_day"):
+                                            dperyr = xr.full_like(data_xp1, 365, dtype=int)
+                                        elif cal == "360_day":
+                                            dperyr = xr.full_like(data_xp1, 360, dtype=int)
+                                        else:
+                                            # standard / gregorian / proleptic_gregorian
+                                            # leap years handled via year length
+                                            dperyr = xr.apply_ufunc(
+                                                lambda t: np.array([366 if t.year % 4 == 0 else 365]),
+                                                data_xp1, vectorize=True, dask="allowed", output_dtypes=[int],)
+                                    else:
+                                        dperyr = xr.where(data_xp1.dt.is_leap_year, 366, 365)
                                     data_xp1 = data_xp1.dt.year + (data_xp1.dt.dayofyear-data_xp1.dt.day[0])/dperyr   
                             xmin, xmax = np.min([xmin, data_xp1.min()]), np.max([xmax, data_xp1.max()])
                     else:
@@ -4537,7 +4552,21 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_siz
             if 'time'  in list(data_ii[box_idx].coords):     
                 data_x, str_xlabel = data_ii[box_idx]['time'] , 'Time / year'
                 # recompute xarray time vector into units of year
-                totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                if isinstance(data_x.indexes["time"], xr.CFTimeIndex):
+                    # CFTime → assume constant year length
+                    cal = data_x.encoding.get("calendar", "noleap")
+                    if cal in ("noleap", "365_day"):
+                        totdayperyear = xr.full_like(data_x, 365, dtype=int)
+                    elif cal == "360_day":
+                        totdayperyear = xr.full_like(data_x, 360, dtype=int)
+                    else:
+                        # standard / gregorian / proleptic_gregorian
+                        # leap years handled via year length
+                        totdayperyear = xr.apply_ufunc(
+                            lambda t: np.array([366 if t.year % 4 == 0 else 365]),
+                            data_x, vectorize=True, dask="allowed", output_dtypes=[int],)
+                else:
+                    totdayperyear = xr.where(data_x.dt.is_leap_year, 366, 365)
                 data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear
                 data_plot = data_plot.transpose()
                 del(totdayperyear)
@@ -4609,7 +4638,22 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_siz
             elif 'time'  in list(data_ii[box_idx].coords):     
                 data_x, str_xlabel = data_ii[box_idx]['time'] , 'Time / year'
                 # recompute xarray time vector into units of year
-                totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                #totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                if isinstance(data_x.indexes["time"], xr.CFTimeIndex):
+                    # CFTime → assume constant year length
+                    cal = data_x.encoding.get("calendar", "noleap")
+                    if cal in ("noleap", "365_day"):
+                        totdayperyear = xr.full_like(data_x, 365, dtype=int)
+                    elif cal == "360_day":
+                        totdayperyear = xr.full_like(data_x, 360, dtype=int)
+                    else:
+                        # standard / gregorian / proleptic_gregorian
+                        # leap years handled via year length
+                        totdayperyear = xr.apply_ufunc(
+                            lambda t: np.array([366 if t.year % 4 == 0 else 365]),
+                            data_x, vectorize=True, dask="allowed", output_dtypes=[int],)
+                else:
+                    totdayperyear = xr.where(data_x.dt.is_leap_year, 366, 365)
                 data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear  
                 data_plot = data_plot.transpose()
                 
