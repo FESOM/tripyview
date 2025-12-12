@@ -762,13 +762,13 @@ def do_fnamemask(do_file,vname,runid,year):
     
     ____________________________________________________________________________
     """
-    if   do_file=='run'            : fname = '{}.{}.{}.nc'.format(   vname,runid,year)
-    elif do_file=='run*'           : fname = '{}.{}.{}.nc*'.format(   vname,runid,year)
+    if   do_file=='run'            : fname = '{}.{}.{}.nc'.format(vname,runid,year)
+    elif do_file=='run*'           : fname = '{}.{}.{}.nc*'.format(vname,runid,year)
+    elif do_file=='run*nolink'     : fname = '{}.{}.{}.nc*'.format(vname,runid,year)
     elif do_file=='restart_oce'    : fname = '{}.{}.oce.restart/{}.nc'.format(runid,year,vname)
     elif do_file=='restart_ice'    : fname = '{}.{}.ice.restart/{}.nc'.format(runid,year,vname)
     elif do_file=='restart_icepack': fname = '{}.{}.icepack.restart/{}.nc'.format(runid,year,vname)
     elif do_file=='blowup'         : fname = '{}.{}.oce.blowup.nc'.format( runid,year)
-    elif do_file=='run*'           : fname = '{}.{}.{}.nc*'.format(   vname,runid,year)
     #elif do_file=='restart_oce': fname = '{}.{}.oce.restart.nc'.format(runid,year)
     #elif do_file=='restart_ice': fname = '{}.{}.ice.restart.nc'.format(runid,year)
     
@@ -839,10 +839,8 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
                 pattern  = os.path.join(datapath,fname)    
                 # paths = sorted(glob.glob(pattern))
                 # sort out links
-                paths = [
-                        p for p in glob.glob(pattern)
-                        if os.path.isfile(p) and not os.path.islink(p)
-                        ]
+                if   do_file=='run*nolink': paths = [p for p in glob.glob(pattern) if os.path.isfile(p) and not os.path.islink(p)]
+                elif do_file=='run*'      : paths = [p for p in glob.glob(pattern) if os.path.isfile(p)]
                 for path in paths:
                     if os.path.isfile(path):
                         pathlist.append(path)  
@@ -862,10 +860,8 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
             pattern  = os.path.join(datapath,fname)    
             #paths = sorted(glob.glob(pattern))
             # sort out links
-            paths = [
-                    p for p in glob.glob(pattern)
-                    if os.path.isfile(p) and not os.path.islink(p)
-                    ]
+            if   do_file=='run*nolink': paths = [p for p in glob.glob(pattern) if os.path.isfile(p) and not os.path.islink(p)]
+            elif do_file=='run*'      : paths = [p for p in glob.glob(pattern) if os.path.isfile(p)]
             for path in paths:
                 if os.path.isfile(path):
                     pathlist.append(path)  
