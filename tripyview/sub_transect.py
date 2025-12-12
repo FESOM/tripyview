@@ -201,6 +201,22 @@ def do_analyse_transects(input_transect     ,
             #sub_transect = _do_find_intersected_edges_fast(mesh, sub_transect, edge, idx_edlimit)
             sub_transect = _do_find_intersected_edges_fastnew(mesh, sub_transect, edge, idx_edlimit)
             
+            # no cutted edge could be found 
+            if sub_transect['edge_cut_i'][-1].size==0:
+                del sub_transect['ncsi'         ][-1]
+                del sub_transect['Px'           ][-1]
+                del sub_transect['Py'           ][-1]
+                del sub_transect['e_vec'        ][-1]
+                del sub_transect['e_norm'       ][-1]
+                del sub_transect['n_vec'        ][-1]
+                del sub_transect['edge_cut_i'   ][-1]
+                del sub_transect['edge_cut_evec'][-1]
+                del sub_transect['edge_cut_P'   ][-1]
+                del sub_transect['edge_cut_midP'][-1]
+                del sub_transect['edge_cut_lint'][-1]
+                del sub_transect['edge_cut_ni'  ][-1] 
+                sub_transect['ncs'] = sub_transect['ncs']-1
+                continue
             #___________________________________________________________________
             # sort intersected edges after distance from cross-section start point
             #sub_transect = _do_sort_intersected_edges(sub_transect)
@@ -741,6 +757,7 @@ def _do_build_path(mesh, transect, edge_tri, edge_dxdy_l, edge_dxdy_r):
     #___________________________________________________________________________
     # loop over intersected edges 
     nced = transect['edge_cut_i'][-1].size
+    #if nced==0:  return(transect)
     for edi in range(0,nced):
         #print(' --> edgecut_ii', edi)
         
