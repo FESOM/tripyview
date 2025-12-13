@@ -25,30 +25,30 @@ from .sub_plot     import *
 #|                                                                             |
 #|                                                                             |
 #|_____________________________________________________________________________|
-def load_dmoc_data(mesh                         , 
-                   datapath                     , 
-                   std_dens                     ,
-                   year         = None          , 
-                   which_transf = 'dmoc'        , 
-                   do_tarithm   = 'mean'        , 
-                   do_bolus     = True          , 
-                   add_bolus    = False         , 
-                   add_trend    = False         , 
-                   do_wdiap     = False         , 
-                   do_dflx      = False         , 
-                   do_zcoord    = True          , 
-                   do_useZinfo  = 'std_dens_H'  ,
-                   do_ndensz    = False         , 
-                   descript     = ''            , 
-                   do_compute   = False         , 
-                   do_load      = False         ,  
-                   do_persist   = True          , 
-                   do_parallel  = False         , 
-                   do_info      = True          ,
-                   chunks       = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
-                                    'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
-                                    'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
-                                    'node' :'auto'},
+def load_dmoc_data(mesh                           , 
+                   datapath                       ,  
+                   std_dens                       ,
+                   year           = None          , 
+                   which_transf   = 'dmoc'        , 
+                   do_tarithm     = 'mean'        , 
+                   do_bolus       = True          , 
+                   add_bolus      = False         , 
+                   add_trend      = False         , 
+                   do_wdiap       = False         , 
+                   do_dflx        = False         , 
+                   do_zcoord      = True          , 
+                   do_useZinfo    = 'std_dens_H'  ,
+                   do_ndensz      = False         , 
+                   descript       = ''            , 
+                   do_compute     = False         , 
+                   do_load        = False         ,  
+                   do_persist     = True          , 
+                   do_parallel    = False         , 
+                   opti_dim       = 'h'           ,
+                   opti_chunkfrac = 0.06          , 
+                   do_info        = True          ,
+                   client         = None          ,
+                   chunks         = dict()        ,
                    **kwargs):
     """
     --> load data that are neccessary for density moc computation
@@ -140,6 +140,14 @@ def load_dmoc_data(mesh                         ,
     # ensure that attributes are preserved  during operations with yarray 
     xr.set_options(keep_attrs=True)
     which_combineattrs = 'override' # "no_conflicts"
+    
+    chunks_all = { 'time' :'auto', 'elem':'auto', 'nod2'  :'auto', \
+                   'edg_n':'auto', 'nz'  :'auto', 'nz1'   :'auto', \
+                   'ndens':'auto', 'x'   :'auto', 'ncells':'auto', \
+                   'node' :'auto'}
+    chunks_all.update(chunks)
+    chunks = chunks_all
+    
     #___________________________________________________________________________
     # number of sigma2 density levels
     dens         = xr.DataArray(std_dens, dims=["ndens"]).astype('float32')
@@ -158,9 +166,10 @@ def load_dmoc_data(mesh                         ,
     
     #___________________________________________________________________________
     input_dict = dict({ 'year':year, 'descript':descript , 'do_info':do_info,
-                        'do_tarithm':do_tarithm, 'do_nan':False, 'do_ie2n':False,
+                        'do_tarithm':do_tarithm, 'do_zarithm':None, 'do_nan':False, 'do_ie2n':False,
                         'do_parallel':do_parallel, 'chunks':chunks, 
-                        'do_compute':do_compute, 'do_load':do_load, 'do_persist':do_persist})
+                        'do_compute':do_compute, 'do_load':do_load, 'do_persist':do_persist,
+                        'client':client, 'opti_dim':opti_dim, 'opti_chunkfrac':opti_chunkfrac})
     
     #___________________________________________________________________________
     # add surface transformations 
@@ -255,12 +264,11 @@ def load_dmoc_data(mesh                         ,
         
         # check if input data have been chunked
         # if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
-        if any(data_dMOC.chunks.values()) and dens.chunks is None:    
-            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
         #_______________________________________________________________________
         if do_useZinfo=='std_dens_H':
             # add vertical density class thickness
             data_h = load_data_fesom2(mesh, datapath, vname='std_dens_H', **input_dict).rename({'std_dens_H':'ndens_h'})
+            if any(data_h.chunks.values()) and dens.chunks is None: dens = dens.chunk({  'ndens':data_h.chunksizes['ndens']})
             data_h = data_h.assign_coords({'dens':dens})
             data_h = data_h.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_h], combine_attrs=which_combineattrs)
@@ -282,6 +290,7 @@ def load_dmoc_data(mesh                         ,
             # add vertical density class position computed in FESOM2 -->
             # gives worst results for zcoordinate projection
             data_z = load_data_fesom2(mesh, datapath, vname='std_dens_Z', **input_dict).rename({'std_dens_Z':'ndens_z'}).persist()
+            if any(data_z.chunks.values()) and dens.chunks is None: dens = dens.chunk({  'ndens':data_z.chunksizes['ndens']})
             data_z = data_z.assign_coords({'dens':dens})
             data_z = data_z.drop_vars(['ndens', 'elemi', 'lon']) #--> drop not needed variables
             data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs=which_combineattrs)
@@ -329,20 +338,21 @@ def load_dmoc_data(mesh                         ,
             data_dMOC = xr.merge([data_dMOC, data_sigma2], combine_attrs=which_combineattrs)
             del(data_sigma2)
             gc.collect()
-            
+    
     #___________________________________________________________________________
     if (not do_dflx) and ( 'inner' in which_transf or 'dmoc' in which_transf ):
         # check if input data have been chunked
         # if any(data_dMOC.chunks.values()) and any(dens.chunks.values())==False:
-        if any(data_dMOC.chunks.values()) and dens.chunks is None:
-            dens = dens.chunk({  'ndens':data_dMOC.chunksizes['ndens']})
+        
         
         # add divergence of density classes --> diapycnal velocity
-        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', 
-                        **{**input_dict, 'chunks': {'nod2': -1, 'ndens': 1, 'time': 1}}).rename({'std_dens_DIV':'dmoc'}).persist()
+        #data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', 
+                        #**{**input_dict, 'chunks': {'nod2': -1, 'ndens': 1, 'time': 1}}).rename({'std_dens_DIV':'dmoc'}).persist()
+        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', **input_dict).rename({'std_dens_DIV':'dmoc'}).persist()
         data_div  = data_div.drop_vars(['ndens', 'nodi', 'ispbnd']) 
+        if any(data_div.chunks.values()) and dens.chunks is None: dens = dens.chunk({  'ndens':data_div.chunksizes['ndens']})
         data_div  = data_div.assign_coords({'dens':dens})
-
+        
         # doing this step here so that the MOC amplitude is correct, setp 1 of 2
         # divide with verice area
         gattrs   = data_div.attrs
@@ -372,7 +382,9 @@ def load_dmoc_data(mesh                         ,
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             aux_dmoc_div = aux_dmoc_div.assign_attrs(data_div['dmoc'].attrs).persist()
-            data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':chunks['elem'] , 'ndens':-1})
+            
+            #data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':chunks['elem'] , 'ndens':-1})
+            data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':chunks['elem'], 'ndens': data_div.chunksizes['ndens']})
             del(aux_dmoc_div)
             gc.collect()
             
@@ -1029,9 +1041,9 @@ def calc_dmoc_dask( mesh                          ,
         if nchunk<parallel_nprc*0.75:
             print(f' --> rechunk: {nchunk}', end='')
             if 'time' in data.dims:
-                data = data.chunk({dimn_h: np.ceil(data.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1, 'time':-1})
+                data = data.chunk({dimn_h: np.ceil(data.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1, 'time':-1})
             else:
-                data = data.chunk({dimn_h: np.ceil(data.dims[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1})
+                data = data.chunk({dimn_h: np.ceil(data.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1})
             nchunk = len(data.chunks[dimn_h])
             print(f' -> {nchunk}', end='')    
             if 'time' not in data.dims: print('')
@@ -1042,7 +1054,7 @@ def calc_dmoc_dask( mesh                          ,
     lat_max    = float(np.ceil( data['lat'].max().compute()))
     lat_bins   = np.arange(lat_min, lat_max+dlat*0.5, dlat)
     lat        = (lat_bins[1:]+lat_bins[:-1])*0.5
-    nlat, nlev = len(lat_bins)-1, data.dims['ndens']
+    nlat, nlev = len(lat_bins)-1, data.sizes['ndens']
     
     #___________________________________________________________________________
     # prepare  weights for area weighted mean over the elements for all density 
@@ -1058,7 +1070,7 @@ def calc_dmoc_dask( mesh                          ,
     
     #_______________________________________________________________________
     if do_persist: data = data.persist()
-    display(data)
+    if do_info: display(data)
         
     ##___________________________________________________________________________
     #if 'elem_pbnd' not in data.coords: 
@@ -1071,7 +1083,7 @@ def calc_dmoc_dask( mesh                          ,
     
     # prepare chunked input to routine that should act on chunks
     if 'time' in data.dims:
-        drop_axis, ntime = [0,1], data.dims['time']
+        drop_axis, ntime = [0,1], data.sizes['time']
         chnk_lat     = data['lat'].data[None, None, :]
         chnk_ispbnd  = data['ispbnd'].data[None, None, :]
         #chnk_pbnd = data['elem_pbnd'].data[None, :, None]

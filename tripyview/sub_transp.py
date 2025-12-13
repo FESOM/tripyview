@@ -1526,18 +1526,19 @@ def calc_gmhflx_box(mesh, data, box_list, dlat=1.0, do_info=True,
 #
 #
 #___COMPUTE MERIDIONAL HEATFLUX FROM TRACER ADVECTION TROUGH BINNING____________
-def calc_gzmhflx_box_dask(mesh, 
-                         data, 
-                         box_list, 
-                         do_parallel           , 
-                         parallel_nprc         ,
-                         do_lonlat     = 'lat'  ,
-                         dlonlat       = 1.0    , 
-                         boxname       = None   ,
-                         diagpath      = None   , 
-                         do_checkbasin = False  , 
-                         do_info       = False  , 
-                         ):
+def calc_gzmhflx_box_dask(mesh                  , 
+                          data                   , 
+                          box_list               , 
+                          do_parallel            , 
+                          parallel_nprc          ,
+                          do_lonlat     = 'lat'  ,
+                          dlonlat       = 1.0    , 
+                          boxname       = None   ,
+                          diagpath      = None   , 
+                          do_checkbasin = False  , 
+                          do_persist    = True   ,
+                          do_info       = False  , 
+                          ):
     #___________________________________________________________________________
     vname = list(data.keys())[0]
     

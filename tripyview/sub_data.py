@@ -67,7 +67,7 @@ def load_data_fesom2(mesh,
                      do_persist     = False     ,
                      do_parallel    = False     ,
                      opti_dim       = 'h'       ,
-                     opti_chunkfrac = 0.10      , 
+                     opti_chunkfrac = 0.06      , 
                      chunks         = dict()    ,
                      do_showtime    = False     ,
                      do_info        = True      ,
@@ -233,7 +233,7 @@ def load_data_fesom2(mesh,
                  'ndepth', 'n_depth', 
                  'ntopo' , 'n_topo' , ]:
         data = xr.Dataset()     
-        print(vname)
+        
         #___________________________________________________________________________
         # store topography in data
         if   any(x in vname for x in ['ndepth', 'ntopo', 'n_depth', 'n_topo', 'topography', 'zcoord']):
