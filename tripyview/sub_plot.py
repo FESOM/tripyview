@@ -4986,7 +4986,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         plt_optdefault.update(plt_opt)
         print(plt_optdefault)
         if 'shading' in plt_optdefault:
-            if plt_optdefault['shading']=='flat':
+            if plt_optdefault['shading']=='flat' and data_x.size==data_plot.shape[1]: 
                 # data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
                 data_plot = data_plot[:-1,:-1]
         
