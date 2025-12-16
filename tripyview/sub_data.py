@@ -533,6 +533,7 @@ def load_data_fesom2(mesh,
     if ('lon_bnds'  in data.data_vars): data = data.drop_vars(['lon_bnds' ])
     if ('lat_bnds'  in data.data_vars): data = data.drop_vars(['lat_bnds' ])
     if ('time_bnds' in data.data_vars): data = data.drop_vars(['time_bnds'])
+    if ('lev_bnds'  in data.data_vars): data = data.drop_vars(['lev_bnds' ])
     
     # change depth dimension naming in case of fesom14cmip6 and MULTIIO data to 
     # fesom2 convention
@@ -2674,7 +2675,7 @@ def compute_optimal_chunks(path, client=None, varname=None, opti_dim='hori',
     #___________________________________________________________________________
     # Identify horiz + vert dimensions
     hori_all   = ["nod2", "elem", "edg_n", "x", "ncells", "node"]
-    vert_all   = ["nz", "nz1", "nz_1", "ncat", "ndens"]
+    vert_all   = ["nz", "nz1", "nz_1", "ncat", "ndens", "lev"]
 
     # determine which dimensions are in data
     hori_dim   = next((d for d in dims if d in hori_all), None)
