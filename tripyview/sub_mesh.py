@@ -1364,6 +1364,7 @@ ___________________________________________""".format(
         bnde = njit_compute_boundary_edges(self.e_i)
         bnde_nodes = np.unique(bnde.ravel())
         nbnde_nodes = bnde_nodes.size
+        self.n_ibnde=bnde_nodes
         
         # compute mapping global --> local
         mapping = -np.ones(self.n2dn, dtype=np.int32)
@@ -3483,7 +3484,10 @@ def njit_lsmask_build_adjacency(bnde, bnde_mapping, bnde_nodes):
     RETURNS:
         adj : (nb_nodes, 2)   with neighbor indices
     """
-    adj   = -np.ones((bnde_nodes, 2), dtype=np.int32)
+    
+    # An edge node can have under certain circumstance have more than just 2 neighboring
+    # boundary nodes. under certain conditions it can be 4 thats why  (bnde_nodes, 4) 
+    adj   = -np.ones((bnde_nodes, 4), dtype=np.int32)
     count =  np.zeros(bnde_nodes    , dtype=np.int32)
 
     for ii in range(bnde.shape[0]):
@@ -3502,6 +3506,8 @@ def njit_lsmask_build_adjacency(bnde, bnde_mapping, bnde_nodes):
         kb            = count[idxb]
         adj[idxb, kb] = idxa
         count[idxb]   = kb + 1
+        #if count[idxa]>2 or count[idxb]>2: print('--> Careful found boundary edge node with more than 2 neighbors')
+        
     #___________________________________________________________________________
     return adj
 
@@ -3521,14 +3527,18 @@ def njit_lsmask_trace_loops(adj):
         loops : list of compressed index lists
     """
     nbnde_nodes = adj.shape[0]
-    visited  = np.zeros(nbnde_nodes, dtype=np.int8)
-    loops    = []
+    visited     = np.zeros((nbnde_nodes), dtype=np.int8)
+    canreturn   = np.zeros((nbnde_nodes), dtype=np.int8)
+    isreturn    = np.zeros((nbnde_nodes), dtype=np.int8)
+    loops       = []
     
     # loop over all the boundary edge nodes 
+    cnt=0
     for start in range(nbnde_nodes):
         
         # check if point has already been checked out 
-        if visited[start]: continue
+        # if np.all(visited[start,:]): continue
+        if visited[start] and canreturn[start]==0: continue
         
         # set start index as current index to check out 
         cur  = start
@@ -3537,16 +3547,34 @@ def njit_lsmask_trace_loops(adj):
         
         # walk step by step through neighbor connectivity
         while True:
+            
             # add point to contour loop list 
-            loop.append(cur)
+            if visited[cur]==0 or canreturn[cur]==1: 
+                loop.append(cur)
+            else:
+                break
             
             # set current neighbor node as visited
             visited[cur] = 1
             
-            # check out whos is the next node in neighborhood 
-            a    = adj[cur, 0]
-            b    = adj[cur, 1]
-            nxt  = a if a != prev else b
+            # check out whos is the next node in neighborhood. usually there are 2 
+            # neighboring nodes (a and b) but under certain conditions there can be also 
+            # 4 neighboring boudnary nodes
+            if canreturn[0]==0 and isreturn[cur]==0: 
+                a    = adj[cur, 0]
+                b    = adj[cur, 1]
+                if   a!=prev: nxt = a
+                elif b!=prev: nxt = b
+                if (adj[cur,2]>=0 and adj[cur,3]>=0) and isreturn[cur]==0: canreturn[cur]=1
+            
+            # This case when there are more than to neighbouring boundary nodes
+            else: 
+                c    = adj[cur, 2]
+                d    = adj[cur, 3]
+                if  c!=prev and visited[c] == 0: nxt = c
+                elif    d!=prev and visited[d] == 0: nxt = d
+                isreturn[cur]=1
+                canreturn[cur]=0
             
             prev = cur
             cur  = nxt
@@ -3554,10 +3582,18 @@ def njit_lsmask_trace_loops(adj):
             # if starting point is reached again contour loop is closed again 
             # finish while loop. start with next accumaulation of closed coastline 
             # loop 
+            #print(start, cur, prev, nxt, adj[cur,2]<0 and adj[cur,3]>=0)
             if cur == start: break
         
+            # failsafe not to be drapped in infinite loop
+            if cnt > 10*nbnde_nodes: 
+                print(' -WARNING-> the contour algorithm did not converge properly!')
+                break 
+            cnt+=1
+            
         # only if loop is large enough add it ti the contour list 
         if len(loop) > 4: loops.append(loop)
+        
     #___________________________________________________________________________
     return loops
 
