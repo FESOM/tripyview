@@ -5572,21 +5572,16 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
         
         #_______________________________________________________________________
         quiv_optdefault=dict({
-                            #'scale':4,
                             'minshaft':2,
                             'minlength':0.5,
                             'width':0.002, 
                             'scale_units':'inches',
                             'scale':1, })
-                            #'units':'xy', 'scale_units':'xy', 'angles':'xy', })
-        
         quiv_optdefault.update(quiver_opt)
-        scalfac = quiv_optdefault['scale']
-        print(scalfac)
         
         data_u, data_v = hax_ii.projection.transform_vectors(which_transf, data_x, data_y, data_u, data_v)
         data_x, data_y = hax_ii.projection.transform_points( which_transf, data_x, data_y)[:,0:2].T
-        h0=hax_ii.quiver(data_x, data_y, data_u*10, data_v*10, 
+        h0=hax_ii.quiver(data_x, data_y, data_u, data_v, 
                          color = 'k', zorder=-3, **quiv_optdefault, )
         
         #_______________________________________________________________________
@@ -5610,7 +5605,7 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
                 # Plot a line in the legend, of the correct length
                 x1, y1   = hax_ii.projection.transform_point(x, y, ccrs.PlateCarree())
                 u1, v1   = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), np.array([0]) , np.array([0]), np.array([speed]), np.array([0]))
-                h0=hax_ii.quiver(x02, y1, u1*scalfac, v1*scalfac, color = 'k', zorder=-1,
+                h0=hax_ii.quiver(x02, y1, u1, v1, color = 'k', zorder=-1,
                          pivot='tip', 
                          **quiv_optdefault, 
                         )
