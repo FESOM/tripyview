@@ -1562,6 +1562,48 @@ def do_time_arithmetic(data, do_tarithm):
                 return(data_season, str_atim)
             
             #___________________________________________________________________
+            # seasonal mean 
+            elif 'rmean' in do_tarithm:
+                _, win = do_tarithm.split(":")
+                time_index = data.indexes["time"]
+                
+                # determine time resolution of data
+                tres=None
+                if len(time_index) < 2: tres=None
+                t0, t1 = time_index[0], time_index[1]
+                dy = t1.year  - t0.year
+                dm = t1.month - t0.month
+                dd = getattr(t1, "day", 1) - getattr(t0, "day", 1)
+                if dy == 1 and dm == 0               : tres = "yearly"
+                if dm == 1 or (dy == 1 and dm == -11): tres = "monthly"
+                if abs(dd) == 1                      : tres = "daily"
+                
+                # translate time resolution of data and rmean  unit dependent window
+                # size into stepsize window size 
+                # do stepwise running mean
+                if win.isdigit(): 
+                    window=int(win)
+                    
+                # do monthly running mean    
+                elif win.endswith("month"): 
+                    n = int(win[:-5])
+                    if   tres == "monthly" : window = n
+                    elif tres == "yearly"  : raise ValueError("monthly running mean on yearly data not defined")
+                    elif tres == "daily"   : window = n * 30  # explicit approximation
+                    else: raise ValueError("unknown time resolution")
+                
+                # do yearly running mean
+                elif win.endswith("year"):
+                    n = int(win[:-4])
+                    if   tres == "yearly"  : window = n
+                    elif tres == "monthly" : window = n * 12
+                    elif tres == "daily"   : window = n * 365
+                    else: raise ValueError("unknown time resolution")
+                
+                data_rmean = data.rolling(time=window, center=True).mean(dim='time',keep_attrs=True)
+                return(data_rmean, str_atim)
+            
+            #___________________________________________________________________
             elif do_tarithm=='none':
                 return(data, str_atim)
             

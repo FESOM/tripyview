@@ -3153,7 +3153,7 @@ def plot_tline(data,
                     #_______________________________________________________________
                     vname  = list(data[jj][bi].data_vars)[0]
                     data_y = data[jj][bi][vname].data.copy()
-                    ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
+                    ymin, ymax = np.min([ymin, np.nanmin(data_y)]), np.max([ymax, np.nanmax(data_y)])
                     
                     #_______________________________________________________________
                     data_x = data[jj][bi]['time'].copy()
@@ -6220,7 +6220,9 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             # set x/y limits
             if data_y is not None: 
                 # print(data_y[0],data_y[-1])
-                if np.ndim(data_y)==1 : hax_ii.set_ylim(data_y[0],data_y[-1])
+                if np.ndim(data_y)==1 :
+                    #hax_ii.set_ylim(data_y[0],data_y[-1])
+                    hax_ii.set_ylim(np.nanmin(data_y),np.nanmax(data_y))
                 if np.ndim(data_y)==2 : hax_ii.set_ylim(np.nanmin(data_y),np.nanmax(data_y))
             
             if ylim is not None: 
