@@ -135,8 +135,11 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     else                      : webpage[f"image_{cnt}"]["variable"] = ''
     webpage[f"image_{cnt}"]["cnt"]        = cnt
     webpage[f"image_{cnt}"]["name"]       = str_all2
-    webpage[f"image_{cnt}"]["path"]       = os.path.join('./figures/', save_fname)
-    webpage[f"image_{cnt}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
+    # Compute relative paths from HTML location (save_path) to figure/notebook directories
+    fig_relpath = os.path.relpath(params_vname['tripyrun_spath_fig'], params_vname['save_path'])
+    nb_relpath  = os.path.relpath(params_vname['tripyrun_spath_nb'], params_vname['save_path'])
+    webpage[f"image_{cnt}"]["path"]       = os.path.join(f'./{fig_relpath}/', save_fname)
+    webpage[f"image_{cnt}"]["path_nb"]    = os.path.join(f'./{nb_relpath}/', save_fname_nb)
     webpage[f"image_{cnt}"]["short_name"] = short_name
     cnt += 1
     
