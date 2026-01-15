@@ -261,7 +261,13 @@ def tripyrun():
     webpages["general"] = {}
     webpages["general"]["name"] = yaml_settings["tripyrun_name"]
     webpages["logo"] = {}
-    webpages["logo"]["path"] =os.path.join(templates_path, 'fesom2_logo.png')
+    # webpages["logo"]["path"] =os.path.join(templates_path, 'fesom2_logo.png')
+    # Copy logo to output directory and use relative path
+    logo_src = os.path.join(templates_path, 'fesom2_logo.png')
+    logo_dst = os.path.join(save_path, 'fesom2_logo.png')
+    if os.path.exists(logo_src) and not os.path.exists(logo_dst):
+        shutil.copy(logo_src, logo_dst)
+    webpages["logo"]["path"] = './fesom2_logo.png'
 
     #___________________________________________________________________________
     # loop over available diagnostics and run the one selected in the yaml file
