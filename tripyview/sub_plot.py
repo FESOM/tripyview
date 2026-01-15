@@ -1436,24 +1436,24 @@ def plot_hquiver(mesh                  ,
             data_plot_u, _   = do_data_prepare_unstruct(mesh, tri, data_plot_u, do_ie2n)
             data_plot_v, tri = do_data_prepare_unstruct(mesh, tri, data_plot_v, do_ie2n)
             
-            ##___________________________________________________________________
-            ## add color for ocean bottom
-            #h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
-            #hbot.append(h0)
+            #___________________________________________________________________
+            # add color for ocean bottom
+            h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
+            hbot.append(h0)
             
-            ##___________________________________________________________________
-            ## add grey topo
-            #h0 = do_plt_topo(hfig, hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri), 
-                             #plt_opt=topo_opt,
-                             #plt_contb=topo_cont , pltcb_opt=topoc_opt,
-                             #plt_contl=topo_contl, pltcl_opt=topocl_opt,
-                             #chnksize=chnksize)
-            #htop.append(h0)
+            #___________________________________________________________________
+            # add grey topo
+            h0 = do_plt_topo(hfig, hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri),
+                             plt_opt=topo_opt,
+                             plt_contb=topo_cont , pltcb_opt=topoc_opt,
+                             plt_contl=topo_contl, pltcl_opt=topocl_opt,
+                             chnksize=chnksize)
+            htop.append(h0)
             
-            ##___________________________________________________________________
-            ## add grid mesh on top
-            #h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
-            #hmsh.append(h0)
+            #___________________________________________________________________
+            # add grid mesh on top
+            h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
+            hmsh.append(h0)
             
             #___________________________________________________________________
             # do quiver computations
@@ -5426,7 +5426,8 @@ def do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_pl
 
         # use custom end point method to do the vector rotation into the projection, the original cartopy transorm_vector routine
         # seems to be flawed especially for polar projections !!!
-        dt= 2*10000.0
+        dt= 10000.0
+        #dt=10
         R = 6371.0*1e3
         coslat = np.cos(np.deg2rad(tri0yorig))
         dlat   = (data_plot_v * dt) / R
@@ -5500,7 +5501,7 @@ def do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_pl
         #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
 
         quiv_optdefault=dict({'zorder':-3,
-                              'edgecolor':'k', 'linewidth':0.10, #'width': quiv_arrwidth ,
+                              'edgecolor':'k', 'linewidth':0.2, #'width': quiv_arrwidth ,
                               'units':'xy', 'scale_units':'xy', 'angles':'xy',
                               'scale': quiv_scalfac
                              })
@@ -6007,9 +6008,9 @@ def do_plt_topo(hfig, hax_ii, do_topo, data_topo, mesh, tri,
         levels = np.hstack((25, 50, 100, 150, 200, 250, np.arange(500,6000+1,500)))
         N = len(levels)
         vals = np.ones((N, 4))
-        vals[:, 0] = np.linspace(0.2, 0.95, N)
-        vals[:, 1] = np.linspace(0.2, 0.95, N)
-        vals[:, 2] = np.linspace(0.2, 0.95, N)
+        vals[:, 0] = np.linspace(0.01, 0.95, N)
+        vals[:, 1] = np.linspace(0.01, 0.95, N)
+        vals[:, 2] = np.linspace(0.01, 0.95, N)
         vals = np.flipud(vals)
         topocmp = ListedColormap(vals)
         cinfo_topo = dict({'clevel':levels, 'cmap':topocmp})
