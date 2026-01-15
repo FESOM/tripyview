@@ -1457,7 +1457,8 @@ def plot_hquiver(mesh                  ,
             
             #___________________________________________________________________
             # do quiver computations
-            h0 = do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
+            # h0 = do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
+            h0 = do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
                                quiv_scalfac=quiv_scalfac, quiv_arrwidth=quiv_arrwidth, quiv_dens=quiv_dens,
                                quiv_smax=quiv_smax, quiv_shiftL=quiv_shiftL, 
@@ -5248,41 +5249,41 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
             data_plot_v = data_plot_v[mask_quiv] 
             data_plot_n = data_plot_n[mask_quiv]
         
-        #_______________________________________________________________________
-        # try to do scaling projection space dependent
-        # Define the geographic coordinates bounding the area of interest
-        min_x, max_x = hax_ii.get_xlim()
-        min_y, max_y = hax_ii.get_ylim()
-        ddx  , ddy   = max_x-min_x , max_y-min_y
-        #print('ddx, ddy:',ddx, ddy)  
-        min_x += ddx*0.025  
-        min_y += ddy*0.025
-        max_x -= ddx*0.025  
-        max_y -= ddy*0.025
-        
-        # Transform the minimum and maximum points
-        min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
-        max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
-        dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
-        dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
-        
-        # Calculate the distance in kilometers using the scale factor
-        dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
-        dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
-        #print('dlon, dlat:', dlon, dlat)
-        
-        dy   = dlat*np.pi*6371/180
-        dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
-        #print('dx,dy:',dx,dy)
-        
-        ##_______________________________________________________________________
-        ## add quiver plot 
-        #max_dim = np.min([dx,dy])*10
-        max_dim = np.min([dlon, dlat])*2
-        
-        #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
-        if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
-        #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+#         #_______________________________________________________________________
+#         # try to do scaling projection space dependent
+#         # Define the geographic coordinates bounding the area of interest
+#         min_x, max_x = hax_ii.get_xlim()
+#         min_y, max_y = hax_ii.get_ylim()
+#         ddx  , ddy   = max_x-min_x , max_y-min_y
+#         #print('ddx, ddy:',ddx, ddy)
+#         min_x += ddx*0.025
+#         min_y += ddy*0.025
+#         max_x -= ddx*0.025
+#         max_y -= ddy*0.025
+#
+#         # Transform the minimum and maximum points
+#         min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+#         max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+#         dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
+#         dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
+#
+#         # Calculate the distance in kilometers using the scale factor
+#         dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
+#         dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
+#         #print('dlon, dlat:', dlon, dlat)
+#
+#         dy   = dlat*np.pi*6371/180
+#         dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
+#         #print('dx,dy:',dx,dy)
+#
+#         ##_______________________________________________________________________
+#         ## add quiver plot
+#         #max_dim = np.min([dx,dy])*10
+#         max_dim = np.min([dlon, dlat])*2
+#
+#         #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
+#         if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
+#         #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
         
         quiv_optdefault=dict({'zorder':-3,
                               'edgecolor':'k', 'linewidth':0.10, #'width': quiv_arrwidth , 
@@ -5316,6 +5317,221 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         del(tri0x, tri0y, )    
 
         
+    return(h0)
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
+                  cinfo_plot, norm_plot, quiv_scalfac=1, quiv_arrwidth=0.25, quiv_dens=0.4,
+                  quiv_smax=10, quiv_shiftL=2, quiv_smooth=2,
+                  quiv_opt=dict(), chnksize=1e6):
+    """
+    --> plot triangular data as quiver plot
+
+    Parameters:
+
+        :hax_ii:        handle of axes ii
+
+        :do_quiv:       bool, do cartopy quiver plot
+
+        :tri:           matplotlib.tri triangulation object
+                        - tri.mask_e_ok...provide mask with nan values, that describe the bottom limited to regional box
+
+        :data_plot_u:   np.array of unstructured zonal vector component
+
+        :data_plot_v:   np.array of unstructured meridional vector component
+
+        :cinfo_plot:    None, dict() (default: None), dictionary with colorbar information.
+                        Information that are given are used, others are computed. cinfo dictionary
+                        entries can be,
+
+                        - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                        - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values
+                        - cinfo['cnum']   ... minimum number of colors
+                        - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                        - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                        - cinfo['clevel'] ... color level array
+
+        :norm_plot:     None or renormation object
+
+        :quiv_scalfac:  float, (default: 1.0)  bigger means larger arrows
+
+        :quiv_arrwidth: float, (default: 0.25) scale arrow width
+
+        :quiv_dens:     float, (default: 0.5)  larger mean more excluded arrows
+
+        :quiv_smax:     float, (default: 10) small arrow are scaled strong with factor smax, its off when smax=1
+
+        :quiv_shiftL:   float, (default: 2) shift smothing function to the left
+
+        :quiv_smooth:   float, (default: 2) slope of transitions zone, smaller value steeper transition
+
+        :quiv_opt:      dict, (default: dict()) additional options that are given to quiver plot routine
+
+    Returns:
+
+        :h0:   return handle of quiver plot
+
+    ____________________________________________________________________________
+    """
+    h0=None
+    if do_quiv:
+        #_______________________________________________________________________
+        # prepare quiver data
+        data_plot_n              = np.sqrt(data_plot_u**2 + data_plot_v**2)
+        data_plot_u, data_plot_v = data_plot_u/data_plot_n, data_plot_v/data_plot_n
+        data_plot_n[data_plot_n<cinfo_plot['clevel'][0]]  = cinfo_plot['clevel'][0] #+np.finfo(np.float32).eps
+        data_plot_n[data_plot_n>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]#-np.finfo(np.float32).eps
+        data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
+
+        nmax  = np.nanmax(data_plot_n)
+        data_plot_u, data_plot_v = data_plot_u/nmax, data_plot_v/nmax
+
+        # scale up weaker flow vectors stronger so that also weaker flows become more visible
+        # if quiv_scal=1 this scaling is switched off
+        fac   = (1.0 - np.tanh(((data_plot_n/nmax*np.pi*4)-np.pi*2 + 2*np.pi/quiv_shiftL )/quiv_smooth) )/2.0
+        fac   = fac - np.nanmin(fac)
+        fac   = fac/np.nanmax(fac)
+        fac   = fac*(quiv_smax-1.0) + 1.0
+        data_plot_u, data_plot_v = data_plot_u*fac, data_plot_v*fac
+
+        # convert into cartopy projection frame
+        if data_plot_u.size == tri.xorig.size:
+            isonvert=True
+
+            # kick out nan values from quiver coordinates
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) |
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) |
+                        np.isnan(tri.x)       | np.isnan(tri.y) )==False
+
+            tri0x, tri0y, tri0xorig, tri0yorig = tri.x[mask_nan], tri.y[mask_nan], tri.xorig[mask_nan], tri.yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+
+        else:
+            isonvert=False
+
+            triangles = tri.triangles[tri.mask_e_ok,:]
+            tri0x    , tri0y     = tri.x[    triangles].sum(axis=1)/3.0, tri.y[    triangles].sum(axis=1)/3.0
+            tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0
+
+            # kick out nan values from quiver coordinates
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) |
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) |
+                        np.isnan(tri0x)       | np.isnan(tri0y) )==False
+
+            tri0x, tri0y, tri0xorig, tri0yorig = tri0x[mask_nan], tri0y[mask_nan], tri0xorig[mask_nan], tri0yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+
+        # use custom end point method to do the vector rotation into the projection, the original cartopy transorm_vector routine
+        # seems to be flawed especially for polar projections !!!
+        dt= 2*10000.0
+        R = 6371.0*1e3
+        coslat = np.cos(np.deg2rad(tri0yorig))
+        dlat   = (data_plot_v * dt) / R
+        dlon   = (data_plot_u * dt) / (R * coslat)
+        lon2 = tri0xorig + np.rad2deg(dlon)
+        lat2 = tri0yorig + np.rad2deg(dlat)
+        px, py = hax_ii.projection.transform_points(ccrs.PlateCarree(), lon2, lat2)[:,0:2].T
+        data_plot_u, data_plot_v = px - tri0x, py - tri0y
+        del (tri0xorig, tri0yorig, lon2, lat2, dlat, dlon, coslat, px, py)
+
+        ## kick out to small arrows
+        #mean, std   = np.nanmean(data_plot_n), np.nanstd(data_plot_n)
+        #mask_quiv   = data_plot_n>mean-std*quiv_excl
+        #tri0x       = tri0x[mask_quiv],
+        #tri0y       = tri0y[mask_quiv],
+        #data_plot_u = data_plot_u[mask_quiv],
+        #data_plot_v = data_plot_v[mask_quiv],
+        #data_plot_n = data_plot_n[mask_quiv]
+
+        # kick out arrows based on density
+        if quiv_dens is not None and tri.narea is not None:
+            if isonvert:
+                r0      = 1/(np.sqrt(tri.narea[mask_nan]))
+            else:
+                aux_earea = tri.earea[tri.mask_e_ok]
+                r0      = 1/(np.sqrt(aux_earea[mask_nan]))
+                del(aux_earea)
+
+            mask_quiv   = np.random.rand(tri0x.size)>r0/np.max(r0)*quiv_dens #1.5
+            ##mask_quiv = np.logical_and(isok,mask_quiv)
+            tri0x       = tri0x[mask_quiv]
+            tri0y       = tri0y[mask_quiv]
+            data_plot_u = data_plot_u[mask_quiv]
+            data_plot_v = data_plot_v[mask_quiv]
+            data_plot_n = data_plot_n[mask_quiv]
+
+        #_______________________________________________________________________
+        # try to do scaling projection space dependent
+        # Define the geographic coordinates bounding the area of interest
+        min_x, max_x = hax_ii.get_xlim()
+        min_y, max_y = hax_ii.get_ylim()
+        ddx  , ddy   = max_x-min_x , max_y-min_y
+        #print('ddx, ddy:',ddx, ddy)
+        min_x += ddx*0.025
+        min_y += ddy*0.025
+        max_x -= ddx*0.025
+        max_y -= ddy*0.025
+
+        # Transform the minimum and maximum points
+        min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+        max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+        dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
+        dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
+
+        # Calculate the distance in kilometers using the scale factor
+        dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
+        dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
+        #print('dlon, dlat:', dlon, dlat)
+
+        dy   = dlat*np.pi*6371/180
+        dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
+        #print('dx,dy:',dx,dy)
+
+        ##_______________________________________________________________________
+        ## add quiver plot
+        #max_dim = np.min([dx,dy])*10
+        max_dim = np.min([dlon, dlat])*2
+
+        #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
+        if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
+        #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+
+        quiv_optdefault=dict({'zorder':-3,
+                              'edgecolor':'k', 'linewidth':0.10, #'width': quiv_arrwidth ,
+                              'units':'xy', 'scale_units':'xy', 'angles':'xy',
+                              'scale': quiv_scalfac
+                             })
+        quiv_optdefault.update(quiv_opt)
+
+        #_______________________________________________________________________
+        # plotting of chunks
+        arrsize, chnksize = data_plot_u.size, np.int32(chnksize)
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
+        print(' --> plot {:6s} chunk:'.format('quiver'),end='')
+        for chnki in range(nchnk):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+            h0=hax_ii.quiver(tri0x[idxs:idxe], tri0y[idxs:idxe],
+                            data_plot_u[idxs:idxe], data_plot_v[idxs:idxe], data_plot_n[idxs:idxe],
+                            cmap = cinfo_plot['cmap'],
+                            norm = norm_plot,
+                            **quiv_optdefault,
+                            )
+            h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
+
+            # Force update & clear cache
+            if nchnk>1:
+                hfig.canvas.draw_idle()   # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
+
+        print('')
+        #h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
+        del(tri0x, tri0y, )
+
+
     return(h0)
 
 
