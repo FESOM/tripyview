@@ -122,13 +122,14 @@ def plot_hslice(mesh                   ,
                 save_opt   = dict()    ,
                 
                 #--- chunk size------
-                chnksize   = 6.5e6       ,
+                chnksize   = 6.5e6     ,
                 
                 #--- time info------
                 do_info    = False     , 
                 
                 #--- set output -----
                 nargout    =['hfig', 'hax', 'hcb'],
+                do_pltshow = True      ,
                 ):
     """
     --> plot FESOM2 horizontal data slice:
@@ -609,7 +610,7 @@ def plot_hslice(mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show()
     
     #___________________________________________________________________________
     list_argout=[]
@@ -694,6 +695,7 @@ def plot_hmesh( mesh                   ,
                 
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
+                do_pltshow = True ,
                 ):
     """
     --> plot horizontal mesh and mesh paramters on vertices and elements
@@ -1052,7 +1054,8 @@ def plot_hmesh( mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show()
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -1147,6 +1150,7 @@ def plot_hquiver(mesh                  ,
                 
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
+                do_pltshow = True      ,
                 ):
     """
     --> plot FESOM2 horizontal data slice as quiver plot:
@@ -1506,6 +1510,7 @@ def plot_hquiver(mesh                  ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
+    if do_pltshow: plt.show()
 
     #___________________________________________________________________________
     list_argout=[]
@@ -1588,6 +1593,7 @@ def plot_vslice(mesh                   ,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
+                do_pltshow = True      ,
                 ):
     """
     --> plot FESOM2 horizontal data slice:
@@ -2007,7 +2013,7 @@ def plot_vslice(mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show()
     
     #___________________________________________________________________________
     list_argout=[]
@@ -2067,6 +2073,7 @@ def plot_hline(data                   ,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax'],
+                do_pltshow = True      ,
                 ):
     """
     --> do plotting of horizontal lines over index region (e.g. heatflux vs lon, lat)
@@ -2399,7 +2406,8 @@ def plot_hline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show()
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -2459,6 +2467,7 @@ def plot_vline(data                   ,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax'],
+                do_pltshow = True      ,
                 ):
     """
     --> do plotting of mean indices over depth (e.g. vertical profiles)
@@ -2820,7 +2829,8 @@ def plot_vline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show()
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -2883,6 +2893,7 @@ def plot_tline(data,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax'],
+                do_pltshow = True      ,
                 ):    
     """
     --> do plotting of mean indices over time (e.g. time-series)
@@ -3362,7 +3373,8 @@ def plot_tline(data,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show()
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
