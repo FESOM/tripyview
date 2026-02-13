@@ -319,3 +319,275 @@ def load_climatology(mesh, datapath, vname, mon=None, depth=None, depidx=False,
     
     #___________________________________________________________________________
     return(data)
+
+
+
+#
+#
+#_______________________________________________________________________________
+# ___LOAD CLIMATOLOGY DATA INTO XARRAY DATASET CLASS___________________________
+#|                                                                             |
+#|        *** LOAD CLIMATOLOGY DATA INTO --> XARRAY DATASET CLASS ***          |
+#|                                                                             |
+#|_____________________________________________________________________________|
+def load_climatology_uv(mesh, datapath, vnameu, vnamev, mon=None, depth=None, depidx=False,
+                     do_zarithm='mean', do_hinterp='linear', do_zinterp=True,
+                     descript='clim', onelem=True,
+                     do_compute=False, do_load=True, do_persist=False,
+                     do_zweight=False, do_hweight=True,
+                     chunks         = { 'time' :'auto', 'elem':'auto', 'nod2':'auto', \
+                                        'edg_n':'auto', 'nz'  :'auto', 'nz1' :'auto', \
+                                        'ndens':'auto'},
+                     do_parallel=False,
+                     **kwargs):
+
+    str_mdep = ''
+    is_data = 'scalar'
+    if isinstance(depth, list) : depth = depth[0]
+
+    #___________________________________________________________________________
+    # load climatology data with xarray
+    data = xr.open_dataset(datapath, decode_times=False, **kwargs)
+
+    #___________________________________________________________________________
+    # select timeslice in case of monthly or seasonal climatology selection
+    if 'time' in data.dims:
+        # annual climatology
+        if data.sizes['time']==1:
+            ...
+
+        # monthly climatology
+        elif data.sizes['time']==12:
+            #compute annual mean from monthly climatolgy
+            if mon is None:
+                data = data.mean(  dim="time", keep_attrs=True).persist()
+            # selcet single month from monthly climatolgy
+            elif len(mon)==1:
+                data = data.isel(time=[i-1 for i in mon]).persist()
+            # compute seasonal mean from monthly climatolgy
+            else:
+                data = data.isel(time=[i-1 for i in mon]).mean(dim="time", keep_attrs=True).persist()
+
+        # seasonal climatolgy --> looks like phc3.0 seasonal climatology only contains
+        # summer and winter
+        elif data.sizes['time']==4:
+            if mon is None:
+                data = data.mean(  dim="time", keep_attrs=True).persist()
+            # select winter season, weirdly in PHC its [march, april,  may]
+            # https://psc.apl.washington.edu/nonwp_projects/PHC/Data3.html
+            elif sorted(mon) ==[3,4,5]:
+                data = data.isel(time=0).persist()
+            # select summer season, weirdly in PHC its [July, August, September]
+            # https://psc.apl.washington.edu/nonwp_projects/PHC/Data3.html
+            elif sorted(mon) ==[7,8,9]:
+                data = data.isel(time=1).persist()
+            else:
+                raise ValueError('this month list is not supported for seaonal climatoligical data! Only: [1,2,12], [3,4,5], [6,7,8], [9,10,11]')
+
+    #___________________________________________________________________________
+    # delete eventual time dimension from climatology data
+    if 'time' in data.dims:
+        data = data.squeeze(dim='time',drop=True )
+
+    #___________________________________________________________________________
+    # identify dimension names
+    list_lonstr  = ['x','lon','longitude','long', 'nx']
+    list_latstr  = ['y','lat','latitude', 'ny']
+    list_zlevstr = ['z','depth','dep','level','lvl','zcoord','zlev','zlevel', 'nz', 'Z']
+    idx       = [i for i, item in enumerate(list(data.dims)) if item.lower() in list_lonstr][0]
+    dim_lon   = list(data.dims)[idx]
+    idx       = [i for i, item in enumerate(list(data.dims)) if item.lower() in list_latstr][0]
+    dim_lat   = list(data.dims)[idx]
+    idx       = [i for i, item in enumerate(list(data.dims)) if item.lower() in list_zlevstr][0]
+    dim_zlev  = list(data.dims)[idx]
+
+    # identify coordinate names
+    idx       = [i for i, item in enumerate(list(data.coords)) if item.lower() in list_lonstr][0]
+    coord_lon = list(data.coords)[idx]
+    idx       = [i for i, item in enumerate(list(data.coords)) if item.lower() in list_latstr][0]
+    coord_lat = list(data.coords)[idx]
+    idx       = [i for i, item in enumerate(list(data.coords)) if item.lower() in list_zlevstr][0]
+    coord_zlev= list(data.coords)[idx]
+
+    #___________________________________________________________________________
+    data = data.rename({dim_lon :'lon'  })
+    if 'lon' not in data.indexes: data = data.set_index(lon='lon')
+    if (dim_lon in data.dims  ) : data = data.swap_dims({dim_lon: 'lon'})
+    dim_lon   = 'lon'
+    coord_lon = 'lon'
+
+    data = data.rename({dim_lat :'lat'})
+    if 'lat' not in data.indexes: data = data.set_index(lat='lat')
+    if (dim_lat in data.dims  ) : data = data.swap_dims({dim_lat: 'lat'})
+    dim_lat   = 'lat'
+    coord_lat = 'lat'
+
+    #___________________________________________________________________________
+    # see if longitude dimension needs to be periodically rolled so it agrees with
+    # the fesom2 mesh focus
+    lon = data.coords[coord_lon].values
+    if any(lon>mesh.focus+180.0) or any(lon<mesh.focus-180.0):
+        # identify rolling index
+        if   any(lon>mesh.focus+180.0):
+            idx = np.where(lon>mesh.focus+180.0)[0]
+            idx_roll = idx[0]
+            lon[idx] = lon[idx]-360.0
+        elif any(lon<mesh.focus-180.0):
+            idx = np.where(lon<mesh.focus+180.0)[0]
+            idx_roll = -idx[-1]
+            lon[idx] = lon[idx]+360.0
+
+        # shift longitude coordinates
+        #data.coords[dim_lon].values = lon
+        data = data.assign_coords(dict({dim_lon:lon}))
+
+        # periodically roll data together with longitude dimension
+        data = data.roll(dict({dim_lon:idx_roll}), roll_coords=True)
+
+    #___________________________________________________________________________
+    # do vertical interpolation
+    if (depth) is not None:
+        #_______________________________________________________________________
+        # select depth level indices that are needed to interpolate the values
+        # in depth list,array
+        zlev = data.coords[coord_zlev].values
+        ndimax = len(zlev)
+        sel_levidx = do_comp_sel_levidx(zlev, depth, depidx, ndimax)
+
+        #_______________________________________________________________________
+        # select vertical levels from data
+        data = data.isel(dict({dim_zlev:sel_levidx}))
+
+        if depth < abs(data[dim_zlev][0]) or depth > abs(data[dim_zlev][-1]):
+            print(' --> depth of interpolation outside of climatological range, clip depth range ')
+            print('     ', data[dim_zlev].values)
+            depth = np.clip(depth, abs(data[dim_zlev][0]), abs(data[dim_zlev][0]))
+            print(' --> new depth:', depth.values)
+            print('     !!! the depth of the fesom data is not automatically adjusted, you have to do that!!!')
+        #_______________________________________________________________________
+        # do vertical interpolation and summation over interpolated levels
+        if depidx==False:
+            str_mdep = ', '+str(do_zarithm)
+            # do vertical interpolation of depth levels
+            data = data.interp(dict({dim_zlev:depth}), method="linear")
+
+            # do z-arithmetic
+            if data[coord_zlev].size>1:
+                data = do_depth_arithmetic(data, do_zarithm, dim_zlev)
+
+    # import matplotlib.pyplot as plt
+    # plt.figure()
+    # plt.pcolormesh(data.longitude, data.latitude, data.uo)
+    # plt.show()
+
+    #___________________________________________________________________________
+    # do horizontal interplation to fesom grid
+    if (do_hinterp) is not None:
+
+        # create mesh  coordinates to interpolate onto
+        if onelem:
+            n_x = xr.DataArray(mesh.n_x[mesh.e_i].sum(axis=1)/3, dims="elem")
+            n_y = xr.DataArray(mesh.n_y[mesh.e_i].sum(axis=1)/3, dims="elem")
+        else:
+            n_x = xr.DataArray(mesh.n_x, dims="nod2")
+            n_y = xr.DataArray(mesh.n_y, dims="nod2")
+
+        if do_hinterp=='nearest':
+            # interp data on nodes
+            data_lin_u = data[vnameu].interp(dict({dim_lon:n_x, dim_lat:n_y}), method='nearest')
+            data_lin_v = data[vnamev].interp(dict({dim_lon:n_x, dim_lat:n_y}), method='nearest')
+            data = xr.merge([data_lin_u, data_lin_v])
+            del n_x, n_y, data_lin_u, data_lin_v
+
+        elif do_hinterp=='linear':
+            # interp data on nodes --> method linear
+            data_lin_u = data[vnameu].interp(dict({dim_lon:n_x, dim_lat:n_y}), method='linear')
+            data_lin_v = data[vnamev].interp(dict({dim_lon:n_x, dim_lat:n_y}), method='linear')
+
+            # fill up nan gaps as far as possible with nearest neighbours -->
+            # gives better coastal edges
+            if depth is not None:
+                #isnan = xr.ufuncs.isnan(data_lin[vname])
+                isnan = np.isnan(data_lin_u)
+                if onelem:
+                    data_lin_u[isnan] = data[vnameu].interp(dict({dim_lon:n_x.sel(elem=isnan), dim_lat:n_y.sel(elem=isnan)}), method='nearest')
+                    data_lin_v[isnan] = data[vnamev].interp(dict({dim_lon:n_x.sel(elem=isnan), dim_lat:n_y.sel(elem=isnan)}), method='nearest')
+                else:
+                    data_lin_u[isnan] = data[vnameu].interp(dict({dim_lon:n_x.sel(nod2=isnan), dim_lat:n_y.sel(nod2=isnan)}), method='nearest')
+                    data_lin_v[isnan] = data[vnamev].interp(dict({dim_lon:n_x.sel(nod2=isnan), dim_lat:n_y.sel(nod2=isnan)}), method='nearest')
+
+                del isnan
+            data = xr.merge([data_lin_u, data_lin_v])
+            del data_lin_u, data_lin_v, n_x, n_y
+
+        elif do_hinterp=='regular':
+            ...
+        # re-chunk data along nod2
+        if onelem: data = data.chunk({'elem':'auto'})
+        else     : data = data.chunk({'nod2':'auto'})
+
+    #___________________________________________________________________________
+    # do vertical interplation to fesom grid
+    if do_zinterp and (depth is None):
+        #add fesom2 mesh coordinates to xarray dataset
+        zmid = xr.DataArray(np.abs(mesh.zmid), dims="nz1")
+
+        # improvise extrapolation --> fesom depth levels reach usually deeper than
+        # the levels of the climatology --> therefor expand last layers of climatology
+        # so they cover the fesom depth range
+        addlay = 3
+        zlev   = data[coord_zlev].data
+        dd_mat = np.ones((addlay,))*(zlev[-1]-zlev[-2])
+        dd_mat = zlev[-1]+dd_mat.cumsum()
+        zlev   = np.hstack([zlev, dd_mat])
+        data   = data.pad({dim_zlev:(0, addlay)}, mode='edge')
+        data   = data.assign_coords(dict({dim_zlev:zlev}))
+        del(zlev, dd_mat)
+
+        # interp data on nodes --> method linear
+        data = data.interp(dict({dim_zlev:zmid}), method='linear')
+
+        # re-chunk data along nz1
+        data = data.chunk({'nz1':'auto'})
+
+    #___________________________________________________________________________
+    # write additional attribute info
+    for vname in list(data.keys()):
+        attr_dict=dict({'datapath':datapath, 'depth':depth, 'str_mdep':str_mdep,
+                        'depidx':depidx, 'do_zarithm':do_zarithm, 'do_hinterp':do_hinterp,
+                        'do_compute':do_compute, 'descript':descript, 'runid':'fesom'})
+        do_additional_attrs(data, vname, attr_dict)
+
+    #data = data.assign_coords(nz1=('nz1' ,-mesh.zmid))
+    #if depth is None:
+        #w_A = xr.DataArray(mesh.n_area[:-1,:].astype('float32'), dims=['nz1' , 'nod2']).chunk({'nod2':data.chunksizes['nod2'], 'nz1':data.chunksizes['nz1']})
+        #w_A = w_A.where(~np.isnan(data[vname].data))
+        #data = data.assign_coords(w_A=w_A)
+    #else:
+        #w_A = xr.DataArray(mesh.n_area[0,:].astype('float32'), dims=['nod2']).chunk({'nod2':data.chunksizes['nod2']})
+        #data = data.assign_coords(w_A=w_A)
+    #del(w_A)
+    data, dim_vert, dim_horz = do_gridinfo_and_weights(mesh, data, do_zweight=do_zweight, do_hweight=do_hweight)
+    data = data.drop_vars(['depth'])
+
+    #___________________________________________________________________________
+    #data = data.transpose()
+    data = data.astype('float32', copy=False)
+
+    #___________________________________________________________________________
+    if do_parallel:
+        data = data.chunk({'nod2':chunks['nod2'], 'nz1':chunks['nz1']})
+        data = data.unify_chunks()
+
+    #___________________________________________________________________________
+    warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size 2.10 MiB detected in task graph")
+    if do_compute: data = data.compute()
+    if do_load   : data = data.load()
+    if do_persist: data = data.persist()
+    warnings.resetwarnings()
+
+    #___________________________________________________________________________
+    if isinstance(depth, xr.DataArray): depth = depth.to_numpy().tolist()
+    return(data, depth)
+
