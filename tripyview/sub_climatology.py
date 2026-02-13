@@ -447,6 +447,8 @@ def load_climatology_uv(mesh, datapath, vnameu, vnamev, mon=None, depth=None, de
     #___________________________________________________________________________
     # do vertical interpolation
     if (depth) is not None:
+        if isinstance(depth, str):raise ValueError(' depth=\'bottom\' is not supported for the climatology')
+
         #_______________________________________________________________________
         # select depth level indices that are needed to interpolate the values
         # in depth list,array
