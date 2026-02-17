@@ -1123,7 +1123,7 @@ ___________________________________________""".format(
     #|           "max" : resolution based on maximum element edge length       |
     #|           "min" : resolution based on minimum element edge length       |
     #|_________________________________________________________________________|
-    def compute_e_resol(self, which='height'):
+    def compute_e_resol(self, which='area'):
         """
         --> part of fesom mesh class, compute area of elements in [m], options:
 
@@ -1192,7 +1192,7 @@ ___________________________________________""".format(
                 # height = 2*area / longest edge
                 self.e_resol = 2.0 * area / edge_len.max(axis=1)
                 
-            elif which == 'area':
+            elif (which == 'area_q' or which=='area') :
                 print(" > comp. e_resol from sqrt(2*area)")
                 # semi-perimeter
                 s = edge_len.sum(axis=1) * 0.5
@@ -1201,7 +1201,12 @@ ___________________________________________""".format(
                 area = np.sqrt(s * (s - edge_len[:,0]) * (s - edge_len[:,1]) * (s - edge_len[:,2]))
 
                 # sqrt(2 * area)
-                self.e_resol = np.sqrt(2.0 * area)
+                if   which == 'area_q':
+                    # quad-equivalent grid spacing
+                    self.e_resol = np.sqrt(2.0 * area)
+                elif which == 'area':
+                    # exact equilateral edge
+                    self.e_resol = np.sqrt(2.0 * area)/(np.sqrt(2/np.sqrt(3)))
                 
             #___________________________________________________________________    
             else:
@@ -1290,7 +1295,7 @@ ___________________________________________""".format(
     #|           "e_resol": compute vertice resolution by interpolating elem   |
     #|                      resolution to vertices, default                    |
     #|_________________________________________________________________________|
-    def compute_n_resol(self,which='n_area'):
+    def compute_n_resol(self,which='e_resol'):
         """
         --> part of fesom mesh class, compute resolution at vertices in m, options:
 
