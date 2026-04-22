@@ -11,7 +11,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module="distributed.clie
                         message=r".*Large object of size \\d+\\.\\d+ detected in task graph.*")
     
 import xarray as xr
-from xarray.coding.times import encode_cf_datetime
 from xarray.coding.cftimeindex import CFTimeIndex
 
 import pandas as pd
@@ -397,7 +396,7 @@ def load_data_fesom2(mesh,
     if (do_cftime): use_cftime=True
     
     # Build decode_times argument correctly
-    decode_times  = True
+    time_coder    = xr.coders.CFDatetimeCoder(use_cftime=use_cftime)
     decode_coords = False
     if   engine == 'netcdf4' : 
         engine_dict = dict({'engine'        :'netcdf4'     ,
@@ -416,8 +415,7 @@ def load_data_fesom2(mesh,
                                 }})# load normal FESOM2 run file
     engine_dict.update({'combine'       :'by_coords'   , 
                         'decode_coords' :decode_coords , 
-                        'decode_times'  :decode_times  ,  
-                        'use_cftime'    :use_cftime    , })
+                        'decode_times'  :time_coder    , })
                         #'combine'       :'nested', 
                         #'concat_dim'    :'time'
                         #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
