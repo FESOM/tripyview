@@ -173,7 +173,7 @@ def load_climatology(mesh, datapath, vname, mon=None, depth=None, depidx=False,
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with 
     # the fesom2 mesh focus 
-    lon = data.coords[coord_lon].values
+    lon = data.coords[coord_lon].values.copy()
     if any(lon>mesh.focus+180.0) or any(lon<mesh.focus-180.0):
         # identify rolling index 
         if   any(lon>mesh.focus+180.0):
@@ -425,7 +425,7 @@ def load_climatology_uv(mesh, datapath, vnameu, vnamev, mon=None, depth=None, de
     #___________________________________________________________________________
     # see if longitude dimension needs to be periodically rolled so it agrees with
     # the fesom2 mesh focus
-    lon = data.coords[coord_lon].values
+    lon = data.coords[coord_lon].values.copy()
     if any(lon>mesh.focus+180.0) or any(lon<mesh.focus-180.0):
         # identify rolling index
         if   any(lon>mesh.focus+180.0):
