@@ -1432,8 +1432,8 @@ def do_time_arithmetic(data, do_tarithm):
             #___________________________________________________________________
             # annual means 
             if   do_tarithm in ['ymean', 'annual']:
-                # 'AS' = year-start based on original calendar
-                return data.resample(time='AS').mean(keep_attrs=True), str_atim
+                # 'YS' = year-start based on original calendar
+                return data.resample(time='YS').mean(keep_attrs=True), str_atim
                 
             #___________________________________________________________________
             # monthly means 
