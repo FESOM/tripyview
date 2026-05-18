@@ -141,6 +141,9 @@ def do_analyse_transects(input_transect     ,
         #_______________________________________________________________________
         # fix orientation of section 
         auxx, auxy = transec_lon[-1]-transec_lon[0], transec_lat[-1]-transec_lat[0]
+        # handle dateline crossing for total orientation vector
+        if   auxx >  180.0: auxx = auxx - 360.0
+        elif auxx < -180.0: auxx = auxx + 360.0
         auxn       = np.sqrt(auxx**2+auxy**2)
         auxx, auxy = auxx/auxn, auxy/auxn
         sub_transect['e_vec_tot'    ] = [ auxx, auxy]
@@ -168,7 +171,14 @@ def do_analyse_transects(input_transect     ,
             
             #___________________________________________________________________
             # points defining cross-section line
-            sub_transect['Px'].append([transec_lon[ii], transec_lon[ii+1]])
+            # --> check if subtransect segment crosses the dateline
+            px0, px1 = transec_lon[ii], transec_lon[ii+1]
+            crosses_dateline = abs(px1 - px0) > 180.0
+            if crosses_dateline:
+                # shift longitudes into [0, 360] frame to avoid discontinuity
+                if px0 < 0: px0 = px0 + 360.0
+                if px1 < 0: px1 = px1 + 360.0
+            sub_transect['Px'].append([px0, px1])
             sub_transect['Py'].append([transec_lat[ii], transec_lat[ii+1]])
             
             #___________________________________________________________________
@@ -189,17 +199,33 @@ def do_analyse_transects(input_transect     ,
             
             Pxmin, Pxmax = Pxmin-Pdx, Pxmax+Pdx
             Pymin, Pymax = Pymin-Pdy, Pymax+Pdy
-            idx_edlimit  = np.where( ( mesh.n_x[edge].min(axis=0)>=Pxmin ) &  
-                                     ( mesh.n_x[edge].max(axis=0)<=Pxmax ) & 
-                                     ( mesh.n_y[edge].min(axis=0)>=Pymin ) &  
-                                     ( mesh.n_y[edge].max(axis=0)<=Pymax ) )[0]
+            
+            # when crossing the dateline, shift mesh edge longitudes to [0,360]
+            # for the bounding box pre-selection
+            if crosses_dateline:
+                edge_lon = mesh.n_x[edge].copy()
+                edge_lon[edge_lon < 0] = edge_lon[edge_lon < 0] + 360.0
+                idx_edlimit = np.where( ( edge_lon.min(axis=0)>=Pxmin ) &  
+                                        ( edge_lon.max(axis=0)<=Pxmax ) & 
+                                        ( mesh.n_y[edge].min(axis=0)>=Pymin ) &  
+                                        ( mesh.n_y[edge].max(axis=0)<=Pymax ) )[0]
+                del(edge_lon)
+            else:
+                idx_edlimit = np.where( ( mesh.n_x[edge].min(axis=0)>=Pxmin ) &  
+                                        ( mesh.n_x[edge].max(axis=0)<=Pxmax ) & 
+                                        ( mesh.n_y[edge].min(axis=0)>=Pymin ) &  
+                                        ( mesh.n_y[edge].max(axis=0)<=Pymax ) )[0]
             del(Pxmin, Pxmax, Pymin, Pymax, Pdx, Pdy)
             
             #___________________________________________________________________
             # compute which edges are intersected by cross-section line 
             #sub_transect = _do_find_intersected_edges(mesh, sub_transect, edge, idx_edlimit)
             #sub_transect = _do_find_intersected_edges_fast(mesh, sub_transect, edge, idx_edlimit)
-            sub_transect = _do_find_intersected_edges_fastnew(mesh, sub_transect, edge, idx_edlimit)
+            sub_transect = _do_find_intersected_edges_fastnew(mesh, sub_transect, edge, idx_edlimit, crosses_dateline)
+            
+            # shift Px back to [-180, 180] for downstream use (plotting, concat)
+            if crosses_dateline:
+                sub_transect['Px'][-1] = [x - 360.0 if x > 180.0 else x for x in sub_transect['Px'][-1]]
             
             # no cutted edge could be found 
             if sub_transect['edge_cut_i'][-1].size==0:
@@ -585,7 +611,7 @@ def _do_find_intersected_edges_fast(mesh, transect, edge, idx_ed):
 
 
 
-def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
+def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed, crosses_dateline=False):
     # Based on Line Equation:
     # 
     #                    vec_d 
@@ -594,7 +620,7 @@ def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
     # 
     # 
     # L(x,y) = a*x + b*y + c = 0
-    # 
+
     # vec_n * | x | = - c
     #         | y | 
     #          
@@ -640,6 +666,15 @@ def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
     y0ed = n_y[ed0]
     x1ed = n_x[ed1]
     y1ed = n_y[ed1]
+    
+    # when crossing the dateline, shift edge longitudes to [0, 360] frame 
+    # to be consistent with the already shifted transect Px coordinates
+    if crosses_dateline:
+        x0ed = x0ed.copy()
+        x1ed = x1ed.copy()
+        x0ed[x0ed < 0] = x0ed[x0ed < 0] + 360.0
+        x1ed[x1ed < 0] = x1ed[x1ed < 0] + 360.0
+    
     dxed = x1ed - x0ed
     dyed = y1ed - y0ed
     del(ed0, ed1)
@@ -695,6 +730,16 @@ def _do_find_intersected_edges_fastnew(mesh, transect, edge, idx_ed):
     transect['edge_cut_midP'][-1] = np.column_stack((x0ed_srt+dxed_srt*0.5, y0ed_srt+dyed_srt*0.5))
     transect['edge_cut_lint'][-1] = t_srt
     transect['edge_cut_ni'  ][-1] = edge[:, idx[idxs]].T
+    
+    # when crossing the dateline, shift intersection lon results back to [-180, 180]
+    if crosses_dateline:
+        if transect['edge_cut_P'][-1].size > 0:
+            transect['edge_cut_P'   ][-1][:, 0] = np.where(transect['edge_cut_P'   ][-1][:, 0] > 180.0,
+                                                            transect['edge_cut_P'   ][-1][:, 0] - 360.0,
+                                                            transect['edge_cut_P'   ][-1][:, 0])
+            transect['edge_cut_midP'][-1][:, 0] = np.where(transect['edge_cut_midP'][-1][:, 0] > 180.0,
+                                                            transect['edge_cut_midP'][-1][:, 0] - 360.0,
+                                                            transect['edge_cut_midP'][-1][:, 0])
     
     #___________________________________________________________________________
     return transect
@@ -1827,7 +1872,18 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, hfig=None,  fig
     
     #___________________________________________________________________________
     proj_from = ccrs.PlateCarree()
-    if proj == 'nears': box = [transect['edge_cut_P'][:,0].mean(), transect['edge_cut_P'][:,1].mean(), zoom]
+    if proj == 'nears': 
+        # handle dateline crossing for mean lon computation
+        aux_lon = transect['edge_cut_P'][:,0]
+        if np.max(aux_lon) - np.min(aux_lon) > 180.0:
+            aux_lon = aux_lon.copy()
+            aux_lon[aux_lon < 0] = aux_lon[aux_lon < 0] + 360.0
+            mean_lon = aux_lon.mean()
+            if mean_lon > 180.0: mean_lon = mean_lon - 360.0
+        else:
+            mean_lon = aux_lon.mean()
+        box = [mean_lon, transect['edge_cut_P'][:,1].mean(), zoom]
+        del(aux_lon, mean_lon)
     proj_to, box = do_projection(mesh, proj, box)
     
     #___________________________________________________________________________
@@ -1861,46 +1917,68 @@ def plot_transect_position(mesh, transect, edge=None, zoom=None, hfig=None,  fig
         ax.triplot(tri.x, tri.y, tri.triangles[e_idxbox,:], color='w', linewidth=0.25, alpha=0.35,)
     
     #___________________________________________________________________________
-    #intersected edges 
+    #intersected edges, consider edges that span across da  teline
     if edge is not None:
-        ax.plot(mesh.n_x[edge[:,transect['edge_cut_i']]], mesh.n_y[edge[:,transect['edge_cut_i']]],'-', color=[0.75,0.75,0.75], linewidth=1.5, transform=proj_from)
+        aux_ex = mesh.n_x[edge[:,transect['edge_cut_i']]].copy()
+        aux_ey = mesh.n_y[edge[:,transect['edge_cut_i']]]
+        # mask edges that straddle the dateline to avoid cross-globe lines
+        idx_dateline = np.abs(aux_ex[1,:] - aux_ex[0,:]) > 180.0
+        aux_ex[:, idx_dateline] = np.nan
+        ax.plot(aux_ex, aux_ey,'-', color=[0.75,0.75,0.75], linewidth=1.5, transform=proj_from)
+        del(aux_ex, aux_ey, idx_dateline)
 
-    # intersection points
-    ax.plot(transect['edge_cut_P'][ :, 0], transect['edge_cut_P'][ :, 1],'limegreen', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=3.0, transform=proj_from)
+    # intersection points - insert NaN where lon jumps across the dateline
+    aux_lon_plot = transect['edge_cut_P'][ :, 0].copy()
+    aux_lat_plot = transect['edge_cut_P'][ :, 1].copy()
+    dlon = np.abs(np.diff(aux_lon_plot))
+    idx_break = np.where(dlon > 180.0)[0]
+    if idx_break.size > 0:
+        aux_lon_plot = np.insert(aux_lon_plot, idx_break + 1, np.nan)
+        aux_lat_plot = np.insert(aux_lat_plot, idx_break + 1, np.nan)
+    ax.plot(aux_lon_plot, aux_lat_plot,'limegreen', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=3.0, transform=proj_from)
+    del(aux_lon_plot, aux_lat_plot)
 
-    #transport path
+    #transport path, consider dateline crossing
     if do_path:
-        ax.plot(transect['path_xy'   ][ :, 0], transect['path_xy'   ][ :, 1],'m', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=1.0, transform=proj_from)
+        aux_lon_path = transect['path_xy'][:, 0].copy()
+        aux_lat_path = transect['path_xy'][:, 1].copy()
+        dlon = np.abs(np.diff(aux_lon_path))
+        idx_break = np.where(dlon > 180.0)[0]
+        if idx_break.size > 0:
+            aux_lon_path = np.insert(aux_lon_path, idx_break + 1, np.nan)
+            aux_lat_path = np.insert(aux_lat_path, idx_break + 1, np.nan)
+        ax.plot(aux_lon_path, aux_lat_path,'m', marker='None', linestyle='-', markersize=7, markerfacecolor='w', linewidth=1.0, transform=proj_from)
+        del(aux_lon_path, aux_lat_path)
 
     # end start point [green] and end point [red]
     ax.plot(transect['lon'], transect['lat'],'k', marker='o', linestyle='None', markersize=5, markerfacecolor='w', transform=proj_from)
     ax.plot(transect['edge_cut_P'][ 0, 0], transect['edge_cut_P'][ 0, 1],'k', marker='o', linestyle='None', markersize=10, markerfacecolor='g', transform=proj_from)
     ax.plot(transect['edge_cut_P'][-1, 0], transect['edge_cut_P'][-1, 1],'k', marker='o', linestyle='None', markersize=10, markerfacecolor='r', transform=proj_from)
-    
-    # plot norm vector 
+
+    # plot norm vector
     if do_nvec:
         xx   , yy    = mesh.n_x[transect['path_ni'][1:-1]].sum(axis=1)/3.0, mesh.n_y[transect['path_ni'][1:-1]].sum(axis=1)/3.0
         vecxx, vecyy = -transect['path_dy'][1:-1], transect['path_dx'][1:-1]
         vecxx, vecyy = proj_to.transform_vectors(ccrs.PlateCarree(), xx, yy, vecxx, vecyy)
         ax.quiver(xx, yy, vecxx, vecyy, color='c', transform=proj_from)
-    
+
     if do_nvec_cs:
         xx           = np.array(transect['Px']).sum(axis=1)/2.0
         yy           = np.array(transect['Py']).sum(axis=1)/2.0
         vecxx, vecyy = np.array(transect['n_vec'])[:,0], np.array(transect['n_vec'])[:,1]
-        ax.quiver(xx, yy, 
+        ax.quiver(xx, yy,
                   vecxx, vecyy,
                   facecolor=np.array([0, 192, 255])/255, transform=proj_from,
                   edgecolor='w', linewidth=0.5, scale=10)
-        
+
     if do_evec_cs:
         xx           = np.array(transect['Px']).sum(axis=1)/2.0
         yy           = np.array(transect['Py']).sum(axis=1)/2.0
         vecxx, vecyy = np.array(transect['e_vec'])[:,0], np.array(transect['e_vec'])[:,1]
-        ax.quiver(xx, yy, 
+        ax.quiver(xx, yy,
                   vecxx, vecyy,
                   facecolor=np.array([255, 192, 0])/255, transform=proj_from,
-                  edgecolor='w', linewidth=0.5, scale=10)    
+                  edgecolor='w', linewidth=0.5, scale=10)
         
     ## plot cross-section 
     #for ii, (Px, Py) in enumerate(zip(transect['Px'],transect['Py'])):
