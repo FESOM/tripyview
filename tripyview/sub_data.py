@@ -359,7 +359,7 @@ def load_data_fesom2(mesh,
             vname = aux[0]
         del aux
         
-    elif ('sigma' in vname) or ('pdens' in vname):
+    elif ('sw_sigma' in vname) or ('sw_pdens' in vname):
         do_pdens=True 
         vname_tmp = vname
         vname, vname2 = 'temp', 'salt'
@@ -510,6 +510,9 @@ def load_data_fesom2(mesh,
     # This is for icepack data over thickness classes make class selection always 
     # based in indices
     if ('ncat' in data.dims): depidx = True
+
+    # make frequency bin selection always based on idices
+    if ('nfbin' in data.dims): depidx = True
     
     #___________________________________________________________________________    
     # rename all dimension naming that do not agree with actual fesom2 standard
@@ -578,6 +581,7 @@ def load_data_fesom2(mesh,
     if   ('nz'   in data.dims): dimn_v = 'nz'
     elif ('nz1'  in data.dims): dimn_v = 'nz1'
     elif ('ndens'in data.dims): dimn_v = 'ndens'
+    elif ('nfbin'in data.dims): dimn_v = 'nfbin'
     
     # check dimension ordering
     if 'time' in data.dims:
@@ -610,11 +614,12 @@ def load_data_fesom2(mesh,
     # select depth levels also for vertical interpolation 
     # found 3d data based mid-depth levels (temp, salt, pressure, ....)
     # if ( ('nz1' in data[vname].dims) or ('nz'  in data[vname].dims) ) and (depth is not None):
-    if ( bool(set(['nz1','nz', 'ncat']).intersection(data.dims)) ) and (depth is not None):
+    if ( bool(set(['nz1','nz', 'ncat', 'nfbin']).intersection(data.dims)) ) and (depth is not None):
         #print('~~ >-))))o> o0O ~~~ A')
+        # print(data)
         #_______________________________________________________________________
         data, str_ldep = do_select_levidx(data, mesh, depth, depidx, dim_vert)
-        
+
         #_______________________________________________________________________
         if do_pdens: 
             data, vname = do_potential_density(data, do_pdens, vname, vname2, vname_tmp)
@@ -649,7 +654,7 @@ def load_data_fesom2(mesh,
     #___________________________________________________________________________
     # select all depth levels but do vertical summation over it --> done for 
     # merid heatflux
-    elif ( (bool(set(['nz1', 'nz', 'ncat', 'ndens']).intersection(data.dims))) and 
+    elif ( (bool(set(['nz1', 'nz', 'ncat', 'ndens', 'nfbin']).intersection(data.dims))) and
            (depth is None) and 
            (do_zarithm in ['sum','mean','wmean','wint', 'max', 'min']) ): 
         data = do_depth_arithmetic(data, do_zarithm, dim_vert)
@@ -695,8 +700,8 @@ def load_data_fesom2(mesh,
                         'descript':descript})
         
         # in case of icepack data write thickness class as attribute
-        if ('ncat' in data.dims) and (depth is not None): attr_dict.update({'ncat':depth})
-            
+        if ('ncat'  in data.dims) and (depth is not None): attr_dict.update({'ncat' :depth})
+        if ('nfbin' in data.dims) and (depth is not None): attr_dict.update({'nfbin':depth})
         data = do_additional_attrs(data, vname, attr_dict)
     
     #___________________________________________________________________________
@@ -920,6 +925,7 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
     elif 'nz'    in data.dims: dimn_v = 'nz'
     elif 'ndens' in data.dims: dimn_v = 'ndens'
     elif 'ncat'  in data.dims: dimn_v = 'ncat'
+    elif 'nfbin' in data.dims: dimn_v = 'nfbin'
     if   'nod2'  in data.dims: dimn_h = 'nod2'
     elif 'elem'  in data.dims: dimn_h = 'elem'
     elif 'edg_n' in data.dims: dimn_h = 'edg_n'
@@ -1253,31 +1259,39 @@ def do_select_levidx(data, mesh, depth, depidx, dimn_v):
         return(data, str_ldep)
     else:
         ndimax  = data.sizes[dimn_v]
+        print('ndimax=',ndimax)
         #_______________________________________________________________________
         # found 3d data based on mid-depth levels (w, Kv,...) --> compute 
         # selection index
         if   dimn_v == 'nz1':
-            sel_levidx = do_comp_sel_levidx(data[dimn_v], depth, depidx, ndimax)
-            aux_strdep = 'depidx'
+            levels = data[dimn_v].values
+            aux_strdep, aux_strdep2 = 'dep', 'depidx'
         
         #_______________________________________________________________________
         # found 3d data based on full-depth levels (w, Kv,...) --> compute 
         # selection index
-        elif dimn_v == 'nz':    
-            sel_levidx = do_comp_sel_levidx(data[dimn_v], depth, depidx, ndimax)
-            aux_strdep = 'depidx'
+        elif dimn_v == 'nz':
+            levels = data[dimn_v].values
+            aux_strdep, aux_strdep2 = 'dep', 'depidx'
         
         #_______________________________________________________________________
         # found 3d data based based on icepack thickness classes -->
         # selection index
-        elif dimn_v == 'ncat':
-            sel_levidx = do_comp_sel_levidx(np.arange(1,ndimax+1,1), depth, depidx, ndimax)
-            aux_strdep = 'ncat'
-    
+        elif dimn_v == 'ncat' :
+            levels = np.arange(1,ndimax+1,1)
+            aux_strdep, aux_strdep2 = 'ncat', 'ncatidx'
+        elif dimn_v == 'nfbin':
+            levels = np.arange(1,ndimax+1,1)
+            # print(levels, len(levels))
+            aux_strdep, aux_strdep2 = 'nfbin', 'nfbinidx'
+
+        sel_levidx = do_comp_sel_levidx(levels, depth, depidx, ndimax)
+
     #___________________________________________________________________________
     # select depth index
-    data = data.isel({dimn_v:sel_levidx})#.chunk({dimn_v:-1})    
-        
+    print(sel_levidx)
+    data = data.isel({dimn_v:sel_levidx})#.chunk({dimn_v:-1})
+
     #___________________________________________________________________________
     # do depth information string
     if (depth is not None) and not depidx:
@@ -1289,8 +1303,11 @@ def do_select_levidx(data, mesh, depth, depidx, dimn_v):
             else:    
                 str_ldep = ', dep:{}-{}m'.format(str(mesh.zlev[0]), str(mesh.zlev[-1]))
                 
-    elif (depth is not None) and depidx:            
-        str_ldep = ', {}:{}'.format(aux_strdep, str(depth))
+    elif (depth is not None) and depidx:
+        if   dimn_v == 'nz1' or dimn_v == 'nz':
+            str_ldep = ', {}:{}m, {}:{}'.format(aux_strdep, levels[sel_levidx], aux_strdep2, str(sel_levidx))
+        else:
+            str_ldep = ', {}:{}'.format(aux_strdep2, str(sel_levidx))
     #___________________________________________________________________________
     gc.collect()
     return(data, str_ldep)
@@ -1675,11 +1692,11 @@ def do_horiz_arithmetic(data, do_harithm, dim_name):
             data_hmean = data.sum(   dim=dim_name, keep_attrs=True, skipna=True)            
         
         elif do_harithm=='wint':
-            data_hmean    = data.weighted(data['w_A']).sum(dim=dim_name, keep_attrs=True, skipna=True)
+            data_hmean = data.weighted(data['w_A']).sum(dim=dim_name, keep_attrs=True, skipna=True)
             
         elif do_harithm=='wmean':
             # this solution needs way less RAM and scales better with dask
-            data_hmean    = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
+            data_hmean = data.weighted(data['w_A']).mean(dim=dim_name, keep_attrs=True, skipna=True)
             
         elif do_harithm=='none':
             return(data)
@@ -2093,12 +2110,12 @@ def do_potential_density(data, do_pdens, vname, vname2, vname_tmp):
         :vname2:    str, name of salinity variable in dataset
         
         :vname_tmp: str, which potential density should be computed
-                    - 'sigma0'  ... pref=0
-                    - 'sigma1'  ... pref=1000
-                    - 'sigma2'  ... pref=2000
-                    - 'sigma3'  ... pref=3000
-                    - 'sigma4'  ... pref=4000
-                    - 'sigma5'  ... pref=5000
+                    - 'sw_sigma0'  ... pref=0
+                    - 'sw_sigma1'  ... pref=1000
+                    - 'sw_sigma2'  ... pref=2000
+                    - 'sw_sigma3'  ... pref=3000
+                    - 'sw_sigma4'  ... pref=4000
+                    - 'sw_sigma5'  ... pref=5000
                     
     Returns:
     
@@ -2110,12 +2127,12 @@ def do_potential_density(data, do_pdens, vname, vname2, vname_tmp):
     """
     if do_pdens:
         pref=0
-        if   vname_tmp == 'sigma' or vname_tmp == 'sigma0'  : pref=0
-        elif vname_tmp == 'sigma1' : pref=1000
-        elif vname_tmp == 'sigma2' : pref=2000
-        elif vname_tmp == 'sigma3' : pref=3000
-        elif vname_tmp == 'sigma4' : pref=4000
-        elif vname_tmp == 'sigma5' : pref=5000
+        if   vname_tmp == 'sw_sigma' or vname_tmp == 'sw_sigma0'  : pref=0
+        elif vname_tmp == 'sw_sigma1' : pref=1000
+        elif vname_tmp == 'sw_sigma2' : pref=2000
+        elif vname_tmp == 'sw_sigma3' : pref=3000
+        elif vname_tmp == 'sw_sigma4' : pref=4000
+        elif vname_tmp == 'sw_sigma5' : pref=5000
 
         data_depth = data['nz1'].expand_dims({'nod2':data.sizes['nod2']})
         data_lat   = data['lat'].expand_dims({'nz1' :data.sizes['nz1' ]})        
