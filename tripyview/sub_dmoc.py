@@ -31,6 +31,7 @@ def load_dmoc_data(mesh                           ,
                    year           = None          , 
                    which_transf   = 'dmoc'        , 
                    do_tarithm     = 'mean'        , 
+                   runid          = 'fesom'       ,
                    do_bolus       = True          , 
                    add_bolus      = False         , 
                    add_trend      = False         , 
@@ -165,7 +166,7 @@ def load_dmoc_data(mesh                           ,
     data_dMOC = xr.Dataset()
     
     #___________________________________________________________________________
-    input_dict = dict({ 'year':year, 'descript':descript , 'do_info':do_info,
+    input_dict = dict({ 'year':year, 'descript':descript , 'do_info':do_info, 'runid':runid,
                         'do_tarithm':do_tarithm, 'do_zarithm':None, 'do_nan':False, 'do_ie2n':False,
                         'do_parallel':do_parallel, 'chunks':chunks, 
                         'do_compute':do_compute, 'do_load':do_load, 'do_persist':do_persist,
