@@ -118,7 +118,8 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
         pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
                             os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
                             parameters=params_vname,
-                            nest_asyncio=True,)
+                            nest_asyncio=True,
+                            kernel_name="python3",)
         print('Data found')
     except pm.PapermillExecutionError as e:
         print(f"Error while running Notebook: {e}")
