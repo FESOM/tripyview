@@ -4546,7 +4546,11 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_siz
         # data must be a transect 
         if 'dst' in list(data_ii[box_idx].variables):
             auxlat, auxlon = data_ii[box_idx]['lat'].values[[1,-2]], data_ii[box_idx]['lon'].values[[1,-2]]
-            auxlat, auxlon = np.abs(np.diff(auxlat)), np.abs(np.diff(auxlon))
+            auxlat, auxlon = np.diff(auxlat), np.diff(auxlon)
+            # Handle dateline crossing
+            if   auxlon >  180.0: auxlon = auxlon - 360.0
+            elif auxlon < -180.0: auxlon = auxlon + 360.0
+            auxlat, auxlon = np.abs(auxlat), np.abs(auxlon)
             auxlat, auxlon = auxlat/np.sqrt(auxlat**2+auxlon**2), auxlon/np.sqrt(auxlat**2+auxlon**2)
             angle = np.abs(-np.arctan2(auxlat, auxlon)*180/np.pi)
             if   angle > 80: data_x, str_xlabel = data_ii[box_idx]['lat'].values  , 'Latitude / deg'
@@ -4634,7 +4638,11 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_siz
         # data must be a transect 
         if 'dst' in  list(data_ii.variables):
             auxlat, auxlon = data_ii['lat'].values[[0,-1]], data_ii['lon'].values[[0,1]]
-            auxlat, auxlon = np.abs(np.diff(auxlat)), np.abs(np.diff(auxlon))
+            auxlat, auxlon = np.diff(auxlat), np.diff(auxlon)
+            # Handle dateline crossing
+            if   auxlon >  180.0: auxlon = auxlon - 360.0
+            elif auxlon < -180.0: auxlon = auxlon + 360.0
+            auxlat, auxlon = np.abs(auxlat), np.abs(auxlon)
             auxlat, auxlon = auxlat/np.sqrt(auxlat**2+auxlon**2), auxlon/np.sqrt(auxlat**2+auxlon**2)
             angle = np.abs(-np.arctan2(auxlat, auxlon)*180/np.pi)
             if   angle > 80: data_x, str_xlabel = data_ii['lat'].values  , 'Latitude / deg'

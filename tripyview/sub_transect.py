@@ -154,8 +154,8 @@ def do_analyse_transects(input_transect     ,
         if alpha>=-180 and alpha<=-90:
             transec_lon = np.flip(transec_lon)
             transec_lat = np.flip(transec_lat)
-            sub_transect['e_vec_tot'] = -sub_transect['e_vec_tot']
-            sub_transect['n_vec_tot'] = -sub_transect['n_vec_tot']
+            sub_transect['e_vec_tot'] = [-v for v in sub_transect['e_vec_tot']]
+            sub_transect['n_vec_tot'] = [-v for v in sub_transect['n_vec_tot']]
         del(auxx, auxy, auxn, alpha)
         
         #_______________________________________________________________________
