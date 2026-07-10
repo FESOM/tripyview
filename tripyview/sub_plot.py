@@ -610,7 +610,7 @@ def plot_hslice(mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    if do_pltshow: plt.show()
+    if do_pltshow: plt.show(block=False)
     
     #___________________________________________________________________________
     list_argout=[]
@@ -1054,7 +1054,7 @@ def plot_hmesh( mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    if do_pltshow: plt.show()
+    if do_pltshow: plt.show(block=False)
 
     #___________________________________________________________________________
     list_argout=[]
@@ -1510,7 +1510,7 @@ def plot_hquiver(mesh                  ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    if do_pltshow: plt.show()
+    if do_pltshow: plt.show(block=False)
 
     #___________________________________________________________________________
     list_argout=[]
@@ -2013,7 +2013,7 @@ def plot_vslice(mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    if do_pltshow: plt.show()
+    if do_pltshow: plt.show(block=False)
     
     #___________________________________________________________________________
     list_argout=[]
@@ -2406,7 +2406,7 @@ def plot_hline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    if do_pltshow: plt.show()
+    if do_pltshow: plt.show(block=False)
 
     #___________________________________________________________________________
     list_argout=[]
@@ -2829,7 +2829,7 @@ def plot_vline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    if do_pltshow: plt.show()
+    if do_pltshow: plt.show(block=False)
 
     #___________________________________________________________________________
     list_argout=[]
@@ -3373,7 +3373,7 @@ def plot_tline(data,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    if do_pltshow: plt.show()
+    if do_pltshow: plt.show(block=False)
 
     #___________________________________________________________________________
     list_argout=[]
