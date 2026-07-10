@@ -9,7 +9,7 @@ python=3.9, 3.10, 3.11 and 3.12 (python 3.8 made recently some problems to resol
 It is tested up to dart mesh size (3M surface vertices) where it allows for a decent
 working speed (but only when used in parallel)
 <br />
-version: 0.3.0
+version: 0.3.1
 <br />
 
 ## Installation
