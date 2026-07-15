@@ -383,9 +383,15 @@ def load_dmoc_data(mesh                           ,
             warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
             warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
             aux_dmoc_div = aux_dmoc_div.assign_attrs(data_div['dmoc'].attrs).persist()
-            
-            #data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':chunks['elem'] , 'ndens':-1})
-            data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':chunks['elem'], 'ndens': data_div.chunksizes['ndens']})
+
+            # rechunk to match data_dMOC's already-established (natively dask-loaded)
+            # ndens chunking, rather than a fresh 'auto' -- 'auto' is computed per-array
+            # and gives no guarantee of landing on the same chunk boundaries as the
+            # existing ndens_h/... variables already merged into data_dMOC
+            if not data_dMOC.data_vars:
+                data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':'auto', 'ndens':'auto'})
+            else:
+                data_div = data_div.assign(dmoc=aux_dmoc_div).chunk({'elem':data_dMOC.chunksizes['elem'], 'ndens':data_dMOC.chunksizes['ndens']})
             del(aux_dmoc_div)
             gc.collect()
             
@@ -451,7 +457,12 @@ def load_dmoc_data(mesh                           ,
                 warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
                 warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
                 aux_dmoc_div = aux_dmoc_div.assign_attrs(data_div_bolus['dmoc_bolus'].attrs).persist()
-                data_div_bolus = data_div_bolus.assign(dmoc_bolus=aux_dmoc_div).chunk({'elem':chunks['elem'] , 'ndens':-1})
+                # rechunk to match data_dMOC's already-established ndens chunking -- see
+                # matching comment above for the non-bolus 'dmoc' rechunk
+                if not data_dMOC.data_vars:
+                    data_div_bolus = data_div_bolus.assign(dmoc_bolus=aux_dmoc_div).chunk({'elem':'auto', 'ndens':'auto'})
+                else:
+                    data_div_bolus = data_div_bolus.assign(dmoc_bolus=aux_dmoc_div).chunk({'elem':data_dMOC.chunksizes['elem'], 'ndens':data_dMOC.chunksizes['ndens']})
                 del(aux_dmoc_div)
                 gc.collect()
                 
