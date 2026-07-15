@@ -1351,7 +1351,7 @@ class select_scatterpts_depth(object):
         
         # going to next plot 
         old_idx_box = self.idx_box
-        self.idx_box = np.min([self.idx_box+1, len(self.box_list)])
+        self.idx_box = np.min([self.idx_box+1, len(self.box_list)-1])
         if self.idx_box != old_idx_box:
             # update entire plot to new box
             self._update_scatterpts_()

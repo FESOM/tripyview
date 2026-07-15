@@ -113,8 +113,8 @@ def load_climatology(mesh, datapath, vname, mon=None, depth=None, depidx=False,
         data_depth = data_depth.transpose(coord_zlev, coord_lat, coord_lon)
         data_lat   = data[coord_lat ].expand_dims({coord_lon: data.sizes['lon'], coord_zlev: data.sizes[coord_zlev]})    
         data_lat   = data_lat.transpose(coord_zlev, coord_lat, coord_lon)
-        data_lon   = data[coord_lon ].expand_dims({coord_lat: data.sizes['lat'], coord_zlev: data.sizes[coord_zlev]})    
-        data_lon   = data_lat.transpose(coord_zlev, coord_lat, coord_lon)
+        data_lon   = data[coord_lon ].expand_dims({coord_lat: data.sizes['lat'], coord_zlev: data.sizes[coord_zlev]})
+        data_lon   = data_lon.transpose(coord_zlev, coord_lat, coord_lon)
         
         data_p     = gsw.p_from_z(-data_depth, data_lat)  # mean latitude for pressure conversion
         
@@ -140,7 +140,7 @@ def load_climatology(mesh, datapath, vname, mon=None, depth=None, depidx=False,
         ##data = data.drop_vars(labels=vname_drop)
         
         # convert Practical Salinity SP [psu] → Absolute Salinity SA [g/kg]
-        SA = gsw.SA_from_SP( data[vname_salt].data, data_depth, data_lon, data_lat)
+        SA = gsw.SA_from_SP( data[vname_salt].data, data_p, data_lon, data_lat)
 
         # compute potential density referenced to pref dbar
         # first convert potential T to Conservative T

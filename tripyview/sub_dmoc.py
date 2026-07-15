@@ -439,18 +439,18 @@ def load_dmoc_data(mesh                           ,
                 # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
                 # array an save the attributes in the same time
                 e_i = xr.DataArray(mesh.e_i[:,0], dims=['elem'])
-                aux_dmoc_div =                data_div['dmoc_bolus'].isel(nod2=e_i)
+                aux_dmoc_div =                data_div_bolus['dmoc_bolus'].isel(nod2=e_i)
                 e_i = xr.DataArray(mesh.e_i[:,1], dims=['elem'])
-                aux_dmoc_div = aux_dmoc_div + data_div['dmoc_bolus'].isel(nod2=e_i)
+                aux_dmoc_div = aux_dmoc_div + data_div_bolus['dmoc_bolus'].isel(nod2=e_i)
                 e_i = xr.DataArray(mesh.e_i[:,2], dims=['elem'])
-                aux_dmoc_div = aux_dmoc_div + data_div['dmoc_bolus'].isel(nod2=e_i)
+                aux_dmoc_div = aux_dmoc_div + data_div_bolus['dmoc_bolus'].isel(nod2=e_i)
                 del(e_i)
                 gc.collect()
                 
                 aux_dmoc_div = aux_dmoc_div/3.0
                 warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
                 warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size \\d+\\.\\d+ detected in task graph")
-                aux_dmoc_div = aux_dmoc_div.assign_attrs(data_div['dmoc_bolus'].attrs).persist()
+                aux_dmoc_div = aux_dmoc_div.assign_attrs(data_div_bolus['dmoc_bolus'].attrs).persist()
                 data_div_bolus = data_div_bolus.assign(dmoc_bolus=aux_dmoc_div).chunk({'elem':chunks['elem'] , 'ndens':-1})
                 del(aux_dmoc_div)
                 gc.collect()
@@ -505,7 +505,8 @@ def calc_dmoc(mesh,
               which_moc         = 'gmoc'    , 
               which_transf      = None      , 
               do_checkbasin     = False     ,
-              exclude_meditoce  = False     , 
+              do_exclude        = False     ,
+              exclude_list      = list(['ocean_basins/Mediterranean_Basin.shp', [26,42,39.5,47]])   ,
               do_bolus          = True      , 
               do_parallel       = False     , 
               n_workers         = 10        , 
@@ -554,9 +555,14 @@ def calc_dmoc(mesh,
         
         
         :do_checkbasin: bool (default=False) provide plot with regional basin selection
-        
-        :exclude_meditoce: bool (default=False) exclude mediteranian sea from basin selection
-        
+
+        :do_exclude:    bool (default=False) exclude regions listed in exclude_list from
+                        basin selection (only applied when which_moc='gmoc')
+
+        :exclude_list:  list (default=['ocean_basins/Mediterranean_Basin.shp', [26,42,39.5,47]])
+                        regions to exclude, each entry either a shapefile path (str, relative
+                        to tripyview/shapefiles/) or a lon/lat box [lonmin,lonmax,latmin,latmax]
+
         :do_bolus:      bool (default=False) load density class divergence from bolus velolcity
                         and add them to the total density class divergence
                         
@@ -631,7 +637,9 @@ def calc_dmoc(mesh,
         
     #___________________________________________________________________________
     # compute/use index for basin domain limitation
-    idxin     = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=True, exclude_meditoce=exclude_meditoce)
+    idxin     = calc_basindomain_fast(mesh, which_moc=which_moc, do_onelem=True,
+                                       do_exclude=do_exclude,
+                                       exclude_list=exclude_list)
 
     # reduce to dMOC data to basin domain
     data_dMOC = data_dMOC.isel(elem=idxin)
@@ -942,9 +950,14 @@ def calc_dmoc_dask( mesh                          ,
         
         
         :do_checkbasin: bool (default=False) provide plot with regional basin selection
-        
-        :exclude_meditoce: bool (default=False) exclude mediteranian sea from basin selection
-        
+
+        :do_exclude:    bool (default=False) exclude regions listed in exclude_list from
+                        basin selection (only applied when which_moc='gmoc')
+
+        :exclude_list:  list (default=['ocean_basins/Mediterranean_Basin.shp', [26,42,39.5,47]])
+                        regions to exclude, each entry either a shapefile path (str, relative
+                        to tripyview/shapefiles/) or a lon/lat box [lonmin,lonmax,latmin,latmax]
+
         :do_bolus:      bool (default=False) load density class divergence from bolus velolcity
                         and add them to the total density class divergence
                         
@@ -1281,7 +1294,7 @@ def calc_dmoc_dask( mesh                          ,
     #___________________________________________________________________________
     # compute depth of max topography based on zcoord
     if do_botmax_z:
-        botmax = xr.DataArray(np.abs(mesh.zlev[mesh.e_iz-1]), dims='elem').isel({'elem':idxin}).chunk({'elem':lat_chnksize['elem']})
+        botmax = xr.DataArray(np.abs(mesh.zlev[mesh.e_iz]), dims='elem').isel({'elem':idxin}).chunk({'elem':lat_chnksize['elem']})
         
         # collect chunk pieces
         #botmax = da.map_blocks(bottommax_latbin_chnk, lat_bins, data['lat'].data, botmax.data, 

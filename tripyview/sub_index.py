@@ -149,7 +149,7 @@ def load_index_fesom2(mesh                  ,
             plt.figure()
             ax = plt.gca()
             plt.triplot(tri, color='k')
-            if  ~ do_elem: 
+            if  not do_elem:
                 plt.plot(mesh.n_x[idxin], mesh.n_y[idxin], '*r', linestyle='None', markersize=1)
             else: 
                 plt.plot(mesh.n_x[tri.triangles[idxin,:]].sum(axis=1)/3.0, mesh.n_y[tri.triangles[idxin,:]].sum(axis=1)/3.0, '*r', linestyle='None', markersize=1)

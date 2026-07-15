@@ -5622,6 +5622,9 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
     """
     
     h0=None
+    # work on a local copy so per-panel pops below don't mutate the caller's dict,
+    # which is shared/reused across all panels of a multipanel figure
+    streaml_opt = dict(streaml_opt) if streaml_opt else dict()
     #___________________________________________________________________________
     if do_streaml and streaml_dat is not None:
         t1=clock.time()
@@ -6362,8 +6365,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                     if 'dmoc+dens' in hax_ii.projection : do_ysig = grid_optdefault[ii]
                     rmv.append(ii) 
                 elif ii in ['ysig_majorticks'] :
-                    yexp_majorticks = grid_optdefault[ii]
-                    rmv.append(ii) 
+                    ysig_majorticks = grid_optdefault[ii]
+                    rmv.append(ii)
                 elif ii in ['ysig_minorticks'] :
                     ysig_minorticks = grid_optdefault[ii]
                     rmv.append(ii)     
@@ -6595,7 +6598,7 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
             cb_label = cb_label+loc_attrs['long_name'].capitalize()
         elif 'short_name' in loc_attrs:
             #cb_label = cb_label+loc_attrs['short_name'][0].upper()+loc_attrs['short_name'][1:]
-            c_label = cb_label+loc_attrs['short_name'].capitalize()
+            cb_label = cb_label+loc_attrs['short_name'].capitalize()
         
         if cb_lunit  is None:
             if 'units' in loc_attrs: cb_label = cb_label+' / '+loc_attrs['units']
@@ -6950,9 +6953,9 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
            cmax = np.min([cmax, cinfo['climit'][-1]])
         
         #_______________________________________________________________________
-        # dezimal rounding of cmin and cmax
-        # if not do_rescale=='log10' and not do_rescale=='slog10':
-        if not isinstance(do_rescale,str) or not isinstance(do_rescale, np.ndarray):
+        # dezimal rounding of cmin and cmax --> only for the linear case, not for
+        # log10/slog10 (str) or custom rescale bins (np.ndarray, see BoundaryNorm above)
+        if not (isinstance(do_rescale, str) and do_rescale in ('log10', 'slog10')) and not isinstance(do_rescale, np.ndarray):
             cdmin, cdmax = 0.0, 0.0
             if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
             if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
@@ -7169,7 +7172,7 @@ def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
         hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, weights=cweights[~np.isnan(data_in)], density=True,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
     
     hist        = hist/hist.sum()
-    bin_m       = bin_e[:-1]+(bin_e[:-1]-bin_e[1:])/2
+    bin_m       = bin_e[:-1]+(bin_e[1:]-bin_e[:-1])/2
     cmin        = bin_m[np.where(np.cumsum(hist[::-1])[::-1]>=ctresh)[0][-1]]
     cmax        = bin_m[np.where(np.cumsum(hist)            >=ctresh)[0][ 0]]
     if cmin==cmax: 

@@ -1280,7 +1280,7 @@ ___________________________________________""".format(
                     for idx in self.e_i.flat:
                         self.n_area[idx] = self.n_area[idx] + e_area_x3[count_e]
                         count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                        self.n_area = self.n_area/3.0
+                    self.n_area = self.n_area/3.0
                     del e_area_x3, count_e
                 self.n_area = np.ascontiguousarray(self.n_area)    
         #_______________________________________________________________________
@@ -3565,7 +3565,7 @@ def njit_lsmask_trace_loops(adj):
             # check out whos is the next node in neighborhood. usually there are 2 
             # neighboring nodes (a and b) but under certain conditions there can be also 
             # 4 neighboring boudnary nodes
-            if canreturn[0]==0 and isreturn[cur]==0: 
+            if canreturn[cur]==0 and isreturn[cur]==0:
                 a    = adj[cur, 0]
                 b    = adj[cur, 1]
                 if   a!=prev: nxt = a

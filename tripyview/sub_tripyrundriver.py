@@ -94,7 +94,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
         elif exec_template in ['transp_dmoc_srfcbflx']:
             if 'which_isopyc' in params_vname: str_isop1, str_isop2 = f"_{params_vname['which_isopyc']}", f"Srf. buoyancy transf. @ sigma2= {params_vname['which_isopyc']} kg/m^3"
         str_all1 = f"{str_all1}{str_proj1}{str_isop1}{str_mon1}"
-        str_all2 = f"{str_isop2}{str_proj1}{str_mon2}"
+        str_all2 = f"{str_isop2}{str_proj2}{str_mon2}"
     
     elif exec_template in ['transp_hbstreamf']:
         str_all1 = f"{str_all1}{str_mon1}"
@@ -465,17 +465,17 @@ def drive_hquiver(yaml_settings, analysis_name, webpage=dict(), image_count=0, v
                                                    source_loop='months', exec_template='hquiver')
         #_______________________________________________________________________
         # only single boxregion defined 
-        elif 'depth' in params_vname:    
-            # make loops over the months or not 
-            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+        elif 'depth' in params_vname:
+            # make loops over the months or not
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon',
                                                    source_loop='months', exec_template='hquiver')
-            
-        #_______________________________________________________________________    
-        # no depth defined use the one defined in the notebook 
+
+        #_______________________________________________________________________
+        # no depth defined use the one defined in the notebook
         else:
             #warnings.warn(' -WARNING-> depths is not defined, use the default on defined in the notebook')
-            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
-                                                   source_loop='months', exec_template='hslice')
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon',
+                                                   source_loop='months', exec_template='hquiver')
     return webpage
 
 
@@ -1102,8 +1102,8 @@ def drive_transect_zm_mean_clim(yaml_settings, analysis_name, webpage=dict(), im
         
         #_______________________________________________________________________
         # make loop over box_regions
-        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
-                                               source_loop='box_regions', exec_template='transect_zmean_clim')
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region',
+                                               source_loop='box_regions', exec_template=analysis_name)
     return webpage
 
 

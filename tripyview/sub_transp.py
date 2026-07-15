@@ -1322,7 +1322,7 @@ def calc_zhflx_box_fast_lessmem(mesh, data, datat, mdiag, box_list, dlon=1.0, do
             if do_info: print('\n ___loop over longitudinal bins___'+'_'*90, end='\n')
             for ix, lon_i in enumerate(zhflx.lon):
                 #_______________________________________________________________
-                if do_info: print('{:+06.1f}|'.format(lat_i), end='')
+                if do_info: print('{:+06.1f}|'.format(lon_i), end='')
                 if np.mod(ix+1,15)==0 and do_info:
                     print(' > time: {:2.1f} sec.'.format((clock.time()-ts1)), end='\n')
                     ts1 = clock.time()
@@ -1389,7 +1389,7 @@ def calc_gmhflx(mesh, data, lat):
     # do zonal sum over latitudinal bins 
     dlat = lat[1]-lat[0]
     lat_i = (( mesh.n_y-lat[0])/dlat ).astype('int')    
-    for bini in range(lat_i.min(), lat_i.max()):
+    for bini in range(lat_i.min(), lat_i.max()+1):
         # sum over latitudinal bins
         ghflx['gmhflx'].data[bini] = data[vname].isel(nod2=lat_i==bini).sum(dim='nod2')*inPW
 

@@ -636,7 +636,7 @@ def load_data_fesom2(mesh,
             # handle out-of-range depth
             auxdepth = np.atleast_1d(np.asarray(auxdepth, dtype=float))
             if   dim_vert == 'nz1': auxdepth = np.clip(auxdepth, abs(mesh.zmid[0]), abs(mesh.zmid[-1]))
-            elif dim_vert == 'nz ': auxdepth = np.clip(auxdepth, abs(mesh.zlev[0]), abs(mesh.zlev[-1]))
+            elif dim_vert == 'nz': auxdepth = np.clip(auxdepth, abs(mesh.zlev[0]), abs(mesh.zlev[-1]))
             if auxdepth.size==1: str_ldep = f", dep:{auxdepth[0]}m"
             else               : str_ldep = f", dep:{auxdepth[0]}-{auxdepth[-1]}m" 
             
@@ -975,13 +975,13 @@ def do_gridinfo_and_weights(mesh, data, do_hweight=True, do_zweight=False):
             elif 'nz'  == dimn_v:
                 if mesh.n_area.ndim==1: # in case fesom14cmip6 n_area is not depth dependent, therefor ndims=1
                     grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[        dimn_h]).chunk(set_chnk_h)
-                else:    
-                    if data.sizes['nz'] == len(mesh.zmid):
+                else:
+                    if data.sizes['nz'] == len(mesh.zlev):
                         grid_info['w_A'] = xr.DataArray(mesh.n_area.astype('float32')             , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
                     else:
-                        # do this to add grid weights on data that have been already 
+                        # do this to add grid weights on data that have been already
                         # vertically selcected
-                        nzidx = data['nz'].values.astype('uint8')
+                        nzidx = data['nzi'].values.astype('uint8')
                         grid_info['w_A'] = xr.DataArray(mesh.n_area[nzidx, :].astype('float32')             , dims=[dimn_v, dimn_h]).chunk(set_chnk_hv)
             
             # only need area weights for 2d data
@@ -2424,7 +2424,7 @@ def coarsegrain_h_dask(data, do_parallel, parallel_nprc, dlon=1.0, dlat=1.0, cli
     lon_bins, lat_bins = np.arange(lon_min, lon_max+dlon/2, dlon), np.arange(lat_min, lat_max+dlat/2, dlat)
     nlon    , nlat     = len(lon_bins)-1, len(lat_bins)-1
     lon     , lat      = (lon_bins[1:]+lon_bins[:-1])*0.5, (lat_bins[1:]+lat_bins[:-1])*0.5
-    dx      , dy       = Rearth*dlon*rad*np.cos((lat)/2.0*rad), Rearth*dlat*rad, 
+    dx      , dy       = Rearth*dlon*rad*np.cos(lat*rad), Rearth*dlat*rad,
     dA                 = np.tile(dx*dy, (nlon,1)).T
     del(dx, dy, lon_min, lon_max, lat_min, lat_max)
     

@@ -49,11 +49,10 @@ class cd:
 def render_experiment_html(webpages, yaml_settings):
     fname_html     = f"{yaml_settings['tripyrun_name']}.html"
     save_path_html = os.path.join(yaml_settings['save_path'], fname_html)
-    ofile          = open(save_path_html, "w")
     template       = env.get_template("experiment.html")
     output         = template.render(webpages)
-    ofile.write(output)
-    ofile.close()   
+    with open(save_path_html, "w") as ofile:
+        ofile.write(output)
     return
     
     
@@ -95,7 +94,7 @@ def tripyrun():
                              ' - dmoc_z, dmoc_srf_z, dmoc_inner_z \n'+ \
                              ' - dmoc_wdiap, dmoc_srfcbflx \n'+ \
                              ' - hbarstreamf \n'+ \
-                             ' - ghflx, mhflx, zhflx \n')
+                             ' - gmhflx, mhflx, gzhflx \n')
     
     # only run specific variable within diagnostic driver
     parser.add_argument('--variable',
@@ -285,20 +284,29 @@ def tripyrun():
                     # if -v vname1 vname2 ... flag is setted perform specific 
                     # variables in specific yml file diagnostic    
                     if inargs.variable:
+                        # diagnostic has no prior results at all (never computed
+                        # before, e.g. -d/-v used before a first full run, or the
+                        # driver was added to the yaml after the last run) --> warn
+                        # clearly instead of letting the lookup below raise KeyError
+                        if analysis_name not in webpages["analyses"]:
+                            print(f" --> diagnostic '{analysis_name}' was not found in the "
+                                  f"previously saved results ({fname_json}). It looks like this "
+                                  f"is the first time '{analysis_name}' is computed -> it will be "
+                                  f"created fresh for the requested variable(s): {inargs.variable}")
                         for vname in inargs.variable:
                             cnt, cnt_max = -1, -1
-                            
+
                             # drive specific analysis from analyses_driver_list only
                             # for one specifc anlysis
-                            for values in webpages["analyses"][analysis_name].values():
+                            for values in webpages["analyses"].get(analysis_name, {}).values():
                                 cnt_max = np.maximum(cnt_max,values['cnt'])
-                                if values['variable']==vname: 
+                                if values['variable']==vname:
                                     cnt = values['cnt']
                                     break
-                            if cnt==-1: 
-                                print(" --> could not find variable: {vname} in loaded webpage. This variable will be attached if it exist")
+                            if cnt==-1:
+                                print(f" --> could not find variable: {vname} in loaded webpage. This variable will be attached if it exist")
                                 cnt=cnt_max+1
-                            webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=webpages["analyses"][analysis_name], image_count=cnt, vname=vname)
+                            webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=webpages["analyses"].get(analysis_name, dict()), image_count=cnt, vname=vname)
                             webpages["analyses"][analysis_name] = webpage
                     
                     #___________________________________________________________

@@ -222,7 +222,23 @@ def warmup_smoothing_kernels():
 
 # Execute warm-up at module import
 warmup_compute_x_nghbr_x()
-warmup_grid_kernels()
-warmup_vec_r2g_kernels()
-warmup_lsmask()
-warmup_smoothing_kernels()
+
+try:
+    warmup_grid_kernels()
+except Exception as e:
+    print("Warning: grid kernel warmup failed:", e)
+
+try:
+    warmup_vec_r2g_kernels()
+except Exception as e:
+    print("Warning: vec_r2g kernel warmup failed:", e)
+
+try:
+    warmup_lsmask()
+except Exception as e:
+    print("Warning: lsmask warmup failed:", e)
+
+try:
+    warmup_smoothing_kernels()
+except Exception as e:
+    print("Warning: smoothing kernel warmup failed:", e)

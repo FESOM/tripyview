@@ -411,7 +411,7 @@ def calc_zmoc(mesh,
                 print(' max. NADW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],maxv))
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
             elif which_moc_name in ['pmoc', 'ipmoc']:
-                minv = zmoc['zmoc'].isel(nz=zmoc['depth']>= 2000, lat=zmoc['lat']>-50.0)['moc'].min().values
+                minv = zmoc.isel(nz=zmoc['depth']>= 2000, lat=zmoc['lat']>-50.0)['zmoc'].min().values
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
     
     #___________________________________________________________________________
@@ -772,7 +772,7 @@ def calc_zmoc_dask( mesh                      ,
                 print(' max. NADW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],maxv))
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
             elif which_moc_name in ['pmoc', 'ipmoc']:
-                minv = zmoc['zmoc'].isel(nz=zmoc['depth']>= 2000, lat=zmoc['lat']>-50.0)['moc'].min().values
+                minv = zmoc.isel(nz=zmoc['depth']>= 2000, lat=zmoc['lat']>-50.0)['zmoc'].min().values
                 print(' max. AABW_{:s} = {:.2f} Sv'.format(zmoc['zmoc'].attrs['descript'],minv))
     
     #___________________________________________________________________________

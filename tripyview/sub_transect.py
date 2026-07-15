@@ -1363,7 +1363,7 @@ def calc_transect_Xtransp(mesh,
         #_______________________________________________________________________
         # multiply with dz
         if    dimn_v=='nz1': dz = -np.diff(mesh.zlev)
-        elif  dimn_v=='nz' : dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh_zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))
+        elif  dimn_v=='nz' : dz = np.hstack(((mesh.zlev[0]-mesh.zlev[1])/2.0, mesh.zmid[:-1]-mesh.zmid[1:], (mesh.zlev[-2]-mesh.zlev[-1])/2.0))
         vel_u, vel_v = vel_u*dz[:,None], vel_v*dz[:,None]
         
         #_______________________________________________________________________
