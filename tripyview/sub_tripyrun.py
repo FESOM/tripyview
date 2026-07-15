@@ -13,6 +13,7 @@ import time      as clock
 #except: pkg_path='.'    
 #sys.path.append(os.path.join(pkg_path,"src/"))
 from .sub_tripyrundriver import *
+from .sub_utility import _running_in_dask_worker
 
 #_______________________________________________________________________________       
 # open htnl template file
@@ -21,7 +22,8 @@ from .sub_tripyrundriver import *
 pkg_path          = os.path.dirname(os.path.dirname(__file__))
 templates_path    = os.path.join(pkg_path,'templates_html')
 templates_nb_path = os.path.join(pkg_path,'templates_notebooks')
-print(pkg_path)
+if not _running_in_dask_worker():
+    print(pkg_path)
 
 #
 #

@@ -4815,7 +4815,7 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
     #___________________________________________________________________________
     # plot tripcolor
     if   do_plt in ['tpc','pc'] or (do_plt in ['tcf','cf'] and not tri.x.size==data_plot.size):
-        plt_optdefault = dict({'shading':'gouraud', 'zorder':-4})
+        plt_optdefault = dict({'shading':'gouraud', 'zorder':50})
         plt_optdefault.update(plt_opt)
         
         ## pcolor plot in combination with shading :gouraud and orthographic projection
@@ -5003,7 +5003,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     if   do_plt in ['tpc','pc']:
         # plt_optdefault = dict({'shading':'gouraud', 'zorder':1})
         # plt_optdefault = dict({'shading':'nearest', 'zorder':1})
-        plt_optdefault = dict({'shading':'flat', 'zorder':-4})
+        plt_optdefault = dict({'shading':'flat', 'zorder':50})
         plt_optdefault.update(plt_opt)
         print(plt_optdefault)
         if 'shading' in plt_optdefault:
@@ -5305,7 +5305,7 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
 #         if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
 #         #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
         
-        quiv_optdefault=dict({'zorder':-3,
+        quiv_optdefault=dict({'zorder':51,
                               'edgecolor':'k', 'linewidth':0.10, #'width': quiv_arrwidth , 
                               'units':'xy', 'scale_units':'xy', 'angles':'xy', 'scale': quiv_scalfac
                              }) 
@@ -5520,7 +5520,7 @@ def do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_pl
         if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
         #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
 
-        quiv_optdefault=dict({'zorder':-3,
+        quiv_optdefault=dict({'zorder':51,
                               'edgecolor':'k', 'linewidth':0.2, #'width': quiv_arrwidth ,
                               'units':'xy', 'scale_units':'xy', 'angles':'xy',
                               'scale': quiv_scalfac
@@ -5667,7 +5667,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
         data_v[np.isnan(data_s)] = 0.0
         data_s[np.isnan(data_s)] = 0.0
                 
-        plt_optdefault = dict({'density':10, 'color':'k', 'zorder':-3})
+        plt_optdefault = dict({'density':10, 'color':'k', 'zorder':51})
         plt_optdefault.update(streaml_opt)
         
         # here do cartopy projection inside streamplot routine 
@@ -5699,11 +5699,11 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
 
                 # Plot a line in the legend, of the correct length
                 x1, y1   = hax_ii.projection.transform_point(x, y, ccrs.PlateCarree())
-                hax_ii.plot([x01 ,x02], [y1,y1], c='k', lw=lw, zorder=10)
+                hax_ii.plot([x01 ,x02], [y1,y1], c='k', lw=lw, zorder=52)
                 
                 # Add a text label, after converting the lw back to a speed
                 hax_ii.text(x03, y1, '{:2.2f} $m{{\\cdot}}s^{{-1}}$'.format(speed), 
-                            va='center', zorder=10, fontweight='normal')
+                            va='center', zorder=52, fontweight='normal')
                 y=y-dy
             
         #_______________________________________________________________________
@@ -5822,7 +5822,7 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
         data_u, data_v = hax_ii.projection.transform_vectors(which_transf, data_x, data_y, data_u, data_v)
         data_x, data_y = hax_ii.projection.transform_points( which_transf, data_x, data_y)[:,0:2].T
         h0=hax_ii.quiver(data_x, data_y, data_u, data_v, 
-                         color = 'k', zorder=-3, **quiv_optdefault, )
+                         color = 'k', zorder=51, **quiv_optdefault, )
         
         #_______________________________________________________________________
         # make a streamline legend
@@ -5845,13 +5845,13 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
                 # Plot a line in the legend, of the correct length
                 x1, y1   = hax_ii.projection.transform_point(x, y, ccrs.PlateCarree())
                 u1, v1   = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), np.array([0]) , np.array([0]), np.array([speed]), np.array([0]))
-                h0=hax_ii.quiver(x02, y1, u1, v1, color = 'k', zorder=-1,
+                h0=hax_ii.quiver(x02, y1, u1, v1, color = 'k', zorder=53,
                          pivot='tip', 
                          **quiv_optdefault, 
                         )
                 # Add a text label, after converting the lw back to a speed
                 hax_ii.text(x03, y1, '{:2.2f} $m{{\\cdot}}s^{{-1}}$'.format(speed), 
-                            va='center', zorder=-1, fontweight='normal', fontsize=12)
+                            va='center', zorder=53, fontweight='normal', fontsize=12)
                 y=y-dy
             
         #_______________________________________________________________________
@@ -5908,7 +5908,7 @@ def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_pl
     # plot bottom mask for cartopy plot
     if isinstance(hax_ii.projection, ccrs.CRS) and tri is not None:
         if do_bot and np.any(tri.mask_e_ok==False):
-            bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, 'zorder':-3})
+            bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, 'zorder':10})
             bot_optdefault.update(bot_opt)
             
             # create single color colormap when options like 'facecolor', 'facecolors', 
@@ -6044,7 +6044,7 @@ def do_plt_topo(hfig, hax_ii, do_topo, data_topo, mesh, tri,
                          plt_contf=False    , pltcf_opt=dict(),
                          plt_contr=False    , pltcr_opt=dict(),
                          plt_contl=plt_contl, pltcl_opt=pltcl_opt,
-                         chnksize=chnksize)
+                         chnksize=chnksize, zorder=10)
         del(tri0)
     return(h0)
 
@@ -6078,7 +6078,7 @@ def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6, do_in
     h0=None
     if do_mesh: 
         t1 = clock.time()
-        mesh_optdefault = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75, 'zorder':-3})
+        mesh_optdefault = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75, 'zorder':100})
         mesh_optdefault.update(mesh_opt)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_optdefault)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles, zorder=5, **mesh_optdefault)
@@ -6090,6 +6090,7 @@ def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6, do_in
         for chnki in range(nchnk):
             idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
             print('{:d}|'.format(chnki), end='')
+
             h0 = hax_ii.triplot(tri.x, tri.y, auxtriangles[idxs:idxe,:], **mesh_optdefault)
             if nchnk>1:
                 hfig.canvas.draw_idle()     # Updates only changed parts
@@ -6137,7 +6138,7 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', 
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="cartopy")
     
-    lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5, 'zorder':-2})
+    lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5, 'zorder':1})
     lsm_optdefault.update(lsm_opt)
     t1 = clock.time()
     #___________________________________________________________________________
@@ -6272,7 +6273,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
         t1 = clock.time()
         #_______________________________________________________________________
         if proj=='channel' or proj=='neverworld2':
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':-1})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':101})
             grid_optdefault.update(grid_opt)
             #___________________________________________________________________
             h0=hax_ii.gridlines(**grid_optdefault )
@@ -6282,7 +6283,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
         #_______________________________________________________________________
         elif isinstance(hax_ii.projection, ccrs.CRS):
             #___________________________________________________________________
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':-1})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':101})
             grid_optdefault.update(grid_opt)
             
             #___________________________________________________________________
@@ -6324,7 +6325,7 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             
             
             #___________________________________________________________________
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':-1})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':101})
             grid_optdefault.update(grid_opt)
             
             #___________________________________________________________________

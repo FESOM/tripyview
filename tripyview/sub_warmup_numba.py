@@ -13,6 +13,7 @@ import numpy as np
 
 # Import all Numba kernels you want to warm-up
 from .sub_mesh import *
+from .sub_utility import _running_in_dask_worker
 
 
 def warmup_compute_x_nghbr_x():
@@ -220,25 +221,28 @@ def warmup_smoothing_kernels():
 
 
 
-# Execute warm-up at module import
-warmup_compute_x_nghbr_x()
+# Execute warm-up at module import (skip inside Dask worker subprocesses --
+# numba's on-disk cache=True already makes their first real call fast, so
+# re-running this in every one of a cluster's workers is pure log noise)
+if not _running_in_dask_worker():
+    warmup_compute_x_nghbr_x()
 
-try:
-    warmup_grid_kernels()
-except Exception as e:
-    print("Warning: grid kernel warmup failed:", e)
+    try:
+        warmup_grid_kernels()
+    except Exception as e:
+        print("Warning: grid kernel warmup failed:", e)
 
-try:
-    warmup_vec_r2g_kernels()
-except Exception as e:
-    print("Warning: vec_r2g kernel warmup failed:", e)
+    try:
+        warmup_vec_r2g_kernels()
+    except Exception as e:
+        print("Warning: vec_r2g kernel warmup failed:", e)
 
-try:
-    warmup_lsmask()
-except Exception as e:
-    print("Warning: lsmask warmup failed:", e)
+    try:
+        warmup_lsmask()
+    except Exception as e:
+        print("Warning: lsmask warmup failed:", e)
 
-try:
-    warmup_smoothing_kernels()
-except Exception as e:
-    print("Warning: smoothing kernel warmup failed:", e)
+    try:
+        warmup_smoothing_kernels()
+    except Exception as e:
+        print("Warning: smoothing kernel warmup failed:", e)

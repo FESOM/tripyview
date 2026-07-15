@@ -18,6 +18,21 @@ from .sub_plot import *
 import tripyview
 
 
+def _running_in_dask_worker():
+    """--> True if this import is happening inside a Dask worker process,
+    rather than the main/client process.
+
+    Checking distributed.get_worker() does NOT work here: with the default
+    'spawn' multiprocessing method, a freshly started worker process
+    re-executes the whole top-level module (e.g. the notebook's `import
+    tripyview` cell) before the Worker object itself is constructed, so
+    get_worker() would still (incorrectly) report "no worker" at that point.
+    multiprocessing.current_process() is set up before that re-execution,
+    so its name reliably identifies a Dask worker process even then."""
+    import multiprocessing
+    return "Dask Worker" in multiprocessing.current_process().name
+
+
 
 #+___CALCULATE BASIN LIMITED DOMAIN____________________________________________+
 #| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited  |
