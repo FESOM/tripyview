@@ -396,7 +396,14 @@ def load_data_fesom2(mesh,
     if (do_cftime): use_cftime=True
     
     # Build decode_times argument correctly
-    time_coder    = xr.coders.CFDatetimeCoder(use_cftime=use_cftime)
+    # xr.coders.CFDatetimeCoder was only added in xarray ~2024.09; older xarray
+    # (e.g. installs capped by a Python 3.9 environment, since xarray dropped
+    # 3.9 support around the same release) doesn't have it and instead takes
+    # use_cftime as its own kwarg to open_mfdataset
+    if hasattr(xr, 'coders') and hasattr(xr.coders, 'CFDatetimeCoder'):
+        decode_times_kwargs = {'decode_times': xr.coders.CFDatetimeCoder(use_cftime=use_cftime)}
+    else:
+        decode_times_kwargs = {'decode_times': True, 'use_cftime': use_cftime}
     decode_coords = False
     if   engine == 'netcdf4' : 
         engine_dict = dict({'engine'        :'netcdf4'     ,
@@ -413,9 +420,9 @@ def load_data_fesom2(mesh,
                                 'invalid_netcdf':'ignore',
                                 #'lock': False,  !!! ATTENTION THIS CAUSES ERROR
                                 }})# load normal FESOM2 run file
-    engine_dict.update({'combine'       :'by_coords'   , 
-                        'decode_coords' :decode_coords , 
-                        'decode_times'  :time_coder    , })
+    engine_dict.update({'combine'       :'by_coords'   ,
+                        'decode_coords' :decode_coords ,
+                        **decode_times_kwargs           , })
                         #'combine'       :'nested', 
                         #'concat_dim'    :'time'
                         #'compat'        :'override', !!! ATTENTION DO NOT USE THAT OPTION it overrides concated years with NaNs!!!
