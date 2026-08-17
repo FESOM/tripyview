@@ -248,8 +248,13 @@ def calc_zmoc(mesh,
         
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
+        # Bin centres sit at (k+0.5)*dlat so that bin edges land on multiples of
+        # dlat and the bins tile -90..90 exactly. See calc_zmoc_dask, which
+        # builds its axis the same way (lat_bins -> midpoints). The clip keeps a
+        # node sitting exactly on +90 inside the last bin instead of opening a
+        # spurious 90+dlat/2 bin beyond the pole.
         lat     = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
-        lat_bin = xr.DataArray(data=np.round(lat[idxin]/dlat)*dlat, dims='elem', name='lat')  
+        lat_bin = xr.DataArray(data=np.clip(np.floor(lat[idxin]/dlat)*dlat + dlat/2, -90+dlat/2, 90-dlat/2), dims='elem', name='lat')
         
     #___________________________________________________________________________
     # compute area weighted vertical velocities on vertices
@@ -297,7 +302,12 @@ def calc_zmoc(mesh,
         #print('  --> comp. area weighted mean', t3-t2)
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
-        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat')
+        # Bin centres sit at (k+0.5)*dlat so that bin edges land on multiples of
+        # dlat and the bins tile -90..90 exactly. See calc_zmoc_dask, which
+        # builds its axis the same way (lat_bins -> midpoints). The clip keeps a
+        # node sitting exactly on +90 inside the last bin instead of opening a
+        # spurious 90+dlat/2 bin beyond the pole.
+        lat_bin = xr.DataArray(data=np.clip(np.floor(data.lat/dlat)*dlat + dlat/2, -90+dlat/2, 90-dlat/2), dims='nod2', name='lat')
         lat     = np.arange(lat_bin.data.min(), lat_bin.data.max()+dlat, dlat)
         warnings.resetwarnings()
         #t4 = clock.time()
