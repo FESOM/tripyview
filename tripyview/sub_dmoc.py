@@ -179,11 +179,24 @@ def load_dmoc_data(mesh                           ,
         if do_dflx or (which_transf in ['srf', 'inner']): 
             
             # Add subsequent variables one by one, freeing memory as we go
+            # --> the output stream converts exact zeros to NaN (land-sea masking
+            #     convention); a term that is *legitimately* zero everywhere in the
+            #     ocean (e.g. std_rest_flux/std_frwt_flux when no salinity restoring
+            #     or freshwater forcing is active) therefore comes back as all-NaN,
+            #     not all-zero. Since NaN+real=NaN, summing it straight in silently
+            #     poisons the combined srf/inner/dflx transformation with NaN, which
+            #     later skipna=True sum/cumsum calls then render as a flat zero --
+            #     indistinguishable from "nothing happening" instead of a masked term.
+            #     fillna(0) here so a genuinely-zero field can't wipe out the others.
             data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict)
+            if data is None: return(None)
+            data['std_heat_flux'] = data['std_heat_flux'].fillna(0)
             for var in ['std_frwt_flux', 'std_rest_flux']:
-                # --> this is supposed to be more lazy computation friendly 
-                new_var = load_data_fesom2(mesh, datapath, vname=var, **input_dict)[var]
-                data['std_heat_flux'] = data['std_heat_flux'] + new_var  # Ensures proper Dask graph optimization
+                # --> this is supposed to be more lazy computation friendly
+                new_var = load_data_fesom2(mesh, datapath, vname=var, **input_dict)
+                if new_var is None: return(None)
+                new_var[var] = new_var[var].fillna(0)
+                data['std_heat_flux'] = data['std_heat_flux'] + new_var[var]  # Ensures proper Dask graph optimization
                 del new_var
                 gc.collect()
                 
@@ -194,19 +207,25 @@ def load_dmoc_data(mesh                           ,
             
         # compute single flux from heat_flux & freshwater_flux &restoring_flux
         elif (which_transf in ['fh']): 
-            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict).rename({'std_heat_flux':'dmoc_fh'})
+            data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict)
+            if data is None: return(None)
+            data = data.rename({'std_heat_flux':'dmoc_fh'})
             data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs) 
             del(data)
             gc.collect()
             
         elif (which_transf in ['fw']):     
-            data = load_data_fesom2(mesh, datapath, vname='std_frwt_flux', **input_dict).rename({'std_frwt_flux':'dmoc_fw'})
+            data = load_data_fesom2(mesh, datapath, vname='std_frwt_flux', **input_dict)
+            if data is None: return(None)
+            data = data.rename({'std_frwt_flux':'dmoc_fw'})
             data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
             del (data)
             gc.collect()
             
         elif (which_transf in ['fr']):     
-            data = load_data_fesom2(mesh, datapath, vname='std_rest_flux', **input_dict).rename({'std_rest_flux':'dmoc_fr'})
+            data = load_data_fesom2(mesh, datapath, vname='std_rest_flux', **input_dict)
+            if data is None: return(None)
+            data = data.rename({'std_rest_flux':'dmoc_fr'})
             data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
             del(data)
             gc.collect()
@@ -349,7 +368,10 @@ def load_dmoc_data(mesh                           ,
         # add divergence of density classes --> diapycnal velocity
         #data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', 
                         #**{**input_dict, 'chunks': {'nod2': -1, 'ndens': 1, 'time': 1}}).rename({'std_dens_DIV':'dmoc'}).persist()
-        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', **input_dict).rename({'std_dens_DIV':'dmoc'}).persist()
+        data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', **input_dict)
+        if data_div is None: return(None)
+
+        data_div  = data_div.rename({'std_dens_DIV':'dmoc'}).persist()
         data_div  = data_div.drop_vars(['ndens', 'nodi', 'ispbnd']) 
         if any(data_div.chunks.values()) and dens.chunks is None: dens = dens.chunk({  'ndens':data_div.chunksizes['ndens']})
         data_div  = data_div.assign_coords({'dens':dens})
@@ -995,7 +1017,8 @@ def calc_dmoc_dask( mesh                          ,
     
     ____________________________________________________________________________
     """
-    
+    if data is None: return(None)
+
     # rescue global dataset attributes
     gattr = data.attrs
     vname_list = list(data.data_vars)
