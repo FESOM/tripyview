@@ -236,6 +236,7 @@ def tripyrun():
     analyses_driver_list["gmhflx"             ] = drive_gmhflx
     analyses_driver_list["gzhflx"             ] = drive_gmhflx
     analyses_driver_list["mhflx"              ] = drive_mhflx
+    analyses_driver_list["zhflx"              ] = drive_mhflx
     
     #___________________________________________________________________________
     # initialise/create webpage interface based on .json file, if it exist

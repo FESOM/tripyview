@@ -1124,7 +1124,7 @@ def drive_gmhflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vn
     params_vname = dict({'tripyrun_analysis':analysis_name})
     params_vname.update(params_1lvl)
     params_vname.update(params_2lvl)
-    params_vname["vname"] = analysis_name
+    #params_vname["vname"] = analysis_name
     webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_'+analysis_name)
     return webpage
 
@@ -1146,8 +1146,8 @@ def drive_mhflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vna
     params_vname = dict({'tripyrun_analysis':analysis_name})
     params_vname.update(params_1lvl)
     params_vname.update(params_2lvl)
-    params_vname["vname"] = 'mhflx'
-    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_mhflx')
+    # params_vname["vname"] = 'mhflx'
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_'+analysis_name)
     return webpage
 
 
