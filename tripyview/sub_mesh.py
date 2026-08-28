@@ -1253,6 +1253,14 @@ ___________________________________________""".format(
                     self.n_area = njit_ie2n_accum_2d(self.nlev, self.n2dn, self.n2de, 
                                                      self.e_i, self.e_area, mask)
                     del(mask, z)
+                    # each node gets 1/3 of each surrounding triangle's area --
+                    # njit_ie2n_accum_2d accumulates the full (unnormalized) sum
+                    # over all 3 vertices of every element, same as the FESOM1.4
+                    # branch below (see its own explicit /3.0). Missing here, this
+                    # made n_area exactly 3x too large whenever a mesh has no
+                    # fesom.mesh.diag.nc to load nod_area from directly -- verified
+                    # against a real fesom.mesh.diag.nc's nod_area (ratio 3.000000).
+                    self.n_area = self.n_area/3.0
                 self.n_area = np.ascontiguousarray(self.n_area)
                     
             
