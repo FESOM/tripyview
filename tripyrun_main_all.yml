@@ -504,12 +504,19 @@ hbarstreamf:
 #_______________________________________________________________________________     
 # plot global meridional heatflux based on surface heatflux and turbulent temp.
 # advection t*v, special FESOM2 output using namelist.io flag: diag_trflx=.true.
-#ghflx:
-    ##___2lvl Parameter___
-    #ncol: 1
-    #nrow: 1
-    #do_allcycl: False
-    
+gmhflx:
+    #___2lvl Parameter___
+    ncol: 1
+    nrow: 1
+    do_allcycl: False
+
+gzhflx:
+    #___2lvl Parameter___
+    ncol: 1
+    nrow: 1
+    do_allcycl: False
+
+
 mhflx:
     #___2lvl Parameter___
     ncol: 1
@@ -517,7 +524,15 @@ mhflx:
     do_allcycl: False
     use_advflx: False
     use_bolusv: True
-    
+
+zhflx:
+    #___2lvl Parameter___
+    ncol: 1
+    nrow: 1
+    do_allcycl: False
+    use_advflx: False
+    use_bolusv: True
+
 #_______________________________________________________________________________
 # plot time-series of 2d and 3d globally averaged (volume weighted) variables 
 var_t:
