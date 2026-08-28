@@ -206,27 +206,38 @@ def load_dmoc_data(mesh                           ,
             gc.collect()
             
         # compute single flux from heat_flux & freshwater_flux &restoring_flux
-        elif (which_transf in ['fh']): 
+        elif (which_transf in ['fh']):
             data = load_data_fesom2(mesh, datapath, vname='std_heat_flux', **input_dict)
             if data is None: return(None)
+            # same zero-vs-NaN land-sea-mask ambiguity as the combined dflx path
+            # above: a legitimately-zero field comes back as all-NaN, not all-zero.
+            data['std_heat_flux'] = data['std_heat_flux'].fillna(0)
             data = data.rename({'std_heat_flux':'dmoc_fh'})
-            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs) 
+            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
             del(data)
             gc.collect()
-            
-        elif (which_transf in ['fw']):     
+
+        elif (which_transf in ['fw']):
             data = load_data_fesom2(mesh, datapath, vname='std_frwt_flux', **input_dict)
             if data is None: return(None)
+            # same zero-vs-NaN land-sea-mask ambiguity as the combined dflx path
+            # above -- e.g. std_frwt_flux is legitimately zero everywhere in a run
+            # without freshwater forcing, which comes back as all-NaN, not all-zero.
+            data['std_frwt_flux'] = data['std_frwt_flux'].fillna(0)
             data = data.rename({'std_frwt_flux':'dmoc_fw'})
-            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
+            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
             del (data)
             gc.collect()
-            
-        elif (which_transf in ['fr']):     
+
+        elif (which_transf in ['fr']):
             data = load_data_fesom2(mesh, datapath, vname='std_rest_flux', **input_dict)
             if data is None: return(None)
+            # same zero-vs-NaN land-sea-mask ambiguity as the combined dflx path
+            # above -- e.g. std_rest_flux is legitimately zero everywhere in a run
+            # without salinity restoring, which comes back as all-NaN, not all-zero.
+            data['std_rest_flux'] = data['std_rest_flux'].fillna(0)
             data = data.rename({'std_rest_flux':'dmoc_fr'})
-            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)   
+            data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
             del(data)
             gc.collect()
             
@@ -265,9 +276,19 @@ def load_dmoc_data(mesh                           ,
         gc.collect()
         
     #___________________________________________________________________________
-    # add volume trend  
-    if add_trend:  
-        data = load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', **input_dict).rename({'std_heat_flux':'dmoc_dvdt'}).drop_vars('ndens')
+    # add volume trend
+    if add_trend:
+        data = load_data_fesom2(mesh, datapath, vname='std_dens_dVdT', **input_dict)
+        if data is None: return(None)
+        # same zero-vs-NaN land-sea-mask ambiguity as the flux fields above --
+        # std_dens_dVdT can be legitimately zero everywhere (e.g. a steady-state
+        # class), which comes back as all-NaN, not all-zero.
+        data['std_dens_dVdT'] = data['std_dens_dVdT'].fillna(0)
+        # NOTE: was renaming the wrong source key ('std_heat_flux', a leftover
+        # from the flux block above) -- 'std_dens_dVdT' is what's actually loaded,
+        # so the rename to 'dmoc_dvdt' never fired and this field was silently
+        # left named 'std_dens_dVdT', breaking any caller expecting 'dmoc_dvdt'.
+        data = data.rename({'std_dens_dVdT':'dmoc_dvdt'}).drop_vars('ndens')
         data_dMOC = xr.merge([data_dMOC, data], combine_attrs=which_combineattrs)
         del(data)
         gc.collect()
