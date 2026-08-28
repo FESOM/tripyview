@@ -298,7 +298,12 @@ def load_dmoc_data(mesh                           ,
                 data_z = data_h.copy().rename({'ndens_h':'ndens_z'})
                 data_z = data_z.cumsum(dim='ndens', skipna=True)
                 #data_z = data_z.assign_coords({'ndens' :("ndens",std_dens)})
-                data_z = data_z.where(data_h.ndens_h!=0.0,0.0)
+                # ndens_h now correctly comes back as NaN (not just 0.0) for a
+                # genuinely non-existing density class -- but NaN != 0.0 is True, so
+                # the old check let those classes keep their (meaningless, cumsum-
+                # smeared) z-position instead of being reset to 0.0. NaN > 0 is
+                # False, so '> 0' catches both cases.
+                data_z = data_z.where(data_h.ndens_h>0.0,0.0)
                 data_dMOC = xr.merge([data_dMOC, data_z], combine_attrs=which_combineattrs)
                 del(data_z)
                 gc.collect()
@@ -371,7 +376,15 @@ def load_dmoc_data(mesh                           ,
         data_div  = load_data_fesom2(mesh, datapath, vname='std_dens_DIV', **input_dict)
         if data_div is None: return(None)
 
-        data_div  = data_div.rename({'std_dens_DIV':'dmoc'}).persist()
+        # same zero-vs-NaN land-sea-mask ambiguity as std_heat_flux/std_frwt_flux/
+        # std_rest_flux above: a density class with genuinely zero divergence
+        # everywhere comes back as NaN, not 0. Left unfilled, the node->element
+        # averaging below (sum of 3 nodal values) turns into NaN as soon as ONE of
+        # the three nodes is such a point, wiping out an otherwise valid element
+        # value from the other two nodes.
+        data_div  = data_div.rename({'std_dens_DIV':'dmoc'})
+        data_div['dmoc'] = data_div['dmoc'].fillna(0)
+        data_div  = data_div.persist()
         data_div  = data_div.drop_vars(['ndens', 'nodi', 'ispbnd']) 
         if any(data_div.chunks.values()) and dens.chunks is None: dens = dens.chunk({  'ndens':data_div.chunksizes['ndens']})
         data_div  = data_div.assign_coords({'dens':dens})
@@ -447,9 +460,14 @@ def load_dmoc_data(mesh                           ,
         # load density class divergence from bolus velolcity
         if (do_bolus): 
             # add divergence of density classes --> diapycnal velocity
-            data_div_bolus  = load_data_fesom2(mesh, datapath, vname='std_dens_DIVbolus', 
+            data_div_bolus  = load_data_fesom2(mesh, datapath, vname='std_dens_DIVbolus',
                                     **{**input_dict, 'chunks': {'nod2': -1, 'ndens': 1, 'time': 1}}).rename({'std_dens_DIVbolus':'dmoc_bolus'}).persist()
-            data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi', 'ispbnd']) 
+            # same zero-vs-NaN land-sea-mask ambiguity as std_dens_DIV above -- without
+            # this, the node->element 3-node average just below turns to NaN as soon as
+            # ONE of the three nodes is a masked (all-NaN) point, wiping out otherwise
+            # valid bolus contributions from the other two nodes.
+            data_div_bolus['dmoc_bolus'] = data_div_bolus['dmoc_bolus'].fillna(0)
+            data_div_bolus  = data_div_bolus.drop_vars(['ndens', 'nodi', 'ispbnd'])
             data_div_bolus  = data_div_bolus.assign_coords({'dens':dens})
             
             # doing this step here so that the MOC amplitude is correct, setp 1 of 2
@@ -703,8 +721,10 @@ def calc_dmoc(mesh,
         # mean over the bottom topography!!!
         data_dMOC['ndens_w_A'] = data_dMOC['w_A'].expand_dims(edims).transpose(dtime, delem, ddens, missing_dims='ignore')
     
-        # non-existing density classes (ndens_h==0) --> NaN
-        data_dMOC['ndens_w_A'] = data_dMOC['ndens_w_A'].where(data_dMOC['ndens_h']!=0.0)
+        # non-existing density classes (ndens_h==0, or NaN per FESOM's zero-vs-land
+        # write convention) --> NaN. '!=0.0' misses the NaN case (NaN!=0.0 is True);
+        # '>0.0' catches both, matching the corrected dask-path masking.
+        data_dMOC['ndens_w_A'] = data_dMOC['ndens_w_A'].where(data_dMOC['ndens_h']>0.0)
     
     if 'nz_rho' in list(data_dMOC.keys()):
         edims = dict()
@@ -939,10 +959,21 @@ def calc_dmoc_dask( mesh                          ,
                     do_botmax_z       = True      ,
                     do_botmax_dens    = True      ,
                     do_persist        = True      ,
+                    do_test_denszero  = False     ,
+                    do_test_wallsub   = False     ,
                     **kwargs):
     """
-    --> calculate meridional overturning circulation from vertical velocities 
+    --> calculate meridional overturning circulation from vertical velocities
         (Pseudostreamfunction) either on vertices or elements
+
+    :do_test_denszero: bool (default=False) TEST ONLY -- mirrors compute_moc_wdiap_optimized.ipynb's
+                        (Dima's) hard density-edge zeroing: zero the raw divergence at ndens=1 (lightest
+                        real class) and ndens=[-2,-1] (two densest classes) before the density cumsum,
+                        then zero the resulting streamfunction at ndens=[0,-1] after it.
+
+    :do_test_wallsub:   bool (default=False) TEST ONLY -- mirrors Dima's north-wall closure: instead of
+                        appending a synthetic zero point at lat_max, subtract the value at the
+                        northernmost existing lat bin from every column of the lat-cumsum result.
     
     Parameters:
     
@@ -1056,14 +1087,25 @@ def calc_dmoc_dask( mesh                          ,
         
     #___________________________________________________________________________
     # compute/use index for basin domain limitation
-    idxin = calc_basindomain_fast(mesh, 
-                                  which_moc    = which_moc, 
-                                  do_onelem    = True, 
+    idxin = calc_basindomain_fast(mesh,
+                                  which_moc    = which_moc,
+                                  do_onelem    = True,
                                   do_exclude   = do_exclude,
                                   exclude_list = exclude_list)
 
     # reduce to dMOC data to basin domain
     data  = data.isel({dimn_h:idxin})
+
+    # elements straddling the periodic east-west seam (mesh.e_pbnd_1, flagged
+    # via 'ispbnd') should NOT be dropped from the zonal-latitude sum for a
+    # global MOC -- calc_basindomain_fast returns "everything selected" for
+    # 'gmoc' with no box/polygon test at all, so there is no basin-membership
+    # question to get wrong there; dropping them just silently loses real
+    # divergence/area. For a basin-restricted MOC (amoc/pmoc/imoc/custom
+    # shapefile), calc_basindomain_fast DOES run a real box/shapefile
+    # containment test -- keep excluding pbnd elements there as a safety net
+    # against a straddling element being mis-selected into/out of the basin.
+    do_maskpbnd = not (which_moc=='gmoc' and not isinstance(which_moc, shp.Reader))
 
     # check basin selection 
     if do_checkbasin:
@@ -1100,8 +1142,23 @@ def calc_dmoc_dask( mesh                          ,
     # create meridional bins
     lat_min    = float(np.floor(data['lat'].min().compute()))
     lat_max    = float(np.ceil( data['lat'].max().compute()))
-    lat_bins   = np.arange(lat_min, lat_max+dlat*0.5, dlat)
-    lat        = (lat_bins[1:]+lat_bins[:-1])*0.5
+    # np.digitize (used per-chunk in calc_dmoc_chnk) bins are half-open,
+    # bins[i-1] <= x < bins[i] -- so a point sitting exactly ON the top bin
+    # edge gets digitized past the last bin and silently dropped. ceil() only
+    # guards against the true max being ABOVE that edge, not equal to it, and
+    # for an element-centroid latitude landing on an exact integer (which
+    # happens for the neverworld2 mesh's northernmost element row, at exactly
+    # 70.0) that is exactly the case that occurs -- 60 elements (the entire
+    # top row) silently dropped from every latitude bin. Build the actual
+    # digitize bin edges one dlat past lat_max (a separate variable --
+    # lat_max itself still means "true north-wall edge" and is reused below
+    # at the psi=0 boundary reindex, so it must NOT be shifted).
+    lat_bins   = np.arange(lat_min, lat_max+dlat*1.5, dlat)
+    # bin i's cumsum value belongs at its southern edge (lat_bins[i]), not its
+    # centre -- same fix as calc_zmoc_dask (sub_zmoc.py), see that fix's comment
+    # for the full derivation. Old bin-centre labeling shifted the whole curve
+    # north by half a bin width.
+    lat        = lat_bins[:-1]
     nlat, nlev = len(lat_bins)-1, data.sizes['ndens']
     
     #___________________________________________________________________________
@@ -1160,6 +1217,7 @@ def calc_dmoc_dask( mesh                          ,
                          chnk_lat                   , # lat nod2 coordinates
                          chnk_wA                    , # area weight
                          chnk_ispbnd                , # area weight
+                         do_maskpbnd                , # exclude pbnd elements? (only for basin-restricted MOC)
                          nvar                       , # number of input/output variables
                          chnk_h                     , # density class thickness
                          chnk_dmoc                  , # density class divergence
@@ -1255,14 +1313,43 @@ def calc_dmoc_dask( mesh                          ,
         dmoc[var] = -dmoc[var].isel(lat=reverse).cumsum(dim='lat', skipna=True).isel(lat=reverse)
 
     #___________________________________________________________________________
-    # cumulative sum over density 
+    # TEST (do_test_wallsub): Dima-style north-wall closure -- force exact zero at
+    # the northernmost existing lat bin by subtracting its value from every column,
+    # instead of relying purely on the later appended synthetic edge point.
+    if do_test_wallsub:
+        for var in var_list:
+            dmoc[var] = dmoc[var] - dmoc[var].isel(lat=-1)
+
+    #___________________________________________________________________________
+    # TEST (do_test_denszero): Dima-style hard density-edge zeroing of the RAW
+    # divergence before the density cumsum -- zero the lightest real class
+    # (ndens=1) and the two densest classes (ndens=[-2,-1]).
+    if do_test_denszero:
+        dens_vals = dmoc['ndens'].values
+        for var in ['dmoc', 'dmoc_bolus']:
+            if var in dmoc.data_vars:
+                dmoc[var].loc[dict(ndens=dens_vals[1])]  = 0.0
+                dmoc[var].loc[dict(ndens=dens_vals[-2])] = 0.0
+                dmoc[var].loc[dict(ndens=dens_vals[-1])] = 0.0
+
+    #___________________________________________________________________________
+    # cumulative sum over density
     if do_info==True: print(' --> do cumsum over density (bottom-->top)')
     if 'dmoc'      in list(dmoc.data_vars):
         dmoc[ 'dmoc'       ] = dmoc[ 'dmoc' ].isel(ndens=reverse).cumsum(dim='ndens', skipna=True).isel(ndens=reverse)
-    
+
     if 'dmoc_bolus'in list(dmoc.data_vars):
         dmoc[ 'dmoc_bolus' ] = dmoc[ 'dmoc_bolus' ].isel(ndens=reverse).cumsum(dim='ndens', skipna=True).isel(ndens=reverse)
-    
+
+    # TEST (do_test_denszero): force the streamfunction to exact zero at the very
+    # lightest (ndens=0, the 0.0 placeholder bin) and very densest (ndens=-1) classes.
+    if do_test_denszero:
+        dens_vals = dmoc['ndens'].values
+        for var in ['dmoc', 'dmoc_bolus']:
+            if var in dmoc.data_vars:
+                dmoc[var].loc[dict(ndens=dens_vals[0])]  = 0.0
+                dmoc[var].loc[dict(ndens=dens_vals[-1])] = 0.0
+
     #___________________________________________________________________________
     # compute z-position (z) from (f) density class thickness (h)
     if 'ndens_h'   in list(dmoc.keys()):
@@ -1356,7 +1443,44 @@ def calc_dmoc_dask( mesh                          ,
         botmax_dens = np.concatenate( (np.ones((filt.size,))*botmax_dens[0], botmax_dens, np.ones((filt.size,))*botmax_dens[-1] ) )
         botmax_dens = np.convolve(botmax_dens, filt/np.sum(filt), mode='same')[filt.size:-filt.size]
         dmoc   = dmoc.assign_coords(botmax_dens=botmax_dens.astype('float32'))
-    
+
+    #___________________________________________________________________________
+    # append the true north-wall edge: psi=0 there by definition -- no
+    # transport exists north of the last bin. Same missing-edge bug already
+    # fixed in calc_zmoc_dask (sub_zmoc.py). botmax/botmax_dens live on their
+    # own 'nlat' dimension (not xarray-aligned to 'lat'), so they need their
+    # own one-point extension too, reusing their last value -- same
+    # edge-padding convention already used above for their smoothing
+    # convolution.
+    # NOTE: the wall point used to sit at bare lat_max, back when lat_max was
+    # always exactly one dlat north of the last bin containing real data (see
+    # the lat_bins fix above -- the last real-data bin used to be mislabeled
+    # lat_max-dlat because points sitting exactly on lat_max were silently
+    # dropped by digitize). Now that fix correctly labels the last real-data
+    # bin lat_max, so the synthetic zero point has to move one further dlat
+    # north to stay outside all real data.
+    lat_wall = lat_max + dlat
+    # var_list was captured earlier (before the optional dmoc_bolus merge+drop
+    # a few lines up), so it can be stale -- e.g. do_bolus=True drops
+    # 'dmoc_bolus' after folding it into 'dmoc', but var_list still lists it.
+    # Use the dataset's current data_vars instead of trusting var_list here.
+    cur_vars = [v for v in var_list if v in dmoc.data_vars]
+    last_isnan = {var: dmoc[var].isel(lat=-1).isnull() for var in cur_vars}
+    dmoc = dmoc.reindex(lat=np.append(dmoc['lat'].values, lat_wall), fill_value=0.0)
+    for var in cur_vars:
+        dmoc[var].loc[dict(lat=lat_wall)] = dmoc[var].sel(lat=lat_wall).where(~last_isnan[var])
+
+    # botmax/botmax_dens already occupy the dataset's 'nlat' dimension at its old
+    # (pre-extension) size -- assign_coords would try to align the new, one-point-
+    # longer array against that existing size and fail, so drop the coordinate
+    # first to free 'nlat' up before reassigning it at the new size.
+    if do_botmax_z and 'botmax' in dmoc.coords:
+        new_botmax = np.append(dmoc['botmax'].values, dmoc['botmax'].values[-1])
+        dmoc = dmoc.drop_vars('botmax').assign_coords(botmax=('nlat', new_botmax))
+    if do_botmax_dens and 'botmax_dens' in dmoc.coords:
+        new_botmax_dens = np.append(dmoc['botmax_dens'].values, dmoc['botmax_dens'].values[-1])
+        dmoc = dmoc.drop_vars('botmax_dens').assign_coords(botmax_dens=('nlat', new_botmax_dens))
+
     #___________________________________________________________________________
     return(dmoc)
 
@@ -1365,7 +1489,8 @@ def calc_dmoc_dask( mesh                          ,
 #
 #
 #_______________________________________________________________________________  
-def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_ispbnd, 
+def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_ispbnd,
+                   do_maskpbnd     , # exclude pbnd elements? (only for basin-restricted MOC)
                    nvar            , # number of input/output variables
                    chnk_h          , # density class thickness
                    chnk_d          , # density class divergence
@@ -1425,7 +1550,21 @@ def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_ispbnd,
         # binned_d[-1,...] - area weight sum
         
     # Precompute mask outside the loop
-    idx_valid = (idx_lat >= 0) & (idx_lat < nlat) & ~chnk_ispbnd
+    # NOTE: previously always masked out ~chnk_ispbnd (elements straddling the
+    # periodic east-west seam, mesh.e_pbnd_1). For a GLOBAL MOC that exclusion
+    # is only meaningful for LONGITUDE-based binning (sub_transect.py), where a
+    # straddling triangle's naive averaged longitude is nonsense -- the bin
+    # here is LATITUDE, which is well-defined for those elements too, so for
+    # 'gmoc' excluding them just silently drops real divergence/area from the
+    # zonal sum (43 elements / ~0.2% of domain area for the neverworld2 mesh,
+    # lat -61 to -39). do_maskpbnd is False for 'gmoc' (calc_dmoc_dask), so
+    # those elements are kept. For a basin-restricted MOC, do_maskpbnd is
+    # True and pbnd elements stay excluded, since a straddling element could
+    # be mis-selected into/out of that basin by the box/shapefile test.
+    if do_maskpbnd:
+        idx_valid = (idx_lat >= 0) & (idx_lat < nlat) & ~chnk_ispbnd
+    else:
+        idx_valid = (idx_lat >= 0) & (idx_lat < nlat)
     del(chnk_ispbnd)
 
     # Apply mask before looping
@@ -1434,9 +1573,14 @@ def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_ispbnd,
     nnod      = len(idx_lat)
     
     # Sum data based on binned indices with time dimension: [2, ntime, nlat, nlev]
-    if   np.ndim(chnk_var_list[0]) == 3: 
-        if chnk_h is not None: chnk_h = chnk_h[:, :, idx_valid]
-        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = chnk_var[:, :, idx_valid]
+    if   np.ndim(chnk_var_list[0]) == 3:
+        if chnk_h is not None: chnk_h = np.nan_to_num(chnk_h[:, :, idx_valid], nan=0.0)
+        # NaN really does mean "replace with 0" here (not "skip"): a genuinely-zero
+        # transformation/divergence at a node comes back as NaN (FESOM's land-sea-mask
+        # write convention), and a plain "+" accumulation lets one such node poison the
+        # whole (lev, lat-bin) cell for every other node summed into it -- the comments
+        # above already said this was supposed to happen, it just never did.
+        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = np.nan_to_num(chnk_var[:, :, idx_valid], nan=0.0)
         for nod_i in range(0,nnod):
             jj = idx_lat[nod_i]
             for ii, chnk_var in enumerate(chnk_var_list):
@@ -1447,9 +1591,9 @@ def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_ispbnd,
                 binned_d[-1, :, :, jj] = binned_d[-1, :, :, jj] + chnk_wA[    :, nod_i]
     
     # Sum data based on binned indices withou time dimension: [2, nlat, nlev]
-    elif np.ndim(chnk_var_list[0]) == 2:  
-        if chnk_h is not None: chnk_h = chnk_h[:, idx_valid]
-        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = chnk_var[:, idx_valid]
+    elif np.ndim(chnk_var_list[0]) == 2:
+        if chnk_h is not None: chnk_h = np.nan_to_num(chnk_h[:, idx_valid], nan=0.0)
+        for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = np.nan_to_num(chnk_var[:, idx_valid], nan=0.0)
         for nod_i in range(0,nnod):
             jj = idx_lat[nod_i]
             for ii, chnk_var in enumerate(chnk_var_list):
