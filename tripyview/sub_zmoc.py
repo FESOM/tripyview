@@ -120,7 +120,8 @@ def calc_zmoc(mesh,
     
     ____________________________________________________________________________
     """
-    
+    if data is None: return(None)
+
     #___________________________________________________________________________
     t1=clock.time()
     # In case MOC is defined via string
@@ -505,7 +506,8 @@ def calc_zmoc_dask( mesh                      ,
     
     ____________________________________________________________________________
     """
-    
+    if data is None: return(None)
+
     #___________________________________________________________________________
     #t1=clock.time()
     # In case MOC is defined via string
@@ -637,7 +639,13 @@ def calc_zmoc_dask( mesh                      ,
     lat_min    = float(np.floor(data[ 'lat' ].min().compute()))
     lat_max    = float(np.ceil( data[ 'lat' ].max().compute()))
     lat_bins   = np.arange(lat_min, lat_max+dlat*0.5, dlat)
-    lat        = (lat_bins[1:]+lat_bins[:-1])*0.5
+    # zmoc[i] = -sum_{j>=i} T_j is the transport integrated from bin i's *southern*
+    # edge up to the domain's northern wall -- so it belongs at lat_bins[i], not at
+    # the bin centre. The old bin-centre labeling shifted the whole curve north by
+    # half a bin width, making the near-wall value look like it was evaluated AT the
+    # wall (where it should trivially vanish) when it was actually one bin short of
+    # it, showing that bin's own (generally nonzero) transport instead.
+    lat        = lat_bins[:-1]
     nlat, nlev = len(lat_bins)-1, data.sizes[dimn_v]
     
     #___________________________________________________________________________
@@ -698,9 +706,22 @@ def calc_zmoc_dask( mesh                      ,
         zmoc[0] = -np.flip(np.flip(zmoc[0], axis=2).cumsum(axis=2), axis=2) * inSv
     else:
         zmoc[0] = -np.flip(np.flip(zmoc[0], axis=1).cumsum(axis=1), axis=1) * inSv
-    
+
     #___________________________________________________________________________
-    # create land seamask --> zmoc[0] contains the bin summated area weight where 
+    # append the true north-wall edge (lat_max): psi=0 there by definition --
+    # no transport exists north of the last bin. This point was previously
+    # missing entirely, so the plotted curve stopped one bin short of the
+    # wall and looked like it never reached zero. Reuse the last real bin's
+    # wet/dry pattern (zmoc[1], the area weight used for land-masking below)
+    # for this synthetic point so it isn't wiped out or drawn with the wrong
+    # bathymetry.
+    zmoc = np.concatenate([zmoc, np.zeros_like(zmoc[..., :1])], axis=-1)
+    zmoc[1, ..., -1] = zmoc[1, ..., -2]
+    lat  = np.append(lat, lat_max)
+    nlat = nlat + 1
+
+    #___________________________________________________________________________
+    # create land seamask --> zmoc[0] contains the bin summated area weight where
     # its zero there bottom topography
     with np.errstate(divide='ignore', invalid='ignore'):
         zmoc = np.where(zmoc[1]>0, zmoc[0], np.nan)  
