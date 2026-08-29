@@ -1,4 +1,8 @@
 notebooks/
+.eggs
+*/.ipynb_checkpoints/
+tripyview.egg-info
+tripyview/__pycache__
 
 # Sphinx build files
 docs/_build/
