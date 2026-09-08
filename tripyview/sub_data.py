@@ -684,11 +684,9 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
         pathlist = datapath
         if isinstance(datapath, list):
             if isinstance(year, list) and len(year)==2:
-                str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
-                
+                    str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
             elif isinstance(year, int):
                 str_mtim = 'y:{}'.format(year)    
-                
         else:
             str_mtim = os.path.basename(datapath)
         
