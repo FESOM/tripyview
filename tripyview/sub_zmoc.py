@@ -250,18 +250,26 @@ def calc_zmoc(mesh,
             
         nz_w_A = nz_w_A.isel( elem=xr.DataArray(idxin, dims=['elem']) )
         
-        #_______________________________________________________________________    
+        #_______________________________________________________________________
         # average from vertices towards elements
+        # isel(nod2=e_i) selects by dimension NAME and is safe no matter where
+        # 'nod2' sits in data[vname].dims -- unlike the plain data[vname][e_i, :]
+        # / data[vname][:, e_i, :] this replaced, which index by axis POSITION
+        # and silently assumed 'nod2' was the first (no time) / second (time)
+        # axis. In practice load_data_fesom2 returns e.g. ('nz','nod2') --
+        # horizontal last -- so the old code applied e_i's node indices (up to
+        # n2dn) to the depth axis (size nlev) and crashed with an IndexError.
         e_i = xr.DataArray(mesh.e_i, dims=["elem",'n3'])
-        if 'time' in list(data.dims): 
-            data = data.assign(w=data[vname][:, e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
-        else:  
-            data = data.assign(w=data[vname][   e_i, :].sum(dim="n3", keep_attrs=True)/3.0 )
+        data = data.assign(w=data[vname].isel(nod2=e_i).sum(dim="n3", keep_attrs=True)/3.0 )
         
-        # drop un-necessary variables 
-        for vdrop in ['lon', 'lat', 'nodi', 'nodiz', 'w_A']:
-            if vdrop in list(data.coords): data = data.drop(vdrop)
-        #data = data.drop(['lon', 'lat', 'nodi', 'nodiz', 'w_A'])    
+        # drop every leftover 'nod2'-dimensioned coordinate (lon, lat, nodi,
+        # nodiz, w_A, ispbnd, ...): now that 'w' lives on 'elem', nothing should
+        # still reference 'nod2', and the hardcoded name list above used to miss
+        # 'ispbnd', silently leaving 'nod2' in data.dims and breaking the
+        # data.transpose(...) call further down (Dataset.transpose requires
+        # every dimension present in the dataset to be named)
+        for vdrop in [c for c in data.coords if 'nod2' in data[c].dims]:
+            data = data.drop_vars(vdrop)
         data = data.assign_coords(elemiz= xr.DataArray(mesh.e_iz, dims=['elem']))
         data = data.assign_coords(elemi = xr.DataArray(np.arange(0,mesh.n2de), dims=['elem']))
         
@@ -274,7 +282,22 @@ def calc_zmoc(mesh,
         # weired
         mat_elemiz = data['elemiz'].expand_dims({'nz': data['nzi']}).transpose()
         mat_nzielem= data['nzi'].expand_dims({'elem': data['elemi']})
-        data = data.where(mat_nzielem.data<mat_elemiz.data)
+        # expand_dims({'nz': data['nzi']}) attaches data['nzi']'s VALUES (level
+        # indices 0..nlev-1) as the coordinate labels of the new 'nz' dimension.
+        # data's own pre-existing 'nz' coordinate is depth in metres (0, 5, 10,
+        # 20, 30, 40, 50, ...), not level indices -- so the two 'nz' label sets
+        # disagree, and the .where() below would otherwise auto-align by label,
+        # silently keeping only the handful of depths that numerically happen
+        # to also be valid level indices (e.g. depth 0,5,10,20,30,40 <= nlev-1
+        # collapsed a 48-level array down to 6). Drop that spurious coordinate
+        # so the comparison is purely positional, as intended.
+        mat_elemiz  = mat_elemiz.reset_index('nz', drop=True)
+        mat_nzielem = mat_nzielem.reset_index('nz', drop=True)
+        # compare via the xarray objects (not .data): xarray then aligns/broadcasts
+        # by dimension NAME, safe regardless of whether data['w'] is ('elem','nz')
+        # or ('nz','elem') -- .data would compare the raw arrays by axis position
+        # and silently assume one specific order
+        data = data.where(mat_nzielem<mat_elemiz)
         del(mat_elemiz, mat_nzielem)
         
         #_______________________________________________________________________
@@ -282,6 +305,11 @@ def calc_zmoc(mesh,
         data = data.transpose(dtime, dnz, delem, missing_dims='ignore') * nz_w_A * 1e-6
         data = data.transpose(dtime, delem, dnz, missing_dims='ignore')
         data = data.fillna(0.0)
+        # reduce to a plain DataArray, same as the vertex path a few lines below
+        # (data = data[vname]*data['w_A']*1e-6) -- moc_over_lat()'s result is
+        # assigned straight into a DataArray slot further down and cannot be a
+        # single-variable Dataset
+        data = data['w']
         del(nz_w_A)
         
         #_______________________________________________________________________
@@ -381,12 +409,13 @@ def calc_zmoc(mesh,
     
     #___________________________________________________________________________
     # define subroutine for binning over latitudes, allows for parallelisation
+    dhoriz = 'elem' if do_onelem else 'nod2'
     def moc_over_lat(lat_i, lat_bin, data):
         #_______________________________________________________________________
         # compute which vertice is within the latitudinal bin
         # --> groupby is here a factor 5-6 slower than using isel+np.where
-        data_latbin = data.isel(nod2=np.where(lat_bin==lat_i)[0])
-        data_latbin = data_latbin.sum(dim='nod2', skipna=True)
+        data_latbin = data.isel({dhoriz: np.where(lat_bin==lat_i)[0]})
+        data_latbin = data_latbin.sum(dim=dhoriz, skipna=True)
         return(data_latbin)
     
     #___________________________________________________________________________
@@ -402,8 +431,12 @@ def calc_zmoc(mesh,
         if do_info: print('\n ___parallel loop over longitudinal bins___'+'_'*1, end='\n')
         from joblib import Parallel, delayed
         results = Parallel(n_jobs=n_workers)(delayed(moc_over_lat)(lat_i, lat_bin, data) for lat_i in zmoc.lat)
-        if 'time' in data.dims: zmoc['zmoc'][:,:,:] = xr.concat(results, dim='nlat').transpose('time','nz','lat')
-        else                  : zmoc['zmoc'][  :,:] = xr.concat(results, dim='nlat').transpose('nz','lat')
+        # concat along a dim literally named 'lat': each result has no 'lat' dim
+        # of its own yet (moc_over_lat sums it away), that's what's being built
+        # here -- concat(..., dim='nlat') then .transpose(...,'lat') referenced
+        # two different names for the same thing and raised a ValueError
+        if 'time' in data.dims: zmoc['zmoc'][:,:,:] = xr.concat(results, dim='lat').transpose('time','nz','lat')
+        else                  : zmoc['zmoc'][  :,:] = xr.concat(results, dim='lat').transpose('nz','lat')
     
     del(data)
     
