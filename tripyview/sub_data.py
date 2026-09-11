@@ -537,11 +537,16 @@ def load_data_fesom2(mesh,
     if ('ncells'    in data.dims     ): data = data.rename_dims({'ncells':'nod2'})
     
     # kick out *_bnds variables if found we dont need them in moment in tripyview
-    # and it makes the dataset smaller
-    if ('lon_bnds'  in data.data_vars): data = data.drop_vars(['lon_bnds' ])
-    if ('lat_bnds'  in data.data_vars): data = data.drop_vars(['lat_bnds' ])
-    if ('time_bnds' in data.data_vars): data = data.drop_vars(['time_bnds'])
-    if ('lev_bnds'  in data.data_vars): data = data.drop_vars(['lev_bnds' ])
+    # and it makes the dataset smaller. Newer FESOM2 output writes time_bounds
+    # (CF long form) instead of time_bnds; either way it carries its own
+    # axis_nbounds dimension that Dataset.transpose() below does not know
+    # about, so a leftover bounds variable makes it crash with a ValueError
+    # rather than the extra data just being ignored
+    if ('lon_bnds'    in data.data_vars): data = data.drop_vars(['lon_bnds'   ])
+    if ('lat_bnds'    in data.data_vars): data = data.drop_vars(['lat_bnds'   ])
+    if ('time_bnds'   in data.data_vars): data = data.drop_vars(['time_bnds'  ])
+    if ('time_bounds' in data.data_vars): data = data.drop_vars(['time_bounds'])
+    if ('lev_bnds'    in data.data_vars): data = data.drop_vars(['lev_bnds'   ])
     
     # change depth dimension naming in case of fesom14cmip6 and MULTIIO data to 
     # fesom2 convention

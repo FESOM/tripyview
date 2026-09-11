@@ -513,6 +513,14 @@ From branch `origin/fix/zmoc-half-degree-bins` (commit 0dbc8bc, Jan Streffing, b
 
 `libnetcdf` is a conda package (netCDF C library + `ncdump`, `nccopy`, `ncgen`, `nc-config`); pip resolved the name to an empty PyPI project `libnetcdf 0.0.1` (no author, no code, only metadata files), which provides neither the library nor the tools. tripyview itself never calls the command-line tools (Python access via `netCDF4`/`h5netcdf`). **Applied:** removed from `install_requires`, README install line now `conda install -c conda-forge libstdcxx-ng libnetcdf`, with a note that it brings the handy command-line tools.
 
+## External report — 2026-09-11
+
+### 40. `load_data_fesom2` crashes on newer FESOM2 output using `time_bounds` instead of `time_bnds` — ✅ FIXED
+
+Reported by an external user (no push access to the repo): newer FESOM2 output writes `time_bounds(time, axis_nbounds)` (CF long form) instead of `time_bnds`. `load_data_fesom2` only ever dropped `time_bnds`/`lon_bnds`/`lat_bnds`/`lev_bnds`, so `time_bounds` and its `axis_nbounds` dimension stayed in the Dataset and broke a later step (reproduced: `ValueError: operands could not be broadcast together with shapes (47, 126858) (3, 2) ()`, from `axis_nbounds` unexpectedly showing up in a weighting/arithmetic broadcast; a couple of lines further down there's also a `Dataset.transpose(...)` that would separately fail on the same leftover dimension since `Dataset.transpose` requires naming every dimension present).
+
+**Applied:** drop `time_bounds` alongside the existing `time_bnds` (`sub_data.py`). Verified against a synthetic FESOM2-shaped file with a real core2_pool mesh: fails with the reported error on the unpatched code, loads cleanly after the fix, with `time_bounds`/`axis_nbounds` no longer present in the returned Dataset. `lon_bnds`/`lat_bnds`/`lev_bnds` don't have a reported long-form variant yet; worth the same treatment if one shows up.
+
 ## Still open
 
 - **Tests:** CI only runs `import tripyview`. A small pytest smoke suite (box masks, shapefile masks, chunk defaults, an image check of plot layering, calc_zmoc vs calc_zmoc_dask) would have caught #25-29, #38 and the four zorder layering bugs.
