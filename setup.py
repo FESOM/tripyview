@@ -38,7 +38,9 @@ requirements = [
     #___________________________________________________________________________
     # file reading 
     'netCDF4',
-    'libnetcdf',
+    # 'libnetcdf' is a conda package (netCDF C library + ncdump/nccopy/ncgen),
+    # on PyPI the name is only an empty 0.0.1 placeholder --> install it with
+    # conda instead, see README
     'h5netcdf',
     'hdf5plugin', 
     "pickle5; python_version<'3.9'",

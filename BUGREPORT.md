@@ -499,7 +499,22 @@ Removed leftover debug prints: repo path on every `import tripyview` (`sub_tripy
 
 Both were paid by every `import tripyview` — in each papermill kernel and each dask worker — although most runs never touch 3D rendering or the interactive point picker. **Applied:** `ipywidgets` is imported inside `select_scatterpts_depth.__init__` (its only user, all 18 uses), and `sub_3dsphere` is imported on first attribute access via a module-level `__getattr__` (PEP 562) in `__init__.py` instead of `from .sub_3dsphere import *`; `tpv.create_3dsphere_*(...)` keeps working unchanged, the import just happens at that moment and is cached. `importlib.import_module` is used there because `from . import sub_3dsphere` re-enters `__getattr__` and recurses. `TRIPYVIEW_WITHOUT_VTK=1` behaves as before. Import time 4.1 s -> ~3.1 s; `pyvista`/`vtk`/`ipywidgets` are no longer in `sys.modules` after a plain import. No package module imports `sub_3dsphere`, and nothing uses `from tripyview import *` (which module `__getattr__` would not serve).
 
+## zmoc binning + dependency — 2026-09-11
+
+### 38. Non-dask `calc_zmoc`: irregular latitude bins, psi labelled half a bin too far north — ✅ FIXED
+
+From branch `origin/fix/zmoc-half-degree-bins` (commit 0dbc8bc, Jan Streffing, branched off `main`): `calc_zmoc` binned with `np.round(lat/dlat)*dlat`, i.e. bin centres on multiples of dlat — at dlat=1 that is 181 bins for 180 degree with half-width polar bins, not a grid. His fix bins on edges (`floor`), but labels the result at the bin centres, justified by consistency with `calc_zmoc_dask`'s midpoint axis. On `workbench` that axis no longer exists: 914a251 moved `calc_zmoc_dask` to label psi at the bin **edges** plus a psi=0 north-wall point, because after the reverse cumulative sum psi[i] is the transport through the southern edge of bin i. Cherry-picked alone the two paths would have disagreed by half a bin.
+
+**Applied (not a literal cherry-pick):** new helper `_zmoc_lat_bins()` builds exactly the bins of `calc_zmoc_dask` (edges `floor(min(lat))+k*dlat` .. `ceil(max(lat))`, `np.digitize`, a point on the last edge stays in the last bin); used for both the vertex and the element path of `calc_zmoc`. After `calc_bottom_patch` (which aligns on the bin centres) the result is relabelled to the bin edges and the north-wall column is appended (psi=0, bottom patch of the last bin). For dlat values that divide 1 degree the bins are identical to Jan's formula.
+
+**Verified** (core2_pool, `dvd_core2_tke+idemix_GM1000_01`, year 2000): `calc_zmoc` and `calc_zmoc_dask` now have an identical latitude axis for AMOC/GMOC at dlat 1.0 and 0.5 and agree to <=1e-4 Sv (float32 accumulation); also with a time dimension (1e-5 Sv). Against the old `calc_zmoc` at the same latitude label: median change 0.07 Sv (AMOC) / 0.18 Sv (GMOC), 99th percentile 1.2 / 3.4 Sv, largest 5.8 / 29 Sv right at the equator near the surface, where the tropical cells give up to 45 Sv per degree. Maximum AMOC 15.44 -> 15.51 Sv. Affects the users of the non-dask path: `tools/eerie/`, `tools/fesom14cmip6/` zmoc templates and several `PAPER/` notebooks; the tripyrun templates use `calc_zmoc_dask` and are unchanged. The branch itself can be dropped, 0dbc8bc is superseded by this change.
+
+### 39. `setup.py` required the PyPI placeholder `libnetcdf` — ✅ FIXED
+
+`libnetcdf` is a conda package (netCDF C library + `ncdump`, `nccopy`, `ncgen`, `nc-config`); pip resolved the name to an empty PyPI project `libnetcdf 0.0.1` (no author, no code, only metadata files), which provides neither the library nor the tools. tripyview itself never calls the command-line tools (Python access via `netCDF4`/`h5netcdf`). **Applied:** removed from `install_requires`, README install line now `conda install -c conda-forge libstdcxx-ng libnetcdf`, with a note that it brings the handy command-line tools.
+
 ## Still open
 
-- **Tests:** CI only runs `import tripyview`. A small pytest smoke suite (box masks, shapefile masks, chunk defaults, an image check of plot layering) would have caught #25-29 and the four zorder layering bugs.
-- **Dependency check:** `setup.py` lists `libnetcdf`, which on PyPI is only a 0.0.1 placeholder, not the netCDF C library (that comes from conda).
+- **Tests:** CI only runs `import tripyview`. A small pytest smoke suite (box masks, shapefile masks, chunk defaults, an image check of plot layering, calc_zmoc vs calc_zmoc_dask) would have caught #25-29, #38 and the four zorder layering bugs.
+- **`calc_zmoc(..., do_onelem=True)` crashes** (pre-existing, unrelated to #38): `IndexError: index 1763 is out of bounds for axis 0 with size 48` in the vertex->element averaging, i.e. before the binning; identical with the code before and after #38. Nobody seems to use the element path; `calc_zmoc_dask` has no element option at all.
+- **Docker:** `Dockerfile` installs python=3.8 (README: 3.9-3.12), deferred since Docker is currently not used.

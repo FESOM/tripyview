@@ -23,6 +23,43 @@ from .sub_utility  import *
 from .sub_plot     import *
 import warnings
 
+
+#
+#
+#_______________________________________________________________________________
+def _zmoc_lat_bins(lat, dlat):
+    """
+    --> latitudinal bins for the zmoc binning, identical to the ones used by
+        calc_zmoc_dask: edges lat_bins = floor(min(lat)) + k*dlat up to
+        ceil(max(lat)), a point belongs to bin k if lat_bins[k] <= lat < lat_bins[k+1].
+        The bins tile the latitude range exactly (the former round(lat/dlat)*dlat
+        put the bin centres on multiples of dlat: 181 bins for 180 degree at
+        dlat=1 with half-width polar bins). A point sitting exactly on the last
+        edge is kept in the last bin instead of opening a bin beyond it.
+
+    Parameters:
+
+        :lat:       np.array, latitude of the vertices or elements
+
+        :dlat:      float, latitudinal bin width
+
+    Returns:
+
+        :lat_bins:  np.array, bin edges (nbin+1)
+
+        :lat_c:     np.array, bin centres (nbin)
+
+        :ilat:      np.array, bin index of every point
+
+    ____________________________________________________________________________
+    """
+    lat_bins = np.arange(np.floor(np.min(lat)), np.ceil(np.max(lat))+dlat*0.5, dlat)
+    lat_c    = 0.5*(lat_bins[:-1]+lat_bins[1:])
+    ilat     = np.clip(np.digitize(lat, lat_bins)-1, 0, lat_c.size-1)
+    return(lat_bins, lat_c, ilat)
+
+
+
 # ___CALCULATE MERIDIONAL OVERTURNING FROM VERTICAL VELOCITIES_________________
 #|                                                                             |
 #|                                                                             |
@@ -249,8 +286,10 @@ def calc_zmoc(mesh,
         
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
-        lat     = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
-        lat_bin = xr.DataArray(data=np.round(lat[idxin]/dlat)*dlat, dims='elem', name='lat')  
+        # (bins as in calc_zmoc_dask, labelled by their centre while binning)
+        lat_elem            = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+        lat_bins, lat, ilat = _zmoc_lat_bins(lat_elem[idxin], dlat)
+        lat_bin             = xr.DataArray(data=lat[ilat], dims='elem', name='lat')
         
     #___________________________________________________________________________
     # compute area weighted vertical velocities on vertices
@@ -298,8 +337,9 @@ def calc_zmoc(mesh,
         #print('  --> comp. area weighted mean', t3-t2)
         #_______________________________________________________________________
         # create meridional bins --> this trick is from Nils Brückemann (ICON)
-        lat_bin = xr.DataArray(data=np.round(data.lat/dlat)*dlat, dims='nod2', name='lat')
-        lat     = np.arange(lat_bin.data.min(), lat_bin.data.max()+dlat, dlat)
+        # (bins as in calc_zmoc_dask, labelled by their centre while binning)
+        lat_bins, lat, ilat = _zmoc_lat_bins(data.lat.data, dlat)
+        lat_bin             = xr.DataArray(data=lat[ilat], dims='nod2', name='lat')
         warnings.resetwarnings()
         #t4 = clock.time()
         #print('  --> comp. lat_bin', t4-t3)
@@ -393,9 +433,20 @@ def calc_zmoc(mesh,
     
     #___________________________________________________________________________
     # compute depth of max and nice bottom topography
-    if do_onelem: zmoc = calc_bottom_patch(zmoc, lat_bin, xr.DataArray(mesh.e_iz, dims=['elem']), idxin)        
+    if do_onelem: zmoc = calc_bottom_patch(zmoc, lat_bin, xr.DataArray(mesh.e_iz, dims=['elem']), idxin)
     else        : zmoc = calc_bottom_patch(zmoc, lat_bin, xr.DataArray(mesh.n_iz, dims=['nod2']), idxin)
-    
+
+    #___________________________________________________________________________
+    # zmoc[..., i] = -sum_{j>=i} T_j is the transport integrated from the
+    # *southern* edge of bin i up to the northern wall, so it belongs at
+    # lat_bins[i], not at the bin centre; append the northern wall itself
+    # (psi=0 there by definition) with the bottom patch of the last bin. Same
+    # latitude axis as calc_zmoc_dask. Done after calc_bottom_patch, which
+    # aligns its result on the bin centres.
+    wall         = zmoc.isel(lat=[-1]).assign_coords(lat=lat_bins[-1:])
+    wall['zmoc'] = xr.zeros_like(wall['zmoc'])
+    zmoc         = xr.concat([zmoc.assign_coords(lat=lat_bins[:-1]), wall], dim='lat')
+
     #___________________________________________________________________________
     if do_compute: zmoc = zmoc.compute()
     if do_load   : zmoc = zmoc.load()

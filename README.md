@@ -32,8 +32,10 @@ make sure your conda environment uses python 3.9, 3.10, 3.11 or 3.12
 #  gets one thread
 # -install libstdcxx-ng with conda since there is no pip package for it is needed
 #  so that pyvista is able to plot interactively
+# -libnetcdf (optional, conda only) brings the netcdf command line tools ncdump, 
+#  nccopy, ncgen, ... that are handy to inspect files, tripyview itself does not need them
 # -all other packages will be automatically installed by pip
-conda install -c conda-forge libstdcxx-ng
+conda install -c conda-forge libstdcxx-ng libnetcdf
 cd tripyview
 pip install -e .
 
