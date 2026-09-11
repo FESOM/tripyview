@@ -334,7 +334,7 @@ def plot_hslice(mesh                   ,
         
         ___chunking___________________________________
         
-        :chnksize:   int, (default:1e6), size of triangle plot chunks 
+        :chnksize:   int, (default:6.5e6), size of triangle plot chunks 
         
         ___set output_________________________________
 
@@ -534,7 +534,7 @@ def plot_hslice(mesh                   ,
             # specified in climcont_opt=dict({'levels':[0.15]})
             if isinstance(do_climcont, xr.Dataset):
                 cvname = list(do_climcont.keys())[0]
-                climcont_optdefault= dict({'colors':'k', 'linestyles':'dashed', 'linewidths':1.0, 'zorder':2})
+                climcont_optdefault= dict({'colors':'k', 'linestyles':'dashed', 'linewidths':1.0, 'zorder':56})
                 climcont_optdefault.update(climcont_opt)
                 hax_ii.contour(do_climcont.lon, do_climcont.lat, do_climcont[cvname], 
                               **climcont_optdefault) #transform=ccrs.PlateCarree()
@@ -873,7 +873,7 @@ def plot_hmesh( mesh                   ,
 
         ___chunking___________________________________
         
-        :chnksize:   int, (default:1e6), size of triangle plot chunks 
+        :chnksize:   int, (default:3e6), size of triangle plot chunks 
         
         ___set output_________________________________
 
@@ -1333,7 +1333,7 @@ def plot_hquiver(mesh                  ,
          
         ___chunking___________________________________
         
-        :chnksize:   int, (default:1e6), size of triangle plot chunks 
+        :chnksize:   int, (default:3e6), size of triangle plot chunks 
         
         ___set output_________________________________
 
@@ -1963,7 +1963,7 @@ def plot_vslice(mesh                   ,
             # set superior title
             boxl_optdefault = dict({'x':0.99, 'y':0.99, 's':'', \
                                     'fontsize':12, 'fontweight':'bold', 'transform':hax_ii.transAxes,\
-                                    'horizontalalignment':'right', 'verticalalignment':'top', 'zorder':5})                
+                                    'horizontalalignment':'right', 'verticalalignment':'top', 'zorder':102})
             # print transect labels
             if  box_idx is not None:
                 vname     = list(data[ii][box_idx].keys())[0]
@@ -3492,7 +3492,6 @@ def do_projection(mesh, proj, box):
                                               np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
     
     
-        print(proj, box)
     #___Vertical "Projection"___________________________________________________
     elif  proj == 'index+depth+xy'   : proj_to = 'index+depth+xy'
     elif  proj == 'index+depth+time' : proj_to = 'index+depth+time'
@@ -3891,7 +3890,10 @@ def do_axes_arrange(nx, ny,
         :cb_plt_idx:    list that contains index of independent colorbars
     
     ____________________________________________________________________________
-    """        
+    """
+    # ax_opt entries that are not parameters here end up in kwargs and would
+    # otherwise be dropped silently (stacklevel=3: point at the user's plot_* call)
+    if len(kwargs)>0: warnings.warn(f" --> unknown ax_opt option(s) {sorted(kwargs)} are ignored, check for typos", stacklevel=3)
     #___________________________________________________________________________
     # factor to convert cm into inch
     cm2inch = 0.3937
@@ -4303,7 +4305,6 @@ def do_axes_arrange(nx, ny,
                 if hcb[nn] != 0:
                     
                     auxidx = np.where(cb_plt_idx[nn]==cb_plt_idx)[0]
-                    print(auxidx)
                     
                     #_______________________________________________________________________
                     # case of vertical colorbar
@@ -4728,7 +4729,6 @@ def do_data_norm(cinfo, do_rescale):
                 which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
                 
         elif do_rescale =='slog10':    
-                print(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])))
                 which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
                                                 linscale=1.0, 
                                                 vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
@@ -4741,6 +4741,29 @@ def do_data_norm(cinfo, do_rescale):
         #which_norm = mcolors.NoNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][ -1], clip=False)
     #___________________________________________________________________________
     return(which_norm)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_progressive_draw():
+    """
+    --> is the figure drawn on a backend that shows it while it is still being
+        filled chunk by chunk? Only there does redrawing the canvas after every
+        plotted chunk buy anything. On 'agg' or the jupyter 'inline' backend
+        (papermill, tripyrun) canvas.draw_idle() is a full synchronous redraw of
+        the complete figure per chunk and pure overhead -- with many chunks that
+        dominates the plotting time.
+
+    Returns:
+
+        :bool:      True for interactive/GUI-like backends
+
+    ____________________________________________________________________________
+    """
+    bcknd = matplotlib.get_backend().lower()
+    return any(gui in bcknd for gui in ['qt', 'tk', 'gtk', 'wx', 'macosx', 'nbagg', 'webagg', 'ipympl'])
 
 
 
@@ -4842,7 +4865,7 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
             h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe,:], data_plot[idxs1: idxe1],
                                 cmap=cinfo_plot['cmap'], norm = which_norm_plot,
                                 **cminmax, **plt_optdefault)
-            if nchnk>1:
+            if nchnk>1 and do_progressive_draw():
                 hfig.canvas.draw_idle()     # Updates only changed parts
                 hfig.canvas.flush_events()  # Ensures interactive update
         print('')    
@@ -4851,15 +4874,15 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
         
     #___________________________________________________________________________
     # plot tricontour 
-    elif do_plt in ['tcf','cf']: 
-        plt_optdefault = dict({'zorder':-5})
+    elif do_plt in ['tcf','cf']:
+        plt_optdefault = dict({'zorder':50})
         plt_optdefault.update(plt_opt)
-    
+
         # supress warning message when compared with nan
         with np.errstate(invalid='ignore'):
             data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
             data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
-                
+
         h0 = hax_ii.tricontourf(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                 norm=which_norm_plot, **plt_optdefault) 
@@ -4872,7 +4895,7 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
     # overlay background contour lines, very thin lines 
     if plt_contb and tri.x.size==data_plot.size:
         t1 = clock.time()
-        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
+        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':55})
         pltcb_optdefault.update(pltcb_opt)
         h0cb = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], **pltcb_optdefault) 
@@ -4881,14 +4904,14 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
     # overlay foreground contour lines, of colorbar steps thicker line 
     if plt_contf and tri.x.size==data_plot.size:
         t1 = clock.time()
-        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
+        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':56})
         pltcf_optdefault.update(pltcf_opt)
         h0cf = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clab'], **pltcf_optdefault) 
         
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             h0cft = hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
         if do_info: print(' --> plt contf: {:f}'.format(clock.time()-t1))    
@@ -4897,14 +4920,14 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
     # overlay reference contour lines, of colorbar reference center value
     if plt_contr and tri.x.size==data_plot.size:
         t1 = clock.time()
-        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
         pltcr_optdefault.update(pltcr_opt)
         h0cr = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=[cinfo_plot['cref']], **pltcr_optdefault) 
         
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             h0crt= hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
         if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
@@ -4913,14 +4936,14 @@ def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plo
     # overlay contour lines  of specific value
     if isinstance(plt_contval,list) and tri.x.size==data_plot.size:
         t1 = clock.time()
-        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
         pltcval_optdefault.update(pltcval_opt)
         h0cv = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=plt_contval, **pltcval_optdefault) 
         
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             h0cvt= hax_ii.clabel(h0cv, h0cv.levels, **pltcl_optdefault)
         if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
@@ -5005,7 +5028,6 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         # plt_optdefault = dict({'shading':'nearest', 'zorder':1})
         plt_optdefault = dict({'shading':'flat', 'zorder':50})
         plt_optdefault.update(plt_opt)
-        print(plt_optdefault)
         if 'shading' in plt_optdefault:
             if plt_optdefault['shading']=='flat' and data_x.size==data_plot.shape[1]: 
                 # data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
@@ -5031,15 +5053,15 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         
     #___________________________________________________________________________
     # plot contourf 
-    elif do_plt in ['tcf','cf']: 
-        plt_optdefault = dict({'zorder':1})
+    elif do_plt in ['tcf','cf']:
+        plt_optdefault = dict({'zorder':50})
         plt_optdefault.update(plt_opt)
-    
+
         # supress warning message when compared with nan
         with np.errstate(invalid='ignore'):
             data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
             data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
-                
+
         h0 = hax_ii.contourf(data_x, data_y, data_plot,
                                 levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                 norm=which_norm_plot, transform=which_transf, **plt_optdefault) 
@@ -5061,7 +5083,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     # overlay background contour lines, very thin lines 
     if plt_contb:
         t1 = clock.time()
-        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
+        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':55})
         pltcb_optdefault.update(pltcb_opt)
         h0cb = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=cinfo_plot['clevel'], transform=which_transf, **pltcb_optdefault) 
@@ -5071,7 +5093,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     # overlay foreground contour lines, of colorbar steps thicker line 
     if plt_contf:   
         t1 = clock.time()
-        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
+        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':56})
         pltcf_optdefault.update(pltcf_opt)
         #print(data_x.shape)
         #print(data_y.shape)
@@ -5082,7 +5104,7 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
                                 levels=cinfo_plot['clab'], transform=which_transf, **pltcf_optdefault) 
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
         if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
@@ -5090,13 +5112,13 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     # overlay reference contour lines, of colorbar reference center value
     if plt_contr:  
         t1 = clock.time()
-        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
         pltcr_optdefault.update(pltcr_opt)
         h0cr = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=[cinfo_plot['cref']], transform=which_transf, **pltcr_optdefault) 
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
         if do_info: print(' --> plt contr: {:f}'.format(clock.time()-t1))    
@@ -5105,13 +5127,13 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     # overlay re contour lines  of specific value
     if isinstance(plt_contval,list):
         t1 = clock.time()
-        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
         pltcval_optdefault.update(pltcval_opt)
         h0cv = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=plt_contval, transform=which_transf, **pltcval_optdefault) 
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             hax_ii.clabel(h0cv, h0cv.levels, **pltcl_optdefault)
         if do_info: print(' --> plt contr: {:f}'.format(clock.time()-t1))    
@@ -5328,7 +5350,7 @@ def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
             h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
             
             # Force update & clear cache
-            if nchnk>1:
+            if nchnk>1 and do_progressive_draw():
                 hfig.canvas.draw_idle()   # Updates only changed parts
                 hfig.canvas.flush_events()  # Ensures interactive update
         
@@ -5544,7 +5566,7 @@ def do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_pl
             h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
 
             # Force update & clear cache
-            if nchnk>1:
+            if nchnk>1 and do_progressive_draw():
                 hfig.canvas.draw_idle()   # Updates only changed parts
                 hfig.canvas.flush_events()  # Ensures interactive update
 
@@ -5936,7 +5958,7 @@ def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_pl
                 idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
                 print('{:d}|'.format(chnki), end='')
                 h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe, :], np.ones((idxe-idxs)), **bot_optdefault)
-                if nchnk>1:
+                if nchnk>1 and do_progressive_draw():
                     hfig.canvas.draw_idle()     # Updates only changed parts
                     hfig.canvas.flush_events()  # Ensures interactive update
             print('')
@@ -6092,7 +6114,7 @@ def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6, do_in
             print('{:d}|'.format(chnki), end='')
 
             h0 = hax_ii.triplot(tri.x, tri.y, auxtriangles[idxs:idxe,:], **mesh_optdefault)
-            if nchnk>1:
+            if nchnk>1 and do_progressive_draw():
                 hfig.canvas.draw_idle()     # Updates only changed parts
                 hfig.canvas.flush_events()  # Ensures interactive update
         print('')    
@@ -6158,7 +6180,9 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', 
         
     elif do_lsm=='stock':  
         h01=hax_ii.stock_img()
-        lsm_optdefault.update({'facecolor':'None'})
+        # coastline outline only (facecolor='None') sits over a background image/data,
+        # not under it like the filled fesom land mask -- lift it above the data layer
+        lsm_optdefault.update({'facecolor':'None', 'zorder':101})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]    
         if do_info: print(' --> plt lsmask stock: {:f}'.format(clock.time()-t1))
@@ -6168,7 +6192,9 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', 
         # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
         os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
         h01=hax_ii.background_img(name=do_lsm, resolution=resolution)
-        lsm_optdefault.update({'facecolor':'None'})
+        # coastline outline only (facecolor='None') sits over a background image/data,
+        # not under it like the filled fesom land mask -- lift it above the data layer
+        lsm_optdefault.update({'facecolor':'None', 'zorder':101})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]  
         if do_info: print(' --> plt lsmask bluemarble: {:f}'.format(clock.time()-t1))
@@ -6178,7 +6204,9 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', 
         # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
         os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
         h01=hax_ii.background_img(name=do_lsm, resolution=resolution)    
-        lsm_optdefault.update({'facecolor':'None'})
+        # coastline outline only (facecolor='None') sits over a background image/data,
+        # not under it like the filled fesom land mask -- lift it above the data layer
+        lsm_optdefault.update({'facecolor':'None', 'zorder':101})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]
         if do_info: print(' --> plt lsmask etopo: {:f}'.format(clock.time()-t1))    
@@ -6277,17 +6305,27 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             grid_optdefault.update(grid_opt)
             #___________________________________________________________________
             h0=hax_ii.gridlines(**grid_optdefault )
+            # cartopy's Gridliner hardcodes its own artist zorder to 2 in __init__
+            # (independent of the zorder we pass above, which only reaches the
+            # internal line-collection styling) -- override it explicitly so the
+            # gridlines actually render on top of the data/mesh as intended
+            h0.set_zorder(grid_optdefault['zorder'])
             if hax_ii.do_ylabel: h0.left_labels   = True
             if hax_ii.do_xlabel: h0.bottom_labels = True
-            
+
         #_______________________________________________________________________
         elif isinstance(hax_ii.projection, ccrs.CRS):
             #___________________________________________________________________
             grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':101})
             grid_optdefault.update(grid_opt)
-            
+
             #___________________________________________________________________
             h0=hax_ii.gridlines(**grid_optdefault )
+            # cartopy's Gridliner hardcodes its own artist zorder to 2 in __init__
+            # (independent of the zorder we pass above, which only reaches the
+            # internal line-collection styling) -- override it explicitly so the
+            # gridlines actually render on top of the data/mesh as intended
+            h0.set_zorder(grid_optdefault['zorder'])
             
             # ensure circular boundary for stereographic projection
             if isinstance(hax_ii.projection, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
@@ -6494,10 +6532,18 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                     if do_yinv: hax_ii.invert_yaxis()
             
             #___________________________________________________________________
-            # set grid options 
+            # set grid options
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
             hax_ii.grid(True,which='major')
             hax_ii.grid(**grid_optdefault)
+            # matplotlib's axisbelow ('line' by default) sets the parent Axis
+            # container's own zorder (1.5) -- this governs where gridlines actually
+            # draw and silently overrides the zorder passed above on the individual
+            # gridline Line2D artists, so the data (zorder ~50) still ends up on top.
+            # Disable it and lift the Axis container itself above the data.
+            hax_ii.set_axisbelow(False)
+            hax_ii.xaxis.set_zorder(grid_optdefault['zorder'])
+            hax_ii.yaxis.set_zorder(grid_optdefault['zorder'])
         
         if do_info: print(' --> plt gridlines: {:f}'.format(clock.time()-t1))
     #___________________________________________________________________________
@@ -6902,7 +6948,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 else:    
                     cmin = np.min([cmin,np.nanmin(data_plot) ])
                     cmax = np.max([cmax,np.nanmax(data_plot) ])
-                    print('cmin, cmax = ', cmin, cmax)
             
             #___________________________________________________________________
             # Consider unstructured griddet data --> tri is not None
@@ -7051,7 +7096,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
             cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
             cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
-            print(cdmin,cdmax,cdref)
             
             #compute levels in decimal units
             cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
@@ -7089,7 +7133,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         rescal_ref=None
         if any(do_rescale==0.0) and do_rescale[0]!=0.0 and cinfo['cref']==0.0: rescal_ref=cinfo['cref']
         nrscal = len(do_rescale)-1
-        print(do_rescale, rescal_ref)
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(0, nrscal, np.int16(nrscal/2), nrscal, cinfo['cstr'], 
                                                                    cstep=1 ,do_slog=False, do_rescal=do_rescale, rescal_ref=rescal_ref)
         cinfo['clevel'] = do_rescale
@@ -7136,7 +7179,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         cinfo['clab'] = cinfo['clevel'][idx_yes]
         del(idx_not, idx_yes, idx, idxb, idx_cref)
     #___________________________________________________________________________
-    print(cinfo)
     return(cinfo)    
 
 

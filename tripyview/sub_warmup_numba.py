@@ -24,7 +24,6 @@ def warmup_compute_x_nghbr_x():
 
     # Dummy triangle mesh with shape (1,3)
     # Must be int32 and C-contiguous
-    print(" -> Warming up Numba neighborhood connectivity")
     dummy_e = np.ascontiguousarray(
         np.array([[0, 1, 2]], dtype=np.int32)
     )
@@ -54,7 +53,6 @@ def warmup_compute_x_nghbr_x():
 
 
 def warmup_grid_kernels():
-    print(" -> Warming up Numba grid kernel")
     rmat = njit_grid_rotmat(30., 40., 50.)
     x,y,z = njit_grid_cart3d(np.array([0.1]), np.array([0.2]), 1.0)
 
@@ -68,7 +66,6 @@ def warmup_grid_kernels():
 
  
 def warmup_vec_r2g_kernels():
-    print(" -> Warming up Numba kernels for vec_r2g")
 
     # ---------------------------------------------------------
     # 1. create small dummy inputs
@@ -134,7 +131,6 @@ def warmup_lsmask():
 
     Only compiles kernels; does not compute real polygons.
     """
-    print(" -> Warming up Numba lsmask compute")
     n2dn = 6
 
     # Node coordinates (simple 2x3 grid)
@@ -175,7 +171,6 @@ def warmup_lsmask():
 
 
 def warmup_smoothing_kernels():
-    print(" -> Warming up Numba smoothers")
 
     # Tiny dummy node setup
     n2dn = 5
@@ -225,6 +220,8 @@ def warmup_smoothing_kernels():
 # numba's on-disk cache=True already makes their first real call fast, so
 # re-running this in every one of a cluster's workers is pure log noise)
 if not _running_in_dask_worker():
+    import time as _time
+    _t0 = _time.time()
     warmup_compute_x_nghbr_x()
 
     try:
@@ -246,3 +243,7 @@ if not _running_in_dask_worker():
         warmup_smoothing_kernels()
     except Exception as e:
         print("Warning: smoothing kernel warmup failed:", e)
+
+    # silent when numba's on-disk cache is hit, only explain a slow (compiling) import
+    if _time.time()-_t0 > 5.0:
+        print(' -> compiled tripyview numba kernels in {:.0f} s (cached for the next imports)'.format(_time.time()-_t0))

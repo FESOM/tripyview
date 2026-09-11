@@ -245,7 +245,6 @@ def create_3dsphere_land_mesh(mesh, resol=1, potatoefac=1, do_topo=False, topo_p
     # add land topography data to pyvista mesh object
     if do_topo: 
         meshpv_land['topo'] = bottom_depth_2d
-        print(bottom_depth_2d.shape)
         del bottom_depth_2d
     
     #___________________________________________________________________________

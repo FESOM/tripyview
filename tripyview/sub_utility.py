@@ -7,7 +7,14 @@ import numpy  as np
 from   numba import jit, njit, prange
 import shapefile as shp
 from   shapely.geometry   import Point, Polygon, MultiPolygon, shape
-from   shapely.vectorized import contains
+try:
+    # shapely>=2: same as the deprecated shapely.vectorized.contains, without using it
+    from shapely import contains_xy as _contains_xy, prepare as _prepare
+    def contains(geometry, x, y):
+        _prepare(geometry)
+        return _contains_xy(geometry, x, y)
+except ImportError:
+    from shapely.vectorized import contains
 import shapefile as shp
 from   scipy.interpolate        import interp1d
 import json
@@ -395,6 +402,27 @@ def calc_basindomain_fast(mesh,
 #
 #
 #_______________________________________________________________________________
+def shp_shape_to_geom(shp_shape):
+    """
+    --> convert a pyshp shape into a shapely geometry, keeping all its parts
+        (Polygon(shp_shape.points) would join multi-part shapes into a single
+        self-intersecting ring and ignore holes)
+
+    Parameters:
+
+        :shp_shape: pyshp shape object, e.g. an element of shp.Reader(...).shapes()
+
+    Returns:
+
+        :geom:      shapely Polygon or MultiPolygon
+
+    ____________________________________________________________________________
+    """
+    from shapely.geometry import shape as shapely_shape
+    return shapely_shape(shp_shape.__geo_interface__)
+
+
+
 def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
     #___________________________________________________________________________
     if (mesh_x is None) and (mesh_y is None) :
@@ -415,7 +443,8 @@ def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
-    if  box == None or box == 'global': # if None do global
+    # (identity/type checks: box may be an ndarray, where == is elementwise)
+    if  box is None or (isinstance(box, str) and box == 'global'): # if None do global
         idx_IN = np.ones((mesh_x.shape),dtype=bool)
         
     elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
@@ -445,20 +474,20 @@ def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
             idx_IN = contains(box, mesh_x, mesh_y)
                 
         elif isinstance(box, MultiPolygon):
-            idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
-            for p in box:
+            idx_IN = np.zeros((mesh_x.size,), dtype=bool)
+            for p in box.geoms: # shapely>=2: MultiPolygon itself is not iterable
                 auxidx = contains(p, mesh_x, mesh_y)
                 idx_IN = np.logical_or(idx_IN, auxidx)
-        
+
     elif (isinstance(box, shp.Reader)):
         #if (mesh_x is None) and (mesh_y is None) :
             #if do_elem: idx_IN = np.zeros((mesh.n2de,), dtype=bool)
             #else      : idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
         #else:
         idx_IN = np.zeros((mesh_x.size,), dtype=bool)
-            
-        for shape in box.shapes(): 
-            p      = Polygon(shape.points)
+
+        for shp_shape in box.shapes():
+            p      = shp_shape_to_geom(shp_shape)
             auxidx = contains(p, mesh_x, mesh_y)
             idx_IN = np.logical_or(idx_IN, auxidx)
     # otherwise
@@ -477,7 +506,8 @@ def do_boxmask_dask(lon, lat, ispbnd, box):
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
-    if  box == None or box == 'global': # if None do global
+    # (identity/type checks: box may be an ndarray, where == is elementwise)
+    if  box is None or (isinstance(box, str) and box == 'global'): # if None do global
         idxin = da.ones((lon.shape), dtype=bool)
         
     #___________________________________________________________________________    
@@ -518,8 +548,8 @@ def do_boxmask_dask(lon, lat, ispbnd, box):
     # index selection by shapefile 
     elif (isinstance(box, shp.Reader)):
         idxin = da.zeros((lon.shape), dtype=bool)
-        for shape in box.shapes(): 
-            p      = Polygon(shape.points)
+        for shp_shape in box.shapes():
+            p      = shp_shape_to_geom(shp_shape)
             idxin  = da.logical_or(idxin, contains(p, lon, lat))
     
     #___________________________________________________________________________    
@@ -729,12 +759,9 @@ def calc_ray_tracing_parallel(pts,poly,inside):
 #_______________________________________________________________________________
 import numpy as np
 import matplotlib.pyplot as plt
-from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox, Layout
-import ipywidgets as widgets
 from matplotlib.tri import Triangulation
 from matplotlib.patches import Rectangle
 from shapely.geometry   import Polygon, shape
-from shapely.vectorized import contains
 class select_scatterpts_depth(object):
     
     #
@@ -747,6 +774,13 @@ class select_scatterpts_depth(object):
         
         #_____________________________________________________________________________________________
         # init varaibles for selection
+        #_____________________________________________________________________________________________
+        # imported here and not at module level: ipywidgets costs ~0.4 s of every
+        # `import tripyview` (also in every papermill kernel) but is only needed
+        # by this interactive selection class
+        from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox, Layout
+        import ipywidgets as widgets
+
         self.xs, self.ys          = [], []
         self.vs, self.vs_new      = [], []
         self.idx_box              = 0

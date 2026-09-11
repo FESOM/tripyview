@@ -100,11 +100,11 @@ def load_mesh_fesom2(
                         for elements. Its the vertical level information before the exclusion
                         of elements that have three boundary nodes in the topography
 
-        :do_pickle:     bool, (default=True) store and load mesh from .pckl binary file, 
+        :do_pickle:     bool, (default=False) store and load mesh from .pckl binary file, 
                         pickle5 is just supported until < python3.9. If pickel library 
                         cant be  found it switches automatic to joblib
 
-        :do_joblib:     bool, (default=False) store and load mesh from .joblib binary file
+        :do_joblib:     bool, (default=True) store and load mesh from .joblib binary file
         
         :do_redosave:   bool, (default=False) enforce overwritting of existing mesh object files
 
@@ -197,7 +197,9 @@ def load_mesh_fesom2(
         elif ( do_joblib and ( os.path.isfile(loadjoblibpath) )):
             if do_info: print(' > load  *.jlib file: {}'.format(os.path.basename(loadjoblibpath)))
             mesh = joblib.load(loadjoblibpath)
-            
+        # the cached object carries the do_info of the call that created it
+        mesh.do_info = do_info
+
         do_pbndfind=False
         #_______________________________________________________________________
         # rotate mesh if its not done in .pckle file 
@@ -524,8 +526,9 @@ class mesh_fesom2(object):
                  do_lsmask=True, do_lsmshp=True, do_pickle=True, do_loadraw=True,
                  do_f14cmip6=False):
         if do_info: t0 = clock.time()
+        self.do_info            = do_info # also silences the compute_* methods
         #_______________________________________________________________________
-        # define meshpath and mesh id 
+        # define meshpath and mesh id
         self.path               = os.path.normpath(meshpath)
         self.cachepath          = 'None'
         self.id                 = os.path.basename(self.path)
@@ -1071,7 +1074,7 @@ ___________________________________________""".format(
         if len(self.e_area)==0:
             self.do_earea=True
             if os.path.isfile(os.path.join(self.path,'fesom.mesh.diag.nc')):
-                print(' > load e_area from fesom.mesh.diag.nc')
+                if getattr(self, 'do_info', True): print(' > load e_area from fesom.mesh.diag.nc')
                 #_______________________________________________________________
                 fid = Dataset(os.path.join(self.path,'fesom.mesh.diag.nc'),'r')
                 self.e_area = fid.variables['elem_area'][:]
@@ -1182,7 +1185,7 @@ ___________________________________________""".format(
                 self.e_resol = edge_len.min(axis=1)   
                 
             elif which == 'height':
-                print(" > comp. e_resol from triangle height")
+                if getattr(self, 'do_info', True): print(" > comp. e_resol from triangle height")
                 # semi-perimeter
                 s = edge_len.sum(axis=1) * 0.5
 
@@ -1236,7 +1239,7 @@ ___________________________________________""".format(
             # load FESOM2 mesh
             if not self.do_f14cmip6:
                 if os.path.isfile(os.path.join(self.path,'fesom.mesh.diag.nc')):
-                    print(' > load n_area from fesom.mesh.diag.nc')
+                    if getattr(self, 'do_info', True): print(' > load n_area from fesom.mesh.diag.nc')
                     #_______________________________________________________________
                     fid = Dataset(os.path.join(self.path,'fesom.mesh.diag.nc'),'r')
                     self.n_area = fid.variables['nod_area'][:,:]
@@ -1268,7 +1271,7 @@ ___________________________________________""".format(
             # load FESOM1.4 mesh
             else:
                 if os.path.isfile(os.path.join(self.path,'griddes.nc')):
-                    print(' > load n_area from griddes.nc')
+                    if getattr(self, 'do_info', True): print(' > load n_area from griddes.nc')
                     #_______________________________________________________________
                     fid = Dataset(os.path.join(self.path,'griddes.nc'),'r')
                     self.n_area = fid.variables['cell_area'][:]
@@ -1278,18 +1281,14 @@ ___________________________________________""".format(
                     self.compute_e_area()
                     
                     #_______________________________________________________________
-                    e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
-                    
-                    #_______________________________________________________________
-                    # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                    # over for i in range(3): ,for j in range(self.n2de):
-                    self.n_area = np.zeros((self.n2dn))
-                    count_e = 0
-                    for idx in self.e_i.flat:
-                        self.n_area[idx] = self.n_area[idx] + e_area_x3[count_e]
-                        count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                    self.n_area = self.n_area/3.0
-                    del e_area_x3, count_e
+                    # scatter-add: every vertex collects 1/3 of the area of each
+                    # triangle it belongs to. np.bincount does this in one C pass.
+                    # (self.n_area[self.e_i.ravel()] += ... can NOT be used here:
+                    #  fancy-index assignment is buffered, so for the ~6 triangles
+                    #  sharing a vertex only the last one would survive)
+                    self.n_area = np.bincount(self.e_i.ravel(),
+                                              weights   = np.repeat(self.e_area, 3),
+                                              minlength = self.n2dn)/3.0
                 self.n_area = np.ascontiguousarray(self.n_area)    
         #_______________________________________________________________________
         return(self)
@@ -1325,7 +1324,7 @@ ___________________________________________""".format(
                 
                 #_______________________________________________________________
                 self.compute_n_area()
-                print(' > comp n_resol from 2*sqrt(n_area/pi)')
+                if getattr(self, 'do_info', True): print(' > comp n_resol from 2*sqrt(n_area/pi)')
                 #_______________________________________________________________
                 # You assign a single horizontal resolution length 
                 # L such that:
@@ -1343,7 +1342,7 @@ ___________________________________________""".format(
             # compute vertices resolution based on interpolation from resolution
             # of elements    
             elif any(x in which for x in ['e_resol','eresol']):
-                print(' > comp n_resol from e2n interpolation of e_resol')
+                if getattr(self, 'do_info', True): print(' > comp n_resol from e2n interpolation of e_resol')
                 #_______________________________________________________________
                 self.compute_e_area()
                 self.compute_e_resol()
@@ -1370,7 +1369,7 @@ ___________________________________________""".format(
         periodic boundary based on boundary edges that contribute only to one triangle 
         and then checking which edges can be consequtive connected                                                   |
         """
-        print(" > compute lsmask fast")
+        if getattr(self, 'do_info', True): print(" > compute lsmask fast")
         self.do_lsmask = True
         
         # compute boundary edges (already fast)
@@ -1424,7 +1423,7 @@ ___________________________________________""".format(
         --> part of fesom mesh class, compute periodic boundary augmentation of 
             land-sea mask contourline 
         """
-        print(" > augment lsmask")
+        if getattr(self, 'do_info', True): print(" > augment lsmask")
         cyclic = self.cyclic
         half_cyclic =  cyclic * 0.5
         xmin   = np.floor(self.n_x.min())

@@ -209,6 +209,11 @@ subset of one specific driver driver from .yml file
 render the html file from hand based on the saved json file. The json file is update after each finished
 driver section.
 
+If a template notebook fails, tripyrun keeps going with the remaining diagnostics, lists the failed 
+notebooks at the end (their traceback is stored in the executed notebook) and exits with status 1, 
+so a batch job does not look successful. The notebooks are executed with the jupyter kernel `python3`; 
+set `TRIPYVIEW_KERNEL=<kernelname>` to use a different kernel (e.g. the one of your conda environment).
+
 <p align="center" width="100%">
   <img width=75% src="docs/images/tripyview_tripyrun.png">
 </p>

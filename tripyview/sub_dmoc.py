@@ -1,6 +1,7 @@
 import numpy as np
 import time as clock
 import os
+import warnings
 import xarray as xr
 import matplotlib
 matplotlib.rcParams['contour.negative_linestyle']= 'solid'
@@ -136,9 +137,10 @@ def load_dmoc_data(mesh                           ,
         
     ____________________________________________________________________________
     """
-    
+    if len(kwargs)>0: warnings.warn(f" --> load_dmoc_data: unknown keyword argument(s) {sorted(kwargs)} are ignored, check for typos", stacklevel=2)
+
     #___________________________________________________________________________
-    # ensure that attributes are preserved  during operations with yarray 
+    # ensure that attributes are preserved  during operations with yarray
     xr.set_options(keep_attrs=True)
     which_combineattrs = 'override' # "no_conflicts"
     
@@ -680,7 +682,8 @@ def calc_dmoc(mesh,
     
     ____________________________________________________________________________
     """
-    
+    if len(kwargs)>0: warnings.warn(f" --> calc_dmoc: unknown keyword argument(s) {sorted(kwargs)} are ignored, check for typos", stacklevel=2)
+
     # rescue global dataset attributes
     gattr = data_dMOC.attrs
     
@@ -953,7 +956,7 @@ def calc_dmoc(mesh,
     if do_compute: dmoc = dmoc.compute()
     if do_load   : dmoc = dmoc.load()
     if do_persist: dmoc = dmoc.persist()
-    print(dmoc)
+    if do_info   : print(dmoc)
     #___________________________________________________________________________
     return(dmoc)
 
@@ -1069,6 +1072,7 @@ def calc_dmoc_dask( mesh                          ,
     
     ____________________________________________________________________________
     """
+    if len(kwargs)>0: warnings.warn(f" --> calc_dmoc_dask: unknown keyword argument(s) {sorted(kwargs)} are ignored, check for typos", stacklevel=2)
     if data is None: return(None)
 
     # rescue global dataset attributes

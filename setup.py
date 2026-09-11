@@ -95,9 +95,22 @@ setup(
     include_package_data=True,
     keywords='tripyview',
     name='tripyview',
-    packages=['tripyview'],
-    package_dir={'tripyview': 'tripyview'},
-    #package_data={'': ['*.shp',]},
+    # the notebook/html templates live at the repo root, map them into the
+    # installed package so that non-editable installs (e.g. the Dockerfile's
+    # `pip install .`) ship them too
+    packages=['tripyview', 'tripyview.templates_notebooks', 'tripyview.templates_html'],
+    package_dir={'tripyview'                    : 'tripyview',
+                 'tripyview.templates_notebooks': 'templates_notebooks',
+                 'tripyview.templates_html'     : 'templates_html'},
+    # only shapefile components one directory level deep (shapefiles/<category>/<name>.*),
+    # which matches the repository layout and keeps large local-only data out of builds
+    package_data={'tripyview'                    : ['shapefiles/*.geojson',
+                                                    'shapefiles/*/*.shp', 'shapefiles/*/*.shx',
+                                                    'shapefiles/*/*.dbf', 'shapefiles/*/*.prj',
+                                                    'shapefiles/*/*.cpg', 'shapefiles/*/*.cst',
+                                                    'backgrounds/*'],
+                  'tripyview.templates_notebooks': ['template_*.ipynb'],
+                  'tripyview.templates_html'     : ['*.html', '*.png']},
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,

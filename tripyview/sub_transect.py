@@ -2089,7 +2089,7 @@ def load_zmeantransect_fesom2(mesh                  ,
     
     
     for box in box_list:
-        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+        if not isinstance(box, shp.Reader) and not (isinstance(box, str) and box=='global') and box is not None:
             if len(box)==2: boxname, box = box[1], box[0]
         
         #_______________________________________________________________________
@@ -2374,7 +2374,7 @@ def calc_transect_zm_mean_dask(mesh                   ,
         dimn_v  = 'nz1'
     
     for box in box_list:
-        if not isinstance(box, shp.Reader) and not box =='global' and not box==None :
+        if not isinstance(box, shp.Reader) and not (isinstance(box, str) and box=='global') and box is not None:
             if   len(box)==2: boxname, box = box[1], box[0]
             elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])
             
@@ -2491,7 +2491,7 @@ def calc_transect_zm_mean_dask(mesh                   ,
         # create zonal/meridional bins
         lonlat_min    = float(np.floor(data_zm[do_lonlat].min().compute()))
         lonlat_max    = float(np.ceil( data_zm[do_lonlat].max().compute()))
-        print('lonlat_min,lonlat_max=',lonlat_min,lonlat_max)
+        if do_info: print(' --> lonlat_min, lonlat_max =',lonlat_min,lonlat_max)
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
         lonlat        = (lonlat_bins[:-1]+lonlat_bins[1:])*0.5
         nlonlat, nlev = len(lonlat_bins)-1, data_zm.sizes[dimn_v]

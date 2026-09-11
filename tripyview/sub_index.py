@@ -326,12 +326,13 @@ def plot_index_region(mesh, idx_IN, box_list, which='hard'):
             if   isinstance(box, Polygon): plt.plot(*box.exterior.xy,color='k', linewidth=1.0)
                 
             elif isinstance(box, MultiPolygon):
-                for p in box: plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
-        
+                for p in box.geoms: plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
+
         elif (isinstance(box, shp.Reader)):
-            for shape in box.shapes(): 
-                p      = Polygon(shape.points)
-                plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
+            for shp_shape in box.shapes():
+                geom = shp_shape_to_geom(shp_shape)
+                for p in getattr(geom, 'geoms', [geom]):
+                    plt.plot(*p.exterior.xy,color='k', linewidth=1.0)
         # otherwise
         else:
             raise ValueError('the given box information to compute the index has no valid format')

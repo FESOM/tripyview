@@ -429,3 +429,77 @@ Given the goal of promoting `workbench` to `main`, address in this order:
 4. Findings **20-24** (⚪ Low/cosmetic) — low priority, batch these into a cleanup pass.
 
 None of these require design changes — every fix above is a one-to-few-line correction. Suggest adding a regression test (or at minimum a manual `tripyrun` smoke-test run covering `dmoc`, `zhflx`, `hquiver`, `transect_mmean_clim`, and a fresh `-d/-v` invocation) once fixed, since the underlying reason these survived is that none of these specific code paths (non-default arguments, first-run CLI states, particular basin/mesh combinations) are covered by any existing test.
+
+---
+
+# Second pass — 2026-09-10 (usability / performance scan)
+
+Found during a repo-wide usability/performance scan. Each finding below was reproduced by running it (not just by reading) and re-tested after the fix on the `core2_pool` mesh / the `dvd_core2_tke+idemix_GM1000_01` run.
+
+### 25. `setup.py` — non-editable installs ship no templates, shapefiles or backgrounds 🟠 — ✅ FIXED
+
+`packages=['tripyview']` with no `package_data` meant `pip install .` (what the `Dockerfile` runs) installed only the `.py` files: no `templates_notebooks/`, `templates_html/` (both live at the repo root), `tripyview/shapefiles/` or `tripyview/backgrounds/`. `tripyrun` could not find its templates and every region-mask diagnostic would fail. Only `pip install -e .` worked.
+
+**Applied:** `setup.py` maps the two template directories into the package (`tripyview.templates_notebooks`, `tripyview.templates_html`) and adds `package_data` for shapefile components one level deep (`shapefiles/<category>/<name>.*`, which keeps ~150 MB of untracked local data such as `shapefiles/marineregions.org/` out of builds) and `backgrounds/*`. Template paths are now resolved once in `sub_tripyrundriver.py`: in-package when installed, repo root for an editable checkout (unchanged behaviour); the duplicate definition in `sub_tripyrun.py` was removed. The default `Results/` folder stays in the repo for a dev checkout and becomes the current working directory for an installed package (instead of writing into `site-packages`). Verified with a non-editable install into a scratch target and with the existing `egg-link` checkout.
+
+### 26. `sub_utility.py` `do_boxmask` / `do_boxmask_dask` — `ndarray` polygon boxes crash 🟡 — ✅ FIXED
+
+`if box == None or box == 'global'` is elementwise for an `np.ndarray` box, so the documented `[2 x npts]` polygon form (e.g. `[np.array(...), 'name']` in a `box_list`) raised `ValueError: The truth value of an array ... is ambiguous`. **Applied:** `box is None or (isinstance(box, str) and box == 'global')` in both functions; same type-safe check for the equivalent condition in `sub_transect.py` (`load_zmeantransect_fesom2`, `calc_transect_zm_mean_dask`).
+
+### 27. `sub_utility.py` `do_boxmask` — `MultiPolygon` boxes crash on Shapely ≥ 2 🟡 — ✅ FIXED
+
+`for p in box:` — a `MultiPolygon` is no longer iterable in Shapely 2 (installed: 2.0.7), and the mask was allocated with `mesh.n2dn` even for `do_elem=True`. **Applied:** `for p in box.geoms`, mask sized `mesh_x.size`. Same iteration fix in `sub_index.py` `plot_index_region`.
+
+### 28. Multi-part shapefiles turned into a single garbage polygon 🟡 — ✅ FIXED
+
+`Polygon(shape.points)` concatenates all parts (islands, disjoint pieces) of a shapefile shape into one self-intersecting ring and ignores holes. Affected 3 of 55 tracked shapefiles: `iho_def/Greenland_Sea` (1174 parts; old mask 883 nodes vs. correct 2024), `iho_def/Iceland_Sea` (769 vs 830), `iho_def/Norwegian_Sea` (2239 vs 2250). **Applied:** new helper `shp_shape_to_geom()` (`sub_utility.py`) builds the shapely geometry from the shape's `__geo_interface__`; used in `do_boxmask`, `do_boxmask_dask` and `plot_index_region`. The 52 single-part shapefiles give bit-identical masks to before; the 3 multi-part ones now match an independent geopandas reference exactly.
+
+### 29. `sub_data.py` `compute_optimal_chunks` — invalid default and unformatted error ⚪ — ✅ FIXED
+
+Default `opti_dim='hori'` is not a value the function accepts (it would raise when called with defaults and a client), the docstring listed options the code does not handle, and the error used `r'...'` instead of `f'...'` so `{opti_dim}` was never substituted. All existing callers pass `'h'`/`'v'`, so this was latent. **Applied:** default `'h'`, docstring lists the real options, f-string error naming the accepted values.
+
+## Robustness / usability fixes (same pass, 2026-09-10)
+
+### 30. `tripyrun` hid failed notebooks and exited 0 🟠 — ✅ FIXED
+
+`exec_papermill` (`sub_tripyrundriver.py`) caught every exception, printed one line, then still registered the (missing) figure in the html report, and `tripyrun` exited 0, so a SLURM job with failed diagnostics looked successful; on success it printed a misleading `Data found`. **Applied:** failures print the notebook path plus `ename: evalue` (full traceback stays in the executed notebook), are collected in `failed_notebooks`, and a failed notebook without a figure is no longer linked in the html. `tripyrun()` lists the failed notebooks at the end and returns 1, which the console script turns into exit status 1. Successful runs are registered exactly as before (5 templates do not write the standard `save_fname`, so file existence is only checked for failed runs). Verified with a real `tripyrun` run whose `hmesh` notebook fails.
+
+### 31. `tripyrun` resume JSON could be truncated by a killed job 🟡 — ✅ FIXED
+
+The `<tripyrun_name>.json` was written with `open(..., "w")`; a walltime kill during the write left a truncated file and the next resume crashed in `json.load`. **Applied:** write to `<file>.tmp`, then `os.replace` (atomic).
+
+### 32. Misspelled options were silently ignored 🟡 — ✅ FIXED
+
+`do_axes_arrange(**kwargs)` (receives every `ax_opt` dict) and `load_dmoc_data`, `calc_dmoc`, `calc_dmoc_dask` accepted `**kwargs` and never used them, so e.g. `ax_opt={'cb_poss': ...}` or `do_bolous=False` had no effect and no error. Real example found: old executed dmoc notebooks under `Results/` passed `exclude_meditoce=...` to `calc_dmoc`, which was dropped. **Applied:** a `UserWarning` naming the ignored option(s). Checked beforehand that no internal call, tracked template or local notebook passes an unknown key, so correct code stays silent.
+
+### 33. Debug output on every import / load / plot ⚪ — ✅ FIXED
+
+Removed leftover debug prints: repo path on every `import tripyview` (`sub_tripyrun.py`), `sel_levidx` and `ndimax=` on every depth-selecting `load_data_fesom2` call, `print(cinfo)` / `cmin, cmax =` / slog10 threshold / `print(plt_optdefault)` / `print(auxidx)` / `print(proj, box)` / log10 decimal limits in `sub_plot.py`, a shape print in `sub_3dsphere.py`. Gated on the existing `do_info`: `print(dmoc)` in `calc_dmoc`, lon/lat range in `calc_transect_zm_mean_dask`, and the eight `mesh_fesom2.compute_*` messages (now silent with `load_mesh_fesom2(..., do_info=False)`, also for cached meshes). The five numba warm-up lines on every import are gone; one line is printed only when the kernels actually had to be compiled (> 5 s). Kept on purpose: chunk progress counters, genuine warnings, `grid_interp_e2n` timing and the `vec_r2g_dask` message (deliberate info output without a `do_info` parameter).
+
+### 34. Smaller items ⚪ — ✅ FIXED
+
+- papermill kernel can be chosen with `TRIPYVIEW_KERNEL=<name>` (default stays `python3`); documented in the README together with the new exit-code behaviour.
+- `load_mesh_fesom2` docstring had the `do_pickle`/`do_joblib` defaults swapped; `chnksize` docstrings said `1e6` instead of `6.5e6` (`plot_hslice`) / `3e6` (`plot_hmesh`, `plot_hquiver`).
+- Removed the empty cookiecutter stub `tripyview/tripyview.py` (unreferenced).
+- `sub_utility.contains` now uses `shapely.contains_xy` (identical to the deprecated `shapely.vectorized.contains`, which it falls back to on shapely < 2); masks verified identical for all 55 tracked shapefiles.
+
+**Deliberately not changed:** `xr.set_options(keep_attrs=True)` at package import (many functions rely on attributes surviving arithmetic, e.g. labels and file names), and adding `__all__` to the modules (the `sub_*` modules pick up `np`, `xr`, `plt`, ... from each other via `import *`). Both would need a dedicated refactor with tests.
+
+## Performance fixes — 2026-09-11
+
+### 35. `compute_n_area` FESOM1.4 fallback: Python scatter-add loop → `np.bincount` — ✅ FIXED
+
+`sub_mesh.py` accumulated 1/3 of every triangle area onto its 3 vertices with a Python loop over `3 x n2de` `(element, corner)` pairs. Measured on core2 (244659 elements, 733977 pairs, ~5.8 triangles per vertex): loop 313 ms, `np.add.at` 62 ms, `np.bincount(idx, weights=..., minlength=n2dn)` 2.2 ms. The obvious `n_area[e_i.ravel()] += ...` is **not** an option: fancy-index assignment is buffered, so only the last of the ~6 triangles sharing a vertex survives — measured 16.2% of the correct total area, silently. **Applied:** `np.bincount`, verified bit-identical to the old loop (max abs diff 0.0) through the real fallback branch (`do_f14cmip6=True`, no `griddes.nc`): 372 ms -> 5.4 ms, i.e. 69x; total area 3.643543e+14 m^2 either way.
+
+### 36. Chunked plotting redrew the whole figure per chunk on non-interactive backends — ✅ FIXED
+
+`do_plt_data`, `do_plt_bot`, `do_plt_mesh` and the two quiver/streamline paths called `hfig.canvas.draw_idle()` + `flush_events()` after every plotted chunk. On a GUI backend that shows the figure filling up; on `agg` / jupyter `inline` (papermill, tripyrun) `draw_idle()` is a full synchronous redraw of the complete figure, so the cost grows with the chunk count. Measured (core2, robinson, Agg): 5 chunks 4.65 s (25% inside draw_idle), 13 chunks 6.12 s (41%), 49 chunks 12.08 s (70%). **Applied:** new helper `do_progressive_draw()` gates all 5 call sites on an interactive backend (qt/tk/gtk/wx/macosx/nbagg/webagg/ipympl -> yes; agg/inline/pdf/svg -> no). Runtime is now flat in the chunk count: 3.9/3.2/3.3/3.5 s for 1/5/13/49 chunks (3.4x at 49 chunks), and the rendered PNG is pixel-identical between 1 and 49 chunks.
+
+### 37. `pyvista`/`vtk` and `ipywidgets` imported eagerly at package import — ✅ FIXED
+
+Both were paid by every `import tripyview` — in each papermill kernel and each dask worker — although most runs never touch 3D rendering or the interactive point picker. **Applied:** `ipywidgets` is imported inside `select_scatterpts_depth.__init__` (its only user, all 18 uses), and `sub_3dsphere` is imported on first attribute access via a module-level `__getattr__` (PEP 562) in `__init__.py` instead of `from .sub_3dsphere import *`; `tpv.create_3dsphere_*(...)` keeps working unchanged, the import just happens at that moment and is cached. `importlib.import_module` is used there because `from . import sub_3dsphere` re-enters `__getattr__` and recurses. `TRIPYVIEW_WITHOUT_VTK=1` behaves as before. Import time 4.1 s -> ~3.1 s; `pyvista`/`vtk`/`ipywidgets` are no longer in `sys.modules` after a plain import. No package module imports `sub_3dsphere`, and nothing uses `from tripyview import *` (which module `__getattr__` would not serve).
+
+## Still open
+
+- **Tests:** CI only runs `import tripyview`. A small pytest smoke suite (box masks, shapefile masks, chunk defaults, an image check of plot layering) would have caught #25-29 and the four zorder layering bugs.
+- **Dependency check:** `setup.py` lists `libnetcdf`, which on PyPI is only a 0.0.1 placeholder, not the netCDF C library (that comes from conda).

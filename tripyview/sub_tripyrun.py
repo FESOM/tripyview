@@ -13,17 +13,12 @@ import time      as clock
 #except: pkg_path='.'    
 #sys.path.append(os.path.join(pkg_path,"src/"))
 from .sub_tripyrundriver import *
-from .sub_utility import _running_in_dask_worker
 
-#_______________________________________________________________________________       
+#_______________________________________________________________________________
 # open htnl template file
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
-#except: pkg_path='' 
-pkg_path          = os.path.dirname(os.path.dirname(__file__))
-templates_path    = os.path.join(pkg_path,'templates_html')
-templates_nb_path = os.path.join(pkg_path,'templates_notebooks')
-if not _running_in_dask_worker():
-    print(pkg_path)
+#except: pkg_path=''
+# pkg_path, templates_path, templates_nb_path, templates_installed come from sub_tripyrundriver
 
 #
 #
@@ -66,6 +61,7 @@ def render_experiment_html(webpages, yaml_settings):
 def tripyrun():
     ts = clock.time()
     print(" --> start time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
+    failed_notebooks.clear()
 
     # command line input arguments
     parser = argparse.ArgumentParser(prog='tripyrun', description='do FESOM tripyview diagnostics in command line')
@@ -152,7 +148,9 @@ def tripyrun():
         else:
             save_path = yaml_settings['save_path']
     else:
-        save_path = os.path.join(pkg_path, f"Results/{tripyrun_name}") 
+        # dev checkout: keep results in the repo; installed package: never write into site-packages
+        results_root = os.getcwd() if templates_installed else pkg_path
+        save_path = os.path.join(results_root, f"Results/{tripyrun_name}")
     save_path = os.path.expanduser(save_path)
     save_path = os.path.abspath(save_path)
 
@@ -328,8 +326,10 @@ def tripyrun():
                 webpages["analyses"][analysis_name] = webpage
             
             #___________________________________________________________________
-            # write linked analysis to .json file
-            with open(save_path_json, "w") as fp: json.dump(webpages, fp)
+            # write linked analysis to .json file -- via a temp file + atomic rename,
+            # so a job killed mid-write (e.g. walltime) cannot corrupt the resume file
+            with open(save_path_json+'.tmp', "w") as fp: json.dump(webpages, fp)
+            os.replace(save_path_json+'.tmp', save_path_json)
             
     #___________________________________________________________________________
     # save everything to .html and render it 
@@ -340,7 +340,15 @@ def tripyrun():
     #render_main_page()
     print(" --> end time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
     print(" --> elapsed time: {:2.2f} min.".format((clock.time()-ts)/60))
-    
+
+    #___________________________________________________________________________
+    # report failed notebooks and return a non-zero exit code for the console
+    # script (sys.exit(tripyrun())), so batch jobs are not reported as successful
+    if len(failed_notebooks)>0:
+        print(f"\n --> {len(failed_notebooks)} notebook(s) FAILED, see their stored traceback:")
+        for path_nb in failed_notebooks: print(f"     {path_nb}")
+        return 1
+
 #
 #
 #_______________________________________________________________________________

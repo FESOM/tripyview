@@ -29,11 +29,25 @@ from .sub_shortcut          import *
 from .sub_notebookheader    import *
 from .sub_warmup_numba      import *
 #from .sub_3dsphere          import *
-# Control VTK import with env var
+# Control VTK import with env var. sub_3dsphere pulls in pyvista+vtk (~0.5 s of
+# every `import tripyview`, also in every papermill kernel and dask worker), so
+# it is imported on first use instead: tripyview.create_3dsphere_ocean_mesh(...)
+# still works, the import just happens at that moment (PEP 562 module __getattr__)
 if os.environ.get("TRIPYVIEW_WITHOUT_VTK", "0") != "1":
-    try:
-        from .sub_3dsphere import *
-    except ImportError as e:
-        print("Warning: sub_3dsphere could not be imported:", e)
+    def __getattr__(name):
+        # only called for names that are not already in this module's namespace
+        if name.startswith('__'): raise AttributeError(name)
+        import importlib
+        try:
+            # import_module and not `from . import sub_3dsphere`: the latter asks
+            # the package for the attribute again and recurses into __getattr__
+            sub_3dsphere = importlib.import_module('.sub_3dsphere', __name__)
+        except ImportError as e:
+            raise ImportError(f"tripyview.{name} needs sub_3dsphere (pyvista/vtk), which could not "
+                              f"be imported: {e}. Set TRIPYVIEW_WITHOUT_VTK=1 to disable it.") from None
+        try   : value = getattr(sub_3dsphere, name)
+        except AttributeError: raise AttributeError(f"module 'tripyview' has no attribute '{name}'") from None
+        globals()[name] = value # cache, so __getattr__ is not consulted again
+        return value
 else:
     print("VTK-related functionality (sub_3dsphere) disabled via TRIPYVIEW_WITHOUT_VTK=1")

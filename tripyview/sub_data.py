@@ -1264,7 +1264,6 @@ def do_select_levidx(data, mesh, depth, depidx, dimn_v):
         return(data, str_ldep)
     else:
         ndimax  = data.sizes[dimn_v]
-        print('ndimax=',ndimax)
         #_______________________________________________________________________
         # found 3d data based on mid-depth levels (w, Kv,...) --> compute 
         # selection index
@@ -1294,7 +1293,6 @@ def do_select_levidx(data, mesh, depth, depidx, dimn_v):
 
     #___________________________________________________________________________
     # select depth index
-    print(sel_levidx)
     data = data.isel({dimn_v:sel_levidx})#.chunk({dimn_v:-1})
 
     #___________________________________________________________________________
@@ -2687,7 +2685,7 @@ def get_datachunk_dict(path, varname):
 #
 #
 #_______________________________________________________________________________
-def compute_optimal_chunks(path, client=None, varname=None, opti_dim='hori',
+def compute_optimal_chunks(path, client=None, varname=None, opti_dim='h',
                            opti_chunkfrac=0.06, dtype_bytes=4, min_horiz=8000,
                            do_info=True):
     
@@ -2705,8 +2703,9 @@ def compute_optimal_chunks(path, client=None, varname=None, opti_dim='hori',
         If given, use worker memory limits from Dask.
     varname : str or None
         Variable to base chunking on. If None, use first data_var.
-    opti_dim : {'hori','horiz','horizontal','vert','verti','vertical','time'}
-        Which dimension to optimize.
+    opti_dim : {'h', 'hv', 'v', 'vh', 't', 'off', None}
+        Which dimension to optimize: 'h' horizontal, 'v' vertical, 't' time,
+        'hv'/'vh' first the one then the other, 'off'/None keep stored chunks.
     opti_chunkfrac : float
         Fraction of worker memory to target for a single chunk.
     dtype_bytes : int
@@ -2854,7 +2853,7 @@ def compute_optimal_chunks(path, client=None, varname=None, opti_dim='hori',
         pass
     
     else:
-        raise ValueError(r' --> This optidim option {opti_dim} is not supported')
+        raise ValueError(f" --> This opti_dim option '{opti_dim}' is not supported, use one of 'h', 'hv', 'v', 'vh', 't', 'off', None")
         
     final_bytes = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
     if do_info:

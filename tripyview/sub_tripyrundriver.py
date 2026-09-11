@@ -7,12 +7,19 @@ import warnings
 #_______________________________________________________________________________       
 # open htnl template file
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
-#except: pkg_path='' 
-pkg_path          = os.path.dirname(os.path.dirname(__file__))
+#except: pkg_path=''
+# a normal (non-editable) install ships the templates inside the package (see
+# setup.py), an editable/development checkout keeps them at the repository root
+_pkg_dir            = os.path.dirname(os.path.abspath(__file__))
+templates_installed = os.path.isdir(os.path.join(_pkg_dir, 'templates_notebooks'))
+pkg_path          = _pkg_dir if templates_installed else os.path.dirname(_pkg_dir)
 templates_path    = os.path.join(pkg_path,'templates_html')
 templates_nb_path = os.path.join(pkg_path,'templates_notebooks')
 file_loader       = FileSystemLoader(templates_path)
 env               = Environment(loader=file_loader)
+
+# notebooks that raised during the current tripyrun call, summarised at its end
+failed_notebooks  = []
 
 
 
@@ -114,18 +121,28 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     
     #___________________________________________________________________________
     # execute notebook with papermill
+    path_nb = os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb)
+    failed  = False
     try:
         pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
-                            os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
+                            path_nb,
                             parameters=params_vname,
                             nest_asyncio=True,
-                            kernel_name="python3",)
-        print('Data found')
+                            kernel_name=os.environ.get("TRIPYVIEW_KERNEL", "python3"),)
     except pm.PapermillExecutionError as e:
-        print(f"Error while running Notebook: {e}")
+        failed = True
+        print(f" --> ERROR in notebook {path_nb}\n     {e.ename}: {e.evalue}\n     (full traceback is stored in that notebook)")
 
     except Exception as e:
-        print(f"Unexpected Error: {e}")            
+        failed = True
+        print(f" --> ERROR while running notebook {path_nb}\n     {type(e).__name__}: {e}")
+
+    #___________________________________________________________________________
+    # a failed notebook that produced no figure must not end up as a broken image
+    # link in the html, and is reported again at the end of tripyrun
+    if failed:
+        failed_notebooks.append(path_nb)
+        if not os.path.isfile(params_vname['save_fname']): return(webpage, cnt)
 
     #___________________________________________________________________________
     # attach created figures to webpage collection
