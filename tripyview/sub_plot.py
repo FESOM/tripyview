@@ -4197,10 +4197,31 @@ def do_axes_arrange(nx, ny,
                     if box[1]-box[0]==360 and (box[3]-box[2])==180:
                         #print('set_global()')
                         hax[nn].set_global()
-                    else:    
+                    else:
                         #print('set_extent(box, ...)')
                         hax[nn].set_extent(box, crs=ccrs.PlateCarree())
-                    
+
+            #___________________________________________________________________
+            # give stereographic projections a circular boundary/clip region.
+            # This must happen right here, right after the axes+extent are set
+            # up and before any data/land-mask/mesh is plotted onto them --
+            # otherwise those artists get their clip path set against the still-
+            # rectangular default axes patch, and a sliver of them can render
+            # outside the circular boundary line that used to only get drawn
+            # later (and only when gridlines were enabled) in do_plt_gridlines
+            if isinstance(projection[nn], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo)):
+                theta  = np.linspace(0, 2*np.pi, 100)
+                center, radius = [0.5, 0.5], 0.5
+                verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
+                circle = mpath.Path(verts * radius + center)
+                hax[nn].set_boundary(circle, transform=hax[nn].transAxes)
+                del(theta, center, verts, circle)
+                # the boundary/frame spine defaults to zorder 2.5, well below
+                # the grey "no data" bottom-mask fill (do_plt_bot, zorder 10)
+                # and the actual data (zorder 50) -- draw the outline on top of
+                # everything so it never gets visually covered by those layers
+                hax[nn].spines['geo'].set_zorder(102)
+
             #___________________________________________________________________
             # label
             hax[nn].set_xlabel(xlabel, fontsize=fs_label)
@@ -6175,7 +6196,20 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', 
         return()
 
     elif do_lsm=='fesom':
-        h0=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        # draw the land fill and its coastline outline as two separate passes.
+        # a single add_geometries() call draws both at the same (low) zorder,
+        # so wherever a data/bottom-mask triangle from the ocean side happens to
+        # touch the coast (zorder 50 / 10 vs the land's zorder 1), the outline
+        # gets covered and the coastline disappears right where it matters most
+        fill_opt = dict(lsm_optdefault); fill_opt['edgecolor'] = 'none'
+        h01 = hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **fill_opt)
+        h0  = h01
+        if lsm_optdefault.get('edgecolor') not in (None, 'none', 'None'):
+            edge_opt = dict(lsm_optdefault)
+            edge_opt['facecolor'] = 'none'
+            edge_opt['zorder']    = 101
+            h02 = hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **edge_opt)
+            h0  = [h01, h02]
         if do_info: print(' --> plt lsmask fesom: {:f}'.format(clock.time()-t1))
         
     elif do_lsm=='stock':  
@@ -6241,11 +6275,11 @@ def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', 
         
     else:
         raise ValueError(" > the do_lsm={} is not supported, must be either 'fesom', 'stock', 'bluemarble' or 'etopo'! ")
-        
+
     #___________________________________________________________________________
     #hfig.canvas.draw_idle()   # Updates only changed parts
     #hfig.canvas.flush_events()  # Ensures interactive update
-    
+
     return(h0)
 
 
@@ -6326,18 +6360,12 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             # internal line-collection styling) -- override it explicitly so the
             # gridlines actually render on top of the data/mesh as intended
             h0.set_zorder(grid_optdefault['zorder'])
-            
-            # ensure circular boundary for stereographic projection
-            if isinstance(hax_ii.projection, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
-                # give stereographic plot a circular boundary
-                theta  = np.linspace(0, 2*np.pi, 100)
-                center, radius = [0.5, 0.5], 0.5
-                verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
-                circle = mpath.Path(verts * radius + center)
-                hax_ii.set_boundary(circle, transform=hax_ii.transAxes)
-                del(theta, center, verts, circle)
-            
-            elif isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)):
+
+            # circular boundary/clip for stereographic projections is now set
+            # unconditionally in do_axes_arrange, right after axes creation --
+            # doing it here (only when do_grid=True, and only after data/lsmask
+            # were already plotted) let artists render outside it, see BUGREPORT
+            if isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)):
                 hax_ii.set_global()
             
             elif isinstance(hax_ii.projection, (ccrs.Mollweide, ccrs.EqualEarth, ccrs.Robinson)):

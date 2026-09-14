@@ -1382,8 +1382,20 @@ def calc_transect_Xtransp(mesh,
         aux_transp = (vel_u*dy + vel_v*dx)
         
         #_______________________________________________________________________
-        # multiply transp_uv with temp 
-        if var_X is not None: aux_transp = aux_transp * (var_X - data_Xref)
+        # multiply transp_uv with temp
+        if var_X is not None:
+            # velocities and the tracer (temp/salt) are expected to share the same
+            # time axis; a size mismatch here (e.g. velocities written at annual
+            # frequency while the tracer is monthly) would otherwise only surface
+            # as an opaque dask/numpy broadcast error much further downstream
+            if dimn_t=='time' and aux_transp.shape[0]!=var_X.shape[0]:
+                raise ValueError(
+                    f"--> velocity data (time={aux_transp.shape[0]}) and {vnameX} data "
+                    f"(time={var_X.shape[0]}) have a different number of time steps, most "
+                    f"likely because they were written at different output frequencies "
+                    f"(e.g. annual-mean velocities vs monthly {vnameX}). A consistent "
+                    f"transport time series cannot be computed from mismatched time axes.")
+            aux_transp = aux_transp * (var_X - data_Xref)
         
         #_______________________________________________________________________
         data_vars = dict()

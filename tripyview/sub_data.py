@@ -613,7 +613,21 @@ def load_data_fesom2(mesh,
     data, mon, day, str_ltim = do_select_time(data, mon, day, record, str_ltim)
     
     # do time arithmetic on data
-    if 'time' in data.dims: data, str_atim = do_time_arithmetic(data, do_tarithm)
+    if 'time' in data.dims:
+        # sea-ice variables write "no ice" as NaN rather than 0 (fill-value/masking
+        # convention, same as the flux terms in load_dmoc_data). A plain skipna=True
+        # mean over a period that is partly ice-free then just drops those ice-free
+        # times instead of counting them as zero, which inflates the time-mean
+        # concentration/thickness. Treat NaN as physically zero for the averaging,
+        # then turn cells that are zero for the *entire* averaged period back into
+        # NaN so a permanently ice-free region still renders as masked/transparent.
+        ice_vars = [v for v in data.data_vars if v in ('a_ice', 'm_ice', 'uice', 'vice', 'm_snow')]
+        if do_tarithm is not None and len(ice_vars)>0:
+            for v in ice_vars: data[v] = data[v].fillna(0)
+            data, str_atim = do_time_arithmetic(data, do_tarithm)
+            for v in ice_vars: data[v] = data[v].where(data[v]!=0)
+        else:
+            data, str_atim = do_time_arithmetic(data, do_tarithm)
 
     #___________________________________________________________________________
     # set bottom to nan --> in moment the bottom fill value is zero would be 
