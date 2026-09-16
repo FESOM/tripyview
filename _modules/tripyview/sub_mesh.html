@@ -1456,8 +1456,12 @@
         <span class="c1"># build adjacency using numba</span>
         <span class="n">adj</span>     <span class="o">=</span> <span class="n">njit_lsmask_build_adjacency</span><span class="p">(</span><span class="n">bnde</span><span class="p">,</span> <span class="n">mapping</span><span class="p">,</span> <span class="n">nbnde_nodes</span><span class="p">)</span>
 
-        <span class="c1"># trace contour loops</span>
-        <span class="n">loops</span>   <span class="o">=</span> <span class="n">njit_lsmask_trace_loops</span><span class="p">(</span><span class="n">adj</span><span class="p">)</span>
+        <span class="c1"># trace contour loops --&gt; the coordinates are needed to resolve which</span>
+        <span class="c1"># branch to follow at nodes where two coastlines touch in a single vertex</span>
+        <span class="n">loops</span>   <span class="o">=</span> <span class="n">njit_lsmask_trace_loops</span><span class="p">(</span><span class="n">adj</span><span class="p">,</span>
+                                          <span class="bp">self</span><span class="o">.</span><span class="n">n_x</span><span class="p">[</span><span class="n">bnde_nodes</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
+                                          <span class="bp">self</span><span class="o">.</span><span class="n">n_y</span><span class="p">[</span><span class="n">bnde_nodes</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
+                                          <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cyclic</span><span class="p">))</span>
 
         <span class="c1"># convert loops to XY polygons</span>
         <span class="n">polygons</span><span class="o">=</span> <span class="p">[]</span>
@@ -3715,83 +3719,143 @@
 <div class="viewcode-block" id="njit_lsmask_trace_loops">
 <a class="viewcode-back" href="../../index.html#tripyview.sub_mesh.njit_lsmask_trace_loops">[docs]</a>
 <span class="nd">@njit</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">njit_lsmask_trace_loops</span><span class="p">(</span><span class="n">adj</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">njit_lsmask_trace_loops</span><span class="p">(</span><span class="n">adj</span><span class="p">,</span> <span class="n">bnde_x</span><span class="p">,</span> <span class="n">bnde_y</span><span class="p">,</span> <span class="n">cyclic</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""</span>
-<span class="sd">    Trace coastline loops using compact adjacency.</span>
+<span class="sd">    --&gt; trace coastline loops using compact boundary-node adjacency</span>
 
-<span class="sd">    adj : (nb_nodes, 2)</span>
+<span class="sd">    Walks the boundary-edge graph and returns each closed coastline contour.</span>
+<span class="sd">    Most boundary nodes have exactly 2 boundary neighbors, but a node where two</span>
+<span class="sd">    coastline branches touch in a single vertex ("pinch point") has 4. There the</span>
+<span class="sd">    walk has a genuine choice which branch to continue on, and picking the wrong</span>
+<span class="sd">    one welds two separate coastlines into one topologically wrong ring:</span>
 
-<span class="sd">    RETURNS:</span>
-<span class="sd">        loops : list of compressed index lists</span>
+<span class="sd">              branch A                    the walk arrives on (1) and must</span>
+<span class="sd">                 \\   /  (2)              continue on (2) -- the sharpest turn</span>
+<span class="sd">                  \\ /                    in a consistent rotational sense.</span>
+<span class="sd">                   X   &lt;-- pinch node     Taking (3) instead would jump onto</span>
+<span class="sd">                  / \\                    branch B and merge both loops into a</span>
+<span class="sd">             (1) /   \\  (3)              single ring enclosing a bogus area.</span>
+<span class="sd">                     branch B</span>
+
+<span class="sd">    The branch is therefore resolved geometrically, by turn angle relative to</span>
+<span class="sd">    the incoming edge (always take the sharpest clockwise turn), not by the</span>
+<span class="sd">    order the neighbors happen to sit in the adjacency array -- that order comes</span>
+<span class="sd">    from the order the edges appear in `bnde` and carries no topological meaning.</span>
+<span class="sd">    Traversal is tracked per *edge* (each undirected boundary edge is walked</span>
+<span class="sd">    exactly once) rather than per node, because at a pinch node the walk must be</span>
+<span class="sd">    allowed to pass through the same node twice, once per branch.</span>
+
+<span class="sd">    Parameters:</span>
+
+<span class="sd">        :adj:       int32 array (nbnde_nodes, 4), boundary-node adjacency in</span>
+<span class="sd">                    compressed boundary-node numbering, -1 for unused slots</span>
+
+<span class="sd">        :bnde_x:    float array (nbnde_nodes,), longitude of the boundary nodes</span>
+
+<span class="sd">        :bnde_y:    float array (nbnde_nodes,), latitude of the boundary nodes</span>
+
+<span class="sd">        :cyclic:    float, periodicity of the longitude axis (usually 360.0),</span>
+<span class="sd">                    needed so edges across the periodic boundary get the correct</span>
+<span class="sd">                    direction instead of a spurious ~360 degree jump</span>
+
+<span class="sd">    Returns:</span>
+
+<span class="sd">        :loops:     list of lists, each a closed contour of compressed indices</span>
+
+<span class="sd">    ____________________________________________________________________________</span>
 <span class="sd">    """</span>
     <span class="n">nbnde_nodes</span> <span class="o">=</span> <span class="n">adj</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">visited</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nbnde_nodes</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
-    <span class="n">canreturn</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nbnde_nodes</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
-    <span class="n">isreturn</span>    <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nbnde_nodes</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
+    <span class="n">nslot</span>       <span class="o">=</span> <span class="n">adj</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">half_cyclic</span> <span class="o">=</span> <span class="n">cyclic</span><span class="o">*</span><span class="mf">0.5</span>
+    <span class="n">twopi</span>       <span class="o">=</span> <span class="mf">2.0</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+
+    <span class="c1"># track consumed edges, not visited nodes --&gt; a pinch node is legitimately</span>
+    <span class="c1"># passed twice, once for each of the two coastline branches meeting there</span>
+    <span class="n">used</span>        <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nbnde_nodes</span><span class="p">,</span> <span class="n">nslot</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
     <span class="n">loops</span>       <span class="o">=</span> <span class="p">[]</span>
-    
-    <span class="c1"># loop over all the boundary edge nodes </span>
-    <span class="n">cnt</span><span class="o">=</span><span class="mi">0</span>
+
+    <span class="c1">#___________________________________________________________________________</span>
+    <span class="c1"># loop over all boundary nodes</span>
     <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nbnde_nodes</span><span class="p">):</span>
-        
-        <span class="c1"># check if point has already been checked out </span>
-        <span class="c1"># if np.all(visited[start,:]): continue</span>
-        <span class="k">if</span> <span class="n">visited</span><span class="p">[</span><span class="n">start</span><span class="p">]</span> <span class="ow">and</span> <span class="n">canreturn</span><span class="p">[</span><span class="n">start</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span> <span class="k">continue</span>
-        
-        <span class="c1"># set start index as current index to check out </span>
-        <span class="n">cur</span>  <span class="o">=</span> <span class="n">start</span>
-        <span class="n">prev</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
-        <span class="n">loop</span> <span class="o">=</span> <span class="p">[]</span>
-        
-        <span class="c1"># walk step by step through neighbor connectivity</span>
+
+        <span class="c1"># a pinch node starts more than one loop --&gt; keep going until every edge</span>
+        <span class="c1"># attached to this node has been walked</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-            
-            <span class="c1"># add point to contour loop list </span>
-            <span class="k">if</span> <span class="n">visited</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span> <span class="ow">or</span> <span class="n">canreturn</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span> 
-                <span class="n">loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">break</span>
-            
-            <span class="c1"># set current neighbor node as visited</span>
-            <span class="n">visited</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-            
-            <span class="c1"># check out whos is the next node in neighborhood. usually there are 2 </span>
-            <span class="c1"># neighboring nodes (a and b) but under certain conditions there can be also </span>
-            <span class="c1"># 4 neighboring boudnary nodes</span>
-            <span class="k">if</span> <span class="n">canreturn</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span> <span class="ow">and</span> <span class="n">isreturn</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
-                <span class="n">a</span>    <span class="o">=</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
-                <span class="n">b</span>    <span class="o">=</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
-                <span class="k">if</span>   <span class="n">a</span><span class="o">!=</span><span class="n">prev</span><span class="p">:</span> <span class="n">nxt</span> <span class="o">=</span> <span class="n">a</span>
-                <span class="k">elif</span> <span class="n">b</span><span class="o">!=</span><span class="n">prev</span><span class="p">:</span> <span class="n">nxt</span> <span class="o">=</span> <span class="n">b</span>
-                <span class="k">if</span> <span class="p">(</span><span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span><span class="o">&gt;=</span><span class="mi">0</span> <span class="ow">and</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="o">&gt;=</span><span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="n">isreturn</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span> <span class="n">canreturn</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">=</span><span class="mi">1</span>
-            
-            <span class="c1"># This case when there are more than to neighbouring boundary nodes</span>
-            <span class="k">else</span><span class="p">:</span> 
-                <span class="n">c</span>    <span class="o">=</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
-                <span class="n">d</span>    <span class="o">=</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
-                <span class="k">if</span>  <span class="n">c</span><span class="o">!=</span><span class="n">prev</span> <span class="ow">and</span> <span class="n">visited</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="n">nxt</span> <span class="o">=</span> <span class="n">c</span>
-                <span class="k">elif</span>    <span class="n">d</span><span class="o">!=</span><span class="n">prev</span> <span class="ow">and</span> <span class="n">visited</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="n">nxt</span> <span class="o">=</span> <span class="n">d</span>
-                <span class="n">isreturn</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">=</span><span class="mi">1</span>
-                <span class="n">canreturn</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span><span class="o">=</span><span class="mi">0</span>
-            
-            <span class="n">prev</span> <span class="o">=</span> <span class="n">cur</span>
+
+            <span class="c1"># find an unused edge to leave the start node on</span>
+            <span class="n">kstart</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nslot</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">adj</span><span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">used</span><span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">kstart</span> <span class="o">=</span> <span class="n">k</span>
+                    <span class="k">break</span>
+            <span class="k">if</span> <span class="n">kstart</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span> <span class="k">break</span>
+
+            <span class="c1">#___________________________________________________________________</span>
+            <span class="c1"># consume the starting edge in both directions</span>
+            <span class="n">nxt</span> <span class="o">=</span> <span class="n">adj</span><span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">kstart</span><span class="p">]</span>
+            <span class="n">used</span><span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">kstart</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nslot</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">adj</span><span class="p">[</span><span class="n">nxt</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="n">start</span> <span class="ow">and</span> <span class="n">used</span><span class="p">[</span><span class="n">nxt</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">used</span><span class="p">[</span><span class="n">nxt</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="k">break</span>
+
+            <span class="n">loop</span> <span class="o">=</span> <span class="p">[</span><span class="n">start</span><span class="p">]</span>
+            <span class="n">prev</span> <span class="o">=</span> <span class="n">start</span>
             <span class="n">cur</span>  <span class="o">=</span> <span class="n">nxt</span>
-            
-            <span class="c1"># if starting point is reached again contour loop is closed again </span>
-            <span class="c1"># finish while loop. start with next accumaulation of closed coastline </span>
-            <span class="c1"># loop </span>
-            <span class="c1">#print(start, cur, prev, nxt, adj[cur,2]&lt;0 and adj[cur,3]&gt;=0)</span>
-            <span class="k">if</span> <span class="n">cur</span> <span class="o">==</span> <span class="n">start</span><span class="p">:</span> <span class="k">break</span>
-        
-            <span class="c1"># failsafe not to be drapped in infinite loop</span>
-            <span class="k">if</span> <span class="n">cnt</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="o">*</span><span class="n">nbnde_nodes</span><span class="p">:</span> 
-                <span class="nb">print</span><span class="p">(</span><span class="s1">' -WARNING-&gt; the contour algorithm did not converge properly!'</span><span class="p">)</span>
-                <span class="k">break</span> 
-            <span class="n">cnt</span><span class="o">+=</span><span class="mi">1</span>
-            
-        <span class="c1"># only if loop is large enough add it ti the contour list </span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">loop</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">:</span> <span class="n">loops</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">loop</span><span class="p">)</span>
-        
+
+            <span class="c1">#___________________________________________________________________</span>
+            <span class="c1"># walk the contour until the start node is reached again</span>
+            <span class="k">while</span> <span class="n">cur</span> <span class="o">!=</span> <span class="n">start</span><span class="p">:</span>
+                <span class="n">loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cur</span><span class="p">)</span>
+
+                <span class="c1"># direction back along the incoming edge, periodic-safe</span>
+                <span class="n">dxb</span> <span class="o">=</span> <span class="n">bnde_x</span><span class="p">[</span><span class="n">prev</span><span class="p">]</span><span class="o">-</span><span class="n">bnde_x</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span>
+                <span class="n">dyb</span> <span class="o">=</span> <span class="n">bnde_y</span><span class="p">[</span><span class="n">prev</span><span class="p">]</span><span class="o">-</span><span class="n">bnde_y</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span>
+                <span class="k">if</span>   <span class="n">dxb</span> <span class="o">&gt;</span>  <span class="n">half_cyclic</span><span class="p">:</span> <span class="n">dxb</span> <span class="o">-=</span> <span class="n">cyclic</span>
+                <span class="k">elif</span> <span class="n">dxb</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">half_cyclic</span><span class="p">:</span> <span class="n">dxb</span> <span class="o">+=</span> <span class="n">cyclic</span>
+                <span class="n">ang_in</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">dyb</span><span class="p">,</span> <span class="n">dxb</span><span class="p">)</span>
+
+                <span class="c1"># among the unused edges at cur pick the sharpest clockwise turn.</span>
+                <span class="c1"># Going straight back where we came from scores a zero turn, so it</span>
+                <span class="c1"># is pushed to 2*pi and only taken when nothing else is left.</span>
+                <span class="n">kbest</span>    <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+                <span class="n">turnbest</span> <span class="o">=</span> <span class="mf">0.0</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nslot</span><span class="p">):</span>
+                    <span class="n">cand</span> <span class="o">=</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">cand</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">used</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="k">continue</span>
+
+                    <span class="n">dxo</span> <span class="o">=</span> <span class="n">bnde_x</span><span class="p">[</span><span class="n">cand</span><span class="p">]</span><span class="o">-</span><span class="n">bnde_x</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span>
+                    <span class="n">dyo</span> <span class="o">=</span> <span class="n">bnde_y</span><span class="p">[</span><span class="n">cand</span><span class="p">]</span><span class="o">-</span><span class="n">bnde_y</span><span class="p">[</span><span class="n">cur</span><span class="p">]</span>
+                    <span class="k">if</span>   <span class="n">dxo</span> <span class="o">&gt;</span>  <span class="n">half_cyclic</span><span class="p">:</span> <span class="n">dxo</span> <span class="o">-=</span> <span class="n">cyclic</span>
+                    <span class="k">elif</span> <span class="n">dxo</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">half_cyclic</span><span class="p">:</span> <span class="n">dxo</span> <span class="o">+=</span> <span class="n">cyclic</span>
+
+                    <span class="n">turn</span> <span class="o">=</span> <span class="n">ang_in</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">dyo</span><span class="p">,</span> <span class="n">dxo</span><span class="p">)</span>
+                    <span class="k">while</span> <span class="n">turn</span> <span class="o">&lt;=</span> <span class="mf">1.0e-12</span><span class="p">:</span> <span class="n">turn</span> <span class="o">+=</span> <span class="n">twopi</span>
+                    <span class="k">while</span> <span class="n">turn</span> <span class="o">&gt;</span>  <span class="n">twopi</span>  <span class="p">:</span> <span class="n">turn</span> <span class="o">-=</span> <span class="n">twopi</span>
+
+                    <span class="k">if</span> <span class="n">kbest</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">turn</span> <span class="o">&lt;</span> <span class="n">turnbest</span><span class="p">:</span>
+                        <span class="n">kbest</span>    <span class="o">=</span> <span class="n">k</span>
+                        <span class="n">turnbest</span> <span class="o">=</span> <span class="n">turn</span>
+
+                <span class="c1"># dead end: open contour, cannot be closed</span>
+                <span class="k">if</span> <span class="n">kbest</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span> <span class="k">break</span>
+
+                <span class="c1">#_______________________________________________________________</span>
+                <span class="c1"># consume the chosen edge in both directions</span>
+                <span class="n">nxt</span> <span class="o">=</span> <span class="n">adj</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="n">kbest</span><span class="p">]</span>
+                <span class="n">used</span><span class="p">[</span><span class="n">cur</span><span class="p">,</span> <span class="n">kbest</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nslot</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">adj</span><span class="p">[</span><span class="n">nxt</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="n">cur</span> <span class="ow">and</span> <span class="n">used</span><span class="p">[</span><span class="n">nxt</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">used</span><span class="p">[</span><span class="n">nxt</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                        <span class="k">break</span>
+
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">cur</span>
+                <span class="n">cur</span>  <span class="o">=</span> <span class="n">nxt</span>
+
+            <span class="c1">#___________________________________________________________________</span>
+            <span class="c1"># only if loop is large enough add it to the contour list</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">loop</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">:</span> <span class="n">loops</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">loop</span><span class="p">)</span>
+
     <span class="c1">#___________________________________________________________________________</span>
     <span class="k">return</span> <span class="n">loops</span></div>
 

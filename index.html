@@ -1047,15 +1047,73 @@ bnde_nodes    : number of compressed nodes (len(b_nodes))</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_mesh.njit_lsmask_trace_loops">
-<span class="sig-prename descclassname"><span class="pre">tripyview.sub_mesh.</span></span><span class="sig-name descname"><span class="pre">njit_lsmask_trace_loops</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">adj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_mesh.html#njit_lsmask_trace_loops"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_mesh.njit_lsmask_trace_loops" title="Link to this definition">¶</a></dt>
-<dd><p>Trace coastline loops using compact adjacency.</p>
-<p>adj : (nb_nodes, 2)</p>
-<dl class="simple">
-<dt>RETURNS:</dt><dd><p>loops : list of compressed index lists</p>
+<span class="sig-prename descclassname"><span class="pre">tripyview.sub_mesh.</span></span><span class="sig-name descname"><span class="pre">njit_lsmask_trace_loops</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">adj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bnde_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bnde_y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cyclic</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_mesh.html#njit_lsmask_trace_loops"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_mesh.njit_lsmask_trace_loops" title="Link to this definition">¶</a></dt>
+<dd><p>–&gt; trace coastline loops using compact boundary-node adjacency</p>
+<p>Walks the boundary-edge graph and returns each closed coastline contour.
+Most boundary nodes have exactly 2 boundary neighbors, but a node where two
+coastline branches touch in a single vertex (“pinch point”) has 4. There the
+walk has a genuine choice which branch to continue on, and picking the wrong
+one welds two separate coastlines into one topologically wrong ring:</p>
+<blockquote>
+<div><blockquote>
+<div><dl>
+<dt>branch A                    the walk arrives on (1) and must</dt><dd><dl>
+<dt>  /  (2)              continue on (2) – the sharpest turn</dt><dd><dl class="simple">
+<dt>/                    in a consistent rotational sense.</dt><dd><p>X   &lt;– pinch node     Taking (3) instead would jump onto</p>
 </dd>
 </dl>
+<p>/                    branch B and merge both loops into a</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</div></blockquote>
+<ol class="arabic simple">
+<li><dl class="simple">
+<dt>/    (3)              single ring enclosing a bogus area.</dt><dd><p>branch B</p>
+</dd>
+</dl>
+</li>
+</ol>
+</div></blockquote>
+<p>The branch is therefore resolved geometrically, by turn angle relative to
+the incoming edge (always take the sharpest clockwise turn), not by the
+order the neighbors happen to sit in the adjacency array – that order comes
+from the order the edges appear in <cite>bnde</cite> and carries no topological meaning.
+Traversal is tracked per <em>edge</em> (each undirected boundary edge is walked
+exactly once) rather than per node, because at a pinch node the walk must be
+allowed to pass through the same node twice, once per branch.</p>
+<p>Parameters:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">adj<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int32 array (nbnde_nodes, 4), boundary-node adjacency in
+compressed boundary-node numbering, -1 for unused slots</p>
+</dd>
+<dt class="field-even">bnde_x<span class="colon">:</span></dt>
+<dd class="field-even"><p>float array (nbnde_nodes,), longitude of the boundary nodes</p>
+</dd>
+<dt class="field-odd">bnde_y<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float array (nbnde_nodes,), latitude of the boundary nodes</p>
+</dd>
+<dt class="field-even">cyclic<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, periodicity of the longitude axis (usually 360.0),
+needed so edges across the periodic boundary get the correct
+direction instead of a spurious ~360 degree jump</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Returns:</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">loops<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of lists, each a closed contour of compressed indices</p>
+</dd>
+</dl>
+</div></blockquote>
 </dd></dl>
 
+<hr class="docutils" />
 <dl class="py function">
 <dt class="sig sig-object py" id="tripyview.sub_mesh.njit_node_smoothing">
 <span class="sig-prename descclassname"><span class="pre">tripyview.sub_mesh.</span></span><span class="sig-name descname"><span class="pre">njit_node_smoothing</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n2dn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_nghbr_n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_n_nghbr_n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_n_orig</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_iter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weak_boxes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rel_cent_weight</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/tripyview/sub_mesh.html#njit_node_smoothing"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tripyview.sub_mesh.njit_node_smoothing" title="Link to this definition">¶</a></dt>
