@@ -1385,8 +1385,12 @@ ___________________________________________""".format(
         # build adjacency using numba
         adj     = njit_lsmask_build_adjacency(bnde, mapping, nbnde_nodes)
 
-        # trace contour loops
-        loops   = njit_lsmask_trace_loops(adj)
+        # trace contour loops --> the coordinates are needed to resolve which
+        # branch to follow at nodes where two coastlines touch in a single vertex
+        loops   = njit_lsmask_trace_loops(adj,
+                                          self.n_x[bnde_nodes].astype(np.float64),
+                                          self.n_y[bnde_nodes].astype(np.float64),
+                                          np.float64(self.cyclic))
 
         # convert loops to XY polygons
         polygons= []
@@ -3529,83 +3533,143 @@ def njit_lsmask_build_adjacency(bnde, bnde_mapping, bnde_nodes):
 #
 #_______________________________________________________________________________
 @njit(cache=True)
-def njit_lsmask_trace_loops(adj):
+def njit_lsmask_trace_loops(adj, bnde_x, bnde_y, cyclic):
     """
-    Trace coastline loops using compact adjacency.
+    --> trace coastline loops using compact boundary-node adjacency
 
-    adj : (nb_nodes, 2)
+    Walks the boundary-edge graph and returns each closed coastline contour.
+    Most boundary nodes have exactly 2 boundary neighbors, but a node where two
+    coastline branches touch in a single vertex ("pinch point") has 4. There the
+    walk has a genuine choice which branch to continue on, and picking the wrong
+    one welds two separate coastlines into one topologically wrong ring:
 
-    RETURNS:
-        loops : list of compressed index lists
+              branch A                    the walk arrives on (1) and must
+                 \\   /  (2)              continue on (2) -- the sharpest turn
+                  \\ /                    in a consistent rotational sense.
+                   X   <-- pinch node     Taking (3) instead would jump onto
+                  / \\                    branch B and merge both loops into a
+             (1) /   \\  (3)              single ring enclosing a bogus area.
+                     branch B
+
+    The branch is therefore resolved geometrically, by turn angle relative to
+    the incoming edge (always take the sharpest clockwise turn), not by the
+    order the neighbors happen to sit in the adjacency array -- that order comes
+    from the order the edges appear in `bnde` and carries no topological meaning.
+    Traversal is tracked per *edge* (each undirected boundary edge is walked
+    exactly once) rather than per node, because at a pinch node the walk must be
+    allowed to pass through the same node twice, once per branch.
+
+    Parameters:
+
+        :adj:       int32 array (nbnde_nodes, 4), boundary-node adjacency in
+                    compressed boundary-node numbering, -1 for unused slots
+
+        :bnde_x:    float array (nbnde_nodes,), longitude of the boundary nodes
+
+        :bnde_y:    float array (nbnde_nodes,), latitude of the boundary nodes
+
+        :cyclic:    float, periodicity of the longitude axis (usually 360.0),
+                    needed so edges across the periodic boundary get the correct
+                    direction instead of a spurious ~360 degree jump
+
+    Returns:
+
+        :loops:     list of lists, each a closed contour of compressed indices
+
+    ____________________________________________________________________________
     """
     nbnde_nodes = adj.shape[0]
-    visited     = np.zeros((nbnde_nodes), dtype=np.int8)
-    canreturn   = np.zeros((nbnde_nodes), dtype=np.int8)
-    isreturn    = np.zeros((nbnde_nodes), dtype=np.int8)
+    nslot       = adj.shape[1]
+    half_cyclic = cyclic*0.5
+    twopi       = 2.0*np.pi
+
+    # track consumed edges, not visited nodes --> a pinch node is legitimately
+    # passed twice, once for each of the two coastline branches meeting there
+    used        = np.zeros((nbnde_nodes, nslot), dtype=np.int8)
     loops       = []
-    
-    # loop over all the boundary edge nodes 
-    cnt=0
+
+    #___________________________________________________________________________
+    # loop over all boundary nodes
     for start in range(nbnde_nodes):
-        
-        # check if point has already been checked out 
-        # if np.all(visited[start,:]): continue
-        if visited[start] and canreturn[start]==0: continue
-        
-        # set start index as current index to check out 
-        cur  = start
-        prev = -1
-        loop = []
-        
-        # walk step by step through neighbor connectivity
+
+        # a pinch node starts more than one loop --> keep going until every edge
+        # attached to this node has been walked
         while True:
-            
-            # add point to contour loop list 
-            if visited[cur]==0 or canreturn[cur]==1: 
-                loop.append(cur)
-            else:
-                break
-            
-            # set current neighbor node as visited
-            visited[cur] = 1
-            
-            # check out whos is the next node in neighborhood. usually there are 2 
-            # neighboring nodes (a and b) but under certain conditions there can be also 
-            # 4 neighboring boudnary nodes
-            if canreturn[cur]==0 and isreturn[cur]==0:
-                a    = adj[cur, 0]
-                b    = adj[cur, 1]
-                if   a!=prev: nxt = a
-                elif b!=prev: nxt = b
-                if (adj[cur,2]>=0 and adj[cur,3]>=0) and isreturn[cur]==0: canreturn[cur]=1
-            
-            # This case when there are more than to neighbouring boundary nodes
-            else: 
-                c    = adj[cur, 2]
-                d    = adj[cur, 3]
-                if  c!=prev and visited[c] == 0: nxt = c
-                elif    d!=prev and visited[d] == 0: nxt = d
-                isreturn[cur]=1
-                canreturn[cur]=0
-            
-            prev = cur
+
+            # find an unused edge to leave the start node on
+            kstart = -1
+            for k in range(nslot):
+                if adj[start, k] >= 0 and used[start, k] == 0:
+                    kstart = k
+                    break
+            if kstart < 0: break
+
+            #___________________________________________________________________
+            # consume the starting edge in both directions
+            nxt = adj[start, kstart]
+            used[start, kstart] = 1
+            for k in range(nslot):
+                if adj[nxt, k] == start and used[nxt, k] == 0:
+                    used[nxt, k] = 1
+                    break
+
+            loop = [start]
+            prev = start
             cur  = nxt
-            
-            # if starting point is reached again contour loop is closed again 
-            # finish while loop. start with next accumaulation of closed coastline 
-            # loop 
-            #print(start, cur, prev, nxt, adj[cur,2]<0 and adj[cur,3]>=0)
-            if cur == start: break
-        
-            # failsafe not to be drapped in infinite loop
-            if cnt > 10*nbnde_nodes: 
-                print(' -WARNING-> the contour algorithm did not converge properly!')
-                break 
-            cnt+=1
-            
-        # only if loop is large enough add it ti the contour list 
-        if len(loop) > 4: loops.append(loop)
-        
+
+            #___________________________________________________________________
+            # walk the contour until the start node is reached again
+            while cur != start:
+                loop.append(cur)
+
+                # direction back along the incoming edge, periodic-safe
+                dxb = bnde_x[prev]-bnde_x[cur]
+                dyb = bnde_y[prev]-bnde_y[cur]
+                if   dxb >  half_cyclic: dxb -= cyclic
+                elif dxb < -half_cyclic: dxb += cyclic
+                ang_in = np.arctan2(dyb, dxb)
+
+                # among the unused edges at cur pick the sharpest clockwise turn.
+                # Going straight back where we came from scores a zero turn, so it
+                # is pushed to 2*pi and only taken when nothing else is left.
+                kbest    = -1
+                turnbest = 0.0
+                for k in range(nslot):
+                    cand = adj[cur, k]
+                    if cand < 0 or used[cur, k] == 1: continue
+
+                    dxo = bnde_x[cand]-bnde_x[cur]
+                    dyo = bnde_y[cand]-bnde_y[cur]
+                    if   dxo >  half_cyclic: dxo -= cyclic
+                    elif dxo < -half_cyclic: dxo += cyclic
+
+                    turn = ang_in - np.arctan2(dyo, dxo)
+                    while turn <= 1.0e-12: turn += twopi
+                    while turn >  twopi  : turn -= twopi
+
+                    if kbest < 0 or turn < turnbest:
+                        kbest    = k
+                        turnbest = turn
+
+                # dead end: open contour, cannot be closed
+                if kbest < 0: break
+
+                #_______________________________________________________________
+                # consume the chosen edge in both directions
+                nxt = adj[cur, kbest]
+                used[cur, kbest] = 1
+                for k in range(nslot):
+                    if adj[nxt, k] == cur and used[nxt, k] == 0:
+                        used[nxt, k] = 1
+                        break
+
+                prev = cur
+                cur  = nxt
+
+            #___________________________________________________________________
+            # only if loop is large enough add it to the contour list
+            if len(loop) > 4: loops.append(loop)
+
     #___________________________________________________________________________
     return loops
 

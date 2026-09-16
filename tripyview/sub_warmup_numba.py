@@ -162,8 +162,12 @@ def warmup_lsmask():
     # 2. adjacency builder
     adj = njit_lsmask_build_adjacency(bnde, mapping, nbnde_nodes)
 
-    # 3. loop tracer
-    loops = njit_lsmask_trace_loops(adj)
+    # 3. loop tracer --> needs the boundary-node coordinates and the longitude
+    #    periodicity to resolve the branch at pinch nodes
+    loops = njit_lsmask_trace_loops(adj,
+                                    n_x[bnde_nodes].astype(np.float64),
+                                    n_y[bnde_nodes].astype(np.float64),
+                                    np.float64(360.0))
     
     # 4. warmup find_period_crossings
     n_x = np.array([-180, 180, 75], dtype=np.float32)
