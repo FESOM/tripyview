@@ -56,7 +56,11 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
     if do_parallel:
         
         if "JUPYTERHUB_SERVICE_PREFIX" not in os.environ:
-            os.environ["JUPYTERHUB_SERVICE_PREFIX"] = "/"
+            # the dashboard link template below already starts with '/proxy/...';
+            # defaulting this to '/' would produce a leading '//', which browsers
+            # parse as a protocol-relative URL (host 'proxy') instead of a same-
+            # origin path, and the dashboard fails with "Not Found"
+            os.environ["JUPYTERHUB_SERVICE_PREFIX"] = ""
 
         if do_dashbrdlnk:
             dask.config.config.get('distributed').get('dashboard').update({'link':'{JUPYTERHUB_SERVICE_PREFIX}/proxy/{port}/status'})
