@@ -1784,7 +1784,7 @@ def do_additional_attrs(data, vname, attr_dict):
 #
 #
 # ___DO ANOMALY________________________________________________________________
-def do_anomaly(data1,data2):
+def do_anomaly(data1,data2, do_perc=False):
     """
     --> compute anomaly between two xarray Datasets
     
@@ -1794,6 +1794,7 @@ def do_anomaly(data1,data2):
 
         :data2:   xarray dataset object
 
+        :do_perc: True: calculate relative anomaly in percentage. False: absolute anomaly
     Returns:
     
         :anom:   xarray dataset object, data1-data2
@@ -1810,6 +1811,8 @@ def do_anomaly(data1,data2):
         # do anomalous data 
         if vname=='dmoc_zpos':
             anom[vname].data = data1[vname].data
+        elif do_perc:
+            anom[vname].data = do_percentage(data1[vname].data, data2[vname2].data)
         else:
             anom[vname].data = data1[vname].data - data2[vname2].data
             
@@ -1845,3 +1848,6 @@ def do_anomaly(data1,data2):
     
     #___________________________________________________________________________
     return(anom)
+
+def do_percentage(da1, da2):
+    return (da1 - da2) / da2 * 100
