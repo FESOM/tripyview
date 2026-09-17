@@ -678,6 +678,13 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     ____________________________________________________________________________ 
     """
 
+    #print("DEBUG do_pathlist:")
+    #print("  year:", year)
+    #print("  type(year):", type(year))
+    #print("  do_filename:", do_filename)
+    #print("  type(datapath):", type(datapath))
+    #print("  datapath:", datapath)
+    
     pathlist=[]
     # specific filename and path is given to load 
     if  do_filename: 
