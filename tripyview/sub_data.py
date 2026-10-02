@@ -2,6 +2,7 @@
 import numpy as np
 import time  as clock
 import os
+import re
 import warnings
 import xarray as xr
 import netCDF4 as nc
@@ -691,16 +692,19 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
         pathlist = datapath
         if isinstance(datapath, list):
             if isinstance(year, list) and len(year)==2:
-                    str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
-            elif isinstance(year, int):
-                str_mtim = 'y:{}'.format(year)    
+                str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
+            elif isinstance(year, (int, str)):
+                str_mtim = 'y:{}'.format(year)
+            else:
+                str_mtim = os.path.basename(datapath[0]) if datapath else ''
         else:
             str_mtim = os.path.basename(datapath)
         
     # list, np.array or range of years is given to load files
     elif isinstance(year, (list, np.ndarray, range)):
         # year = [yr_start, yr_end]
-        if isinstance(year, list) and len(year)==2: 
+        if (isinstance(year, list) and len(year)==2 and
+                all(isinstance(value, (int, np.integer)) for value in year)):
             year_in = range(year[0],year[1]+1)
             str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
         # year = [year1,year2,year3....]            
@@ -717,7 +721,9 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
                 print(f'--> No file: {path}\n')
     
     # a single year is given to load
-    elif isinstance(year, int):
+    elif isinstance(year, (int, str)):
+        if isinstance(year, str) and re.fullmatch(r'\d{4}_\d{2}', year) is None:
+            raise ValueError("year string must use the YYYY_MM format")
         fname = do_fnamemask(do_file,vname,runid,year)
         path  = os.path.join(datapath,fname)
         if os.path.isfile(path):
@@ -726,7 +732,7 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
             print(f'--> No file: {path}\n')
         str_mtim = 'y:{}'.format(year)
     else:
-        raise ValueError( " year can be integer, list, np.array or range(start,end)")
+        raise ValueError("year can be an integer, YYYY_MM string, list, np.array, or range(start,end)")
     
     #___________________________________________________________________________
     return(pathlist,str_mtim)
@@ -1784,7 +1790,7 @@ def do_additional_attrs(data, vname, attr_dict):
 #
 #
 # ___DO ANOMALY________________________________________________________________
-def do_anomaly(data1,data2, do_perc=False):
+def do_anomaly(data1,data2):
     """
     --> compute anomaly between two xarray Datasets
     
@@ -1794,7 +1800,6 @@ def do_anomaly(data1,data2, do_perc=False):
 
         :data2:   xarray dataset object
 
-        :do_perc: True: calculate relative anomaly in percentage. False: absolute anomaly
     Returns:
     
         :anom:   xarray dataset object, data1-data2
@@ -1811,8 +1816,6 @@ def do_anomaly(data1,data2, do_perc=False):
         # do anomalous data 
         if vname=='dmoc_zpos':
             anom[vname].data = data1[vname].data
-        elif do_perc:
-            anom[vname].data = do_percentage(data1[vname].data, data2[vname2].data)
         else:
             anom[vname].data = data1[vname].data - data2[vname2].data
             
@@ -1848,6 +1851,3 @@ def do_anomaly(data1,data2, do_perc=False):
     
     #___________________________________________________________________________
     return(anom)
-
-def do_percentage(da1, da2):
-    return (da1 - da2) / da2 * 100
