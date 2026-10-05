@@ -73,6 +73,7 @@ def load_data_fesom2(mesh,
                      client         = None      , 
                      engine         = 'h5netcdf', #'netcdf4' , # 'h5netcdf'
                      diagpath       = None      ,
+                     do_fastread    = True      ,
                      **kwargs):
     """
     --> general loading of fesom2 and fesom14cmip6 data
@@ -180,12 +181,21 @@ def load_data_fesom2(mesh,
         :diagpath:      str (default=None) if str give custom path to specific fesom2
                         fesom.mesh.diag.nc file, if None routine looks automatically in    
                         meshfolder and original datapath folder (stored as attribute in)
-                        xarray dataset object 
-        
+                        xarray dataset object
+
+        :do_fastread:   bool (default=True), read the data variables chunk by chunk
+                        in their on-disk byte order (see do_fastread_fileorder)
+                        instead of letting HDF5 walk them in index order. Gives the
+                        same values; much faster for files whose chunks are stored
+                        in a different order than their dimensions (e.g. FESOM 2.1.1
+                        output). Falls back to the normal reading automatically
+                        where it does not apply (compressed/packed variables,
+                        non-HDF5 files, ...)
+
     Returns:
-    
+
         :data:          object, returns xarray dataset object
-        
+
     ____________________________________________________________________________
     """
     #___________________________________________________________________________
@@ -438,23 +448,28 @@ def load_data_fesom2(mesh,
     # load data in parallel    
     if do_file=='run' or do_file=='run*':
         warnings.filterwarnings("ignore", category=UserWarning, message=r".*The specified chunks separate the stored chunks.*")
-        data = xr.open_mfdataset(pathlist, 
-                                 parallel=do_parallel, 
-                                 preprocess=partial_func, 
-                                 chunks=chunks, 
-                                 **engine_dict, 
+        data = xr.open_mfdataset(pathlist,
+                                 parallel=do_parallel,
+                                 preprocess=partial_func,
+                                 chunks=chunks,
+                                 **engine_dict,
                                  **kwargs)
-        
-        # !!! --> this is not a good idea, to do chunking after loading requires 
-        # !!! --> massivly more RAM than giving the chunk operation directly into 
-        # !!! --> loading routine                          
-        #data = xr.open_mfdataset(pathlist, parallel=do_parallel, 
-        #                         autoclose=True, preprocess=partial_func, 
+
+        # read the data variables chunk by chunk in on-disk byte order, see
+        # do_fastread_fileorder (keeps the normal reading where not applicable)
+        if do_fastread:
+            data = do_fastread_fileorder(data, pathlist, use_cftime=use_cftime, do_info=do_info)
+
+        # !!! --> this is not a good idea, to do chunking after loading requires
+        # !!! --> massivly more RAM than giving the chunk operation directly into
+        # !!! --> loading routine
+        #data = xr.open_mfdataset(pathlist, parallel=do_parallel,
+        #                         autoclose=True, preprocess=partial_func,
         #                         **kwargs)
         #data = data.chunk({key: chunks[key] for key in data.dims})
-        
-        
-        if do_showtime: 
+
+
+        if do_showtime:
             print(data.time.data)
             print(data['time.year'])
         
@@ -463,12 +478,16 @@ def load_data_fesom2(mesh,
         if (do_vec or do_norm or do_pdens) and vname2 is not None:
             warnings.filterwarnings("ignore", category=UserWarning, message=r".*The specified chunks separate the stored chunks.*")
             pathlist, dum = do_pathlist(year, datapath, do_filename, do_file, vname2, runid)
-            data     = xr.merge([data, xr.open_mfdataset(pathlist,  
-                                                         parallel=do_parallel, 
-                                                         preprocess=partial_func, 
-                                                         chunks=chunks, 
-                                                         **engine_dict, 
-                                                         **kwargs)])
+            data2    = xr.open_mfdataset(pathlist,
+                                         parallel=do_parallel,
+                                         preprocess=partial_func,
+                                         chunks=chunks,
+                                         **engine_dict,
+                                         **kwargs)
+            if do_fastread:
+                data2 = do_fastread_fileorder(data2, pathlist, use_cftime=use_cftime, do_info=do_info)
+            data     = xr.merge([data, data2])
+            del(data2)
             # !!! --> this is not a good idea, to do chunking after loading requires 
             # !!! --> massivly more RAM than giving the chunk operation directly into 
             # !!! --> loading routine                          
@@ -804,6 +823,364 @@ def do_fnamemask(do_file,vname,runid,year):
     
     #___________________________________________________________________________
     return(fname)
+
+
+
+#
+#
+# ___READ DATA VARIABLES IN ON-DISK CHUNK ORDER________________________________
+def do_fastread_fileorder(data, pathlist, use_cftime=False, do_info=False):
+    """
+    --> replace the lazily opened data variables of an open_mfdataset result by
+    dask arrays that read the HDF5 chunks of every file in the order they are
+    stored on disk (= increasing byte offset)
+
+    Why: HDF5 (and so netCDF4/xarray/dask on top of it) reads the chunks of a
+    variable in index order. Some files store their chunks in a different
+    order (e.g. FESOM 2.1.x output). Reading in index order then jumps back
+    and forth through the file and the GPFS read-ahead does not work anymore.
+    Schematic for one time record with 3x3 chunks c[nod2 block][nz1 block]:
+
+        chunk in index order        : c00 c01 c02 c10 c11 c12 c20 c21 c22
+        its position in the file    :  0   3   6   1   4   7   2   5   8
+                                      --> reading jumps 0,3,6,1,4,7,2,...
+
+        chunk in on-disk order      : c00 c10 c20 c01 c11 c21 c02 c12 c22
+        its position in the file    :  0   1   2   3   4   5   6   7   8
+                                      --> reading is sequential (fastread)
+
+    Measured on albedo (FESOM 2.1.1, temp(time, nod2, nz1), chunks
+    (1, 42286, 16)): one file 10.3 s in index order vs 0.47 s in on-disk
+    order for the very same bytes; 5 years hovmoeller 53 s --> 3 s.
+
+    How: every dask block of the variable becomes one task (_fastread_block)
+    that looks up which chunks it needs, sorts them by byte offset and reads
+    them raw with h5py's read_direct_chunk. The dask blocks mirror the
+    chunking the variable was opened with, so the dask graph and with it all
+    reductions stay the same, only the read order changes.
+
+    Only applied where this is safe, everything else keeps the normal reader:
+
+        - files readable by h5py (netCDF-4/HDF5)
+        - variables with time as first dimension, chunked, without filters
+          (no compression/shuffle/checksum, e.g. FESOM 2.8 output is
+          compressed and so keeps the normal reader), without packing
+          (scale_factor/add_offset/_Unsigned), numeric dtype
+        - the files in pathlist, concatenated in their given order, must give
+          exactly data['time']. open_mfdataset sorts the files by time value
+          (combine='by_coords') and FESOM files carry their own time units,
+          so this is checked on the decoded time axis of every file.
+
+    Values: _FillValue/missing_value are set to NaN, as xarray does when it
+    decodes the variable, and the result is cast to the dtype of the opened
+    variable (load_data_fesom2's preprocess casts to do_prec). Chunks that
+    were never written keep the HDF5 fill value, as HDF5 itself returns them.
+
+    Parameters:
+
+        :data:      xarray dataset, result of xr.open_mfdataset(pathlist, ...)
+
+        :pathlist:  list of str, the files that were opened
+
+        :use_cftime: bool, (default=False) use_cftime that was used for opening
+
+        :do_info:   bool, (default=False) report where the fast path was used
+                    or why it was skipped
+
+    Returns:
+
+        :data:      xarray dataset, with data variables read in on-disk order
+                    where possible, otherwise unchanged
+
+    ____________________________________________________________________________
+    """
+    #___________________________________________________________________________
+    # candidates: data variables with time as first dimension
+    vnames = [v for v in data.data_vars if data[v].ndim>=2 and data[v].dims[0]=='time']
+    if len(vnames)==0 or 'time' not in data.coords: return(data)
+
+    #___________________________________________________________________________
+    # number of time records per file, only if the files in pathlist order give
+    # exactly the time axis open_mfdataset built
+    try:
+        nrec_per_file = _fastread_check_timeaxis(data, pathlist, use_cftime)
+    except Exception as err:
+        if do_info: print(' > fastread skipped: {}'.format(err))
+        return(data)
+
+    #___________________________________________________________________________
+    # replace variable by variable, a variable that fails a check keeps the
+    # normal reader
+    for vname in vnames:
+        dtype_out = data[vname].dtype
+        try:
+            # check the variable in every file, collect what the reader needs
+            file_info = [_fastread_check_variable(fname, vname, nrec, data[vname].shape[1:])
+                         for fname, nrec in zip(pathlist, nrec_per_file)]
+
+            # one dask array per file, then concatenate along time
+            #
+            #   data[vname]: | file 1: rec 0...nrec_1-1 | file 2: rec 0...nrec_2-1 | ...
+            #                ^ trec0 = 0                ^ trec0 = nrec_1
+            file_arrays = list()
+            trec0       = 0
+            for fname, nrec, (shape, chunk_shape, fills) in zip(pathlist, nrec_per_file, file_info):
+                block_edges = _fastread_block_edges(data[vname].chunks, trec0, shape, chunk_shape)
+                file_arrays.append(_fastread_file_array(fname, vname, block_edges, dtype_out, fills))
+                trec0 += nrec
+
+        except Exception as err:
+            if do_info: print(' > fastread skipped for {}: {}'.format(vname, err))
+            continue
+
+        #_______________________________________________________________________
+        # keep dims, coords and attrs of the opened variable, only swap the data
+        data[vname] = data[vname].copy(data=da.concatenate(file_arrays, axis=0))
+        if do_info:
+            print(' > fastread {}: {} files, blocks {}'.format(vname, len(file_arrays),
+                  {d: c[0] for d, c in zip(data[vname].dims, data[vname].chunks)}))
+
+    #___________________________________________________________________________
+    return(data)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def _fastread_check_timeaxis(data, pathlist, use_cftime):
+    """
+    --> read and decode the time axis of every file in pathlist with h5py and
+    check that, concatenated in pathlist order, they give exactly data['time'].
+    Every file is decoded with its own units/calendar attributes, as
+    open_mfdataset does. Raises ValueError if not. Used by
+    do_fastread_fileorder.
+
+    Returns:
+
+        :nrec_per_file: list of int, number of time records in every file
+    ____________________________________________________________________________
+    """
+    from xarray.coding.times import decode_cf_datetime
+
+    # netCDF attributes can come back as bytes from h5py
+    def _to_str(attr):
+        if attr is None          : return(None)
+        if isinstance(attr, bytes): return(attr.decode())
+        return(str(attr))
+
+    nrec_per_file, time_per_file = list(), list()
+    for fname in pathlist:
+        with h5py.File(fname, 'r') as h5:
+            time_var = h5['time']
+            units    = _to_str(time_var.attrs['units'])
+            calendar = _to_str(time_var.attrs.get('calendar', None))
+            time_per_file.append(decode_cf_datetime(time_var[...], units, calendar, use_cftime))
+            nrec_per_file.append(time_var.shape[0])
+
+    if sum(nrec_per_file)!=data.sizes['time'] or \
+       not np.array_equal(np.concatenate(time_per_file), data['time'].values):
+        raise ValueError('order of pathlist does not reproduce the time axis')
+    return(nrec_per_file)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def _fastread_check_variable(fname, vname, nrec, shape_nontime):
+    """
+    --> check that variable vname in file fname can be read raw chunk by chunk
+    (chunked, no filters, no packing, numeric, expected shape), raises
+    ValueError if not. Used by do_fastread_fileorder.
+
+    Parameters:
+
+        :fname:         str, file name
+        :vname:         str, variable name
+        :nrec:          int, expected number of time records in this file
+        :shape_nontime: tuple, expected shape of the non-time dimensions
+
+    Returns:
+
+        :shape:         tuple, shape of the variable in this file
+        :chunk_shape:   tuple, shape of its on-disk HDF5 chunks
+        :fills:         np.array or None, its _FillValue/missing_value values
+    ____________________________________________________________________________
+    """
+    with h5py.File(fname, 'r') as h5:
+        dset    = h5[vname]
+        filters = getattr(dset, '_filters', None)
+        if dset.chunks is None                       : raise ValueError('variable is not chunked')
+        if filters is None or len(filters)>0         : raise ValueError('variable has filters (e.g. compression)')
+        if dset.dtype.kind not in 'fiu'              : raise ValueError('not a numeric variable')
+        if any(key in dset.attrs for key in ('scale_factor', 'add_offset', '_Unsigned')):
+                                                       raise ValueError('variable is packed')
+        if dset.shape[0]!=nrec or dset.shape[1:]!=shape_nontime:
+                                                       raise ValueError('shape does not match the opened variable')
+
+        # values xarray would decode to NaN
+        fills = [np.asarray(dset.attrs[key], dtype=dset.dtype).ravel()
+                 for key in ('_FillValue', 'missing_value') if key in dset.attrs]
+        fills = np.concatenate(fills) if len(fills)>0 else None
+        return(dset.shape, dset.chunks, fills)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def _fastread_block_edges(dask_chunks, trec0, shape, chunk_shape):
+    """
+    --> block edges for one file, per dimension: the dask block boundaries of
+    the opened variable that fall inside this file, snapped to the nearest
+    on-disk chunk boundary (so no chunk is read by two blocks). Used by
+    do_fastread_fileorder.
+
+        opened dask blocks (all files) : |---------|---------|---------|
+        on-disk chunks of this file    : |---|---|---|---|---|---|---|---|
+        block edges for this file      : |-----------|-------|---------|
+                                         0     snapped to chunk grid   n
+
+    Along time the boundaries are shifted by trec0, the index of the file's
+    first record within the concatenated time axis.
+
+    Parameters:
+
+        :dask_chunks:   tuple of tuples, .chunks of the opened variable
+        :trec0:         int, first time record of this file in the time axis
+        :shape:         tuple, shape of the variable in this file
+        :chunk_shape:   tuple, shape of its on-disk HDF5 chunks
+
+    Returns:
+
+        :block_edges:   list (one per dimension) of sorted lists of int, the
+                        block edges including 0 and the dimension size
+    ____________________________________________________________________________
+    """
+    block_edges = list()
+    for dim, (size, csize) in enumerate(zip(shape, chunk_shape)):
+        # boundaries of the dask blocks in the coordinates of the full variable
+        bounds = np.concatenate([[0], np.cumsum(dask_chunks[dim])])
+
+        # keep the ones inside this file, in the coordinates of this file
+        if dim==0: bounds = bounds[(bounds>trec0) & (bounds<trec0+size)] - trec0
+        else     : bounds = bounds[(bounds>0) & (bounds<size)]
+
+        # snap to the nearest on-disk chunk boundary, add the file limits
+        bounds = np.round(bounds/csize).astype(int)*csize
+        block_edges.append(sorted(set([0, size] + [int(b) for b in bounds if 0<b<size])))
+    return(block_edges)
+
+
+
+#
+#
+#_______________________________________________________________________________
+def _fastread_file_array(fname, vname, block_edges, dtype_out, fills):
+    """
+    --> dask array of variable vname in file fname, one _fastread_block task
+    per block given by block_edges. Used by do_fastread_fileorder.
+    ____________________________________________________________________________
+    """
+    import dask
+
+    # da.block wants a nested list of blocks, one nesting level per dimension:
+    # for 2 dims [[blk(t0,n0), blk(t0,n1)], [blk(t1,n0), blk(t1,n1)]], each
+    # blk is described by block = [(start, stop) per dimension]
+    def _build_grid(dim, block):
+        # all dimensions fixed --> one read task for this block
+        if dim==len(block_edges):
+            task = dask.delayed(_fastread_block, pure=True)(fname, vname, tuple(block), dtype_out, fills)
+            return(da.from_delayed(task, shape=tuple(stop-start for start, stop in block), dtype=dtype_out))
+        # else loop over the blocks along this dimension, go one level deeper
+        edges = block_edges[dim]
+        return([_build_grid(dim+1, block+[(start, stop)]) for start, stop in zip(edges[:-1], edges[1:])])
+
+    return(da.block(_build_grid(0, [])))
+
+
+
+#
+#
+#_______________________________________________________________________________
+def _fastread_block(fname, vname, block, dtype_out, fills):
+    """
+    --> read one block of variable vname from file fname: find the on-disk
+    chunks that overlap the block, read them raw in byte-offset order and
+    copy the overlapping part of each into the block. Runs inside the dask
+    task. Used by do_fastread_fileorder.
+
+        block (start..stop per dim)    :      |===========|
+        on-disk chunks                 :  |-------|-------|-------|
+        overlap copied per chunk       :      |===|=======|=|
+
+    Parameters:
+
+        :fname:     str, file name
+        :vname:     str, variable name
+        :block:     tuple of (start, stop) per dimension, in file coordinates
+        :dtype_out: numpy dtype of the result
+        :fills:     np.array or None, values to set to NaN
+
+    Returns:
+
+        :out:       np.array of the block, dtype_out
+    ____________________________________________________________________________
+    """
+    import itertools
+    with h5py.File(fname, 'r') as h5:
+        dset        = h5[vname]
+        chunk_shape = dset.chunks
+        out         = np.full([stop-start for start, stop in block], dset.fillvalue, dtype=dset.dtype)
+
+        #_______________________________________________________________________
+        # raw chunk reading in on-disk order. If it fails for whatever reason
+        # (seen once on albedo: 'Unspecified error in H5Dread_chunk' for an
+        # intact file, cause unclear -- netCDF4 and h5py each load their own
+        # HDF5 library into the worker), re-read the block with h5py's normal
+        # reader. Same values, only the read order (= speed) differs.
+        try:
+            # all chunks that overlap the block, identified by their start index:
+            # per dimension from the chunk containing start up to stop. Chunks that
+            # were never written have no byte offset and keep the fill value.
+            chunk_starts = [range((start//csize)*csize, stop, csize)
+                            for (start, stop), csize in zip(block, chunk_shape)]
+            chunk_info   = list()
+            for chunk_start in itertools.product(*chunk_starts):
+                info = dset.id.get_chunk_info_by_coord(chunk_start)
+                if info.byte_offset is not None and info.size>0: chunk_info.append(info)
+
+            # the point of it all: read in the order the chunks lie on disk
+            chunk_info.sort(key=lambda info: info.byte_offset)
+
+            #___________________________________________________________________
+            for info in chunk_info:
+                # raw bytes of the full chunk (an edge chunk is stored at full size)
+                _, raw = dset.id.read_direct_chunk(info.chunk_offset)
+                chunk  = np.frombuffer(raw, dtype=dset.dtype).reshape(chunk_shape)
+
+                # overlap of chunk and block per dimension, as slices into the
+                # chunk (src) and into the block (dst)
+                src, dst = list(), list()
+                for chunk_start, csize, (start, stop) in zip(info.chunk_offset, chunk_shape, block):
+                    lo, hi = max(chunk_start, start), min(chunk_start+csize, stop)
+                    src.append(slice(lo-chunk_start, hi-chunk_start))
+                    dst.append(slice(lo-start      , hi-start      ))
+                out[tuple(dst)] = chunk[tuple(src)]
+        except Exception as err:
+            warnings.warn(' --> fastread: raw chunk read failed for {} in {}, block {}: {} '
+                          '--> re-read block with the normal h5py reader'.format(vname, fname, block, repr(err)))
+            out = dset[tuple(slice(start, stop) for start, stop in block)]
+
+    #___________________________________________________________________________
+    # set fill values to NaN like xarray's decoding, then cast like the preprocess
+    if fills is not None:
+        mask = np.isin(out, fills)
+        if mask.any():
+            out = out.astype(np.result_type(out.dtype, np.float32), copy=False)
+            out[mask] = np.nan
+    return(out.astype(dtype_out, copy=False))
 
 
 
@@ -2722,9 +3099,12 @@ def compute_optimal_chunks(path, client=None, varname=None, opti_dim='h',
         If given, use worker memory limits from Dask.
     varname : str or None
         Variable to base chunking on. If None, use first data_var.
-    opti_dim : {'h', 'hv', 'v', 'vh', 't', 'off', None}
+    opti_dim : {'h', 'hv', 'hvt', 'v', 'vh', 't', 'off', None}
         Which dimension to optimize: 'h' horizontal, 'v' vertical, 't' time,
-        'hv'/'vh' first the one then the other, 'off'/None keep stored chunks.
+        'hv'/'vh' first the one then the other, 'hvt' like 'hv' and when the
+        full horizontal x vertical field fits, also grow the time chunk
+        (fewer, larger dask tasks, e.g. for time series/hovmoeller),
+        'off'/None keep stored chunks.
     opti_chunkfrac : float
         Fraction of worker memory to target for a single chunk.
     dtype_bytes : int
@@ -2823,7 +3203,7 @@ def compute_optimal_chunks(path, client=None, varname=None, opti_dim='h',
         chunks[hori_dim] = hori_chunk
         strchnk_bytes    = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
             
-    elif opti_dim == 'hv' and hori_dim:
+    elif opti_dim in ['hv', 'hvt'] and hori_dim:
         # Compute optimized horizontal chunk
         # memory ≈ horiz_chunk * vert_chunk *time_chunk * 4 bytes
         hori_chunk       = int(target_bytes / (time_chunk*vert_chunk * dtype_bytes))
@@ -2834,10 +3214,26 @@ def compute_optimal_chunks(path, client=None, varname=None, opti_dim='h',
             vert_chunk_strd  = vert_chunk        
             vert_chunk       = int(target_bytes / (time_chunk*hori_chunk * dtype_bytes))
             vert_chunk       = min(vert_size, max(1, vert_chunk))
-            # make sure we combine full stored chunks
-            vert_chunk       = vert_chunk - np.mod(vert_chunk, vert_chunk_strd)
+            # make sure we combine full stored chunks, unless the full column
+            # fits, then take it whole (otherwise e.g. 47 lev with stored 16
+            # becomes 32+15 instead of 47)
+            if vert_chunk < vert_size:
+                vert_chunk   = vert_chunk - np.mod(vert_chunk, vert_chunk_strd)
             chunks[vert_dim] = vert_chunk
-        
+
+        # 'hvt': the full horizontal x vertical field per time step fits -->
+        # also put several time steps into one chunk. Fewer, larger dask tasks,
+        # the scheduler is otherwise the bottleneck for long time series
+        # (e.g. 31 years monthly, 8 regions: ~8000 --> ~660 tasks per region).
+        # time_size is the one of a single file (path), so a chunk never spans
+        # across files. Note: changes the float32 rounding of reductions
+        # compared to 'hv'.
+        if opti_dim == 'hvt' and time_dim and hori_chunk == hori_size and \
+           (vert_dim is None or vert_chunk == vert_size):
+            time_chunk       = int(target_bytes / (hori_chunk*vert_chunk * dtype_bytes))
+            time_chunk       = min(time_size, max(1, time_chunk))
+            chunks[time_dim] = time_chunk
+
     elif opti_dim == 'v' and vert_dim :   
         # Compute optimized vertical chunk
         # memory ≈ horiz_chunk * vert_chunk *time_chunk * 4 bytes
@@ -2872,7 +3268,7 @@ def compute_optimal_chunks(path, client=None, varname=None, opti_dim='h',
         pass
     
     else:
-        raise ValueError(f" --> This opti_dim option '{opti_dim}' is not supported, use one of 'h', 'hv', 'v', 'vh', 't', 'off', None")
+        raise ValueError(f" --> This opti_dim option '{opti_dim}' is not supported, use one of 'h', 'hv', 'hvt', 'v', 'vh', 't', 'off', None")
         
     final_bytes = (hori_chunk*vert_chunk*time_chunk * dtype_bytes)
     if do_info:

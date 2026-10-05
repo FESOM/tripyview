@@ -32,6 +32,7 @@ def load_index_fesom2(mesh                  ,
                       do_compute    = False , 
                       do_load       = True  , 
                       do_persist    = False ,
+                      do_onecompute = True  ,
                       client        = None  ,
                       ):
     """
@@ -76,8 +77,28 @@ def load_index_fesom2(mesh                  ,
                         
         :do_persist:    bool (default=False), do xarray dataset persist() at the end
                         data = data.persist(), keeps the dataset as dask array, keeps
-                        the chunking    
-                      
+                        the chunking
+
+        :do_onecompute: bool (default=True), apply do_compute/do_load/do_persist
+                        once for all regions in box_list together instead of
+                        region by region. With lazy input data, the region by
+                        region way re-reads the full data from disk for every
+                        region, together every data chunk is read only once and
+                        feeds all regional reductions. Same reduction per region,
+                        results agree within the float32 run-to-run noise of
+                        the weighted mean (~1e-5, see BUGREPORT #47), memory
+                        need is about the same, since only the small regional
+                        indices are kept.
+
+                        ::
+
+                            region by region:  disk --> data --> region 1   (read 1)
+                                               disk --> data --> region 2   (read 2)
+                                               ...
+                            do_onecompute   :  disk --> data -+-> region 1  (read 1)
+                                                              +-> region 2
+                                                              +-> ...
+
         :do_info:       bool (defalt=False), print variable info at the end 
                        
         :client:        dask client object (default=None)
@@ -197,18 +218,23 @@ def load_index_fesom2(mesh                  ,
         idxin_list.append(idxin)
         
         #_______________________________________________________________________
-        warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
-        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
-        if   do_compute: index_list[cnt] = index_list[cnt].compute()
-        elif do_load   : index_list[cnt] = index_list[cnt].load()
-        elif do_persist: index_list[cnt] = index_list[cnt].persist()
-        if any([do_compute, do_load, do_persist]): index.close()
-        del(index, idxin)
-        gc.collect() 
-        
-        # additionally rebalancing the  memory load of workers 
-        if client is not None: client.rebalance()
-        warnings.resetwarnings()
+        # with do_onecompute the regions stay lazy here and are evaluated
+        # together after the loop
+        if not do_onecompute:
+            warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+            warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
+            if   do_compute: index_list[cnt] = index_list[cnt].compute()
+            elif do_load   : index_list[cnt] = index_list[cnt].load()
+            elif do_persist: index_list[cnt] = index_list[cnt].persist()
+            if any([do_compute, do_load, do_persist]): index.close()
+            del(index, idxin)
+            gc.collect()
+
+            # additionally rebalancing the  memory load of workers
+            if client is not None: client.rebalance()
+            warnings.resetwarnings()
+        else:
+            del(index, idxin)
             
         #_______________________________________________________________________
         # set additional attributes
@@ -232,7 +258,20 @@ def load_index_fesom2(mesh                  ,
         
         #_______________________________________________________________________
         cnt = cnt + 1
-        
+
+    #___________________________________________________________________________
+    # evaluate all regions in one graph, so every data chunk is read only once
+    # and feeds all regional reductions (see do_onecompute)
+    if do_onecompute and any([do_compute, do_load, do_persist]):
+        import dask
+        warnings.filterwarnings("ignore", category=UserWarning, message="Sending large graph of size")
+        warnings.filterwarnings("ignore", category=UserWarning, message="Large object of size")
+        if do_compute or do_load: index_list = list(dask.compute(*index_list))
+        else                    : index_list = list(dask.persist(*index_list))
+        gc.collect()
+        if client is not None: client.rebalance()
+        warnings.resetwarnings()
+
     #___________________________________________________________________________
     if do_idxin_out: return(index_list, idxin_list)
     else           : return(index_list)

@@ -1,4 +1,4 @@
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 import numpy as np
 import gc
 import dask
@@ -11,44 +11,58 @@ import logging
 #_______________________________________________________________________________
 # start parallel dask client
 def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel_nprc, parallel_tmem,
-                              threads_per_worker=4, 
+                              threads_per_worker=4,
                               memory_thresh=0.90, # hoch much memory from total mem should be distributed
                               memory_target=0.85, # Start spilling at 85% usage (default 60%)
                               memory_spill =0.90,  # Spill to disk at 90% usage (default 70%)
                               memory_pause =0.95, # Pause execution at 95% usage (default 80%)
                               memory_termin=0.98, # Pause execution at 95% usage (default 80%)
                               do_dashbrdlnk=True,
+                              scheduler_file=None,
                               ):
     """
-    --> shortcut to setup dask client in a note book 
-    
-    Parameters: 
-    
-        :client:    None, dask client object (default: None) If None no dask client was 
+    --> shortcut to setup dask client in a note book
+
+    Parameters:
+
+        :client:    None, dask client object (default: None) If None no dask client was
                     started do_parallel=False
-                    
-        :use_existing_client:   str, (default:"tcp://0.0.0.0:0000") You can give here the 
+
+        :use_existing_client:   str, (default:"tcp://0.0.0.0:0000") You can give here the
                                 adress of an already running dask client e.g.
                                 "tcp://127.0.0.1:42465" that can be re used by the notebook.
                                 default is "tcp://0.0.0.0:0000" as an non existent dummy client
                                 which means that first a new client will be started if none
-                                is already attributed to the notebook 
-                                
-        :do_parallel:   bool, (default: False) True/False if a parallel dask client 
-                        should be started                       
-                        
-                        
+                                is already attributed to the notebook
+
+        :do_parallel:   bool, (default: False) True/False if a parallel dask client
+                        should be started
+
+
         :parallel_nprc:  int, (default:48) How many dask worker should be started
-        
-        :parallel_tmem:  int, (default:256) Available memory that will be distributed 
-                         between the started dask workers   
-    
+
+        :parallel_tmem:  int, (default:256) Available memory that will be distributed
+                         between the started dask workers
+
+        :scheduler_file: str or None, (default: None) path to a dask scheduler-info
+                        file, e.g. '~/.tripyview_dask_scheduler.json'. Unlike
+                        use_existing_client this needs no address typed in by hand:
+                        if the file exists and a scheduler is actually listening at
+                        the address it records, that cluster is reused (this is the
+                        only one of the three reuse checks here that survives a
+                        kernel restart, since use_existing_client's default and
+                        Client.current() both need the original kernel process to
+                        still be alive). If the file is missing, or present but
+                        stale (no scheduler there anymore, e.g. after a crashed
+                        kernel), it is removed and a new cluster is started and
+                        written to that path for the next notebook to find.
+
      __________________________________________________
-    
+
     Returns:
-    
+
         :client:    returns None or dask client object
-    
+
     ____________________________________________________________________________
     """
     
@@ -115,29 +129,72 @@ def shortcut_setup_daskclient(client, use_existing_client, do_parallel, parallel
         #logger.setLevel(logging.DEBUG)
                 
         #_______________________________________________________________________
-        # check for existing client via adress
-        try:
-            client = Client(use_existing_client)
-            client.run(gc.collect)  # Run garbage collection on all workers
-            print("Connected to existing Dask cluster:", client)
-            
-        #_______________________________________________________________________    
-        except OSError:
-            print("No existing Dask cluster found at:", use_existing_client)
+        # resolve scheduler_file to an absolute path up front so both the
+        # reconnect attempt and the new-cluster branch below agree on it
+        if scheduler_file is not None:
+            scheduler_file = os.path.expanduser(scheduler_file)
+
+        client = None
+
+        #_______________________________________________________________________
+        # check for an existing cluster via scheduler_file -- this is the only one
+        # of the three reuse checks that survives a kernel restart, since it reads
+        # the address from disk instead of from this process' or a typed-in state
+        if scheduler_file is not None and os.path.isfile(scheduler_file):
             try:
-                # Check if an existing client is connected
-                client = Client.current()
+                client = Client(scheduler_file=scheduler_file, timeout="10s")
                 client.run(gc.collect)  # Run garbage collection on all workers
-                print("Dask client already running:", client)
-            except ValueError:
-                # No active client, start a new one
-                
-                client = Client(n_workers         = np.int16(parallel_nprc/threads_per_worker), 
-                                threads_per_worker= threads_per_worker, 
-                                memory_limit      = '{:3.3f} GB'.format(parallel_tmem/parallel_nprc*threads_per_worker*memory_thresh), 
-                                timeout           = "300s", 
-                                )
-                print("Started a new Dask client:", client)
+                print("Reconnected to existing Dask cluster via scheduler_file:", client)
+            except (OSError, TimeoutError):
+                print("scheduler_file", scheduler_file, "is stale (no cluster there anymore), removing it")
+                try: os.remove(scheduler_file)
+                except OSError: pass
+                client = None
+
+        #_______________________________________________________________________
+        # check for existing client via adress
+        if client is None:
+            try:
+                client = Client(use_existing_client)
+                client.run(gc.collect)  # Run garbage collection on all workers
+                print("Connected to existing Dask cluster:", client)
+
+            #___________________________________________________________________
+            except OSError:
+                print("No existing Dask cluster found at:", use_existing_client)
+                try:
+                    # Check if an existing client is connected
+                    client = Client.current()
+                    client.run(gc.collect)  # Run garbage collection on all workers
+                    print("Dask client already running:", client)
+                except ValueError:
+                    # No active client, start a new one.
+                    #
+                    # NOTE: passing scheduler_file= directly to Client(..., n_workers=...)
+                    # does NOT start a new cluster and write the file -- dask's own
+                    # Client._start() treats scheduler_file as "connect to a cluster
+                    # described by this file" unconditionally and busy-waits for it to
+                    # appear (`while not os.path.exists(self.scheduler_file): sleep`),
+                    # regardless of n_workers also being given; that path never reaches
+                    # cluster creation at all, so the call hangs forever. The file is
+                    # only ever written by the Scheduler itself, which is reached by
+                    # constructing the LocalCluster explicitly (scheduler_kwargs is
+                    # forwarded to distributed.Scheduler, which does accept
+                    # scheduler_file) and handing that cluster to Client().
+                    worker_kwargs = dict(
+                        n_workers         = np.int16(parallel_nprc/threads_per_worker),
+                        threads_per_worker= threads_per_worker,
+                        memory_limit      = '{:3.3f} GB'.format(parallel_tmem/parallel_nprc*threads_per_worker*memory_thresh),
+                        )
+                    if scheduler_file is not None:
+                        cluster = LocalCluster(scheduler_kwargs={'scheduler_file': scheduler_file},
+                                               **worker_kwargs)
+                        client  = Client(cluster, timeout="300s")
+                        print("Started a new Dask client:", client)
+                        print("Wrote scheduler_file for reuse by later notebooks:", scheduler_file)
+                    else:
+                        client = Client(timeout="300s", **worker_kwargs)
+                        print("Started a new Dask client:", client)
         
         #_______________________________________________________________________            
         display(client)
