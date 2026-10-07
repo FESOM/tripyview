@@ -7,12 +7,19 @@ import warnings
 #_______________________________________________________________________________       
 # open htnl template file
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
-#except: pkg_path='' 
-pkg_path          = os.path.dirname(os.path.dirname(__file__))
+#except: pkg_path=''
+# a normal (non-editable) install ships the templates inside the package (see
+# setup.py), an editable/development checkout keeps them at the repository root
+_pkg_dir            = os.path.dirname(os.path.abspath(__file__))
+templates_installed = os.path.isdir(os.path.join(_pkg_dir, 'templates_notebooks'))
+pkg_path          = _pkg_dir if templates_installed else os.path.dirname(_pkg_dir)
 templates_path    = os.path.join(pkg_path,'templates_html')
 templates_nb_path = os.path.join(pkg_path,'templates_notebooks')
 file_loader       = FileSystemLoader(templates_path)
 env               = Environment(loader=file_loader)
+
+# notebooks that raised during the current tripyrun call, summarised at its end
+failed_notebooks  = []
 
 
 
@@ -94,7 +101,7 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
         elif exec_template in ['transp_dmoc_srfcbflx']:
             if 'which_isopyc' in params_vname: str_isop1, str_isop2 = f"_{params_vname['which_isopyc']}", f"Srf. buoyancy transf. @ sigma2= {params_vname['which_isopyc']} kg/m^3"
         str_all1 = f"{str_all1}{str_proj1}{str_isop1}{str_mon1}"
-        str_all2 = f"{str_isop2}{str_proj1}{str_mon2}"
+        str_all2 = f"{str_isop2}{str_proj2}{str_mon2}"
     
     elif exec_template in ['transp_hbstreamf']:
         str_all1 = f"{str_all1}{str_mon1}"
@@ -114,20 +121,29 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     
     #___________________________________________________________________________
     # execute notebook with papermill
+    path_nb = os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb)
+    failed  = False
     try:
         pm.execute_notebook(f"{templates_nb_path}/template_{exec_template}.ipynb",
-                            os.path.join(params_vname['tripyrun_spath_nb'], save_fname_nb),
+                            path_nb,
                             parameters=params_vname,
-                            nest_asyncio=True,)
-        print('Data found')
+                            nest_asyncio=True,
+                            kernel_name=os.environ.get("TRIPYVIEW_KERNEL", "python3"),)
     except pm.PapermillExecutionError as e:
-        print(f"Error while running Notebook: {e}")
+        failed = True
+        print(f" --> ERROR in notebook {path_nb}\n     {e.ename}: {e.evalue}\n     (full traceback is stored in that notebook)")
 
     except Exception as e:
-        print(f"Unexpected Error: {e}")
+        failed = True
+        print(f" --> ERROR while running notebook {path_nb}\n     {type(e).__name__}: {e}")
 
-  
-                
+    #___________________________________________________________________________
+    # a failed notebook that produced no figure must not end up as a broken image
+    # link in the html, and is reported again at the end of tripyrun
+    if failed:
+        failed_notebooks.append(path_nb)
+        if not os.path.isfile(params_vname['save_fname']): return(webpage, cnt)
+
     #___________________________________________________________________________
     # attach created figures to webpage collection
     webpage[f"image_{cnt}"] = {}
@@ -135,11 +151,14 @@ def exec_papermill(webpage, cnt, params_vname, exec_template='hslice'):
     else                      : webpage[f"image_{cnt}"]["variable"] = ''
     webpage[f"image_{cnt}"]["cnt"]        = cnt
     webpage[f"image_{cnt}"]["name"]       = str_all2
+    # webpage[f"image_{cnt}"]["path"]       = os.path.join('./figures/', save_fname)
+    # webpage[f"image_{cnt}"]["path_nb"]    = os.path.join('./notebooks/', save_fname_nb)
     # Compute relative paths from HTML location (save_path) to figure/notebook directories
     fig_relpath = os.path.relpath(params_vname['tripyrun_spath_fig'], params_vname['save_path'])
     nb_relpath  = os.path.relpath(params_vname['tripyrun_spath_nb'], params_vname['save_path'])
     webpage[f"image_{cnt}"]["path"]       = os.path.join(f'./{fig_relpath}/', save_fname)
     webpage[f"image_{cnt}"]["path_nb"]    = os.path.join(f'./{nb_relpath}/', save_fname_nb)
+
     webpage[f"image_{cnt}"]["short_name"] = short_name
     cnt += 1
     
@@ -463,17 +482,17 @@ def drive_hquiver(yaml_settings, analysis_name, webpage=dict(), image_count=0, v
                                                    source_loop='months', exec_template='hquiver')
         #_______________________________________________________________________
         # only single boxregion defined 
-        elif 'depth' in params_vname:    
-            # make loops over the months or not 
-            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
+        elif 'depth' in params_vname:
+            # make loops over the months or not
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon',
                                                    source_loop='months', exec_template='hquiver')
-            
-        #_______________________________________________________________________    
-        # no depth defined use the one defined in the notebook 
+
+        #_______________________________________________________________________
+        # no depth defined use the one defined in the notebook
         else:
             #warnings.warn(' -WARNING-> depths is not defined, use the default on defined in the notebook')
-            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon', 
-                                                   source_loop='months', exec_template='hslice')
+            webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='mon',
+                                                   source_loop='months', exec_template='hquiver')
     return webpage
 
 
@@ -1027,7 +1046,7 @@ def drive_transect_Xtransp_t(yaml_settings, analysis_name, webpage=dict(), image
 #
 #
 #_______________________________________________________________________________
-def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_zm_mean(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1060,7 +1079,7 @@ def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_cou
         #_______________________________________________________________________
         # make loop over box_regions
         webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
-                                               source_loop='box_regions', exec_template='transect_zmean')
+                                               source_loop='box_regions', exec_template=analysis_name)
     return webpage
 
 
@@ -1068,7 +1087,7 @@ def drive_transect_zmean(yaml_settings, analysis_name, webpage=dict(), image_cou
 #
 #
 #_______________________________________________________________________________
-def drive_transect_zmean_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_transect_zm_mean_clim(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1100,8 +1119,8 @@ def drive_transect_zmean_clim(yaml_settings, analysis_name, webpage=dict(), imag
         
         #_______________________________________________________________________
         # make loop over box_regions
-        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region', 
-                                               source_loop='box_regions', exec_template='transect_zmean_clim')
+        webpage, image_count = loop_over_param(webpage, image_count, params_vname, target='box_region',
+                                               source_loop='box_regions', exec_template=analysis_name)
     return webpage
 
 
@@ -1109,7 +1128,7 @@ def drive_transect_zmean_clim(yaml_settings, analysis_name, webpage=dict(), imag
 #
 #
 #_______________________________________________________________________________
-def drive_ghflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
+def drive_gmhflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vname=None):
     #___________________________________________________________________________
     # create 1st-level parameter from yaml_settings
     params_1lvl = extract_params(yaml_settings)
@@ -1122,8 +1141,8 @@ def drive_ghflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vna
     params_vname = dict({'tripyrun_analysis':analysis_name})
     params_vname.update(params_1lvl)
     params_vname.update(params_2lvl)
-    params_vname["vname"] = 'ghflx'
-    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_ghflx')
+    #params_vname["vname"] = analysis_name
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_'+analysis_name)
     return webpage
 
 
@@ -1144,8 +1163,8 @@ def drive_mhflx(yaml_settings, analysis_name, webpage=dict(), image_count=0, vna
     params_vname = dict({'tripyrun_analysis':analysis_name})
     params_vname.update(params_1lvl)
     params_vname.update(params_2lvl)
-    params_vname["vname"] = 'mhflx'
-    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_mhflx')
+    # params_vname["vname"] = 'mhflx'
+    webpage, image_count = exec_papermill(webpage, image_count, params_vname, exec_template='transp_'+analysis_name)
     return webpage
 
 

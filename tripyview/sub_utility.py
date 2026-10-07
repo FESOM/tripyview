@@ -7,7 +7,14 @@ import numpy  as np
 from   numba import jit, njit, prange
 import shapefile as shp
 from   shapely.geometry   import Point, Polygon, MultiPolygon, shape
-from   shapely.vectorized import contains
+try:
+    # shapely>=2: same as the deprecated shapely.vectorized.contains, without using it
+    from shapely import contains_xy as _contains_xy, prepare as _prepare
+    def contains(geometry, x, y):
+        _prepare(geometry)
+        return _contains_xy(geometry, x, y)
+except ImportError:
+    from shapely.vectorized import contains
 import shapefile as shp
 from   scipy.interpolate        import interp1d
 import json
@@ -15,246 +22,22 @@ import cartopy.crs              as ccrs
 
 from .sub_mesh import *
 from .sub_plot import *
-
-#
-#
-#_____________________________________________________________________________________________
-def do_node_neighbour(mesh, do_nghbr_e=False):
-    print(' --> compute node neighbourhood')
-    #_________________________________________________________________________________________
-    # compute  infrastructure
-    # nmb_n_in_e ...number of elements with node
-    # n_nghbr_e  ...element index with node   
-    nmb_n_in_e = np.zeros((mesh.n2dn,), dtype=np.int32)
-    n_nghbr_e     =  [ [] for _ in range(mesh.n2dn)] 
-    for elemi in range(0,mesh.n2de):
-        nmb_n_in_e[mesh.e_i[elemi,:]] = nmb_n_in_e[mesh.e_i[elemi,:]] + 1
-        nodes = mesh.e_i[elemi,:]
-        for ni in range(0,3): n_nghbr_e[nodes[ni]].append(elemi)  
-
-    # n_nghbr_n   ...index of neighbouring nodes         
-    n_nghbr_n     =  [ [] for _ in range(mesh.n2dn)] 
-    for nodei in range(0,mesh.n2dn):
-
-        # loop over neigbouring elements
-        for nie in range(nmb_n_in_e[nodei]):
-            elemi  = n_nghbr_e[nodei][nie]
-
-            # loop over vertice indecies of element elemi 
-            for ni in mesh.e_i[elemi,:]:
-                if (ni==nodei) or (ni in n_nghbr_n[nodei]): continue
-                n_nghbr_n[nodei].append(ni)    
-
-        # sort indices (not realy necessary ?!)
-        n_nghbr_n[nodei].sort()
-    
-    #_________________________________________________________________________________________
-    if do_nghbr_e: 
-        return(n_nghbr_n, n_nghbr_e)
-    else:
-        return(n_nghbr_n)
-
-#
-#
-#_____________________________________________________________________________________________
-def do_elem_neighbour(mesh):
-    #_________________________________________________________________________________________
-    # compute node neighbourhood
-    # n_nghbr_n ... neighboring nodes
-    # n_nghbr_e ... neighboring elem
-    n_nghbr_n, n_nghbr_e = do_node_neighbour(mesh, do_nghbr_e=True)
-    
-    #_________________________________________________________________________________________
-    print(' --> compute edge neighbourhood')
-    # compute edge and neighbouring elements with respect to edge
-    # edges     ... list with node indices that form edge
-    # ed_nghbr_e... neighbouring elements with respect to edge 
-    edges      = list()
-    ed_nghbr_e = list()
-    # loop over nodes
-    for n in range(0,mesh.n2dn):
-        # loop over the neighbouring nodes 
-        for nghbr_n in n_nghbr_n[n]:
-            
-            # do not dublicate edges
-            if nghbr_n<n: continue
-            
-            # loop over the neighbouring elements
-            elems=[]
-            for nghbr_e in n_nghbr_e[n]:
-                elnodes = mesh.e_i[nghbr_e,:]
-                
-                # if neighbouring nodes to node n is found in neighbouring elements
-                if nghbr_n in elnodes:
-                    elems.append(nghbr_e)
-                
-                if len(elems)==2: break
-                    
-            # write node indices and elem indices that contribute to edge
-            if len(elems)==1: elems.append(-999)
-            edges.append([n,nghbr_n])
-            ed_nghbr_e.append(elems)
-            
-    #_________________________________________________________________________________________
-    print(' --> compute elem neighbourhood')        
-    # compute edge indices with respect to element
-    # e_nghbr_ed ... neighbouring edges with respect to element 
-    n2ded = len(edges)   
-    e_nghbr_ed =  [ [] for _ in range(mesh.n2de)]
-    # loop over edges
-    for edi in range(0,n2ded):
-        # loop over neighbouring elements with respect to edge
-        for nghbr_e in ed_nghbr_e[edi]:
-            
-            # its a boundary edge, has only one valid elem neighbour
-            if nghbr_e<0: 
-                continue 
-            else:    
-                e_nghbr_ed[nghbr_e].append(edi)
-                
-                
-    # compute neighbouring elem indecies with respect to elem
-    # e_nghbr_e ... neighbouring elements with respect to elem
-    e_nghbr_e =  [ [] for _ in range(mesh.n2de)]
-    for ei in range(0,mesh.n2de):
-        for nghbr_ed in e_nghbr_ed[ei]:
-            elems = ed_nghbr_e[nghbr_ed]     
-            if elems[0]==ei: e_nghbr_e[ei].append(elems[1])
-            else:            e_nghbr_e[ei].append(elems[0])
-    
-    #_________________________________________________________________________________________
-    return(e_nghbr_e)
-
-#
-#
-#_____________________________________________________________________________________________
-def do_node_smoothing(mesh, data_orig, n_nghbr_n, weaksmth_boxlist, rel_cent_weight, num_iter):
-    print(' --> compute node smoothing')
-    #_________________________________________________________________________________________
-    data_smooth = data_orig.copy()
-    # compute smoothing
-    for it in range(num_iter):
-        print('     iter: {}'.format(str(it)))
-        # loop over nodes
-        data_done = data_smooth.copy()
-        for nodei in range(0,mesh.n2dn):
-            # smooth from down to top 
-            idx = np.argmax(data_done)
-            data_done[idx] = -99999.0
-
-            # set coeff
-            coeff1=1.0
-            
-            # include special region with less smoothing by increaing the 
-            # weight of the center
-            if( not weaksmth_boxlist == False): 
-                for box in weaksmth_boxlist:
-                    if (mesh.n_x[idx]>=box[0] and mesh.n_x[idx]<=box[1] and
-                        mesh.n_y[idx]>=box[2] and mesh.n_y[idx]<=box[3] ): 
-                        coeff1=box[4]
-            
-            # do convolution over neighbours (weight of neighbours = 1)
-            # sum depth over neighbouring nodes 
-            dsum=0.0
-            nmb_n_nghbr=0
-            for ni in n_nghbr_n[idx]: 
-                dsum=dsum+data_smooth[ni]
-                nmb_n_nghbr=nmb_n_nghbr+1
-
-            # add contribution from center weight 
-            dsum=dsum + np.real(coeff1*rel_cent_weight*(nmb_n_nghbr-1.0)-1.0)*data_smooth[idx]
-            data_smooth[idx]=dsum/np.real( nmb_n_nghbr + coeff1*rel_cent_weight*(nmb_n_nghbr-1)-1.0 )
-            #                                  |                       | 
-            #                   sum over weight (=1)          center weight (depends
-            #                   of neighbours                 on number of neighbours)
-    #_________________________________________________________________________________________
-    return(data_smooth)
+import tripyview
 
 
-#
-#
-#_____________________________________________________________________________________________
-def do_node_smoothing_fast(mesh, data_orig, n_nghbr_n, rel_cent_weight, num_iter):
-    print(' --> compute node smoothing')
-    #_________________________________________________________________________________________
-    data_smooth = data_orig.copy()
-    # set coeff
-    coeff1=1.0
-            
-    # compute smoothing
-    for it in range(num_iter):
-        print('     iter: {}'.format(str(it)))
-        # loop over nodes
-        data_done = data_smooth.copy()
-        
-        list_idx = np.argsort(data_done)
-        for idx in list_idx:
-            data_done[idx] = -999999.0
-        
-            # do convolution over neighbours (weight of neighbours = 1)
-            # sum depth over neighbouring nodes 
-            dsum=0.0
-            nmb_n_nghbr=0
-            for ni in n_nghbr_n[idx]: 
-                dsum=dsum+data_smooth[ni]
-                nmb_n_nghbr=nmb_n_nghbr+1
+def _running_in_dask_worker():
+    """--> True if this import is happening inside a Dask worker process,
+    rather than the main/client process.
 
-            # add contribution from center weight 
-            dsum=dsum + np.real(coeff1*rel_cent_weight*(nmb_n_nghbr-1.0)-1.0)*data_smooth[idx]
-            data_smooth[idx]=dsum/np.real( nmb_n_nghbr + coeff1*rel_cent_weight*(nmb_n_nghbr-1)-1.0 )
-            #                                  |                       | 
-            #                   sum over weight (=1)          center weight (depends
-            #                   of neighbours                 on number of neighbours)
-    #_________________________________________________________________________________________
-    return(data_smooth)
-
-
-
-#
-#
-#_____________________________________________________________________________________________
-def do_elem_smoothing(mesh, data_orig, e_nghbr_e, weaksmth_boxlist, rel_cent_weight, num_iter):
-    print(' --> compute elem smoothing')
-    #_________________________________________________________________________________________
-    data_smooth = data_orig.copy()
-    # compute smoothing
-    for it in range(num_iter):
-        print('     iter: {}'.format(str(it)))
-        # loop over nodes
-        data_done = data_smooth.copy()
-        for elemi in range(0,mesh.n2de):
-            # smooth from down to top 
-            idx = np.argmax(data_done)
-            data_done[idx] = -99999.0
-
-            # set coeff
-            coeff1=1.0
-            
-            # include special region with less smoothing
-            if( not weaksmth_boxlist == False): 
-                for box in weaksmth_boxlist:
-                    if (mesh.n_x[mesh.e_i[idx,:]].sum()/3 >=box[0] and mesh.n_x[mesh.e_i[idx,:]].sum()/3 <=box[1] and
-                        mesh.n_y[mesh.e_i[idx,:]].sum()/3 >=box[2] and mesh.n_y[mesh.e_i[idx,:]].sum()/3 <=box[3] ): 
-#                         coeff1=special_smth_coeff
-                        coeff1=box[4]
-
-            # sum depth over neighbouring elements 
-            dsum=0.0
-            nmb_e_nghbr = 0
-            for ei in e_nghbr_e[idx]: 
-                if ei<0: continue
-                dsum=dsum+data_smooth[ei]
-                nmb_e_nghbr = nmb_e_nghbr+1
-
-            # add contribution from center weight 
-            dsum=dsum + (coeff1*rel_cent_weight*(nmb_e_nghbr-1.0)-1.0)*data_smooth[idx]
-            data_smooth[idx]=dsum/np.real( nmb_e_nghbr + coeff1*rel_cent_weight*(nmb_e_nghbr-1)-1.0 )
-            #                                  |                        | 
-            #                   sum over weight (=1)          center weight (depends
-            #                   of neighbours                 on number of neighbours)
-            
-    #_________________________________________________________________________________________
-    return(data_smooth)
+    Checking distributed.get_worker() does NOT work here: with the default
+    'spawn' multiprocessing method, a freshly started worker process
+    re-executes the whole top-level module (e.g. the notebook's `import
+    tripyview` cell) before the Worker object itself is constructed, so
+    get_worker() would still (incorrectly) report "no worker" at that point.
+    multiprocessing.current_process() is set up before that re-execution,
+    so its name reliably identifies a Dask worker process even then."""
+    import multiprocessing
+    return "Dask Worker" in multiprocessing.current_process().name
 
 
 
@@ -526,24 +309,15 @@ def calc_basindomain_slow(mesh,box_moc,do_output=False):
 #| to calculate the regional moc (amoc,pmoc,imoc) the domain needs be limited to corresponding basin.
 #| 
 #+___________________________________________________________________________________________________
-def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_meditoce=False):
+def calc_basindomain_fast(mesh, 
+                          which_moc    ='amoc', 
+                          do_onelem    = True, 
+                          do_exclude   = False, 
+                          exclude_list = list()):
     #___________________________________________________________________________
     # calculate/use index for basin domain limitation
     if which_moc=='gmoc' and not isinstance(which_moc,shp.Reader):
-        #_______________________________________________________________________
-        if do_onelem: e_idxin = np.ones((mesh.n2de,), dtype=bool)
-        else        : n_idxin = np.ones((mesh.n2dn,), dtype=bool)
-        
-        #_______________________________________________________________________
-        if exclude_meditoce:
-            pkg_path = os.path.dirname(__file__)
-            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
-            idx_excl = do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)
-            if do_onelem:
-                idx_excl = idx_excl[mesh.e_i].sum(axis=1)>=1
-                e_idxin[idx_excl]=False
-            else:    
-                n_idxin[idx_excl]=False
+        n_idxin = np.ones((mesh.n2dn,), dtype=bool)
         
     else:    
         tt1=time.time()
@@ -597,16 +371,26 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_medito
         n_idxin = np.zeros((mesh.n2dn,), dtype=bool)
         for box in box_list:
             n_idxin = np.logical_or(n_idxin, do_boxmask(mesh, box, do_elem=False))
-        
-        #_______________________________________________________________________
-        # exclude the mediterranean basin when computing MOC
-        if exclude_meditoce:
-            pkg_path = os.path.dirname(__file__)
-            mocbaspath=os.path.join(pkg_path,'shapefiles/ocean_basins/')
-            n_idxin[do_boxmask(mesh, shp.Reader(os.path.join(mocbaspath,'Mediterranean_Basin.shp')), do_elem=False)]=False
-        
-        #_______________________________________________________________________
-        if do_onelem: e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
+    
+    #___________________________________________________________________________
+    # exclude certain areas from selection e.g mediterranean, blasck sea ... 
+    if do_exclude and len(exclude_list)>0 and which_moc=='gmoc':
+        for exclude in exclude_list:
+            # exclude by box
+            if   isinstance(exclude, list):
+                idx_excl = do_boxmask(mesh, exclude, do_elem=False)
+            
+            # exclude by shapefile location string
+            elif isinstance(exclude, str):    
+                shp_path = os.path.join(tripyview.__path__[0],'shapefiles/')
+                idx_excl = do_boxmask(mesh, shp.Reader(os.path.join(shp_path,exclude)), do_elem=False)
+                
+            else: raise ValueError('--> this exclude format is not supported')
+                    
+            n_idxin[idx_excl]=False
+    
+    #_______________________________________________________________________
+    if do_onelem: e_idxin = n_idxin[mesh.e_i].sum(axis=1)>=1  
     
     
     #___________________________________________________________________________
@@ -618,6 +402,27 @@ def calc_basindomain_fast(mesh, which_moc='amoc', do_onelem=True, exclude_medito
 #
 #
 #_______________________________________________________________________________
+def shp_shape_to_geom(shp_shape):
+    """
+    --> convert a pyshp shape into a shapely geometry, keeping all its parts
+        (Polygon(shp_shape.points) would join multi-part shapes into a single
+        self-intersecting ring and ignore holes)
+
+    Parameters:
+
+        :shp_shape: pyshp shape object, e.g. an element of shp.Reader(...).shapes()
+
+    Returns:
+
+        :geom:      shapely Polygon or MultiPolygon
+
+    ____________________________________________________________________________
+    """
+    from shapely.geometry import shape as shapely_shape
+    return shapely_shape(shp_shape.__geo_interface__)
+
+
+
 def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
     #___________________________________________________________________________
     if (mesh_x is None) and (mesh_y is None) :
@@ -638,7 +443,8 @@ def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
-    if  box == None or box == 'global': # if None do global
+    # (identity/type checks: box may be an ndarray, where == is elementwise)
+    if  box is None or (isinstance(box, str) and box == 'global'): # if None do global
         idx_IN = np.ones((mesh_x.shape),dtype=bool)
         
     elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
@@ -668,20 +474,20 @@ def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
             idx_IN = contains(box, mesh_x, mesh_y)
                 
         elif isinstance(box, MultiPolygon):
-            idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
-            for p in box:
+            idx_IN = np.zeros((mesh_x.size,), dtype=bool)
+            for p in box.geoms: # shapely>=2: MultiPolygon itself is not iterable
                 auxidx = contains(p, mesh_x, mesh_y)
                 idx_IN = np.logical_or(idx_IN, auxidx)
-        
+
     elif (isinstance(box, shp.Reader)):
         #if (mesh_x is None) and (mesh_y is None) :
             #if do_elem: idx_IN = np.zeros((mesh.n2de,), dtype=bool)
             #else      : idx_IN = np.zeros((mesh.n2dn,), dtype=bool)
         #else:
         idx_IN = np.zeros((mesh_x.size,), dtype=bool)
-            
-        for shape in box.shapes(): 
-            p      = Polygon(shape.points)
+
+        for shp_shape in box.shapes():
+            p      = shp_shape_to_geom(shp_shape)
             auxidx = contains(p, mesh_x, mesh_y)
             idx_IN = np.logical_or(idx_IN, auxidx)
     # otherwise
@@ -691,6 +497,75 @@ def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
     #___________________________________________________________________________
     return(idx_IN) 
     
+
+#
+#
+#_______________________________________________________________________________
+def do_boxmask_dask(lon, lat, ispbnd, box):
+    
+    
+    #___________________________________________________________________________
+    # a rectangular box is given --> translate into shapefile object
+    # (identity/type checks: box may be an ndarray, where == is elementwise)
+    if  box is None or (isinstance(box, str) and box == 'global'): # if None do global
+        idxin = da.ones((lon.shape), dtype=bool)
+        
+    #___________________________________________________________________________    
+    elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
+        px     = [box[0], box[1], box[1], box[0], box[0]]
+        py     = [box[2], box[2], box[3], box[3], box[2]]
+        p      = Polygon(list(zip(px,py)))
+        idxin  = contains(p, lon, lat)
+    
+    #___________________________________________________________________________
+    # a polygon as list or ndarray is given --> translate into shape file object
+    elif isinstance(box,list) and len(box)==2: 
+        px, py = box[0], box[1]  
+        p      = Polygon(list(zip(px,py)))  
+        idxin  = contains(p, lon, lat)
+            
+    #___________________________________________________________________________
+    elif isinstance(box, np.ndarray): 
+        if box.shape[0]==2:
+            px, py = list(box[0,:]), list(box[1,:])
+            p      = Polygon(list(zip(px,py)))
+            idxin  = contains(p, lon, lat)
+        else:
+            raise  ValueError(' ndarray box has wrong format must be [2 x npts], yours is {}'.format(str(box.shape)))
+            
+    #___________________________________________________________________________
+    # a polygon as shapefile or shapefile collection is given
+    elif (isinstance(box, (Polygon, MultiPolygon))):
+        if   isinstance(box, Polygon): 
+            idxin = contains(box, lon, lat)
+                
+        elif isinstance(box, MultiPolygon):
+            idxin = da.zeros((lon.shape), dtype=bool)
+            for p in box.geoms:
+                idxin  = da.logical_or(idxin, contains(p, lon, lat))
+                
+    #___________________________________________________________________________    
+    # index selection by shapefile 
+    elif (isinstance(box, shp.Reader)):
+        idxin = da.zeros((lon.shape), dtype=bool)
+        for shp_shape in box.shapes():
+            p      = shp_shape_to_geom(shp_shape)
+            idxin  = da.logical_or(idxin, contains(p, lon, lat))
+    
+    #___________________________________________________________________________    
+    # otherwise
+    else:
+        raise ValueError('the given box information to compute the index has no valid format')
+    
+    #___________________________________________________________________________
+    # exclude periodic boundary point in case of elements
+    idxin = np.where(ispbnd, False, idxin)
+    
+    #___________________________________________________________________________
+    return(idxin) 
+    
+
+
 
 #+___EQUIVALENT OF MATLAB ISMEMBER FUNCTION___________________________________________________________+
 #|                                                                                                    |
@@ -884,12 +759,9 @@ def calc_ray_tracing_parallel(pts,poly,inside):
 #_______________________________________________________________________________
 import numpy as np
 import matplotlib.pyplot as plt
-from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox, Layout
-import ipywidgets as widgets
 from matplotlib.tri import Triangulation
 from matplotlib.patches import Rectangle
 from shapely.geometry   import Polygon, shape
-from shapely.vectorized import contains
 class select_scatterpts_depth(object):
     
     #
@@ -902,6 +774,13 @@ class select_scatterpts_depth(object):
         
         #_____________________________________________________________________________________________
         # init varaibles for selection
+        #_____________________________________________________________________________________________
+        # imported here and not at module level: ipywidgets costs ~0.4 s of every
+        # `import tripyview` (also in every papermill kernel) but is only needed
+        # by this interactive selection class
+        from ipywidgets import interact, interactive, fixed, interact_manual, HBox, VBox, Layout
+        import ipywidgets as widgets
+
         self.xs, self.ys          = [], []
         self.vs, self.vs_new      = [], []
         self.idx_box              = 0
@@ -1521,7 +1400,7 @@ class select_scatterpts_depth(object):
         
         # going to next plot 
         old_idx_box = self.idx_box
-        self.idx_box = np.min([self.idx_box+1, len(self.box_list)])
+        self.idx_box = np.min([self.idx_box+1, len(self.box_list)-1])
         if self.idx_box != old_idx_box:
             # update entire plot to new box
             self._update_scatterpts_()

@@ -1,3 +1,4 @@
+
 import os
 import sys
 import numpy                    as np
@@ -54,6 +55,8 @@ def plot_hslice(mesh                   ,
                 pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
+                plt_contval= False     ,
+                pltcval_opt= dict()    , # contour line label options
                 
                 #--- mesh -----------
                 do_mesh    = False     , 
@@ -72,6 +75,10 @@ def plot_hslice(mesh                   ,
                 quiver_opt = dict()    , 
                 do_quiver_leg = True   ,
                 quiver_leg_opt=dict()  , 
+                
+                #--- clim contour----
+                do_climcont = False    ,
+                climcont_opt = dict()  ,
                 
                 #--- bottom mask ----
                 do_bot     = True      , 
@@ -107,15 +114,22 @@ def plot_hslice(mesh                   ,
                 enum_str   = []        , 
                 enum_x     = [0.005]   , 
                 enum_y     = [1.00]    ,
-                enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                enum_dir   = 'lr'      ,# prescribed list of enumeration strings
                 
                 #--- save figure ----
                 do_save    = None      , 
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
                 
+                #--- chunk size------
+                chnksize   = 6.5e6     ,
+                
+                #--- time info------
+                do_info    = False     , 
+                
                 #--- set output -----
                 nargout    =['hfig', 'hax', 'hcb'],
+                do_pltshow = True      ,
                 ):
     """
     --> plot FESOM2 horizontal data slice:
@@ -158,6 +172,7 @@ def plot_hslice(mesh                   ,
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :do_ie2n:   bool, (default: False) do interpolation of data on elements towards nodes
 
@@ -316,7 +331,11 @@ def plot_hslice(mesh                   ,
         :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
 
         :save_opt:  dict, (default: dict()) direct option for saving via kwarg
-
+        
+        ___chunking___________________________________
+        
+        :chnksize:   int, (default:6.5e6), size of triangle plot chunks 
+        
         ___set output_________________________________
 
         :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
@@ -341,7 +360,7 @@ def plot_hslice(mesh                   ,
     """
     #___________________________________________________________________________
     # --> create box
-    if (box is None or box=="None") and proj!='channel': box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
+    if (box is None or box=="None") and proj!='channel' and proj!='neverworld2': box = [ -180+mesh.focus, 180+mesh.focus, -90, 90 ]
     
     #___________________________________________________________________________
     # --> check if input data is a list
@@ -350,7 +369,12 @@ def plot_hslice(mesh                   ,
         if not isinstance(streaml_dat, list): streaml_dat = [streaml_dat]
     ndat = len(data)
     
+    # make clabel automatically list
     if not isinstance(cb_label, list): cb_label=[cb_label]
+    if not isinstance(cb_lunit, list): cb_lunit=[cb_lunit]
+    # check if number of clabel coresponds with the number of colorbars in cinfo
+    if isinstance(cinfo, list) and len(cb_label)==1: cb_label = cb_label*len(cinfo)
+    if isinstance(cinfo, list) and len(cb_lunit)==1: cb_lunit = cb_lunit*len(cinfo)
     
     #___________________________________________________________________________
     # --> create projection
@@ -433,27 +457,29 @@ def plot_hslice(mesh                   ,
                 # values from plotting that are bottom topo  
                 vname     = list(data[ii].keys())[0]
                 data_plot = data[ii][ vname ].data.copy()
-                data_plot, tri = do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n)
+                data_plot, tri = do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n, do_info=do_info)
                 
                 #_______________________________________________________________
                 # add color for ocean bottom
-                h0 = do_plt_bot(hax_ii, do_bot, tri=tri, bot_opt=bot_opt)
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize, do_info=do_info)
                 hbot.append(h0)
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
-                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, 
+                h0 = do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
-                                plt_opt  = plt_opt,
-                                plt_contb=plt_contb, pltcb_opt=pltcb_opt,
-                                plt_contf=plt_contf, pltcf_opt=pltcf_opt,
-                                plt_contr=plt_contr, pltcr_opt=pltcr_opt,
-                                plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                                plt_opt    =plt_opt    ,
+                                plt_contb  =plt_contb  , pltcb_opt  =pltcb_opt,
+                                plt_contf  =plt_contf  , pltcf_opt  =pltcf_opt,
+                                plt_contr  =plt_contr  , pltcr_opt  =pltcr_opt,
+                                plt_contl  =plt_contl  , pltcl_opt  =pltcl_opt,
+                                plt_contval=plt_contval, pltcval_opt=pltcval_opt, 
+                                chnksize=chnksize, do_info=do_info)
                 hp.append(h0)
                 
                 #___________________________________________________________________
                 # add grid mesh on top
-                h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
+                h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize, do_info=do_info)
                 hmsh.append(h0)
             
             # plot regular gridded data
@@ -463,20 +489,21 @@ def plot_hslice(mesh                   ,
                 vname = list(data[ii].keys())[0]
                 data_plot = data[ii][vname].data.copy()
                 if   do_plt in ['tpc','pc'] and ('lon_bnd' in data[ii] and 'lat_bnd' in data[ii]) : 
-                    data_x, data_y = data[ii]['lon_bnd'], data[ii]['lat_bnd']
+                    data_x, data_y = data[ii]['lon_bnd'].data.copy(), data[ii]['lat_bnd'].data.copy()
                 else: 
-                    data_x, data_y = data[ii]['lon'    ], data[ii]['lat'    ]
+                    data_x, data_y = data[ii]['lon'    ].data.copy(), data[ii]['lat'    ].data.copy()
                 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
                 h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
                                 cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ],
                                 which_transf=ccrs.PlateCarree(), 
-                                plt_opt  = plt_opt,
-                                plt_contb=plt_contb, pltcb_opt=pltcb_opt,
-                                plt_contf=plt_contf, pltcf_opt=pltcf_opt,
-                                plt_contr=plt_contr, pltcr_opt=pltcr_opt,
-                                plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                                plt_opt    =plt_opt    ,
+                                plt_contb  =plt_contb  , pltcb_opt  =pltcb_opt,
+                                plt_contf  =plt_contf  , pltcf_opt  =pltcf_opt,
+                                plt_contr  =plt_contr  , pltcr_opt  =pltcr_opt,
+                                plt_contl  =plt_contl  , pltcl_opt  =pltcl_opt,
+                                plt_contval=plt_contval, pltcval_opt=pltcval_opt, )
                 hp.append(h0)
             
             #___________________________________________________________________
@@ -486,7 +513,8 @@ def plot_hslice(mesh                   ,
                                 streaml_dat     = streaml_dat, 
                                 streaml_opt     = streaml_opt,
                                 do_streaml_leg  = do_streaml_leg, 
-                                streaml_leg_opt = streaml_leg_opt)
+                                streaml_leg_opt = streaml_leg_opt,
+                                do_info=do_info)
             hstrm.append(h0)            
             
             #___________________________________________________________________
@@ -496,17 +524,29 @@ def plot_hslice(mesh                   ,
                                    quiver_dat     = quiver_dat, 
                                    quiver_opt     = quiver_opt,
                                    do_quiver_leg  = do_quiver_leg, 
-                                   quiver_leg_opt = quiver_leg_opt)
-            hquiv.append(h0)            
+                                   quiver_leg_opt = quiver_leg_opt, 
+                                   do_info=do_info)
+            hquiv.append(h0)   
+            
             
             #___________________________________________________________________
+            # add clim contour line, the levels of the contour lines have to be 
+            # specified in climcont_opt=dict({'levels':[0.15]})
+            if isinstance(do_climcont, xr.Dataset):
+                cvname = list(do_climcont.keys())[0]
+                climcont_optdefault= dict({'colors':'k', 'linestyles':'dashed', 'linewidths':1.0, 'zorder':56})
+                climcont_optdefault.update(climcont_opt)
+                hax_ii.contour(do_climcont.lon, do_climcont.lat, do_climcont[cvname], 
+                              **climcont_optdefault) #transform=ccrs.PlateCarree()
+                
+            #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res, do_info=do_info)
             hlsm.append(h0)  
             
             #___________________________________________________________________
             # add grids lines 
-            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt, proj=proj)
+            h0 = do_plt_gridlines(hax_ii, do_grid, box, ndat, grid_opt=grid_opt, proj=proj, do_info=do_info)
             hgrd.append(h0)
             
             #___________________________________________________________________
@@ -520,8 +560,21 @@ def plot_hslice(mesh                   ,
                     if ax_title=='descript' and ('descript' in data[ii][vname].attrs.keys() ):
                         axl_optdefault.update({'verticalalignment':'top'})
                         axl_optdefault.update(axl_opt)
-                        hax_ii.set_title(data[ii][ vname ].attrs['descript'], **axl_optdefault )
                         
+                        str_title   = data[ii][ vname ].attrs['descript']
+                        htitl       = hax_ii.set_title(str_title, **axl_optdefault )
+                        
+                        # Convert to cm
+                        bbox        = htitl.get_window_extent()
+                        titl_w_inch = bbox.width / hfig.dpi
+                        # title width in cm
+                        titl_w_cm   = titl_w_inch * 2.54
+                        # mean width of 1 char in cm
+                        chr1_w_cm     = 0.25 #0.3 #titl_w_cm/len(str_title)
+                        if titl_w_cm>hax_ii.ax_w :
+                            str_title = '\n'.join(textwrap.wrap(str_title, width=int(hax_ii.ax_w/chr1_w_cm) ))
+                            htitl.set_text(str_title)
+                            
                     else:
                         axl_optdefault.update(axl_opt)
                         hax_ii.set_title(ax_title, **axl_optdefault )
@@ -532,14 +585,18 @@ def plot_hslice(mesh                   ,
                 
         #_______________________________________________________________________
         # add colorbar 
-        if hcb_ii != 0 and hp[-1] is not None: 
+        if hcb_ii != 0: # and hp[-1] is not None: 
             if isinstance(do_rescale, list):
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
-                                cb_label[cb_plt_idx[ii_valid]-1], cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], 
+                                cb_lunit[cb_plt_idx[ii_valid]-1], cb_ltime, cb_ldep, 
+                                norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
             else:    
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                                cb_label[cb_plt_idx[ii_valid]-1], cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], 
+                                cb_lunit[cb_plt_idx[ii_valid]-1], cb_ltime, cb_ldep, 
+                                norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
         
         #___________________________________________________________________
@@ -553,7 +610,7 @@ def plot_hslice(mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show(block=False)
     
     #___________________________________________________________________________
     list_argout=[]
@@ -581,6 +638,7 @@ def plot_hmesh( mesh                   ,
                 proj       = 'pc'      ,
                 do_ie2n    = False     ,
                 do_rescale = False     ,
+                
                 #--- data -----------
                 do_plt     = 'tpc'     , # tpc:tripcolor, tcf:tricontourf
                 plt_opt    = dict()    ,
@@ -592,17 +650,21 @@ def plot_hmesh( mesh                   ,
                 pltcr_opt  = dict()    , # reference contour line option
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
+                
                 #--- mesh -----------
                 do_mesh    = True      , 
                 mesh_opt   = dict()    , 
+                
                 #--- landsea mask ---
                 do_lsm     = 'fesom'   , 
                 lsm_opt    = dict()    , 
                 lsm_res    = 'low'     ,
+                
                 #--- gridlines ------
                 do_grid    = True      ,
                 do_boundbox= True      , 
                 grid_opt   = dict()    ,
+                
                 #--- colorbar -------
                 cb_label   = None      ,
                 cb_lunit   = None      ,
@@ -611,9 +673,11 @@ def plot_hmesh( mesh                   ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
+                
                 #--- axes -----------
                 ax_title   = None,
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                
                 #--- enumerate axes -
                 do_enum    = False     ,
                 enum_opt   = dict()    , 
@@ -621,12 +685,17 @@ def plot_hmesh( mesh                   ,
                 enum_x     = [0.005]   , 
                 enum_y     = [1.00]    ,
                 enum_dir   = 'lr'    ,# prescribed list of enumeration strings
+                
                 #--- save figure ----
                 do_save    = None      , 
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
+                 #--- chunk size------
+                chnksize    = 3e6      ,
+                
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
+                do_pltshow = True ,
                 ):
     """
     --> plot horizontal mesh and mesh paramters on vertices and elements
@@ -676,6 +745,7 @@ def plot_hmesh( mesh                   ,
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :do_ie2n:   bool, (default: False) do interpolation of data on elements towards nodes
 
@@ -801,6 +871,10 @@ def plot_hmesh( mesh                   ,
 
         :save_opt:  dict, (default: dict()) direct option for saving via kwarg
 
+        ___chunking___________________________________
+        
+        :chnksize:   int, (default:3e6), size of triangle plot chunks 
+        
         ___set output_________________________________
 
         :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
@@ -929,23 +1003,24 @@ def plot_hmesh( mesh                   ,
 
                 #_______________________________________________________________
                 # add tripcolor or tricontourf plot 
-                h0 = do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, norm_plot, 
+                h0 = do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, norm_plot, 
                                  plt_opt  =plt_opt, 
                                  plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
                                  plt_contf=plt_contf, pltcf_opt=pltcf_opt,
                                  plt_contr=plt_contr, pltcr_opt=pltcr_opt,
-                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt, 
+                                 chnksize=chnksize)
                 hp.append(h0)
                 
                 
             #___________________________________________________________________
             # add grid mesh on top
-            h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
+            h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
             hmsh.append(h0)
                 
             #___________________________________________________________________
             # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm[ii], mesh[ii], lsm_opt=lsm_opt, resolution=lsm_res)
+            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm[ii], mesh[ii], lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
@@ -979,7 +1054,8 @@ def plot_hmesh( mesh                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    if do_pltshow: plt.show(block=False)
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -1006,6 +1082,7 @@ def plot_hquiver(mesh                  ,
                 proj       = 'pc'      ,
                 do_ie2n    = False     , # interpolate element data to vertices
                 do_rescale = False     ,
+                
                 #--- quiver ---------
                 do_quiv    = True      , # tpc:tripcolor, tcf:tricontourf
                 quiv_opt   = dict()    ,
@@ -1015,12 +1092,15 @@ def plot_hquiver(mesh                  ,
                 quiv_smax  = 10        , # small arrow are scaled strong with factor smax, its off when smax=1
                 quiv_shiftL= 2         , # shift smothing function to the left
                 quiv_smooth= 2         , # slope of transitions zone, smaller value steeper transition
+                
                 #--- mesh -----------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    , 
+                
                 #--- bottom mask ----
                 do_bot     = True      , 
                 bot_opt    = dict()    ,
+                
                 #--- topography -----
                 do_topo    = 'tpc'     , 
                 topo_opt   = dict()    ,
@@ -1028,14 +1108,17 @@ def plot_hquiver(mesh                  ,
                 topoc_opt  = dict()    , # contour line option
                 topo_contl = False     , # do contourline labels 
                 topocl_opt = dict()    , # contour line label options
+                
                 #--- landsea mask ---
                 do_lsm     = 'fesom'   , 
                 lsm_opt    = dict()    , 
                 lsm_res    = 'low'     ,
+                
                 #--- gridlines ------
                 do_grid    = True      , 
                 do_boundbox= True      , 
                 grid_opt   = dict()    ,
+                
                 #--- colorbar -------
                 cb_label   = None      ,
                 cb_lunit   = None      ,
@@ -1044,9 +1127,11 @@ def plot_hquiver(mesh                  ,
                 cb_opt     = dict()    , # colorbar option
                 cbl_opt    = dict()    , # colorbar label option, fontsize ,...
                 cbtl_opt   = dict()    , # colorbar ticklabel option, fontsize ,...
+                
                 #--- axes -----------
                 ax_title   = 'descript',
                 ax_opt     = dict()    , # dictionary that defines axes and colorbar arangement
+                
                 #--- enumerate axes -
                 do_enum    = False     ,
                 enum_opt   = dict()    , 
@@ -1054,12 +1139,18 @@ def plot_hquiver(mesh                  ,
                 enum_x     = [0.005]   , 
                 enum_y     = [1.00]    ,
                 enum_dir   = 'lr'      , # prescribed list of enumeration strings
+                
                 #--- save figure ----
                 do_save    = None      , 
                 save_dpi   = 300       ,
                 save_opt   = dict()    ,
+                
+                #--- chunk size------
+                chnksize    = 3e6      ,
+                
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
+                do_pltshow = True      ,
                 ):
     """
     --> plot FESOM2 horizontal data slice as quiver plot:
@@ -1102,6 +1193,7 @@ def plot_hquiver(mesh                  ,
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :do_ie2n:    bool, (default: False) do interpolation of data on elements towards nodes
 
@@ -1238,7 +1330,11 @@ def plot_hquiver(mesh                  ,
         :save_dpi:  int, (default: 300) dpi resolution at which the figure is saved
 
         :save_opt:  dict, (default: dict()) direct option for saving via kwarg
-
+         
+        ___chunking___________________________________
+        
+        :chnksize:   int, (default:3e6), size of triangle plot chunks 
+        
         ___set output_________________________________
 
         :nargout:   list, (default: ['hfig', 'hax', 'hcb']) list of variables that are given 
@@ -1341,39 +1437,41 @@ def plot_hquiver(mesh                  ,
             # values from plotting that are bottom topo  
             vname = list(data[ii].keys())
             data_plot_u, data_plot_v = data[ii][ vname[0] ].data.copy(), data[ii][ vname[1] ].data.copy()
-            data_plot_u, tri   = do_data_prepare_unstruct(mesh, tri, data_plot_u, do_ie2n)
-            data_plot_v, tri   = do_data_prepare_unstruct(mesh, tri, data_plot_v, do_ie2n)
+            data_plot_u, _   = do_data_prepare_unstruct(mesh, tri, data_plot_u, do_ie2n)
+            data_plot_v, tri = do_data_prepare_unstruct(mesh, tri, data_plot_v, do_ie2n)
             
             #___________________________________________________________________
             # add color for ocean bottom
-            h0 = do_plt_bot(hax_ii, do_bot, tri=tri, bot_opt=bot_opt)
+            h0 = do_plt_bot(hfig, hax_ii, do_bot, tri=tri, bot_opt=bot_opt, chnksize=chnksize)
             hbot.append(h0)
             
             #___________________________________________________________________
             # add grey topo
-            h0 = do_plt_topo(hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri), 
+            h0 = do_plt_topo(hfig, hax_ii, do_topo, abs(mesh.n_z), mesh, cp.copy(tri),
                              plt_opt=topo_opt,
                              plt_contb=topo_cont , pltcb_opt=topoc_opt,
-                             plt_contl=topo_contl, pltcl_opt=topocl_opt)
+                             plt_contl=topo_contl, pltcl_opt=topocl_opt,
+                             chnksize=chnksize)
             htop.append(h0)
             
             #___________________________________________________________________
             # add grid mesh on top
-            h0 = do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=mesh_opt)
+            h0 = do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=mesh_opt, chnksize=chnksize)
             hmsh.append(h0)
             
             #___________________________________________________________________
             # do quiver computations
-            h0 = do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
+            # h0 = do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
+            h0 = do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
                                cinfo_plot[ cb_plt_idx[ii]-1 ], norm_plot[ cb_plt_idx[ii]-1 ], 
                                quiv_scalfac=quiv_scalfac, quiv_arrwidth=quiv_arrwidth, quiv_dens=quiv_dens,
                                quiv_smax=quiv_smax, quiv_shiftL=quiv_shiftL, 
-                               quiv_smooth=quiv_smooth, quiv_opt=quiv_opt)
+                               quiv_smooth=quiv_smooth, quiv_opt=quiv_opt, chnksize=chnksize)
             hp.append(h0)
-            
-            #___________________________________________________________________
-            # add mesh land-sea mask
-            h0 = do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
+
+            ##___________________________________________________________________
+            ## add mesh land-sea mask
+            h0 = do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=lsm_opt, resolution=lsm_res)
             hlsm.append(h0)  
             
             #___________________________________________________________________
@@ -1405,14 +1503,15 @@ def plot_hquiver(mesh                  ,
         if hcb_ii != 0 and hp[-1] is not None: 
             hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
                              cb_label, cb_lunit, cb_ltime, cb_ldep, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
-            
+        
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    if do_pltshow: plt.show(block=False)
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -1454,7 +1553,7 @@ def plot_vslice(mesh                   ,
                 plt_contl  = False     , # do contourline labels 
                 pltcl_opt  = dict()    , # contour line label options
                 do_smooth  = False     , # apply convolution filterwarnings
-                smooth_opt = (3,9)     , # smothing filter size (ndi, nx)--> default (3,9)
+                smooth_size= (3,5)     , # smothing filter size (ndi, nx)--> default (3,5)
                 #--- mesh -----------
                 do_mesh    = False     , 
                 mesh_opt   = dict()    , 
@@ -1494,6 +1593,7 @@ def plot_vslice(mesh                   ,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax', 'hcb'],
+                do_pltshow = True      ,
                 ):
     """
     --> plot FESOM2 horizontal data slice:
@@ -1576,6 +1676,10 @@ def plot_vslice(mesh                   ,
         :plt_contl: bool, (default: False) label overlayed  contour linec plot
 
         :pltcl_opt: dict, (default: dict()) additional options that are given to clabel via the kwarg argument
+
+        :do_smooth: bool, (default: False) apply convolution filter to vertical section
+        
+        :smooth_size: tuple, (default=(3,5)) smothing filter size (ndi, nx)--> default (3,9)
 
         ___plot mesh________________________________________
 
@@ -1677,6 +1781,13 @@ def plot_vslice(mesh                   ,
     if not isinstance(data, list): data = [data]
     ndat = len(data)
     
+    # make clabel automatically list
+    if not isinstance(cb_label, list): cb_label=[cb_label]
+    if not isinstance(cb_lunit, list): cb_lunit=[cb_lunit]
+    # check if number of clabel coresponds with the number of colorbars in cinfo
+    if isinstance(cinfo, list) and len(cb_label)==1: cb_label = cb_label*len(cinfo)
+    if isinstance(cinfo, list) and len(cb_lunit)==1: cb_lunit = cb_lunit*len(cinfo)
+    
     #___________________________________________________________________________
     # check vertical plotting mode if index+depth+xy, zmoc, dmoc
     if proj is None:
@@ -1729,13 +1840,13 @@ def plot_vslice(mesh                   ,
         #_______________________________________________________________________
         # setup my own colormap definition dictionary
         cinfo_optdefault=dict()
-        if   hax[0].projection in ['index+depth+xy', 'index+depth+time']:
+        if   hax[0].projection in ['index+depth+xy', 'index+depth+time', 'index+xy+time']:
             cinfo_optdefault.update({'do_index':True, 'box_idx':box_idx})
         elif hax[0].projection == 'zmoc' :
             cinfo_optdefault.update({'do_moc':True})
         elif hax[0].projection == 'dmoc+depth' or hax[0].projection == 'dmoc+dens':
             cinfo_optdefault.update({'do_dmoc':True})
-        
+
         if   isinstance(cinfo, list) and isinstance(do_rescale, list):
             cinfo_plot.append( do_setupcinfo(cinfo[ii-1], [data[jj] for jj in idsel], do_rescale[ii-1], **cinfo_optdefault) )
         elif isinstance(cinfo, list):
@@ -1755,19 +1866,26 @@ def plot_vslice(mesh                   ,
     hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
     count_cb = 0
     for ii, (hax_ii, hcb_ii) in enumerate(zip(hax, hcb)):
+        
         # if there are no ddatra to fill axes, make it invisible 
         if ii>=ndat: 
             hax_ii.axis('off')
         elif data[ii] is None: 
-            hax_ii.axis('off')        
+            hax_ii.axis('off')
         # axis is normally fillt with data    
         else: 
+            if isinstance(data[ii],list): 
+                if data[ii][-1] is  None: 
+                    hax_ii.axis('off')
+                    continue
+            
+            
             ii_valid=ii
             #___________________________________________________________________
             # prepare regular gridded data for plotting
             data_x, data_y, data_plot = do_data_prepare_vslice(hax_ii, data[ii], box_idx,
-                                                            do_smooth=do_smooth, smooth_opt=smooth_opt)
-           
+                                                            do_smooth=do_smooth, smooth_size=smooth_size)
+
             #___________________________________________________________________
             # add tripcolor or tricontourf plot 
             h0 = do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, 
@@ -1779,27 +1897,37 @@ def plot_vslice(mesh                   ,
                                 plt_contl=plt_contl, pltcl_opt=pltcl_opt)
             hp.append(h0)
             
-            ##__________________________________________________________________
-            ## add bottom  mask
+            #_____________________ _____________________________________________
+            # add bottom  mask
             ax_xlim0, ax_ylim0 = ax_xlim, ax_ylim
             if   hax_ii.projection=='index+depth+xy':
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, 
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data_x, data_y=data_y, 
                                 data_plot=data_plot, bot_opt=bot_opt)
         
             # zmoc bottom patch
             elif hax_ii.projection=='zmoc':
                 ax_ylim0 = [0, abs(mesh.zlev[-1])]
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data_x, data_y=data_y, 
+                h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data_x, data_y=data_y, 
                                 data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
                                 bot_opt=bot_opt) 
                 
             # dmoc when doeing z-coordinate projection bottom patch                   
             elif 'dmoc' in hax_ii.projection and \
                 ('ndens_zfh' in data[ii].coords or 'nz_rho' in data[ii].coords or'ndens_z' in data[ii].coords) :
-                ax_ylim0 = [0, abs(mesh.zlev[-1])]
-                h0 = do_plt_bot(hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
-                                data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
-                                bot_opt=bot_opt)    
+                
+                if 'botmax_dens' in data[ii].coords:
+                    bot_opt2 = bot_opt.copy()
+                    bot_opt2.update({'color':[0.75,0.75,0.75]})
+                    ax_ylim0 = [0, abs(mesh.zlev[-1])]
+                    h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
+                                    data_plot=data[ii]['botmax_dens'].values, ylim=ax_ylim0, 
+                                    bot_opt=bot_opt2 )
+                    
+                if 'botmax' in data[ii].coords:
+                    ax_ylim0 = [0, abs(mesh.zlev[-1])]
+                    h0 = do_plt_bot(hfig, hax_ii, do_bot, data_x=data[ii]['lat'].values, data_y=data_y, 
+                                    data_plot=data[ii]['botmax'].values, ylim=ax_ylim0, 
+                                    bot_opt=bot_opt)        
             hbot.append(h0)
             
             #___________________________________________________________________
@@ -1835,7 +1963,7 @@ def plot_vslice(mesh                   ,
             # set superior title
             boxl_optdefault = dict({'x':0.99, 'y':0.99, 's':'', \
                                     'fontsize':12, 'fontweight':'bold', 'transform':hax_ii.transAxes,\
-                                    'horizontalalignment':'right', 'verticalalignment':'top', 'zorder':5})                
+                                    'horizontalalignment':'right', 'verticalalignment':'top', 'zorder':102})
             # print transect labels
             if  box_idx is not None:
                 vname     = list(data[ii][box_idx].keys())[0]
@@ -1865,27 +1993,27 @@ def plot_vslice(mesh                   ,
         # add colorbar 
         
         if hcb_ii != 0 and hp[-1] is not None: 
-            if isinstance(cb_label,list): cb_label2 = cb_label[count_cb]
-            else: cb_label2 = cb_label
-            
             if isinstance(do_rescale, list):
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale[cb_plt_idx[ii_valid]-1], 
-                             cb_label2, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                             cb_label[cb_plt_idx[ii_valid]-1], 
+                             cb_lunit[cb_plt_idx[ii_valid]-1], 
+                             cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                              box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
             
             else:    
                 hcb_ii = do_cbar(hcb_ii, hax_ii, hp, data[ii_valid], cinfo_plot[cb_plt_idx[ii_valid]-1], do_rescale, 
-                                cb_label2, cb_lunit, cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
+                                cb_label[cb_plt_idx[ii_valid]-1], 
+                                cb_lunit[cb_plt_idx[ii_valid]-1], 
+                                cb_ltime, cb_ldep, norm=norm_plot[ cb_plt_idx[ii_valid]-1 ], 
                                 box_idx=box_idx, cb_opt=cb_opt, cbl_opt=cbl_opt, cbtl_opt=cbtl_opt)
                 
-            count_cb=count_cb+1
         #_______________________________________________________________________
         # hfig.canvas.draw()   
         
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    plt.show()
+    if do_pltshow: plt.show(block=False)
     
     #___________________________________________________________________________
     list_argout=[]
@@ -1945,6 +2073,7 @@ def plot_hline(data                   ,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax'],
+                do_pltshow = True      ,
                 ):
     """
     --> do plotting of horizontal lines over index region (e.g. heatflux vs lon, lat)
@@ -2277,7 +2406,8 @@ def plot_hline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    if do_pltshow: plt.show(block=False)
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -2337,6 +2467,7 @@ def plot_vline(data                   ,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax'],
+                do_pltshow = True      ,
                 ):
     """
     --> do plotting of mean indices over depth (e.g. vertical profiles)
@@ -2516,6 +2647,14 @@ def plot_vline(data                   ,
             cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
         else:
             cmap = categorical_cmap(ndat, 1, cmap="tab10")
+        
+        if np.mod(ndat,n_cycl)!=0: 
+            # add another black color infront of the colormap in case of climatology
+            from matplotlib.colors import ListedColormap
+            black_and_cmap = [np.array([0,0,0])] + list(cmap.colors)
+            cmap = ListedColormap(np.array(black_and_cmap))
+            del(black_and_cmap)
+
     else:
         cmap = categorical_cmap(ndat, 1, cmap="tab10")
         
@@ -2584,6 +2723,8 @@ def plot_vline(data                   ,
                     if ax_xunit is None:
                         if 'units' in loc_attrs: str_xlabel = str_xlabel+' / '+loc_attrs['units']
                     else: str_xlabel = str_xlabel+' / '+ ax_xunit
+                    
+                    if 'str_ltim' in loc_attrs: str_xlabel = str_xlabel+', '+loc_attrs['str_ltim']
                         
                     if   'descript'      in loc_attrs: str_llabel = str_llabel + loc_attrs['descript']
                     if   'boxname'       in loc_attrs: str_blabel = str_blabel + loc_attrs['boxname']
@@ -2593,7 +2734,7 @@ def plot_vline(data                   ,
                     if jj==0: list_strboxlabel.append(str_blabel)
                     
                     #_______________________________________________________________
-                    # plot lines 
+                    # plot lines
                     optline.update({'color':cmap.colors[cnt,:]})
                     optline.update(plt_opt)
                     if allinone and nrow*ncol==1: optline.update({'linestyle':list_lstyle[bi]})
@@ -2688,7 +2829,8 @@ def plot_vline(data                   ,
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    if do_pltshow: plt.show(block=False)
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -2719,7 +2861,9 @@ def plot_tline(data,
                 do_concat  = False     , 
                 do_shdw    = True      ,
                 do_mean    = True      ,
-                do_std     = False      ,
+                do_std     = False     ,
+                #--- climatology ----  
+                do_clim    = False     ,
                 #--- data -----------
                 plt_opt    = dict()    ,
                 mark_opt   = dict()    ,
@@ -2749,6 +2893,7 @@ def plot_tline(data,
                 save_opt   = dict()    ,
                 #--- set output -----
                 nargout=['hfig', 'hax'],
+                do_pltshow = True      ,
                 ):    
     """
     --> do plotting of mean indices over time (e.g. time-series)
@@ -2796,6 +2941,11 @@ def plot_tline(data,
                     - False      ... scale data automatically scientifically by 10^x, for data data larger 10^3 and smaller 10^-3
                     - log10      ... do logaritmic scaling
                     - slog10     ... do symetric logarithmic scaling
+                    
+        ___plot a climatology line__________________________                    
+        
+        :do_clim:    bool (default: False) plot also climatology line. The climatology data have to 
+                     putted at the beginning of the data list data = clim + data.
         
         ___plot data parameters_____________________________
 
@@ -2927,14 +3077,42 @@ def plot_tline(data,
 
     #___________________________________________________________________________
     # setup colormap
-    if do_allcycl: 
-        if n_cycl is not None:
-            cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap="tab10")
+    if do_clim==False:
+        if do_allcycl: 
+            if n_cycl is not None:
+                which_cmap='tab10'
+                if np.int32(ndat/n_cycl)>10: which_cmap='tab20'
+                cmap = categorical_cmap(np.int32(ndat/n_cycl), n_cycl, cmap=which_cmap)
+            else:
+                which_cmap='tab10'
+                if ndat>10: which_cmap='tab20'
+                cmap = categorical_cmap(ndat, 1, cmap=which_cmap)
         else:
-            cmap = categorical_cmap(ndat, 1, cmap="tab10")
-    else:
-        if do_concat: do_concat=False
-        cmap = categorical_cmap(ndat, 1, cmap="tab10")
+            if do_concat: do_concat=False
+            which_cmap='tab10'
+            if ndat>10: which_cmap='tab20'
+            cmap = categorical_cmap(ndat, 1, cmap=which_cmap)
+    else:        
+        if do_allcycl: 
+            if n_cycl is not None:
+                which_cmap='tab10'
+                if np.int32((ndat-1)/n_cycl)>10: which_cmap='tab20'
+                cmap = categorical_cmap(np.int32((ndat-1)/n_cycl), n_cycl, cmap=which_cmap)
+            else:
+                which_cmap='tab10'
+                if ndat-1>10: which_cmap='tab20'
+                cmap = categorical_cmap(ndat-1, 1, cmap=which_cmap)
+        else:
+            if do_concat: do_concat=False
+            which_cmap='tab10'
+            if ndat-1>10: which_cmap='tab20'
+            cmap = categorical_cmap(ndat-1, 1, cmap=which_cmap)
+            
+        cmap_array = np.array(cmap.colors)
+        black = np.array([[0, 0, 0]])  # shape (1,3)
+
+        expanded_cmap_array = np.vstack([black, cmap_array])  # prepend black
+        cmap = ListedColormap(expanded_cmap_array)
     
     #___________________________________________________________________________
     # --> loop over axes
@@ -2978,10 +3156,16 @@ def plot_tline(data,
                 xmax_list=list()
                 if not allinone: xmin, xmax, ymin, ymax = np.inf, -np.inf, np.inf, -np.inf
                 for jj in range(0,ndat):
+                    if data[jj][bi] is None: 
+                        cnt      = cnt+1
+                        cnt_cycl = cnt_cycl+1
+                        if n_cycl is not None:
+                            if cnt_cycl>= n_cycl: cnt_cycl=0
+                        continue
                     #_______________________________________________________________
                     vname  = list(data[jj][bi].data_vars)[0]
                     data_y = data[jj][bi][vname].data.copy()
-                    ymin, ymax = np.min([ymin, data_y.min()]), np.max([ymax, data_y.max()])
+                    ymin, ymax = np.min([ymin, np.nanmin(data_y)]), np.max([ymax, np.nanmax(data_y)])
                     
                     #_______________________________________________________________
                     data_x = data[jj][bi]['time'].copy()
@@ -3001,9 +3185,42 @@ def plot_tline(data,
                         data_x = np.hstack((data_x0[-1], data_x))
                         data_y = np.hstack((data_y0[-1], data_y))
                         
-                        
-                    #data_x = data_x.values
-                    xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                    #_______________________________________________________________    
+                    # When climatolgy is added compute xmin,xmax limits 
+                    if do_clim:
+                        if jj>0:
+                            xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                        else:
+                            # In case climatology should be used, The steal the xmin,xmax
+                            # limits from the subsequent model data
+                            data_xp1 = data[jj+1][bi]['time'].copy()
+                            # total number of days per year considers leap years
+                            if len(np.unique(data_xp1.dt.month))==1: data_xp1 = data_xp1.dt.year
+                            else:
+                                # data contain only mean seasonal cycle 
+                                if len(np.unique(data_xp1.dt.year))==1: data_xp1 = data_xp1.dt.month
+                                else:    
+                                    # dperyr = np.where(data_xp1.dt.is_leap_year, 366, 365)
+                                    if isinstance(data_xp1.indexes["time"], xr.CFTimeIndex):
+                                        # CFTime → assume constant year length
+                                        cal = data_xp1.encoding.get("calendar", "noleap")
+                                        if cal in ("noleap", "365_day"):
+                                            dperyr = xr.full_like(data_xp1, 365, dtype=int)
+                                        elif cal == "360_day":
+                                            dperyr = xr.full_like(data_xp1, 360, dtype=int)
+                                        else:
+                                            # standard / gregorian / proleptic_gregorian
+                                            # leap years handled via year length
+                                            dperyr = xr.apply_ufunc(
+                                                lambda t: np.array([366 if t.year % 4 == 0 else 365]),
+                                                data_xp1, vectorize=True, dask="allowed", output_dtypes=[int],)
+                                    else:
+                                        dperyr = xr.where(data_xp1.dt.is_leap_year, 366, 365)
+                                    data_xp1 = data_xp1.dt.year + (data_xp1.dt.dayofyear-data_xp1.dt.day[0])/dperyr   
+                            xmin, xmax = np.min([xmin, data_xp1.min()]), np.max([xmax, data_xp1.max()])
+                    else:
+                        xmin, xmax = np.min([xmin, data_x.min()]), np.max([xmax, data_x.max()])
+                            
                     data_x0, data_y0 = data_x, data_y
                     xmax_list.append(xmax)
                     
@@ -3031,7 +3248,10 @@ def plot_tline(data,
                     else:
                         str_ylabel = ax_ylabel
                     
-                    if   'descript'       in loc_attrs: str_llabel = str_llabel +loc_attrs['descript']
+                    if   'descript'       in loc_attrs: 
+                        str_llabel = str_llabel +loc_attrs['descript']
+                    else: 
+                        str_llabel = str_llabel + 'data {:d}'.format(jj)
                     if   'boxname'        in loc_attrs: str_blabel = str_blabel +loc_attrs['boxname']
                     if   'transect_name'  in loc_attrs: str_blabel = str_blabel +loc_attrs['transect_name']
                     str_blabel = str_blabel.replace('MOC','').replace('_','')
@@ -3057,7 +3277,10 @@ def plot_tline(data,
                     
                     # plot mean value with left triangle 
                     if do_mean: 
-                        hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<',  **optmark)
+                        if do_clim and jj==0:
+                            hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<',  **{**optmark, 'markersize':12})
+                        else:    
+                            hax_ii.plot(xmin-(data_x[-1]-data_x[0])*0.00, data_y.mean(), marker='<',  **optmark)
                     
                     # plot std. range with up/dwn triangle 
                     if do_std:
@@ -3132,20 +3355,26 @@ def plot_tline(data,
                 else:
                     # make data legend:
                     hax_ii.legend(frameon=True, fancybox=True, shadow=True, fontsize=10, ncol=1,
-                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left') #bbox_to_anchor=(1.5, 1.5))
+                                labelspacing=0.5, bbox_to_anchor=(1.0, 1.0), loc='upper left', 
+                                prop={'family': 'monospace'})#bbox_to_anchor=(1.5, 1.5))
                     # box label becomes here axes title
-             #___________________________________________________________________
+            #___________________________________________________________________
             # add title and axes labels
             if ax_title is not None: 
-                if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_label)
+                if isinstance(ax_title,list): hax_ii.set_title(ax_title[ii], fontsize=hax_ii.fs_title)
                 else                        : 
-                    if not allinone and nbox>1: hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_label)
+                    if not allinone and nbox>=1: 
+                        if  not  'boxname' in loc_attrs and  not 'transect_name'  in loc_attrs:
+                            hax_ii.set_title(ax_title, fontsize=hax_ii.fs_label)
+                        else:
+                            hax_ii.set_title(str_blabel, fontsize=hax_ii.fs_title)
            
          
     #___________________________________________________________________________
     # save figure based on do_save contains either None or pathname
     do_savefigure(do_save, hfig, dpi=save_dpi, save_opt=save_opt)
-    
+    if do_pltshow: plt.show(block=False)
+
     #___________________________________________________________________________
     list_argout=[]
     if len(nargout)>0:
@@ -3182,6 +3411,7 @@ def do_projection(mesh, proj, box):
                     - ortho  ... Orthographic        (box=[loncenter, latcenter]) 
                     - nears  ... NearsidePerspective (box=[loncenter, latcenter, zoom]) 
                     - channel... PlateCaree
+                    - neverworld2... PlateCaree
 
         :box:       None, list (default: None) regional limitation of plot. For 
                     ortho box = [lonc, latc], nears [lonc, latc, zoom], for all
@@ -3256,13 +3486,19 @@ def do_projection(mesh, proj, box):
         proj_to = ccrs.PlateCarree()
         if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
     
-        print(proj, box)
+    elif proj=='neverworld2':
+        proj_to = ccrs.PlateCarree()
+        if box is None or box=="None": box = [np.hstack((mesh.n_x,mesh.n_xa)).min(), np.hstack((mesh.n_x,mesh.n_xa)).max(), 
+                                              np.hstack((mesh.n_y,mesh.n_ya)).min(), np.hstack((mesh.n_y,mesh.n_ya)).max()]
+    
+    
     #___Vertical "Projection"___________________________________________________
     elif  proj == 'index+depth+xy'   : proj_to = 'index+depth+xy'
     elif  proj == 'index+depth+time' : proj_to = 'index+depth+time'
     elif  proj == 'index+depth'      : proj_to = 'index+depth'
     elif  proj == 'index+time'       : proj_to = 'index+time'
     elif  proj == 'index+xy'         : proj_to = 'index+xy'
+    elif  proj == 'index+xy+time'    : proj_to = 'index+xy+time'
     elif  proj == 'zmoc'             : proj_to = 'zmoc'
     elif  proj == 'dmoc'             : proj_to = 'dmoc'
     elif  proj == 'dmoc+depth'       : proj_to = 'dmoc+depth'
@@ -3364,8 +3600,9 @@ def do_triangulation(hax, mesh, proj_to, box, proj_from=None,
     # add some more varaibles i need
     tri.mask_e_box     = e_box_mask
     tri.mask_n_box     = n_box_mask
-    del(e_box_mask, n_box_mask)
     tri.n2dn, tri.n2de = mesh.n2dn, mesh.n2de
+    tri.mask_e_ok      = np.ones(np.sum(e_box_mask), dtype=bool)
+    del(e_box_mask, n_box_mask)
     
     #___________________________________________________________________________
     if do_narea:
@@ -3653,7 +3890,10 @@ def do_axes_arrange(nx, ny,
         :cb_plt_idx:    list that contains index of independent colorbars
     
     ____________________________________________________________________________
-    """        
+    """
+    # ax_opt entries that are not parameters here end up in kwargs and would
+    # otherwise be dropped silently (stacklevel=3: point at the user's plot_* call)
+    if len(kwargs)>0: warnings.warn(f" --> unknown ax_opt option(s) {sorted(kwargs)} are ignored, check for typos", stacklevel=3)
     #___________________________________________________________________________
     # factor to convert cm into inch
     cm2inch = 0.3937
@@ -3670,7 +3910,7 @@ def do_axes_arrange(nx, ny,
         if ax_asp==1.0:        
             #___________________________________________________________________
             # projection[0] is an arbitrary cartopy-projection object
-            if isinstance(projection[0], ccrs.CRS) and proj!='channel':
+            if isinstance(projection[0], ccrs.CRS) and proj!='channel' and proj!='neverworld2':
                 if isinstance(projection[0], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo, ccrs.Orthographic, ccrs.NearsidePerspective) ):
                     ax_asp = 1.0
                     
@@ -3686,6 +3926,7 @@ def do_axes_arrange(nx, ny,
             #___________________________________________________________________
             # channel 
             elif isinstance(projection[0], ccrs.CRS) and proj=='channel': ax_asp = 2.0
+            elif isinstance(projection[0], ccrs.CRS) and proj=='neverworld2': ax_asp = 0.5
                 
             #___________________________________________________________________
             # projection is vertical section
@@ -3694,6 +3935,7 @@ def do_axes_arrange(nx, ny,
             elif projection[0]=='index+depth'     : ax_asp = 0.75
             elif projection[0]=='index+time'      : ax_asp = 2.5
             elif projection[0]=='index+xy'        : ax_asp = 1.5
+            elif projection[0]=='index+xy+time'   : ax_asp = 2.0
             elif projection[0]=='zmoc'            : ax_asp = 2.0   
             elif projection[0]=='dmoc'            : ax_asp = 2.0
             elif projection[0]=='dmoc+depth'      : ax_asp = 2.0   
@@ -3925,7 +4167,7 @@ def do_axes_arrange(nx, ny,
             nn+=1
             #___________________________________________________________________
             # axes
-            if isinstance(projection[nn], ccrs.CRS) and proj=='channel':
+            if   isinstance(projection[nn], ccrs.CRS) and (proj=='channel' or proj=='neverworld2'):
                 hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn], aspect='auto' )
             elif isinstance(projection[nn], ccrs.CRS):
                 hax[nn] = hfig.add_subplot(position=pos_ax[nn,:], projection=projection[nn])    
@@ -3947,7 +4189,7 @@ def do_axes_arrange(nx, ny,
                 hax[nn].sharey     = ax_sharey
             # set position of axes
             hax[nn].set_position(pos_ax[nn,:])
-            
+            hax[nn].box            = box
             #if box is not None: hax[nn].set_extent(box, crs=projection[nn])
             if box is not None and isinstance(projection[nn], ccrs.CRS): 
                 if  not isinstance(projection[nn], (ccrs.Orthographic, ccrs.NearsidePerspective ) ): #ccrs.NorthPolarStereo, ccrs.SouthPolarStereo,
@@ -3955,10 +4197,31 @@ def do_axes_arrange(nx, ny,
                     if box[1]-box[0]==360 and (box[3]-box[2])==180:
                         #print('set_global()')
                         hax[nn].set_global()
-                    else:    
+                    else:
                         #print('set_extent(box, ...)')
                         hax[nn].set_extent(box, crs=ccrs.PlateCarree())
-                    
+
+            #___________________________________________________________________
+            # give stereographic projections a circular boundary/clip region.
+            # This must happen right here, right after the axes+extent are set
+            # up and before any data/land-mask/mesh is plotted onto them --
+            # otherwise those artists get their clip path set against the still-
+            # rectangular default axes patch, and a sliver of them can render
+            # outside the circular boundary line that used to only get drawn
+            # later (and only when gridlines were enabled) in do_plt_gridlines
+            if isinstance(projection[nn], (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo)):
+                theta  = np.linspace(0, 2*np.pi, 100)
+                center, radius = [0.5, 0.5], 0.5
+                verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
+                circle = mpath.Path(verts * radius + center)
+                hax[nn].set_boundary(circle, transform=hax[nn].transAxes)
+                del(theta, center, verts, circle)
+                # the boundary/frame spine defaults to zorder 2.5, well below
+                # the grey "no data" bottom-mask fill (do_plt_bot, zorder 10)
+                # and the actual data (zorder 50) -- draw the outline on top of
+                # everything so it never gets visually covered by those layers
+                hax[nn].spines['geo'].set_zorder(102)
+
             #___________________________________________________________________
             # label
             hax[nn].set_xlabel(xlabel, fontsize=fs_label)
@@ -4004,7 +4267,7 @@ def do_axes_arrange(nx, ny,
             # add more variables to axes handle 
             hax[nn].ncol, hax[nn].nrow = nx, ny
             hax[nn].coli, hax[nn].rowi = ii, jj
-            
+            hax[nn].ax_w, hax[nn].ax_h = ax_w[ii], ax_h[jj]
             #___________________________________________________________________
             # ticks for colorbar 
             if hcb[nn] != 0:
@@ -4063,7 +4326,6 @@ def do_axes_arrange(nx, ny,
                 if hcb[nn] != 0:
                     
                     auxidx = np.where(cb_plt_idx[nn]==cb_plt_idx)[0]
-                    print(auxidx)
                     
                     #_______________________________________________________________________
                     # case of vertical colorbar
@@ -4190,7 +4452,7 @@ def do_axes_enum(hax, do_enum, nrow, ncol, enum_dir='lr', enum_str=[], enum_x=[0
 #
 #
 #_______________________________________________________________________________
-def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
+def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n, do_info=False):
     """
     --> prepare data for plotting, augment periodic boundaries, interpolate from elements
         to nodes, kick out nan values from plotting 
@@ -4215,7 +4477,7 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
     ____________________________________________________________________________
     """  
     is_onvert = True
-    
+    t1 = clock.time()
     #___________________________________________________________________________
     # data are on vertices
     if   data_plot.size==mesh.n2dn:
@@ -4257,13 +4519,14 @@ def do_data_prepare_unstruct(mesh, tri, data_plot, do_ie2n):
     del(isnan) 
     
     #___________________________________________________________________________
+    if do_info: print(' --> prepare untruct: {:f}'.format(clock.time()-t1))
     return(data_plot, tri)    
 
 
 #
 #
 #_______________________________________________________________________________
-def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt=(3,9)):
+def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_size=(3,9)):
     """
     --> prepare data for plotting, augment periodic boundaries, interpolate from elements
         to nodes, kick out nan values from plotting 
@@ -4294,12 +4557,22 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt
     if box_idx is not None:
         vname = list(data_ii[box_idx].keys())[0]
         data_plot = data_ii[box_idx][vname].data.copy()
-        data_y, str_ylabel = np.abs(data_ii[box_idx]['depth'].values) , 'Depth / m'
+        if 'depth' in list(data_ii[box_idx].variables):
+            data_y, str_ylabel = np.abs(data_ii[box_idx]['depth'].values) , 'Depth / m'
+        elif 'lat' in list(data_ii[box_idx].variables):
+            data_y, str_ylabel = data_ii[box_idx]['lat'].values , 'Latitude / deg'
+        elif 'lon' in list(data_ii[box_idx].variables):
+            data_y, str_ylabel = data_ii[box_idx]['lon'].values , 'Longitude / deg'
+            
         #_______________________________________________________________________
         # data must be a transect 
         if 'dst' in list(data_ii[box_idx].variables):
             auxlat, auxlon = data_ii[box_idx]['lat'].values[[1,-2]], data_ii[box_idx]['lon'].values[[1,-2]]
-            auxlat, auxlon = np.abs(np.diff(auxlat)), np.abs(np.diff(auxlon))
+            auxlat, auxlon = np.diff(auxlat), np.diff(auxlon)
+            # Handle dateline crossing
+            if   auxlon >  180.0: auxlon = auxlon - 360.0
+            elif auxlon < -180.0: auxlon = auxlon + 360.0
+            auxlat, auxlon = np.abs(auxlat), np.abs(auxlon)
             auxlat, auxlon = auxlat/np.sqrt(auxlat**2+auxlon**2), auxlon/np.sqrt(auxlat**2+auxlon**2)
             angle = np.abs(-np.arctan2(auxlat, auxlon)*180/np.pi)
             if   angle > 80: data_x, str_xlabel = data_ii[box_idx]['lat'].values  , 'Latitude / deg'
@@ -4314,10 +4587,25 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt
                 data_x, str_xlabel = data_ii[box_idx]['lat'].values , 'Latitude / deg'
             elif 'lon'  in list(data_ii[box_idx].coords): 
                 data_x, str_xlabel = data_ii[box_idx]['lon'].values , 'Longitude / deg'
-            elif 'time'  in list(data_ii[box_idx].coords):     
+            
+            if 'time'  in list(data_ii[box_idx].coords):     
                 data_x, str_xlabel = data_ii[box_idx]['time'] , 'Time / year'
                 # recompute xarray time vector into units of year
-                totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                if isinstance(data_x.indexes["time"], xr.CFTimeIndex):
+                    # CFTime → assume constant year length
+                    cal = data_x.encoding.get("calendar", "noleap")
+                    if cal in ("noleap", "365_day"):
+                        totdayperyear = xr.full_like(data_x, 365, dtype=int)
+                    elif cal == "360_day":
+                        totdayperyear = xr.full_like(data_x, 360, dtype=int)
+                    else:
+                        # standard / gregorian / proleptic_gregorian
+                        # leap years handled via year length
+                        totdayperyear = xr.apply_ufunc(
+                            lambda t: np.array([366 if t.year % 4 == 0 else 365]),
+                            data_x, vectorize=True, dask="allowed", output_dtypes=[int],)
+                else:
+                    totdayperyear = xr.where(data_x.dt.is_leap_year, 366, 365)
                 data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear
                 data_plot = data_plot.transpose()
                 del(totdayperyear)
@@ -4325,7 +4613,7 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt
         #_______________________________________________________________________
         if do_smooth:
             from scipy.ndimage import convolve
-            filt = filt = np.ones(smooth_opt)
+            filt = filt = np.ones(smooth_size)
             filt = filt/sum(filt.flatten())
             nan_mask = np.isnan(data_plot)
             data_plot[nan_mask]= 0
@@ -4372,7 +4660,11 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt
         # data must be a transect 
         if 'dst' in  list(data_ii.variables):
             auxlat, auxlon = data_ii['lat'].values[[0,-1]], data_ii['lon'].values[[0,1]]
-            auxlat, auxlon = np.abs(np.diff(auxlat)), np.abs(np.diff(auxlon))
+            auxlat, auxlon = np.diff(auxlat), np.diff(auxlon)
+            # Handle dateline crossing
+            if   auxlon >  180.0: auxlon = auxlon - 360.0
+            elif auxlon < -180.0: auxlon = auxlon + 360.0
+            auxlat, auxlon = np.abs(auxlat), np.abs(auxlon)
             auxlat, auxlon = auxlat/np.sqrt(auxlat**2+auxlon**2), auxlon/np.sqrt(auxlat**2+auxlon**2)
             angle = np.abs(-np.arctan2(auxlat, auxlon)*180/np.pi)
             if   angle > 80: data_x, str_xlabel = data_ii['lat'].values  , 'Latitude / deg'
@@ -4389,7 +4681,22 @@ def do_data_prepare_vslice(hax_ii, data_ii, box_idx, do_smooth=False, smooth_opt
             elif 'time'  in list(data_ii[box_idx].coords):     
                 data_x, str_xlabel = data_ii[box_idx]['time'] , 'Time / year'
                 # recompute xarray time vector into units of year
-                totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                #totdayperyear = np.where(data_x.dt.is_leap_year, 366, 365)
+                if isinstance(data_x.indexes["time"], xr.CFTimeIndex):
+                    # CFTime → assume constant year length
+                    cal = data_x.encoding.get("calendar", "noleap")
+                    if cal in ("noleap", "365_day"):
+                        totdayperyear = xr.full_like(data_x, 365, dtype=int)
+                    elif cal == "360_day":
+                        totdayperyear = xr.full_like(data_x, 360, dtype=int)
+                    else:
+                        # standard / gregorian / proleptic_gregorian
+                        # leap years handled via year length
+                        totdayperyear = xr.apply_ufunc(
+                            lambda t: np.array([366 if t.year % 4 == 0 else 365]),
+                            data_x, vectorize=True, dask="allowed", output_dtypes=[int],)
+                else:
+                    totdayperyear = xr.where(data_x.dt.is_leap_year, 366, 365)
                 data_x = data_x.dt.year + (data_x.dt.dayofyear-data_x.dt.day[0])/totdayperyear  
                 data_plot = data_plot.transpose()
                 
@@ -4443,7 +4750,6 @@ def do_data_norm(cinfo, do_rescale):
                 which_norm = mcolors.LogNorm(vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1])
                 
         elif do_rescale =='slog10':    
-                print(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])))
                 which_norm = mcolors.SymLogNorm(np.min(np.abs(cinfo['clevel'][cinfo['clevel']!=0])),
                                                 linscale=1.0, 
                                                 vmin=cinfo['clevel'][0], vmax=cinfo['clevel'][-1], 
@@ -4462,12 +4768,37 @@ def do_data_norm(cinfo, do_rescale):
 #
 #
 #_______________________________________________________________________________
-def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
-                plt_opt  =dict(), 
-                plt_contb=False, pltcb_opt=dict(), 
-                plt_contf=False, pltcf_opt=dict(),
-                plt_contr=False, pltcr_opt=dict(),
-                plt_contl=False, pltcl_opt=dict()):
+def do_progressive_draw():
+    """
+    --> is the figure drawn on a backend that shows it while it is still being
+        filled chunk by chunk? Only there does redrawing the canvas after every
+        plotted chunk buy anything. On 'agg' or the jupyter 'inline' backend
+        (papermill, tripyrun) canvas.draw_idle() is a full synchronous redraw of
+        the complete figure per chunk and pure overhead -- with many chunks that
+        dominates the plotting time.
+
+    Returns:
+
+        :bool:      True for interactive/GUI-like backends
+
+    ____________________________________________________________________________
+    """
+    bcknd = matplotlib.get_backend().lower()
+    return any(gui in bcknd for gui in ['qt', 'tk', 'gtk', 'wx', 'macosx', 'nbagg', 'webagg', 'ipympl'])
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_data(hfig, hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
+                plt_opt    =dict(), 
+                plt_contb  =False, pltcb_opt  =dict(), 
+                plt_contf  =False, pltcf_opt  =dict(),
+                plt_contr  =False, pltcr_opt  =dict(),
+                plt_contl  =False, pltcl_opt  =dict(),
+                plt_contval=False, pltcval_opt=dict(),
+                chnksize=1e6, do_info=False):
     """
     --> plot triangular data based on tripcolor or tricontourf
     
@@ -4523,41 +4854,60 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
     ____________________________________________________________________________
     """      
     h0=None
+    t1 = clock.time()
     if np.sum(tri.mask_e_ok)==0: return(h0)
     #___________________________________________________________________________
     # plot tripcolor
     if   do_plt in ['tpc','pc'] or (do_plt in ['tcf','cf'] and not tri.x.size==data_plot.size):
-        plt_optdefault = dict({'shading':'gouraud', 'zorder':1})
+        plt_optdefault = dict({'shading':'gouraud', 'zorder':50})
         plt_optdefault.update(plt_opt)
         
         ## pcolor plot in combination with shading :gouraud and orthographic projection
         ## leads to an blow up of the plotting therefor change to flat shading 
-        #if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
-            #plt_optdefault.update({'shading':'flat'})
+        if tri.x.size!=data_plot.size or isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)): 
+            plt_optdefault.update({'shading':'flat'})
         
         # if which_normplot is specified like in case of log10 and slog10 scaling
         # vmin and vmax argumetns are not allows
         cminmax=dict()
         if which_norm_plot is None:cminmax.update({'vmin':cinfo_plot['clevel'][0], 'vmax':cinfo_plot['clevel'][-1]})
         
-        h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
-                              cmap=cinfo_plot['cmap'], norm = which_norm_plot,
-                              **cminmax, **plt_optdefault)
-
+        #_______________________________________________________________________
+        # plotting of chunks 
+        auxtriangles = tri.triangles[tri.mask_e_ok,:]
+        arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
+        print(' --> plot {:6s} chunk:'.format('data'),end='')
+        for chnki in range(nchnk):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+            if tri.x.size!=data_plot.size: idxs1, idxe1 = idxs, idxe
+            else                         : idxs1, idxe1 = 0, tri.x.size
+            h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe,:], data_plot[idxs1: idxe1],
+                                cmap=cinfo_plot['cmap'], norm = which_norm_plot,
+                                **cminmax, **plt_optdefault)
+            if nchnk>1 and do_progressive_draw():
+                hfig.canvas.draw_idle()     # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
+        print('')    
+        del(auxtriangles)
+        if do_info: print(' --> plt data tpc: {:f}'.format(clock.time()-t1))
+        
     #___________________________________________________________________________
     # plot tricontour 
-    elif do_plt in ['tcf','cf']: 
-        plt_optdefault = dict({'zorder':1})
+    elif do_plt in ['tcf','cf']:
+        plt_optdefault = dict({'zorder':50})
         plt_optdefault.update(plt_opt)
-    
+
         # supress warning message when compared with nan
         with np.errstate(invalid='ignore'):
             data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
             data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
-                
+
         h0 = hax_ii.tricontourf(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                 norm=which_norm_plot, **plt_optdefault) 
+        if do_info: print(' --> plt data tcf: {:f}'.format(clock.time()-t1))
         
     else: 
         raise ValueError(' --> this do_plt={:s} value is not valid'.format(do_plt))            
@@ -4565,39 +4915,60 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
     #___________________________________________________________________________
     # overlay background contour lines, very thin lines 
     if plt_contb and tri.x.size==data_plot.size:
-        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
+        t1 = clock.time()
+        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':55})
         pltcb_optdefault.update(pltcb_opt)
         h0cb = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clevel'], **pltcb_optdefault) 
-    
+        if do_info: print(' --> plt contb: {:f}'.format(clock.time()-t1))
     #___________________________________________________________________________
     # overlay foreground contour lines, of colorbar steps thicker line 
     if plt_contf and tri.x.size==data_plot.size:
-        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
+        t1 = clock.time()
+        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':56})
         pltcf_optdefault.update(pltcf_opt)
         h0cf = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=cinfo_plot['clab'], **pltcf_optdefault) 
         
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             h0cft = hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
+        if do_info: print(' --> plt contf: {:f}'.format(clock.time()-t1))    
     
     #___________________________________________________________________________
     # overlay reference contour lines, of colorbar reference center value
     if plt_contr and tri.x.size==data_plot.size:
-        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+        t1 = clock.time()
+        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
         pltcr_optdefault.update(pltcr_opt)
         h0cr = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
                                 levels=[cinfo_plot['cref']], **pltcr_optdefault) 
         
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             h0crt= hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
-    
+        if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
+        
+    #___________________________________________________________________________
+    # overlay contour lines  of specific value
+    if isinstance(plt_contval,list) and tri.x.size==data_plot.size:
+        t1 = clock.time()
+        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
+        pltcval_optdefault.update(pltcval_opt)
+        h0cv = hax_ii.tricontour(tri.x, tri.y, tri.triangles[tri.mask_e_ok,:], data_plot,
+                                levels=plt_contval, **pltcval_optdefault) 
+        
+        #_______________________________________________________________________
+        if plt_contl:
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
+            pltcl_optdefault.update(pltcl_opt)
+            h0cvt= hax_ii.clabel(h0cv, h0cv.levels, **pltcl_optdefault)
+        if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
+        
     #___________________________________________________________________________
     return(h0)
 
@@ -4607,11 +4978,13 @@ def do_plt_data(hax_ii, do_plt, tri, data_plot, cinfo_plot, which_norm_plot,
 #
 #_______________________________________________________________________________
 def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_norm_plot, 
-                plt_opt=dict(), which_transf=None, 
-                plt_contb=False, pltcb_opt=dict(), 
-                plt_contf=False, pltcf_opt=dict(),
-                plt_contr=False, pltcr_opt=dict(),
-                plt_contl=False, pltcl_opt=dict()):
+                plt_opt    =dict(), which_transf=None, 
+                plt_contb  =False, pltcb_opt  =dict(), 
+                plt_contf  =False, pltcf_opt  =dict(),
+                plt_contr  =False, pltcr_opt  =dict(),
+                plt_contl  =False, pltcl_opt  =dict(), 
+                plt_contval=False, pltcval_opt=dict(),
+                do_info=False):
     """
     --> plot regular gridded data (binned, coarse grained data) via pcolormesh and contourf
 
@@ -4668,16 +5041,18 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     ____________________________________________________________________________
     """      
     h0=None
+    t1 = clock.time()
     #___________________________________________________________________________
     # plot pcolor
     if   do_plt in ['tpc','pc']:
-        #plt_optdefault = dict({'shading':'gouraud'})
-        plt_optdefault = dict({'shading':'nearest', 'zorder':1})
+        # plt_optdefault = dict({'shading':'gouraud', 'zorder':1})
+        # plt_optdefault = dict({'shading':'nearest', 'zorder':1})
+        plt_optdefault = dict({'shading':'flat', 'zorder':50})
         plt_optdefault.update(plt_opt)
-        
         if 'shading' in plt_optdefault:
-            if plt_optdefault['shading']=='flat':
-                data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
+            if plt_optdefault['shading']=='flat' and data_x.size==data_plot.shape[1]: 
+                # data_plot = (data_plot[1:,1:] + data_plot[:-1,:-1])*0.5
+                data_plot = data_plot[:-1,:-1]
         
         # if which_normplot is specified like in case of log10 and slog10 scaling
         # vmin and vmax argumetns are not allows
@@ -4688,27 +5063,30 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
         # only to work in case of horizontal cartopy plot not in vertical slice 
         # plot even when which_transf=None
         if isinstance(hax_ii.projection, ccrs.CRS): plt_optdefault.update({'transform':which_transf})
+
         h0 = hax_ii.pcolormesh(data_x, data_y, data_plot, 
                                cmap=cinfo_plot['cmap'], norm=which_norm_plot, **cminmax, **plt_optdefault)
         
         #0 = hax_ii.pcolormesh(data_x, data_y, data_plot,
                               #cmap=cinfo_plot['cmap'],
                               #norm=which_norm_plot, transform=which_transf, **cminmax, **plt_optdefault)
+        if do_info: print(' --> plt data_reg tpc: {:f}'.format(clock.time()-t1))
         
     #___________________________________________________________________________
     # plot contourf 
-    elif do_plt in ['tcf','cf']: 
-        plt_optdefault = dict({'zorder':1})
+    elif do_plt in ['tcf','cf']:
+        plt_optdefault = dict({'zorder':50})
         plt_optdefault.update(plt_opt)
-    
+
         # supress warning message when compared with nan
         with np.errstate(invalid='ignore'):
             data_plot[data_plot<cinfo_plot['clevel'][ 0]] = cinfo_plot['clevel'][ 0]
             data_plot[data_plot>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]
-                
+
         h0 = hax_ii.contourf(data_x, data_y, data_plot,
                                 levels=cinfo_plot['clevel'], cmap=cinfo_plot['cmap'], extend='both',
                                 norm=which_norm_plot, transform=which_transf, **plt_optdefault) 
+        if do_info: print(' --> plt data_reg tcf: {:f}'.format(clock.time()-t1))
         
     else: 
         raise ValueError(' --> this do_plt={:s} value is not valid'.format(do_plt))            
@@ -4716,46 +5094,70 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
     #___________________________________________________________________________
     # solve problem between  using lat_bnd & lon_bnd and lat & lon
     if   np.ndim(data_x) == 1:
-        if   data_plot.shape[1] == data_x.shape[0]  : data_x0=data_x
-        elif data_plot.shape[1] == data_x.shape[0]-1: data_x0=(data_x[1:] + data_x[:-1])*0.5
-        if   data_plot.shape[0] == data_y.shape[0]  : data_y0=data_y
-        elif data_plot.shape[0] == data_y.shape[0]-1: data_y0=(data_y[1:] + data_y[:-1])*0.5
-    elif np.ndim(data_x) == 2: data_x0, data_y0=data_x, data_y
+        if   data_plot.shape[1] == data_x.shape[0]  : data_x0 = data_x
+        elif data_plot.shape[1] == data_x.shape[0]-1: data_x0 = (data_x[1:] + data_x[:-1])*0.5
+        if   data_plot.shape[0] == data_y.shape[0]  : data_y0 = data_y
+        elif data_plot.shape[0] == data_y.shape[0]-1: data_y0 = (data_y[1:] + data_y[:-1])*0.5
+    elif np.ndim(data_x) == 2: data_x0, data_y0 = data_x, data_y
         
     #___________________________________________________________________________
     # overlay background contour lines, very thin lines 
     if plt_contb:
-        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':2})
+        t1 = clock.time()
+        pltcb_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.1, 'zorder':55})
         pltcb_optdefault.update(pltcb_opt)
         h0cb = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=cinfo_plot['clevel'], transform=which_transf, **pltcb_optdefault) 
+        if do_info: print(' --> plt contb: {:f}'.format(clock.time()-t1))
     
     #___________________________________________________________________________
     # overlay foreground contour lines, of colorbar steps thicker line 
-    if plt_contf:    
-        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':2})
+    if plt_contf:   
+        t1 = clock.time()
+        pltcf_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':0.5, 'zorder':56})
         pltcf_optdefault.update(pltcf_opt)
+        #print(data_x.shape)
+        #print(data_y.shape)
+        #print(data_x0.shape)
+        #print(data_y0.shape)
+        #print(data_plot.shape)
         h0cf = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=cinfo_plot['clab'], transform=which_transf, **pltcf_optdefault) 
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             hax_ii.clabel(h0cf, h0cf.levels, **pltcl_optdefault)
-    
+        if do_info: print(' --> plt contl: {:f}'.format(clock.time()-t1))
     #___________________________________________________________________________
     # overlay reference contour lines, of colorbar reference center value
-    if plt_contr:    
-        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':2})
+    if plt_contr:  
+        t1 = clock.time()
+        pltcr_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
         pltcr_optdefault.update(pltcr_opt)
         h0cr = hax_ii.contour(data_x0, data_y0, data_plot,
                                 levels=[cinfo_plot['cref']], transform=which_transf, **pltcr_optdefault) 
         #_______________________________________________________________________
         if plt_contl:
-            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':3})
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
             pltcl_optdefault.update(pltcl_opt)
             hax_ii.clabel(h0cr, h0cr.levels, **pltcl_optdefault)
-            
+        if do_info: print(' --> plt contr: {:f}'.format(clock.time()-t1))    
+    
+     #___________________________________________________________________________
+    # overlay re contour lines  of specific value
+    if isinstance(plt_contval,list):
+        t1 = clock.time()
+        pltcval_optdefault=dict({'colors':'k', 'linestyles':'solid', 'linewidths':1.5, 'zorder':56})
+        pltcval_optdefault.update(pltcval_opt)
+        h0cv = hax_ii.contour(data_x0, data_y0, data_plot,
+                                levels=plt_contval, transform=which_transf, **pltcval_optdefault) 
+        #_______________________________________________________________________
+        if plt_contl:
+            pltcl_optdefault=dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
+            pltcl_optdefault.update(pltcl_opt)
+            hax_ii.clabel(h0cv, h0cv.levels, **pltcl_optdefault)
+        if do_info: print(' --> plt contr: {:f}'.format(clock.time()-t1))    
     #___________________________________________________________________________
     return(h0)
 
@@ -4764,10 +5166,10 @@ def do_plt_datareg(hax_ii, do_plt, data_x, data_y, data_plot, cinfo_plot, which_
 #
 #
 #_______________________________________________________________________________
-def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
+def do_plt_quiver(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v, 
                   cinfo_plot, norm_plot, quiv_scalfac=1, quiv_arrwidth=0.25, quiv_dens=0.4, 
                   quiv_smax=10, quiv_shiftL=2, quiv_smooth=2, 
-                  quiv_opt=dict()):
+                  quiv_opt=dict(), chnksize=1e6):
     """
     --> plot triangular data as quiver plot 
     
@@ -4829,7 +5231,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         
         nmax  = np.nanmax(data_plot_n)
         data_plot_u, data_plot_v = data_plot_u/nmax, data_plot_v/nmax
-
+        
         # scale up weaker flow vectors stronger so that also weaker flows become more visible
         # if quiv_scal=1 this scaling is switched off 
         fac   = (1.0 - np.tanh(((data_plot_n/nmax*np.pi*4)-np.pi*2 + 2*np.pi/quiv_shiftL )/quiv_smooth) )/2.0
@@ -4838,30 +5240,51 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         fac   = fac*(quiv_smax-1.0) + 1.0
         data_plot_u, data_plot_v = data_plot_u*fac, data_plot_v*fac
         
-                
         # convert into cartopy projection frame 
         if data_plot_u.size == tri.xorig.size: 
             isonvert=True
-            tri0x, tri0y = tri.x, tri.y
-            data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
-                                                                tri.xorig, tri.yorig, 
-                                                                data_plot_u, data_plot_v)
+            
+            # kick out nan values from quiver coordinates 
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) | 
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) | 
+                        np.isnan(tri.x)       | np.isnan(tri.y) )==False
+        
+            tri0x, tri0y, tri0xorig, tri0yorig = tri.x[mask_nan], tri.y[mask_nan], tri.xorig[mask_nan], tri.yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+            
+            # chunks computation of hax_ii.projection.transform_vectors(...)
+            chnksize, arrsize = np.int32(chnksize), data_plot_u.size
+            for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+                idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe] = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
+                                                                tri0xorig[idxs:idxe], tri0yorig[idxs:idxe], 
+                                                                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe])
+            del(tri0xorig, tri0yorig)
+            
         else:
             isonvert=False
+            
             triangles = tri.triangles[tri.mask_e_ok,:]
             tri0x    , tri0y     = tri.x[    triangles].sum(axis=1)/3.0, tri.y[    triangles].sum(axis=1)/3.0
-            tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0,
-            data_plot_u, data_plot_v = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
-                                                                tri0xorig, tri0yorig, 
-                                                                data_plot_u, data_plot_v)
+            tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0
+            
+            # kick out nan values from quiver coordinates 
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) | 
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) | 
+                        np.isnan(tri0x)       | np.isnan(tri0y) )==False
+            
+            tri0x, tri0y, tri0xorig, tri0yorig = tri0x[mask_nan], tri0y[mask_nan], tri0xorig[mask_nan], tri0yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+            
+            # chunks computation of hax_ii.projection.transform_vectors(...)
+            chnksize, arrsize = np.int32(chnksize), data_plot_u.size
+            for chnki in range(np.ceil(arrsize/chnksize).astype(int)):
+                idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe] = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), 
+                                                                tri0xorig[idxs:idxe], tri0yorig[idxs:idxe], 
+                                                                data_plot_u[idxs:idxe], data_plot_v[idxs:idxe])
             del(triangles, tri0xorig, tri0yorig)
             
-            
-        # kick out nan values from quiver coordinates 
-        mask_nan = np.isnan(data_plot_u) == False
-        tri0x, tri0y = tri0x[mask_nan], tri0y[mask_nan]
-        data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
-        
         ## kick out to small arrows
         #mean, std   = np.nanmean(data_plot_n), np.nanstd(data_plot_n)
         #mask_quiv   = data_plot_n>mean-std*quiv_excl
@@ -4870,6 +5293,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
         #data_plot_u = data_plot_u[mask_quiv], 
         #data_plot_v = data_plot_v[mask_quiv], 
         #data_plot_n = data_plot_n[mask_quiv]
+        
         
         # kick out arrows based on density 
         if quiv_dens is not None and tri.narea is not None:
@@ -4881,59 +5305,297 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
                 del(aux_earea)
                 
             mask_quiv   = np.random.rand(tri0x.size)>r0/np.max(r0)*quiv_dens #1.5
-            #mask_quiv = np.logical_and(isok,mask_quiv)
-            tri0x       = tri0x[mask_quiv], 
-            tri0y       = tri0y[mask_quiv],                         
-            data_plot_u = data_plot_u[mask_quiv], 
-            data_plot_v = data_plot_v[mask_quiv], 
+            ##mask_quiv = np.logical_and(isok,mask_quiv)
+            tri0x       = tri0x[mask_quiv] 
+            tri0y       = tri0y[mask_quiv]                        
+            data_plot_u = data_plot_u[mask_quiv]
+            data_plot_v = data_plot_v[mask_quiv] 
             data_plot_n = data_plot_n[mask_quiv]
+        
+#         #_______________________________________________________________________
+#         # try to do scaling projection space dependent
+#         # Define the geographic coordinates bounding the area of interest
+#         min_x, max_x = hax_ii.get_xlim()
+#         min_y, max_y = hax_ii.get_ylim()
+#         ddx  , ddy   = max_x-min_x , max_y-min_y
+#         #print('ddx, ddy:',ddx, ddy)
+#         min_x += ddx*0.025
+#         min_y += ddy*0.025
+#         max_x -= ddx*0.025
+#         max_y -= ddy*0.025
+#
+#         # Transform the minimum and maximum points
+#         min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+#         max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
+#         dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
+#         dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
+#
+#         # Calculate the distance in kilometers using the scale factor
+#         dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
+#         dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
+#         #print('dlon, dlat:', dlon, dlat)
+#
+#         dy   = dlat*np.pi*6371/180
+#         dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
+#         #print('dx,dy:',dx,dy)
+#
+#         ##_______________________________________________________________________
+#         ## add quiver plot
+#         #max_dim = np.min([dx,dy])*10
+#         max_dim = np.min([dlon, dlat])*2
+#
+#         #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
+#         if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
+#         #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+        
+        quiv_optdefault=dict({'zorder':51,
+                              'edgecolor':'k', 'linewidth':0.10, #'width': quiv_arrwidth , 
+                              'units':'xy', 'scale_units':'xy', 'angles':'xy', 'scale': quiv_scalfac
+                             }) 
+        quiv_optdefault.update(quiv_opt)
+        
+        #_______________________________________________________________________
+        # plotting of chunks 
+        arrsize, chnksize = data_plot_u.size, np.int32(chnksize)
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
+        print(' --> plot {:6s} chunk:'.format('quiver'),end='')
+        for chnki in range(nchnk):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+            h0=hax_ii.quiver(tri0x[idxs:idxe], tri0y[idxs:idxe], 
+                            data_plot_u[idxs:idxe], data_plot_v[idxs:idxe], data_plot_n[idxs:idxe],
+                            cmap = cinfo_plot['cmap'],                    
+                            norm = norm_plot,
+                            **quiv_optdefault, 
+                            )
+            h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
             
+            # Force update & clear cache
+            if nchnk>1 and do_progressive_draw():
+                hfig.canvas.draw_idle()   # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
+        
+        print('')    
+        #h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
+        del(tri0x, tri0y, )    
+
+        
+    return(h0)
+
+
+#
+#
+#_______________________________________________________________________________
+def do_plt_quiver_endpnt_method(hfig, hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
+                  cinfo_plot, norm_plot, quiv_scalfac=1, quiv_arrwidth=0.25, quiv_dens=0.4,
+                  quiv_smax=10, quiv_shiftL=2, quiv_smooth=2,
+                  quiv_opt=dict(), chnksize=1e6):
+    """
+    --> plot triangular data as quiver plot
+
+    Parameters:
+
+        :hax_ii:        handle of axes ii
+
+        :do_quiv:       bool, do cartopy quiver plot
+
+        :tri:           matplotlib.tri triangulation object
+                        - tri.mask_e_ok...provide mask with nan values, that describe the bottom limited to regional box
+
+        :data_plot_u:   np.array of unstructured zonal vector component
+
+        :data_plot_v:   np.array of unstructured meridional vector component
+
+        :cinfo_plot:    None, dict() (default: None), dictionary with colorbar information.
+                        Information that are given are used, others are computed. cinfo dictionary
+                        entries can be,
+
+                        - cinfo['cmin'], cinfo['cmax'], cinfo['cref'] ... scalar min, max, reference value
+                        - cinfo['crange'] ... list with [cmin, cmax, cref] overrides scalar values
+                        - cinfo['cnum']   ... minimum number of colors
+                        - cinfo['cstr']   ... name of colormap see in sub_colormap_c2c.py
+                        - cinfo['cmap']   ... colormap object ('wbgyr', 'blue2red, 'jet' ...)
+                        - cinfo['clevel'] ... color level array
+
+        :norm_plot:     None or renormation object
+
+        :quiv_scalfac:  float, (default: 1.0)  bigger means larger arrows
+
+        :quiv_arrwidth: float, (default: 0.25) scale arrow width
+
+        :quiv_dens:     float, (default: 0.5)  larger mean more excluded arrows
+
+        :quiv_smax:     float, (default: 10) small arrow are scaled strong with factor smax, its off when smax=1
+
+        :quiv_shiftL:   float, (default: 2) shift smothing function to the left
+
+        :quiv_smooth:   float, (default: 2) slope of transitions zone, smaller value steeper transition
+
+        :quiv_opt:      dict, (default: dict()) additional options that are given to quiver plot routine
+
+    Returns:
+
+        :h0:   return handle of quiver plot
+
+    ____________________________________________________________________________
+    """
+    h0=None
+    if do_quiv:
+        #_______________________________________________________________________
+        # prepare quiver data
+        data_plot_n              = np.sqrt(data_plot_u**2 + data_plot_v**2)
+        data_plot_u, data_plot_v = data_plot_u/data_plot_n, data_plot_v/data_plot_n
+        data_plot_n[data_plot_n<cinfo_plot['clevel'][0]]  = cinfo_plot['clevel'][0] #+np.finfo(np.float32).eps
+        data_plot_n[data_plot_n>cinfo_plot['clevel'][-1]] = cinfo_plot['clevel'][-1]#-np.finfo(np.float32).eps
+        data_plot_u, data_plot_v = data_plot_u*data_plot_n, data_plot_v*data_plot_n
+
+        nmax  = np.nanmax(data_plot_n)
+        data_plot_u, data_plot_v = data_plot_u/nmax, data_plot_v/nmax
+
+        # scale up weaker flow vectors stronger so that also weaker flows become more visible
+        # if quiv_scal=1 this scaling is switched off
+        fac   = (1.0 - np.tanh(((data_plot_n/nmax*np.pi*4)-np.pi*2 + 2*np.pi/quiv_shiftL )/quiv_smooth) )/2.0
+        fac   = fac - np.nanmin(fac)
+        fac   = fac/np.nanmax(fac)
+        fac   = fac*(quiv_smax-1.0) + 1.0
+        data_plot_u, data_plot_v = data_plot_u*fac, data_plot_v*fac
+
+        # convert into cartopy projection frame
+        if data_plot_u.size == tri.xorig.size:
+            isonvert=True
+
+            # kick out nan values from quiver coordinates
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) |
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) |
+                        np.isnan(tri.x)       | np.isnan(tri.y) )==False
+
+            tri0x, tri0y, tri0xorig, tri0yorig = tri.x[mask_nan], tri.y[mask_nan], tri.xorig[mask_nan], tri.yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+
+        else:
+            isonvert=False
+
+            triangles = tri.triangles[tri.mask_e_ok,:]
+            tri0x    , tri0y     = tri.x[    triangles].sum(axis=1)/3.0, tri.y[    triangles].sum(axis=1)/3.0
+            tri0xorig, tri0yorig = tri.xorig[triangles].sum(axis=1)/3.0, tri.yorig[triangles].sum(axis=1)/3.0
+
+            # kick out nan values from quiver coordinates
+            mask_nan = (np.isnan(data_plot_u) | np.isinf(data_plot_u) |
+                        np.isnan(data_plot_v) | np.isinf(data_plot_v) |
+                        np.isnan(tri0x)       | np.isnan(tri0y) )==False
+
+            tri0x, tri0y, tri0xorig, tri0yorig = tri0x[mask_nan], tri0y[mask_nan], tri0xorig[mask_nan], tri0yorig[mask_nan]
+            data_plot_u, data_plot_v, data_plot_n = data_plot_u[mask_nan], data_plot_v[mask_nan], data_plot_n[mask_nan]
+
+        # use custom end point method to do the vector rotation into the projection, the original cartopy transorm_vector routine
+        # seems to be flawed especially for polar projections !!!
+        dt= 10000.0
+        #dt=10
+        R = 6371.0*1e3
+        coslat = np.cos(np.deg2rad(tri0yorig))
+        dlat   = (data_plot_v * dt) / R
+        dlon   = (data_plot_u * dt) / (R * coslat)
+        lon2 = tri0xorig + np.rad2deg(dlon)
+        lat2 = tri0yorig + np.rad2deg(dlat)
+        px, py = hax_ii.projection.transform_points(ccrs.PlateCarree(), lon2, lat2)[:,0:2].T
+        data_plot_u, data_plot_v = px - tri0x, py - tri0y
+        del (tri0xorig, tri0yorig, lon2, lat2, dlat, dlon, coslat, px, py)
+
+        ## kick out to small arrows
+        #mean, std   = np.nanmean(data_plot_n), np.nanstd(data_plot_n)
+        #mask_quiv   = data_plot_n>mean-std*quiv_excl
+        #tri0x       = tri0x[mask_quiv],
+        #tri0y       = tri0y[mask_quiv],
+        #data_plot_u = data_plot_u[mask_quiv],
+        #data_plot_v = data_plot_v[mask_quiv],
+        #data_plot_n = data_plot_n[mask_quiv]
+
+        # kick out arrows based on density
+        if quiv_dens is not None and tri.narea is not None:
+            if isonvert:
+                r0      = 1/(np.sqrt(tri.narea[mask_nan]))
+            else:
+                aux_earea = tri.earea[tri.mask_e_ok]
+                r0      = 1/(np.sqrt(aux_earea[mask_nan]))
+                del(aux_earea)
+
+            mask_quiv   = np.random.rand(tri0x.size)>r0/np.max(r0)*quiv_dens #1.5
+            ##mask_quiv = np.logical_and(isok,mask_quiv)
+            tri0x       = tri0x[mask_quiv]
+            tri0y       = tri0y[mask_quiv]
+            data_plot_u = data_plot_u[mask_quiv]
+            data_plot_v = data_plot_v[mask_quiv]
+            data_plot_n = data_plot_n[mask_quiv]
+
         #_______________________________________________________________________
         # try to do scaling projection space dependent
         # Define the geographic coordinates bounding the area of interest
         min_x, max_x = hax_ii.get_xlim()
         min_y, max_y = hax_ii.get_ylim()
         ddx  , ddy   = max_x-min_x , max_y-min_y
-          
-        min_x += ddx*0.025  
+        #print('ddx, ddy:',ddx, ddy)
+        min_x += ddx*0.025
         min_y += ddy*0.025
-        max_x -= ddx*0.025  
+        max_x -= ddx*0.025
         max_y -= ddy*0.025
-        
+
         # Transform the minimum and maximum points
         min_lon, dum = ccrs.PlateCarree().transform_point(min_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
         max_lon, dum = ccrs.PlateCarree().transform_point(max_x, (min_y+max_y)/2, src_crs=hax_ii.projection)
         dum, min_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, min_y, src_crs=hax_ii.projection)
         dum, max_lat = ccrs.PlateCarree().transform_point((min_x+max_x)/2, max_y, src_crs=hax_ii.projection)
-        
+
         # Calculate the distance in kilometers using the scale factor
         dlon = np.abs(max_lon - min_lon)  # Convert meters to kilometers
         dlat = np.abs(max_lat - min_lat)  # Convert meters to kilometers
-        
+        #print('dlon, dlat:', dlon, dlat)
+
         dy   = dlat*np.pi*6371/180
         dx   = dlon*np.pi*6371/180*np.cos(np.deg2rad( (min_lat+max_lat)/2 ))
-        
-        #_______________________________________________________________________
-        # add quiver plot 
-        max_dim = np.min([dx,dy])*10
-        if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
-        if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
-        
-        quiv_optdefault=dict({'edgecolor':'k', 'linewidth':0.10, 'width': quiv_arrwidth , 'units':'xy', \
-                              'scale_units':'xy', 'angles':'xy', 'scale': quiv_scalfac}) 
+        #print('dx,dy:',dx,dy)
+
+        ##_______________________________________________________________________
+        ## add quiver plot
+        #max_dim = np.min([dx,dy])*10
+        max_dim = np.min([dlon, dlat])*2
+
+        #if quiv_scalfac is not None: quiv_scalfac = 1/max_dim/quiv_scalfac
+        if quiv_scalfac is not None: quiv_scalfac = 1*max_dim/quiv_scalfac
+        #if quiv_arrwidth is not None: quiv_arrwidth = max_dim*quiv_arrwidth
+
+        quiv_optdefault=dict({'zorder':51,
+                              'edgecolor':'k', 'linewidth':0.2, #'width': quiv_arrwidth ,
+                              'units':'xy', 'scale_units':'xy', 'angles':'xy',
+                              'scale': quiv_scalfac
+                             })
         quiv_optdefault.update(quiv_opt)
-        
-        h0=hax_ii.quiver(tri0x, tri0y, 
-                        data_plot_u, data_plot_v, 
-                        data_plot_n,
-                        cmap = cinfo_plot['cmap'],                    
-                        norm = norm_plot,
-                        zorder=10,
-                        **quiv_optdefault, 
-                        )
-        
-        h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
-        del(tri0x, tri0y)    
+
+        #_______________________________________________________________________
+        # plotting of chunks
+        arrsize, chnksize = data_plot_u.size, np.int32(chnksize)
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
+        print(' --> plot {:6s} chunk:'.format('quiver'),end='')
+        for chnki in range(nchnk):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+            h0=hax_ii.quiver(tri0x[idxs:idxe], tri0y[idxs:idxe],
+                            data_plot_u[idxs:idxe], data_plot_v[idxs:idxe], data_plot_n[idxs:idxe],
+                            cmap = cinfo_plot['cmap'],
+                            norm = norm_plot,
+                            **quiv_optdefault,
+                            )
+            h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
+
+            # Force update & clear cache
+            if nchnk>1 and do_progressive_draw():
+                hfig.canvas.draw_idle()   # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
+
+        print('')
+        #h0.set_clim([cinfo_plot['clevel'][0],cinfo_plot['clevel'][-1]])
+        del(tri0x, tri0y, )
+
+
     return(h0)
 
 
@@ -4942,7 +5604,7 @@ def do_plt_quiver(hax_ii, do_quiv, tri, data_plot_u, data_plot_v,
 #_______________________________________________________________________________
 def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dict(), 
                    do_streaml_leg=True, streaml_leg_opt=dict(),
-                   box=None, which_transf=ccrs.PlateCarree()):
+                   box=None, which_transf=ccrs.PlateCarree(), do_info=False):
     """
     --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
         data. Data can originate either from corase graining or interpolation
@@ -5003,19 +5665,24 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
     """
     
     h0=None
+    # work on a local copy so per-panel pops below don't mutate the caller's dict,
+    # which is shared/reused across all panels of a multipanel figure
+    streaml_opt = dict(streaml_opt) if streaml_opt else dict()
     #___________________________________________________________________________
     if do_streaml and streaml_dat is not None:
+        t1=clock.time()
         data_x, data_y = streaml_dat[ii]['lon'    ], streaml_dat[ii]['lat'    ]
         vnm = list(streaml_dat[ii].data_vars)
         data_u, data_v = streaml_dat[ii][vnm[0]].data.copy(), streaml_dat[ii][vnm[1]].data.copy()
                 
         # limit data to regional box
         if box is not None:
-            idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
-            data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
-            data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
-            data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
-            del(idx_x, idx_y)
+            if len(box)==4:
+                idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
+                data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
+                data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
+                data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
+                del(idx_x, idx_y)
         
         # vector norm --> speed
         data_s = np.sqrt(data_u**2 + data_v**2)
@@ -5043,7 +5710,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
         data_v[np.isnan(data_s)] = 0.0
         data_s[np.isnan(data_s)] = 0.0
                 
-        plt_optdefault = dict({'density':10, 'color':'k'})
+        plt_optdefault = dict({'density':10, 'color':'k', 'zorder':51})
         plt_optdefault.update(streaml_opt)
         
         # here do cartopy projection inside streamplot routine 
@@ -5061,27 +5728,30 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
                                    'dy':5, # vertical distance of legend labels in deg
                                    'dw':10, # width of lines in deg
                                    'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
+            if isinstance(hax_ii.projection, ccrs.SouthPolarStereo): leg_optdefault.update({'x': -60, 'y': box[3]-5, 'dy':10})
+            if isinstance(hax_ii.projection, ccrs.NorthPolarStereo): leg_optdefault.update({'x': 80, 'y': box[3]-25, 'dy':25})    
             leg_optdefault.update(streaml_leg_opt)
             
             x, y, dy, dw   = leg_optdefault['x'], leg_optdefault['y'], leg_optdefault['dy'], leg_optdefault['dw']
             x01, y01 = hax_ii.projection.transform_point(x-dw, y, ccrs.PlateCarree())
-            x02, y02 = hax_ii.projection.transform_point(x  , y, ccrs.PlateCarree())
-            x03, y03 = hax_ii.projection.transform_point(x+2, y, ccrs.PlateCarree())
+            x02, y02 = hax_ii.projection.transform_point(x   , y, ccrs.PlateCarree())
+            x03, y03 = hax_ii.projection.transform_point(x+2 , y, ccrs.PlateCarree())
             for i, speed in enumerate(leg_optdefault['arr_s']):
                 # This linewidth
                 lw = speed2lw(speed, speed_min, speed_max, lw_min, lw_max)
 
                 # Plot a line in the legend, of the correct length
                 x1, y1   = hax_ii.projection.transform_point(x, y, ccrs.PlateCarree())
-                hax_ii.plot([x01 ,x02], [y1,y1], c='k', lw=lw, zorder=10)
+                hax_ii.plot([x01 ,x02], [y1,y1], c='k', lw=lw, zorder=52)
                 
                 # Add a text label, after converting the lw back to a speed
                 hax_ii.text(x03, y1, '{:2.2f} $m{{\\cdot}}s^{{-1}}$'.format(speed), 
-                            va='center', zorder=10, fontweight='normal')
+                            va='center', zorder=52, fontweight='normal')
                 y=y-dy
             
         #_______________________________________________________________________
         del(data_x, data_y, data_u, data_v, data_s)
+        if do_info: print(' --> plt streaml_reg: {:f}'.format(clock.time()-t1))
         
     #___________________________________________________________________________
     elif do_streaml and streaml_dat is None:
@@ -5097,7 +5767,7 @@ def do_plt_streaml_reg(hax_ii, ii, do_streaml, streaml_dat=None, streaml_opt=dic
 def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(), 
                    do_quiver_leg=True, quiver_leg_opt=dict(),
                    box=None, which_transf=ccrs.PlateCarree(), 
-                   quiv_scalfac=1, quiv_arrwidth=0.25):
+                   quiv_scalfac=1, quiv_arrwidth=0.25, do_info=False):
     """
     --> plot streamlines over scalar data, based on regular gridded lon,lat vector 
         data. Data can originate either from corase graining or interpolation
@@ -5160,17 +5830,19 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
     h0=None
     #___________________________________________________________________________
     if do_quiver and quiver_dat is not None:
+        t1=clock.time()
         data_x, data_y = quiver_dat[ii]['lon'    ].data.copy(), quiver_dat[ii]['lat'    ].data.copy()
         vnm = list(quiver_dat[ii].data_vars)
         data_u, data_v = quiver_dat[ii][vnm[0]].data.copy(), quiver_dat[ii][vnm[1]].data.copy()
                 
         # limit data to regional box
         if box is not None:
-            idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
-            data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
-            data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
-            data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
-            del(idx_x, idx_y)
+            if len(box)==4:
+                idx_x , idx_y  = (data_x>=box[0]) & (data_x<=box[1]), (data_y>=box[2]) & (data_y<=box[3])
+                data_x, data_y = data_x[idx_x  ], data_y[idx_y  ]
+                data_u, data_v = data_u[idx_y,:], data_v[idx_y,:]
+                data_u, data_v = data_u[:,idx_x], data_v[:,idx_x]
+                del(idx_x, idx_y)
         
         # vector norm --> speed
         data_s = np.sqrt(data_u**2 + data_v**2)
@@ -5183,17 +5855,17 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
         
         #_______________________________________________________________________
         quiv_optdefault=dict({
-                            'scale':4,
                             'minshaft':2,
                             'minlength':0.5,
-                            'width':0.002})
-        
+                            'width':0.002, 
+                            'scale_units':'inches',
+                            'scale':1, })
         quiv_optdefault.update(quiver_opt)
         
         data_u, data_v = hax_ii.projection.transform_vectors(which_transf, data_x, data_y, data_u, data_v)
         data_x, data_y = hax_ii.projection.transform_points( which_transf, data_x, data_y)[:,0:2].T
         h0=hax_ii.quiver(data_x, data_y, data_u, data_v, 
-                         color = 'k', zorder=10, **quiv_optdefault, )
+                         color = 'k', zorder=51, **quiv_optdefault, )
         
         #_______________________________________________________________________
         # make a streamline legend
@@ -5202,7 +5874,9 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
                                    'y':60, # lat position of legend in deg 
                                    'dy':5, # vertical distance of legend labels in deg
                                    'dw':10, # width of lines in deg
-                                   'arr_s': [0.05, 0.1, 0.2, 0.3, 0.4]  })
+                                   'arr_s': [0.1,]  })
+            if isinstance(hax_ii.projection, ccrs.SouthPolarStereo): leg_optdefault.update({'x': -60, 'y': box[3]-5, 'dy':10})
+            if isinstance(hax_ii.projection, ccrs.NorthPolarStereo): leg_optdefault.update({'x': 80, 'y': box[3]-25, 'dy':25})    
             leg_optdefault.update(quiver_leg_opt)
             
             x, y, dy, dw   = leg_optdefault['x'], leg_optdefault['y'], leg_optdefault['dy'], leg_optdefault['dw']
@@ -5211,21 +5885,21 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
             x03, y03 = hax_ii.projection.transform_point(x+2, y, ccrs.PlateCarree())
             for i, speed in enumerate(leg_optdefault['arr_s']):
                 # This linewidth
-                
                 # Plot a line in the legend, of the correct length
                 x1, y1   = hax_ii.projection.transform_point(x, y, ccrs.PlateCarree())
                 u1, v1   = hax_ii.projection.transform_vectors(ccrs.PlateCarree(), np.array([0]) , np.array([0]), np.array([speed]), np.array([0]))
-                h0=hax_ii.quiver(x02, y1, u1, v1, color = 'k', zorder=10,
+                h0=hax_ii.quiver(x02, y1, u1, v1, color = 'k', zorder=53,
                          pivot='tip', 
                          **quiv_optdefault, 
                         )
                 # Add a text label, after converting the lw back to a speed
                 hax_ii.text(x03, y1, '{:2.2f} $m{{\\cdot}}s^{{-1}}$'.format(speed), 
-                            va='center', zorder=10, fontweight='normal')
+                            va='center', zorder=53, fontweight='normal', fontsize=12)
                 y=y-dy
             
         #_______________________________________________________________________
         del(data_x, data_y, data_u, data_v, data_s)
+        if do_info: print(' --> plt quiver_reg: {:f}'.format(clock.time()-t1))
         
     #___________________________________________________________________________
     elif do_quiver and quiver_dat is None:
@@ -5239,7 +5913,8 @@ def do_plt_quiver_reg(hax_ii, ii, do_quiver, quiver_dat=None, quiver_opt=dict(),
 #
 #
 #_______________________________________________________________________________
-def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, ylim=None, bot_opt=dict()):
+def do_plt_bot(hfig, hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=None, ylim=None, 
+               bot_opt=dict(), chnksize=1e6, do_info=False):
     """
     --> plot bottom mask
 
@@ -5271,12 +5946,12 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
     """      
     from matplotlib.colors import ListedColormap
     h0=None
-    
+    t1 = clock.time()
+            
     # plot bottom mask for cartopy plot
     if isinstance(hax_ii.projection, ccrs.CRS) and tri is not None:
         if do_bot and np.any(tri.mask_e_ok==False):
-            
-            bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, 'zorder':4})
+            bot_optdefault = dict({'facecolors': [0.8, 0.8, 0.8], 'linewidth':0.1, 'zorder':10})
             bot_optdefault.update(bot_opt)
             
             # create single color colormap when options like 'facecolor', 'facecolors', 
@@ -5294,12 +5969,25 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
                 for ii in rmv:
                     del(bot_optdefault[ii])
             
-            #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask==False,:], **bot_optdefault)
-            h0 = hax_ii.tripcolor(tri.x, tri.y, tri.triangles[tri.mask_e_ok==False,:], np.ones(np.sum(tri.mask_e_ok==False)), **bot_optdefault)
-    
+            #___________________________________________________________________
+            # plotting of chunks 
+            auxtriangles = tri.triangles[tri.mask_e_ok==False,:]
+            arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+            nchnk = np.ceil(arrsize/chnksize).astype(int)
+            print(' --> plot {:6s} chunk:'.format('bot'),end='')
+            for chnki in range(nchnk):
+                idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+                print('{:d}|'.format(chnki), end='')
+                h0 = hax_ii.tripcolor(tri.x, tri.y, auxtriangles[idxs:idxe, :], np.ones((idxe-idxs)), **bot_optdefault)
+                if nchnk>1 and do_progressive_draw():
+                    hfig.canvas.draw_idle()     # Updates only changed parts
+                    hfig.canvas.flush_events()  # Ensures interactive update
+            print('')
+            del(auxtriangles)
+            if do_info: print(' --> plt bot: {:f}'.format(clock.time()-t1))
+            
     # plot bottom mask for index+depth+xy
     elif hax_ii.projection=='index+depth+xy':
-        
         bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':4})
         bot_optdefault.update(bot_opt)
             
@@ -5322,7 +6010,8 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
         #del(filt, aux)
         
         h0 = hax_ii.fill_between(data_x, bottom, data_y[-1], **bot_optdefault)#,alpha=0.95)
-    
+        if do_info: print(' --> plt bot: {:f}'.format(clock.time()-t1))
+        
     # plot bottom mask for zmoc
     elif 'zmoc' in hax_ii.projection or 'dmoc+depth' in hax_ii.projection:
         bot_optdefault = dict({'color':[0.5, 0.5, 0.5], 'edgecolor':'k', 'linewidth':1.0, 'zorder':4})
@@ -5333,16 +6022,17 @@ def do_plt_bot(hax_ii, do_bot, tri=None, data_x=None, data_y=None, data_plot=Non
             
         bottom = data_plot
         h0 = hax_ii.fill_between(data_x, bottom, maxbot, **bot_optdefault)#,alpha=0.95)
-    
+        if do_info: print(' --> plt bot: {:f}'.format(clock.time()-t1))
+        
     return(h0)
     
 #
 #
 #_______________________________________________________________________________
-def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri, 
+def do_plt_topo(hfig, hax_ii, do_topo, data_topo, mesh, tri, 
                 plt_opt=dict(), 
                 plt_contb=True,  pltcb_opt=dict(), 
-                plt_contl=False, pltcl_opt=dict()):
+                plt_contl=False, pltcl_opt=dict(), chnksize=1e6):
     """
     --> plot topography contour or pcolor
 
@@ -5384,19 +6074,20 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
         levels = np.hstack((25, 50, 100, 150, 200, 250, np.arange(500,6000+1,500)))
         N = len(levels)
         vals = np.ones((N, 4))
-        vals[:, 0] = np.linspace(0.2, 0.95, N)
-        vals[:, 1] = np.linspace(0.2, 0.95, N)
-        vals[:, 2] = np.linspace(0.2, 0.95, N)
+        vals[:, 0] = np.linspace(0.01, 0.95, N)
+        vals[:, 1] = np.linspace(0.01, 0.95, N)
+        vals[:, 2] = np.linspace(0.01, 0.95, N)
         vals = np.flipud(vals)
         topocmp = ListedColormap(vals)
         cinfo_topo = dict({'clevel':levels, 'cmap':topocmp})
                 
-        h0 = do_plt_data(hax_ii, do_topo, tri0, data_topo, 
+        h0 = do_plt_data(hfig, hax_ii, do_topo, tri0, data_topo, 
                          cinfo_topo, None,    plt_opt  =plt_opt, 
                          plt_contb=plt_contb, pltcb_opt=pltcb_opt, 
                          plt_contf=False    , pltcf_opt=dict(),
                          plt_contr=False    , pltcr_opt=dict(),
-                         plt_contl=plt_contl, pltcl_opt=pltcl_opt)
+                         plt_contl=plt_contl, pltcl_opt=pltcl_opt,
+                         chnksize=chnksize, zorder=10)
         del(tri0)
     return(h0)
 
@@ -5405,7 +6096,7 @@ def do_plt_topo(hax_ii, do_topo, data_topo, mesh, tri,
 #
 #
 #_______________________________________________________________________________
-def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
+def do_plt_mesh(hfig, hax_ii, do_mesh, tri, mesh_opt=dict(), chnksize=1e6, do_info=False):
     """
     --> plot overlaying triangular mesh
 
@@ -5429,10 +6120,27 @@ def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
     """      
     h0=None
     if do_mesh: 
-        mesh_optdefault = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75})
+        t1 = clock.time()
+        mesh_optdefault = dict({'color':'k', 'linewidth':0.1, 'alpha':0.75, 'zorder':100})
         mesh_optdefault.update(mesh_opt)
         #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles[e_ok_mask,:], zorder=5, **mesh_optdefault)
-        h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles, zorder=5, **mesh_optdefault)
+        #h0 = hax_ii.triplot(tri.x, tri.y, tri.triangles, zorder=5, **mesh_optdefault)
+        
+        auxtriangles = tri.triangles[tri.mask_e_ok,:]
+        arrsize, chnksize = auxtriangles.shape[0], np.int32(chnksize)
+        nchnk = np.ceil(arrsize/chnksize).astype(int)
+        print(' --> plot {:6s} chunk:'.format('mesh'),end='')
+        for chnki in range(nchnk):
+            idxs, idxe = chnki*chnksize, np.minimum((chnki+1)*chnksize, arrsize)
+            print('{:d}|'.format(chnki), end='')
+
+            h0 = hax_ii.triplot(tri.x, tri.y, auxtriangles[idxs:idxe,:], **mesh_optdefault)
+            if nchnk>1 and do_progressive_draw():
+                hfig.canvas.draw_idle()     # Updates only changed parts
+                hfig.canvas.flush_events()  # Ensures interactive update
+        print('')    
+        del(auxtriangles)
+        if do_info: print(' --> plt mesh: {:f}'.format(clock.time()-t1))
     return(h0)
 
 
@@ -5440,7 +6148,7 @@ def do_plt_mesh(hax_ii, do_mesh, tri, mesh_opt=dict()):
 #
 #
 #_______________________________________________________________________________
-def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
+def do_plt_lsmask(hfig, hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low', do_info=False):
     """
     --> plot fesom mesh inverted land sea mask
 
@@ -5473,9 +6181,9 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
     #___________________________________________________________________________
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="cartopy")
     
-    lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5, 'zorder':4})
+    lsm_optdefault = dict({'facecolor':[0.6, 0.6, 0.6], 'edgecolor':'k', 'linewidth':0.5, 'zorder':1})
     lsm_optdefault.update(lsm_opt)
-    
+    t1 = clock.time()
     #___________________________________________________________________________
     if do_lsm in ['bluemarble', 'etopo']:
         import tripyview as tpv
@@ -5488,36 +6196,90 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
         return()
 
     elif do_lsm=='fesom':
-        h0=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        # draw the land fill and its coastline outline as two separate passes.
+        # a single add_geometries() call draws both at the same (low) zorder,
+        # so wherever a data/bottom-mask triangle from the ocean side happens to
+        # touch the coast (zorder 50 / 10 vs the land's zorder 1), the outline
+        # gets covered and the coastline disappears right where it matters most
+        fill_opt = dict(lsm_optdefault); fill_opt['edgecolor'] = 'none'
+        h01 = hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **fill_opt)
+        h0  = h01
+        if lsm_optdefault.get('edgecolor') not in (None, 'none', 'None'):
+            edge_opt = dict(lsm_optdefault)
+            edge_opt['facecolor'] = 'none'
+            edge_opt['zorder']    = 101
+            h02 = hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **edge_opt)
+            h0  = [h01, h02]
+        if do_info: print(' --> plt lsmask fesom: {:f}'.format(clock.time()-t1))
         
     elif do_lsm=='stock':  
         h01=hax_ii.stock_img()
-        lsm_optdefault.update({'facecolor':'None'})
+        # coastline outline only (facecolor='None') sits over a background image/data,
+        # not under it like the filled fesom land mask -- lift it above the data layer
+        lsm_optdefault.update({'facecolor':'None', 'zorder':101})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]    
+        if do_info: print(' --> plt lsmask stock: {:f}'.format(clock.time()-t1))
         
     elif do_lsm=='bluemarble': 
         # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
         # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
         os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
         h01=hax_ii.background_img(name=do_lsm, resolution=resolution)
-        lsm_optdefault.update({'facecolor':'None'})
+        # coastline outline only (facecolor='None') sits over a background image/data,
+        # not under it like the filled fesom land mask -- lift it above the data layer
+        lsm_optdefault.update({'facecolor':'None', 'zorder':101})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]  
+        if do_info: print(' --> plt lsmask bluemarble: {:f}'.format(clock.time()-t1))
         
     elif do_lsm=='etopo':   
         # --> see original idea at http://earthpy.org/cartopy_backgroung.html#disqus_thread and 
         # https://stackoverflow.com/questions/67508054/improve-resolution-of-cartopy-map
         os.environ["CARTOPY_USER_BACKGROUNDS"] = bckgrndir
         h01=hax_ii.background_img(name=do_lsm, resolution=resolution)    
-        lsm_optdefault.update({'facecolor':'None'})
+        # coastline outline only (facecolor='None') sits over a background image/data,
+        # not under it like the filled fesom land mask -- lift it above the data layer
+        lsm_optdefault.update({'facecolor':'None', 'zorder':101})
         h02=hax_ii.add_geometries(mesh.lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
         h0 = [h01,h02]
+        if do_info: print(' --> plt lsmask etopo: {:f}'.format(clock.time()-t1))    
+        
+    elif do_lsm=='neverworld2':       
+        yn, ys  = np.max(mesh.n_y), np.min(mesh.n_y)
+        xw, xe  = np.min(mesh.n_x), np.max(mesh.n_x)
+        ynp, ysp= np.max(mesh.n_ya), np.min(mesh.n_ya)       
+        w       = abs(hax_ii.box[0]-mesh.n_x.min())
+        lsmask  = list()
+        lsmask.append([   [xw  , ynp ], 
+                          [xw-w, ynp ], 
+                          [xw-w, yn+w], 
+                          [xe+w, yn+w],
+                          [xe+w, ynp ], 
+                          [xe  , ynp ],
+                          [xe  , yn  ], 
+                          [xw  , yn  ],
+                          [xw  , ynp ], ])
+        lsmask.append([   [xw  , ysp ], 
+                          [xw-w, ysp ], 
+                          [xw-w, ys-w], 
+                          [xe+w, ys-w],
+                          [xe+w, ysp ], 
+                          [xe  , ysp ],
+                          [xe  , ys  ], 
+                          [xw  , ys  ],
+                          [xw  , ysp ], ])
+        lsmask_p = lsmask_patch(lsmask)
+        h0=hax_ii.add_geometries(lsmask_p, crs=ccrs.PlateCarree(), **lsm_optdefault)
+        if do_info: print(' --> plt lsmask neverworld2: {:f}'.format(clock.time()-t1))
         
     else:
         raise ValueError(" > the do_lsm={} is not supported, must be either 'fesom', 'stock', 'bluemarble' or 'etopo'! ")
-        
+
     #___________________________________________________________________________
+    #hfig.canvas.draw_idle()   # Updates only changed parts
+    #hfig.canvas.flush_events()  # Ensures interactive update
+
     return(h0)
 
 
@@ -5527,7 +6289,7 @@ def do_plt_lsmask(hax_ii, do_lsm, mesh, lsm_opt=dict(), resolution='low'):
 #_______________________________________________________________________________
 def do_plt_gridlines(hax_ii, do_grid, box, ndat, 
                      data_x=None, data_y=None, xlim=None, ylim=None, grid_opt=dict(), 
-                     proj=None, do_rescale=None):
+                     proj=None, do_rescale=None, do_info=False):
     """
     --> do plot cartopy gridline and general gridlines together with the limit
         scaling of the axis (see non-linear option of x and y axis)
@@ -5570,35 +6332,40 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
     #___________________________________________________________________________
     h0=None
     if do_grid:
+        t1 = clock.time()
         #_______________________________________________________________________
-        if proj=='channel':
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':5})
+        if proj=='channel' or proj=='neverworld2':
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':101})
             grid_optdefault.update(grid_opt)
             #___________________________________________________________________
             h0=hax_ii.gridlines(**grid_optdefault )
+            # cartopy's Gridliner hardcodes its own artist zorder to 2 in __init__
+            # (independent of the zorder we pass above, which only reaches the
+            # internal line-collection styling) -- override it explicitly so the
+            # gridlines actually render on top of the data/mesh as intended
+            h0.set_zorder(grid_optdefault['zorder'])
             if hax_ii.do_ylabel: h0.left_labels   = True
             if hax_ii.do_xlabel: h0.bottom_labels = True
 
         #_______________________________________________________________________
         elif isinstance(hax_ii.projection, ccrs.CRS):
             #___________________________________________________________________
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':10})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'draw_labels':False, 'alpha':0.25, 'zorder':101})
             grid_optdefault.update(grid_opt)
-            
+
             #___________________________________________________________________
             h0=hax_ii.gridlines(**grid_optdefault )
-            
-            # ensure circular boundary for stereographic projection
-            if isinstance(hax_ii.projection, (ccrs.NorthPolarStereo, ccrs.SouthPolarStereo) ):
-                # give stereographic plot a circular boundary
-                theta  = np.linspace(0, 2*np.pi, 100)
-                center, radius = [0.5, 0.5], 0.5
-                verts  = np.vstack([np.sin(theta), np.cos(theta)]).T
-                circle = mpath.Path(verts * radius + center)
-                hax_ii.set_boundary(circle, transform=hax_ii.transAxes)
-                del(theta, center, verts, circle)
-            
-            elif isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)):
+            # cartopy's Gridliner hardcodes its own artist zorder to 2 in __init__
+            # (independent of the zorder we pass above, which only reaches the
+            # internal line-collection styling) -- override it explicitly so the
+            # gridlines actually render on top of the data/mesh as intended
+            h0.set_zorder(grid_optdefault['zorder'])
+
+            # circular boundary/clip for stereographic projections is now set
+            # unconditionally in do_axes_arrange, right after axes creation --
+            # doing it here (only when do_grid=True, and only after data/lsmask
+            # were already plotted) let artists render outside it, see BUGREPORT
+            if isinstance(hax_ii.projection, (ccrs.Orthographic, ccrs.NearsidePerspective)):
                 hax_ii.set_global()
             
             elif isinstance(hax_ii.projection, (ccrs.Mollweide, ccrs.EqualEarth, ccrs.Robinson)):
@@ -5618,11 +6385,13 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             h0.ylabel_style = {'fontsize': hax_ii.fs_ticks} 
         #_______________________________________________________________________
         # grid options for index vs. depth vs. xy plot
-        elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 
+        elif hax_ii.projection in ['index+depth+xy', 'index+depth+time', 'index+xy+time', 
                                    'index+depth', 'index+time', 'index+xy', 
                                    'zmoc', 'dmoc', 'dmoc+dens', 'dmoc+depth']:
+            
+            
             #___________________________________________________________________
-            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':-1})
+            grid_optdefault = dict({'color':'black', 'linestyle':'-', 'linewidth':0.25, 'alpha':1.0, 'zorder':101})
             grid_optdefault.update(grid_opt)
             
             #___________________________________________________________________
@@ -5663,8 +6432,8 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                     if 'dmoc+dens' in hax_ii.projection : do_ysig = grid_optdefault[ii]
                     rmv.append(ii) 
                 elif ii in ['ysig_majorticks'] :
-                    yexp_majorticks = grid_optdefault[ii]
-                    rmv.append(ii) 
+                    ysig_majorticks = grid_optdefault[ii]
+                    rmv.append(ii)
                 elif ii in ['ysig_minorticks'] :
                     ysig_minorticks = grid_optdefault[ii]
                     rmv.append(ii)     
@@ -5757,7 +6526,10 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
             #___________________________________________________________________
             # set x/y limits
             if data_y is not None: 
-                if np.ndim(data_y)==1 : hax_ii.set_ylim(data_y[0],data_y[-1])
+                # print(data_y[0],data_y[-1])
+                if np.ndim(data_y)==1 :
+                    #hax_ii.set_ylim(data_y[0],data_y[-1])
+                    hax_ii.set_ylim(np.nanmin(data_y),np.nanmax(data_y))
                 if np.ndim(data_y)==2 : hax_ii.set_ylim(np.nanmin(data_y),np.nanmax(data_y))
             
             if ylim is not None: 
@@ -5782,15 +6554,26 @@ def do_plt_gridlines(hax_ii, do_grid, box, ndat,
                     if ylim is not None: hax_ii.set_ylim(ylim[0]  ,ylim[-1])
                     hax_ii.invert_yaxis()
                 
+                elif   hax_ii.projection in ['index+xy+time']:
+                    ...
                 else:
                     if do_yinv: hax_ii.invert_yaxis()
             
             #___________________________________________________________________
-            # set grid options 
+            # set grid options
             hax_ii.get_yaxis().set_major_formatter(ScalarFormatter())
             hax_ii.grid(True,which='major')
             hax_ii.grid(**grid_optdefault)
-            
+            # matplotlib's axisbelow ('line' by default) sets the parent Axis
+            # container's own zorder (1.5) -- this governs where gridlines actually
+            # draw and silently overrides the zorder passed above on the individual
+            # gridline Line2D artists, so the data (zorder ~50) still ends up on top.
+            # Disable it and lift the Axis container itself above the data.
+            hax_ii.set_axisbelow(False)
+            hax_ii.xaxis.set_zorder(grid_optdefault['zorder'])
+            hax_ii.yaxis.set_zorder(grid_optdefault['zorder'])
+        
+        if do_info: print(' --> plt gridlines: {:f}'.format(clock.time()-t1))
     #___________________________________________________________________________
     return(h0)
 
@@ -5882,13 +6665,15 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     elif isinstance(data, xr.Dataset) :
         vname    = list(data.keys())[0]        
         loc_attrs= data[vname].attrs
-            
+    
     if cb_label is None:
         cb_label = ''
         if  'long_name' in loc_attrs:
+            #cb_label = cb_label+loc_attrs['long_name' ][0].upper()+loc_attrs['long_name' ][1:]
             cb_label = cb_label+loc_attrs['long_name'].capitalize()
         elif 'short_name' in loc_attrs:
-            c_label = cb_label+loc_attrs['short_name'].capitalize()
+            #cb_label = cb_label+loc_attrs['short_name'][0].upper()+loc_attrs['short_name'][1:]
+            cb_label = cb_label+loc_attrs['short_name'].capitalize()
         
         if cb_lunit  is None:
             if 'units' in loc_attrs: cb_label = cb_label+' / '+loc_attrs['units']
@@ -5917,15 +6702,20 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
     cbl_optdefault = dict({'fontsize':fsize})
     cbl_optdefault.update(cbl_opt)
     
-    ## wrap xlabel string when they are to long
-    ## Estimate the width of the axes dynamically
-    #axes_width_px = hcb_ii.ax.get_position().height * hax_ii.fig_height * hax_ii.fig_dpi
+    # wrap xlabel string when they are to long
+    # Estimate the width of the axes dynamically
+
+    if  which_orient=='vertical':
+        axes_width_px = hcb_ii.ax.get_position().height * hax_ii.fig_height * hax_ii.fig_dpi
+    elif which_orient=='horizontal':
+        axes_width_px = hcb_ii.ax.get_position().width * hax_ii.fig_width * hax_ii.fig_dpi
     
-    ## Estimate the width of the axes in terms of characters
-    ## font_size = plt.rcParams['font.size']
-    #font_size = hcb_ii.ax.yaxis.get_label().get_size()
-    #max_chars_per_line = int(axes_width_px / (font_size))  # Empirical factor for font size to character width ratio
-    #cb_label = '\n'.join(textwrap.wrap(cb_label, width=max_chars_per_line))
+    # Estimate the width of the axes in terms of characters
+    # font_size = plt.rcParams['font.size']
+    max_chars_per_line = 25
+    font_size = hcb_ii.ax.yaxis.get_label().get_size()
+    max_chars_per_line = int(axes_width_px / (font_size))  # Empirical factor for font size to character width ratio
+    cb_label = '\n'.join(textwrap.wrap(cb_label, width=max_chars_per_line))
     
     #___________________________________________________________________________
     # change fontsize of colorbar label
@@ -6136,6 +6926,10 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         cmin, cmax = np.inf, -np.inf
         for data_ii in data:
             
+            if data_ii is None: continue
+            if isinstance(data_ii, list):
+                if data_ii[-1] is None: continue
+                
             if isinstance(data_ii, np.ndarray):
                 data_plot = data_ii.copy()
             else:    
@@ -6157,14 +6951,14 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     else         : 
                         data_plot   = data_ii[ vname[0] ].data.copy()
                         if cinfo['chist'] and 'w_A' in list(data_ii.coords.keys()): 
-                            do_cweights = data_ii['w_A'].data.copy()
+                            do_cweights = data_ii['w_A'].data.flatten().copy()
                 
                 #_______________________________________________________________
                 # --> consider vector norm data
                 else:
                     # compute norm when vector data
                     data_plot = np.sqrt(data_ii[ vname[0] ].data.copy()**2 + data_ii[ vname[1] ].data.copy()**2)
-                    if cinfo['chist']: do_cweights = data_ii['w_A'].data.copy()
+                    if cinfo['chist']: do_cweights = data_ii['w_A'].data.flatten().copy()
             
             #___________________________________________________________________    
             # for logarythmic rescaling cmin or cmax can not be zero
@@ -6186,7 +6980,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 else:    
                     cmin = np.min([cmin,np.nanmin(data_plot) ])
                     cmax = np.max([cmax,np.nanmax(data_plot) ])
-                    print('cmin, cmax = ', cmin, cmax)
             
             #___________________________________________________________________
             # Consider unstructured griddet data --> tri is not None
@@ -6195,13 +6988,15 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                 # size mesh.n2dna
                 if   data_plot.size == mesh.n2dn: 
                     data_plot = np.hstack((data_plot, data_plot[mesh.n_pbnd_a]))
-                    if tri.mask_n_box is not None: data_plot = data_plot[tri.mask_n_box]
+                    if hasattr(tri, "mask_n_box"):
+                        if tri.mask_n_box is not None: data_plot = data_plot[tri.mask_n_box]
                     
                 # data_plot is on elements --> add augmentation arrays --> now 
                 # size mesh.n2dea
                 elif data_plot.size == mesh.n2de: 
                     data_plot = np.hstack((data_plot[mesh.e_pbnd_0], data_plot[mesh.e_pbnd_a]))
-                    if any(tri.mask_e_box==False): data_plot = data_plot[tri.mask_e_box]
+                    if hasattr(tri, "mask_e_box"):
+                        if any(tri.mask_e_box==False): data_plot = data_plot[tri.mask_e_box]
                     
                 # compute min/max value range by histogram, computation of cumulativ 
                 # distribution function at certain cutoff treshold allow to kick out 
@@ -6210,11 +7005,13 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
                     if do_cweights is not None: 
                         if   do_cweights.size == mesh.n2dn: 
                             do_cweights = np.hstack((do_cweights, do_cweights[mesh.n_pbnd_a]))
-                            if tri.mask_n_box is not None: do_cweights = do_cweights[tri.mask_n_box]
+                            if hasattr(tri, "mask_n_box"):
+                                if tri.mask_n_box is not None: do_cweights = do_cweights[tri.mask_n_box]
                             
                         elif do_cweights.size == mesh.n2de: 
                             do_cweights = np.hstack((do_cweights[mesh.e_pbnd_0], do_cweights[mesh.e_pbnd_a]))
-                            if any(tri.mask_e_box==False): do_cweights = do_cweights[tri.mask_e_box]
+                            if hasattr(tri, "mask_e_box"):
+                                if any(tri.mask_e_box==False): do_cweights = do_cweights[tri.mask_e_box]
                     
                     histcmin,histcmax = do_climit_hist(data_plot, ctresh=cinfo['ctresh'], cweights=do_cweights)                    
                     cmin, cmax = np.min([cmin,histcmin]), np.max([cmax,histcmax])
@@ -6234,9 +7031,9 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
            cmax = np.min([cmax, cinfo['climit'][-1]])
         
         #_______________________________________________________________________
-        # dezimal rounding of cmin and cmax
-        # if not do_rescale=='log10' and not do_rescale=='slog10':
-        if not isinstance(do_rescale,str) or not isinstance(do_rescale, np.ndarray):
+        # dezimal rounding of cmin and cmax --> only for the linear case, not for
+        # log10/slog10 (str) or custom rescale bins (np.ndarray, see BoundaryNorm above)
+        if not (isinstance(do_rescale, str) and do_rescale in ('log10', 'slog10')) and not isinstance(do_rescale, np.ndarray):
             cdmin, cdmax = 0.0, 0.0
             if np.abs(np.mod(np.abs(cmin),1))!=0: cdmin = np.floor(np.log10(np.abs(np.mod(np.abs(cmin),1))))
             if np.abs(np.mod(np.abs(cmax),1))!=0: cdmax = np.floor(np.log10(np.abs(np.mod(np.abs(cmax),1))))
@@ -6331,7 +7128,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
             cdmin = np.floor(np.log10(np.abs(cinfo['cmin'])))
             cdmax = np.floor(np.log10(np.abs(cinfo['cmax'])))
             cdref = np.floor(np.log10(np.abs(cinfo['cref'])))
-            print(cdmin,cdmax,cdref)
             
             #compute levels in decimal units
             cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(cdmin,cdmax,cdref,cinfo['cnum'],cinfo['cstr'])
@@ -6369,7 +7165,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         rescal_ref=None
         if any(do_rescale==0.0) and do_rescale[0]!=0.0 and cinfo['cref']==0.0: rescal_ref=cinfo['cref']
         nrscal = len(do_rescale)-1
-        print(do_rescale, rescal_ref)
         cinfo['cmap'],cinfo['clevel'],cinfo['cref'] = colormap_c2c(0, nrscal, np.int16(nrscal/2), nrscal, cinfo['cstr'], 
                                                                    cstep=1 ,do_slog=False, do_rescal=do_rescale, rescal_ref=rescal_ref)
         cinfo['clevel'] = do_rescale
@@ -6416,7 +7211,6 @@ def do_setupcinfo(cinfo, data, do_rescale, mesh=None, tri=None, do_vec=False,
         cinfo['clab'] = cinfo['clevel'][idx_yes]
         del(idx_not, idx_yes, idx, idxb, idx_cref)
     #___________________________________________________________________________
-    print(cinfo)
     return(cinfo)    
 
 
@@ -6453,7 +7247,7 @@ def do_climit_hist(data_in, ctresh=0.99, cbin=1000, cweights=None):
         hist, bin_e = np.histogram(data_in[~np.isnan(data_in)], bins=cbin, weights=cweights[~np.isnan(data_in)], density=True,) #weights=mesh.n_area[isnotnan]/np.sum(mesh.n_area[isnotnan]), )
     
     hist        = hist/hist.sum()
-    bin_m       = bin_e[:-1]+(bin_e[:-1]-bin_e[1:])/2
+    bin_m       = bin_e[:-1]+(bin_e[1:]-bin_e[:-1])/2
     cmin        = bin_m[np.where(np.cumsum(hist[::-1])[::-1]>=ctresh)[0][-1]]
     cmax        = bin_m[np.where(np.cumsum(hist)            >=ctresh)[0][ 0]]
     if cmin==cmax: 

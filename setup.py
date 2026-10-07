@@ -12,43 +12,62 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    'cartopy',
-    'bokeh!=3.0.*,>=2.4.2',
-    'cmocean',
+    #___________________________________________________________________________
+    # numerical libraries 
+    'numpy',
+    'xarray',
     'dask',
     'distributed',
-    'ipython',
-    'joblib',
-    'jupyter',
-    'jupyterlab<4.0',
-    'jupyter_lsp',
-    'matplotlib',
-    "pickle5; python_version<'3.9'",
-    'libnetcdf',
-    'hdf5plugin', 
-    'netCDF4',
-    'numba',
-    'numpy',
     'pandas',
     'geopandas',
     'scipy',
+    'numba',
+    #___________________________________________________________________________
+    # jupyter stuff 
+    'ipython',
+    'jupyter',
+    'jupyterlab<4.0',
+    'jupyter_lsp',
+    #___________________________________________________________________________
+    # plotting 
+    'matplotlib',
+    'cartopy',
+    'cmocean',
+    'bokeh!=3.0.*,>=2.4.2',
+    'shapely',
+    #___________________________________________________________________________
+    # file reading 
+    'netCDF4',
+    # 'libnetcdf' is a conda package (netCDF C library + ncdump/nccopy/ncgen),
+    # on PyPI the name is only an empty 0.0.1 placeholder --> install it with
+    # conda instead, see README
+    'h5netcdf',
+    'hdf5plugin', 
+    "pickle5; python_version<'3.9'",
+    'joblib',
+    #___________________________________________________________________________
+    # ocean properties
     'seawater',
     'gsw',
-    'shapely',
-    'xarray',
-    'pyfesom2',
-    'pyresample',
-    'pytest',
+    #___________________________________________________________________________
+    # tripyrun functionaallity
     'papermill', 
     'black',
     'jinja2',
     'pyyaml',
+    #___________________________________________________________________________
+    # 3d stuff 
     'pyvista[all]', #,jupyter,trame]',
     'vtk',
     'ipyvtklink',
     'imageio[ffmpeg]', 
     'ipympl',
     'ffmpeg-python',
+    #___________________________________________________________________________
+    #'pyfesom2',
+    #'pyresample',
+    'pytest',
+    
 ]
 
 setup_requirements = ['pytest-runner']
@@ -78,14 +97,27 @@ setup(
     include_package_data=True,
     keywords='tripyview',
     name='tripyview',
-    packages=['tripyview'],
-    package_dir={'tripyview': 'tripyview'},
-    #package_data={'': ['*.shp',]},
+    # the notebook/html templates live at the repo root, map them into the
+    # installed package so that non-editable installs (e.g. the Dockerfile's
+    # `pip install .`) ship them too
+    packages=['tripyview', 'tripyview.templates_notebooks', 'tripyview.templates_html'],
+    package_dir={'tripyview'                    : 'tripyview',
+                 'tripyview.templates_notebooks': 'templates_notebooks',
+                 'tripyview.templates_html'     : 'templates_html'},
+    # only shapefile components one directory level deep (shapefiles/<category>/<name>.*),
+    # which matches the repository layout and keeps large local-only data out of builds
+    package_data={'tripyview'                    : ['shapefiles/*.geojson',
+                                                    'shapefiles/*/*.shp', 'shapefiles/*/*.shx',
+                                                    'shapefiles/*/*.dbf', 'shapefiles/*/*.prj',
+                                                    'shapefiles/*/*.cpg', 'shapefiles/*/*.cst',
+                                                    'backgrounds/*'],
+                  'tripyview.templates_notebooks': ['template_*.ipynb'],
+                  'tripyview.templates_html'     : ['*.html', '*.png']},
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/patrickscholz/tripyview',
-    version='0.3.1',
+    version='0.4.0',
     zip_safe=False,
 )
 

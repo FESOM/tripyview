@@ -4,6 +4,7 @@ import sys
 import os
 import time as clock
 import numpy  as np
+import dask.array as da
 import pandas as pa
 import joblib
 import warnings
@@ -15,6 +16,15 @@ except ModuleNotFoundError:
     pass
 from   netCDF4 import Dataset
 from .sub_mesh import *
+
+from numba import jit, njit, float32, int32, prange, types
+from numba.typed import Dict, List
+import numba
+
+from shapely.geometry import Polygon
+
+rad     = np.pi/180
+R_earth = 12735/2*1000;
 
 # ___INITIALISE/LOAD FESOM2.0 MESH CLASS IN MAIN PROGRAMM______________________
 #| IMPORTANT!!!:                                                               |                                         
@@ -31,14 +41,15 @@ def load_mesh_fesom2(
                     do_augmpbnd = True                  , 
                     do_cavity   = False                 , 
                     do_lsmask   = True                  , 
-                    do_lsmshp   = True                  , 
+                    do_lsmshp   = False                 , 
                     do_earea    = True                  , 
                     do_narea    = True                  , 
-                    do_eresol   = [False,'mean']        , 
-                    do_nresol   = [False,'e_resol']     ,
+                    do_eresol   = [True,'height']       , 
+                    do_nresol   = [True,'n_area']       ,
                     do_loadraw  = False                 , 
-                    do_pickle   = True                  , 
-                    do_joblib   = False                 , 
+                    do_pickle   = False                 , 
+                    do_joblib   = True                  , 
+                    do_redosave = False                 ,
                     do_f14cmip6 = False                 ,
                     do_info     = True                  , 
                     ):
@@ -89,11 +100,13 @@ def load_mesh_fesom2(
                         for elements. Its the vertical level information before the exclusion
                         of elements that have three boundary nodes in the topography
 
-        :do_pickle:     bool, (default=True) store and load mesh from .pckl binary file, 
+        :do_pickle:     bool, (default=False) store and load mesh from .pckl binary file, 
                         pickle5 is just supported until < python3.9. If pickel library 
                         cant be  found it switches automatic to joblib
 
-        :do_joblib:     bool, (default=False) store and load mesh from .joblib binary file
+        :do_joblib:     bool, (default=True) store and load mesh from .joblib binary file
+        
+        :do_redosave:   bool, (default=False) enforce overwritting of existing mesh object files
 
         :do_f14cmip6:   bool, (default=False) load FESOM1.4 mesh information and squeeze it into
                         the framework of FESOM2. Needed here to compute AMOC on fesom1.4 
@@ -107,7 +120,9 @@ def load_mesh_fesom2(
 
     """
     
-    pickleprotocol=4
+    pickleprotocol = 4
+    loadpicklepath = ''
+    loadjoblibpath = ''
     #___________________________________________________________________________
     if foundmodpickle==False and do_pickle==True:
         print(' > warning: pickle5 module could not be found, no do_pickle \n is possible! Therefor switch to joblib saving/loading')
@@ -132,7 +147,7 @@ def load_mesh_fesom2(
     #___________________________________________________________________________
     # check if pickle file can be found somewhere either in mesh folder or in 
     # cache folder 
-    picklefname = 'tripyview_fesom2_{}_focus{}.pckl'.format(meshid,focus)
+    picklefname = 'tripyview_mesh_{:s}_focus{:d}.pckl'.format(meshid,focus)
     if do_pickle:
         # check if mypy pickle meshfile is found in meshfolder
         if    ( os.path.isfile(os.path.join(meshpath, picklefname)) ):
@@ -148,7 +163,7 @@ def load_mesh_fesom2(
             loadpicklepath = 'None'
             print(' > found no .pckl file in cach or mesh path')
     
-    joblibfname = 'tripyview_fesom2_{}_focus{}.jlib'.format(meshid,focus)
+    joblibfname = 'tripyview_mesh_{:s}_focus{:d}.jlib'.format(meshid,focus)
     if do_joblib:
         # check if mypy pickle meshfile is found in meshfolder
         if    ( os.path.isfile(os.path.join(meshpath, joblibfname)) ):
@@ -168,8 +183,9 @@ def load_mesh_fesom2(
     # load pickle file if it exists and load it from .pckl file, if it does not 
     # exist create mesh object with fesom_mesh
     # do_pickle==True and .pckl file exists
-    if  ( do_pickle and ( os.path.isfile(loadpicklepath) )) or \
-        ( do_joblib and ( os.path.isfile(loadjoblibpath) )): 
+    if  (( do_pickle and ( os.path.isfile(loadpicklepath) )) or \
+         ( do_joblib and ( os.path.isfile(loadjoblibpath) ))) and \
+          (do_redosave==False): 
             
         
         #_______________________________________________________________________
@@ -181,7 +197,9 @@ def load_mesh_fesom2(
         elif ( do_joblib and ( os.path.isfile(loadjoblibpath) )):
             if do_info: print(' > load  *.jlib file: {}'.format(os.path.basename(loadjoblibpath)))
             mesh = joblib.load(loadjoblibpath)
-            
+        # the cached object carries the do_info of the call that created it
+        mesh.do_info = do_info
+
         do_pbndfind=False
         #_______________________________________________________________________
         # rotate mesh if its not done in .pckle file 
@@ -281,7 +299,8 @@ def load_mesh_fesom2(
     
     # (do_pickle==True and .pckl file does not exists) or (do_pickle=False)
     elif ((do_pickle and not ( os.path.isfile(loadpicklepath)) ) or not do_pickle) or \
-         ((do_joblib and not ( os.path.isfile(loadjoblibpath)) ) or not do_joblib):
+         ((do_joblib and not ( os.path.isfile(loadjoblibpath)) ) or not do_joblib) or \
+           do_redosave:
              
         if do_info: print(' > load mesh from *.out files: {}'.format(meshpath))
         #_______________________________________________________________________
@@ -308,7 +327,8 @@ def load_mesh_fesom2(
         # save mypy mesh .pckl file
         # --> try 1.st to store it in the mesh in the meshfolder, will depend of 
         #     there is permission to write
-        if do_pickle:
+        if (do_pickle   and not ( os.path.isfile(loadpicklepath)) ) or \
+           (do_redosave and     ( os.path.isfile(loadpicklepath)) ):
             try: 
                 savepicklepath = os.path.join(meshpath,picklefname)
                 if do_info: print(' > save mesh to *.pckl in {}'.format(savepicklepath))
@@ -332,7 +352,8 @@ def load_mesh_fesom2(
         # save mypy mesh .jlib file
         # --> try 1.st to store it in the mesh in the meshfolder, will depend of 
         #     there is permission to write
-        if do_joblib:
+        if (do_joblib   and not ( os.path.isfile(loadjoblibpath)) ) or \
+           (do_redosave and     ( os.path.isfile(loadjoblibpath)) ):
             try: 
                 savejoblibpath = os.path.join(meshpath, joblibfname)
                 if do_info: print(' > save mesh to *.jlib in {}'.format(savejoblibpath))
@@ -454,14 +475,27 @@ class mesh_fesom2(object):
                         
         ___land sea mask (if do_lsmask == True)______________
         
-        lsmask: list(array1[npts,2], array2[npts,2], ...), contains all land-sea mask polygons for FESOM2 mesh, with periodic boundary
-
-        lsmask_a: list(array1[npts,2], array2[npts,2], ...)contains all land-sea mask polygons for FESOM2 mesh, with augmented 
-        periodic boundary
-
-        lsmask_p: polygon, contains polygon collection that can be plotted as 
-        closed polygon patches with ax.add_collection(PatchCollection
-        (mesh.lsmask_p,facecolor=[0.7,0.7,0.7], edgecolor='k', linewidth=0.5))
+        lsmask:         list(array1[npts,2], array2[npts,2], ...), contains all land-sea mask polygons for FESOM2 mesh, with periodic boundary
+    
+        lsmask_a:       list(array1[npts,2], array2[npts,2], ...)contains all land-sea mask polygons for FESOM2 mesh, with augmented 
+                        periodic boundary
+    
+        lsmask_p:       polygon, contains polygon collection that can be plotted as 
+                        closed polygon patches with ax.add_collection(PatchCollection
+                        (mesh.lsmask_p,facecolor=[0.7,0.7,0.7], edgecolor='k', linewidth=0.5))
+                        
+        
+        ___neigborhood arrays_______________________________
+        n_nghbr_e:      array, node neighborhood with respect to elements
+        num_n_nghbr_e:  array, number of neighboring elements with respect to node
+        
+        e_nghbr_e:      array, elem neighborhood with respect to elements
+        num_e_nghbr_e:  array, number of neighboring elements with respect to elem
+                        (considering missing elements due to being boudnary elem)
+        
+        n_nghbr_n:      array, node neighborhood with respect to nodes
+        num_n_nghbr_n:  array, number of neighboring nodes with respect to node
+        
     
     __________________________________________________
     
@@ -491,9 +525,10 @@ class mesh_fesom2(object):
                  do_eresol=[False,'mean'], do_narea=False, do_nresol=[False,'n_area'], 
                  do_lsmask=True, do_lsmshp=True, do_pickle=True, do_loadraw=True,
                  do_f14cmip6=False):
-        
+        if do_info: t0 = clock.time()
+        self.do_info            = do_info # also silences the compute_* methods
         #_______________________________________________________________________
-        # define meshpath and mesh id 
+        # define meshpath and mesh id
         self.path               = os.path.normpath(meshpath)
         self.cachepath          = 'None'
         self.id                 = os.path.basename(self.path)
@@ -579,6 +614,15 @@ class mesh_fesom2(object):
         self.lsmask_p           = []
         
         #_______________________________________________________________________
+        # neighborhood arrays
+        self.n_nghbr_e          = []
+        self.e_nghbr_e          = []
+        self.n_nghbr_n          = []
+        self.num_n_nghbr_e      = []
+        self.num_e_nghbr_e      = []
+        self.num_n_nghbr_n      = []
+        
+        #_______________________________________________________________________
         #  ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||   ||  
         # _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ _||_ 
         # \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / \  / 
@@ -618,6 +662,7 @@ class mesh_fesom2(object):
             self.n_xo, self.n_yo = self.n_x.copy(), self.n_y.copy()
             self.n_x, self.n_y = grid_focus(self.focus, self.n_xo, self.n_yo)
         
+        if do_info: t1 = clock.time()
         # find periodic boundary
         self.pbnd_find()
         
@@ -625,6 +670,7 @@ class mesh_fesom2(object):
         if do_augmpbnd and any(self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1) > self.cyclic/2):
             self.pbnd_augment()
         
+        if do_info: t2 = clock.time()
         # compute/load element area
         if do_earea:
             self.compute_e_area()
@@ -642,20 +688,22 @@ class mesh_fesom2(object):
             self.compute_n_resol(which=do_nresol[1])
         
         # compute lsmask
+        if do_info: t3 = t4 = clock.time()
         if do_lsmask:
+            
             self.compute_lsmask()
             
             #___________________________________________________________________
             # save land-sea mask with periodic boundnaries to shapefile
             if do_lsmshp:
-                shpfname = 'tripyview_fesom2'+'_'+self.id+'_'+'pbnd'
+                shpfname = 'tripyview_lsmask_{:s}_pbnd.shp'.format(self.id)
                 lsmask_2shapefile(self, lsmask=self.lsmask, fname=shpfname)
             
             #___________________________________________________________________
             # augment periodic boundaries of land sea mask
             if do_augmpbnd:
+                if do_info: t4 = clock.time()
                 self.augment_lsmask()
-                
                 #_______________________________________________________________
                 # save land-sea mask with augmented  pbnd to shapefile
                 if do_lsmshp:
@@ -663,8 +711,14 @@ class mesh_fesom2(object):
             
         if do_info:
             print(self.info())
-
-
+            t5=clock.time()
+            print(' --> total elapsed time for loading mesh: {:2.3f} sec'.format(t5-t0))
+            print('  |--> read + rot mesh: {:2.3f} sec'.format(t1-t0))
+            print('  |--> pbnd augment   : {:2.3f} sec'.format(t2-t1))
+            print('  |--> area compute   : {:2.3f} sec'.format(t3-t2))
+            print('  |--> lsmask compute : {:2.3f} sec'.format(t4-t3))
+            print('  +--> lsmask augment : {:2.3f} sec'.format(t5-t4))
+    
     
     # ___READ FESOM2 MESH FROM: nod2d.out, elem2d.out,...______________________
     #| read files: nod2d.out, elem2d.out, aux3d.out, nlvls.out, elvls.out      |                                                         
@@ -675,108 +729,115 @@ class mesh_fesom2(object):
         aux3d.out, nlvls.out and elvls.out   
         
         """
+
         #____load 2d node matrix________________________________________________
-        #file_content = pa.read_csv(self.fname_nod2d, delim_whitespace=True, skiprows=1, \
-        file_content = pa.read_csv(self.fname_nod2d, sep='\\s+', skiprows=1, \
-                                      names=['node_number','x','y','flag'] )
-        self.n_x     = file_content.x.values.astype('float32')
-        self.n_y     = file_content.y.values.astype('float32')
-        self.n_i     = file_content.flag.values.astype('int16')   
-        self.n2dn    = len(self.n_x)
+        with open(self.fname_nod2d, "r") as f:
+            self.n2dn = int(f.readline().strip())
+            nod2 = np.loadtxt(f, dtype=np.float32, usecols=(1, 2, 3), ndmin=2)
+        
+        if nod2.shape[0] != self.n2dn:
+            raise ValueError(f"nod2d: header={self.n2dn}, rows={nod2.shape[0]}")
+        
+        # x, y, flag
+        self.n_x = np.ascontiguousarray(nod2[:, 0])
+        self.n_y = np.ascontiguousarray(nod2[:, 1])
+        self.n_i = np.ascontiguousarray(nod2[:, 2].astype(np.int16))
+        del nod2
         
         #____load 2d element matrix_____________________________________________
-        #file_content = pa.read_csv(self.fname_elem2d, delim_whitespace=True, skiprows=1, \
-        file_content = pa.read_csv(self.fname_elem2d, sep='\\s+', skiprows=1, \
-                                    names=['1st_node_in_elem','2nd_node_in_elem','3rd_node_in_elem'])
-        self.e_i     = file_content.values.astype('int32') - 1
-        self.n2de    = np.shape(self.e_i)[0]
-        # print('    : #2de={:d}'.format(self.n2de))
+        with open(self.fname_elem2d, "r") as f:
+            self.n2de = int(f.readline().strip())
+            elem = np.loadtxt(f, dtype=np.int32, usecols=(0, 1, 2), ndmin=2)
+        
+        if elem.shape[0] != self.n2de:
+            raise ValueError(f"elem2d: header={self.n2de}, rows={elem.shape[0]}")
+        
+        self.e_i = np.ascontiguousarray(elem - 1)
+        del elem
         
         #____load 3d nodes alligned under 2d nodes______________________________
         if not self.do_f14cmip6:
-            with open(self.fname_aux3d) as f:
-                self.nlev= int(next(f))
-                self.zlev= np.array([next(f).rstrip() for x in range(self.nlev)]).astype(float)
-                self.zlev= -np.abs(self.zlev)
-            self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
+            #___________________________________________________________________
+            # FESOM2
+            with open(self.fname_aux3d, "r") as f:
+                self.nlev = int(f.readline().strip())
+                zlev = np.loadtxt(f, dtype=np.float32, max_rows=self.nlev, ndmin=1)
             
+            if zlev.size != self.nlev: raise ValueError(f"aux3d: header nlev={self.nlev}, values={zlev.size}")
+            
+            self.zlev = np.ascontiguousarray(-np.abs(zlev))
+            self.zmid = (self.zlev[:-1] + self.zlev[1:]) * 0.5
+
         else:
-            t1=clock.time()
-            # number of vertical levels
-            with open(self.fname_aux3d) as f: self.nlev= int(next(f))
+            #___________________________________________________________________
+            # FESOM1.4
+            with open(self.fname_aux3d, "r") as f:
+                # number of vertical levels
+                self.nlev = int(f.readline().strip())
+                
+                # 3d vertice index below surface vertices index
+                n32_flat = np.loadtxt(f, dtype=np.int32, ndmin=1)
             
-            # 3d vertice index below surface vertices index
-            file_content = pa.read_csv(self.fname_aux3d, skiprows=0, nrows=self.nlev*self.n2dn)
-            self.n32     = file_content.values.astype('int32') - 1
-            self.n32     = self.n32.reshape((self.n2dn,self.nlev)).transpose()
+            nsmpl = self.nlev * self.n2dn
+            if n32_flat.size < nsmpl: raise ValueError(f"aux3d: expected {nsmpl}, got {n32_flat.size}")
             
-            # Lick out bufferlayer in fesom1.4 mesh
-            self.n32     = self.n32[:-1,:]
-            self.nlev    = self.nlev-1
+            # kick out bufferlayer in fesom1.4 mesh that why [:-1,:] and nlev = nlev-1
+            self.n32  = np.ascontiguousarray((n32_flat[:nsmpl].reshape(self.nlev, self.n2dn) - 1))[:-1, :] 
+            self.nlev = self.nlev-1
+            del n32_flat
             
-            # identify the vertical levels
-            with open(self.fname_nod3d) as f: n3dn= int(next(f))
-            #file_content = pa.read_csv(self.fname_nod3d, delim_whitespace=True, usecols=[3])
-            file_content = pa.read_csv(self.fname_nod3d, sep='\\s+', usecols=[3])
-            aux_n3z      = file_content.values.astype('int16') 
-            self.zlev    = np.unique(aux_n3z)[::-1]
-            #self.zlev    = np.hstack((self.zlev, self.zlev[-1]+(self.zlev[-1]-self.zlev[-2])))
-            self.zmid    = (self.zlev[:-1]+self.zlev[1:])/2.
+            # nod3d: header n3dn ; columns: id x y zIndex
+            with open(self.fname_nod3d, "r") as f:
+                _ = int(f.readline().strip())
+                nod3 = np.loadtxt(f, dtype=np.int16, usecols=(3,), ndmin=1)
+            
+            self.zlev = np.unique(nod3)[::-1]
+            self.zmid = (self.zlev[:-1] + self.zlev[1:]) * 0.5
             
             # compute bottom topography at vertice
-            self.n_z     = aux_n3z[self.n32.max(axis=0),0]
-            del(aux_n3z)
+            self.n_z = np.ascontiguousarray(nod3[self.n32.max(axis=0)].astype(np.float32))
             
             # compute bottom index at vertice
-            aux_n32      = np.zeros(self.n32.shape)
-            aux_n32[self.n32>=0] = 1
-            self.n_iz    = aux_n32.sum(axis=0).astype('int16')-1
+            self.n_iz = np.ascontiguousarray((self.n32 >= 0).sum(axis=0).astype(np.int16) - 1)
+            del nod3
 
-        
         #____load number of levels at each node_________________________________
-        if ( os.path.isfile(self.fname_nlvls) ):
-            #file_content = pa.read_csv(self.fname_nlvls, delim_whitespace=True, skiprows=0, \
-            file_content = pa.read_csv(self.fname_nlvls, sep='\\s+', skiprows=0, \
-                                           names=['numb_of_lev'])
-            self.n_iz    = file_content.values.astype('int16') - 1
-            self.n_iz    = self.n_iz.squeeze()
-            self.n_z     = np.float32(self.zlev[self.n_iz])
+        if os.path.isfile(self.fname_nlvls):
+            nlev = np.loadtxt(self.fname_nlvls, dtype=np.int16, ndmin=1)
+            if nlev.size != self.n2dn: raise ValueError(f"nlvls: expected {self.n2dn}, got {nlev.size}")
             
-        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no nlvls information!')    
-        else                : raise ValueError(f' --> could not find file {self.fname_nlvls} !')
-            #self.n_iz    = np.zeros((self.n2dn,)) 
-            #self.n_z     = np.zeros((self.n2dn,)) 
-        
+            self.n_iz = np.ascontiguousarray(nlev - 1)
+            self.n_z = np.ascontiguousarray(self.zlev[self.n_iz].astype(np.float32))
+            del nlev
+            
+        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no nlvls information!') 
+        else                 : raise ValueError(f' --> could not find file {self.fname_nlvls} !')
+
         #____load number of levels at each elem_________________________________
-        if ( os.path.isfile(self.fname_elvls) ):
-            #file_content = pa.read_csv(self.fname_elvls, delim_whitespace=True, skiprows=0, \
-            file_content = pa.read_csv(self.fname_elvls, sep='\\s+', skiprows=0, \
-                                           names=['numb_of_lev'])
-            self.e_iz    = file_content.values.astype('int16') - 1
-            self.e_iz    = self.e_iz.squeeze()
-            
-        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no elvls information!')        
-        else                : raise ValueError(f' --> could not find file {self.fname_elvls} !')
-            #self.e_iz    = np.zeros((self.n2de,)) 
-        
+        if os.path.isfile(self.fname_elvls):
+            elev = np.loadtxt(self.fname_elvls, dtype=np.int16, ndmin=1)
+            if elev.size != self.n2de: raise ValueError(f"elvls: expected {self.n2de}, got {elev.size}")
+
+            self.e_iz = np.ascontiguousarray(elev - 1)
+            del elev
+
+        elif self.do_f14cmip6: print(f' --> you are in fesom1.4 mode, no elvls information!')   
+        else                 :raise ValueError(f' --> could not find file {self.fname_elvls} !')
+
         #____load number of raw levels at each elem_____________________________
-        if (self.do_loadraw and  not self.do_f14cmip6):
-            if ( os.path.isfile(self.fname_elvls_raw) ):
-                #file_content = pa.read_csv(self.fname_elvls_raw, delim_whitespace=True, skiprows=0, \
-                file_content = pa.read_csv(self.fname_elvls_raw, sep='\\s+', skiprows=0, \
-                                            names=['numb_of_lev'])
-                self.e_iz_raw    = file_content.values.astype('int16') - 1
-                self.e_iz_raw    = self.e_iz_raw.squeeze()
+        if self.do_loadraw and not self.do_f14cmip6:
+            if os.path.isfile(self.fname_elvls_raw):
+                elev = np.loadtxt(self.fname_elvls_raw, dtype=np.int16, ndmin=1)
+                if elev.size != self.n2de: raise ValueError(f"elvls_raw: expected {self.n2de}, got {elev.size}")
+                
+                self.e_iz_raw = np.ascontiguousarray(elev - 1)
+                del elev
             else:
                 raise ValueError(f' --> could not find file {self.fname_elvls_raw} !')
         
         #_______________________________________________________________________
-        # vertical level information of fesom1.4 mesh
-        #if self.do_f14cmip6:
+        return self
 
-        #_______________________________________________________________________
-        return(self)    
-    
     
     
     # ___READ FESOM2 MESH CAVITY INFO__________________________________________
@@ -790,34 +851,28 @@ class mesh_fesom2(object):
         """
         
         #____load number of cavity levels at each node__________________________
-        self.fname_cnlvls = os.path.join(self.path,'cavity_nlvls.out')
-        if ( os.path.isfile(self.fname_cnlvls) ):
-            file_content      = pa.read_csv(self.fname_cnlvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
-            self.n_ic= file_content.values.astype('int16') - 1
-            self.n_ic= self.n_ic.squeeze()
-        else:
-            raise ValueError(f' --> could not find file {self.fname_cnlvls} !')
+        self.fname_cnlvls = os.path.join(self.path, "cavity_nlvls.out")
+        if not os.path.isfile(self.fname_cnlvls): raise ValueError(f" --> could not find file {self.fname_cnlvls} !")
+        n_ic = np.loadtxt(self.fname_cnlvls, dtype=np.int16, ndmin=1)
+        self.n_ic = np.ascontiguousarray(n_ic - 1)
+        del n_ic
         
         #____load number of cavity levels at each elem__________________________
-        self.fname_celvls = os.path.join(self.path,'cavity_elvls.out')
-        if ( os.path.isfile(self.fname_cnlvls) ):
-            file_content      = pa.read_csv(self.fname_celvls, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
-            self.e_ic= file_content.values.astype('int16') - 1
-            self.e_ic= self.e_ic.squeeze()
-        else:
-            raise ValueError(f' --> could not find file {self.fname_celvls} !')
+        self.fname_celvls = os.path.join(self.path, "cavity_elvls.out")
+        if not os.path.isfile(self.fname_celvls): raise ValueError(f" --> could not find file {self.fname_celvls} !")
+        e_ic = np.loadtxt(self.fname_celvls, dtype=np.int16, ndmin=1)
+        self.e_ic = np.ascontiguousarray(e_ic - 1)
+        del e_ic
         
         #____load number of raw cavity levels at each elem______________________
         # number of cavity levels before it becomes iteratively optimse to avoid 
         # isolated cells 
         if self.do_loadraw:
-            self.fname_celvls_raw = os.path.join(self.path,'cavity_elvls_raw.out')
-            if ( os.path.isfile(self.fname_celvls_raw) ): 
-                file_content    = pa.read_csv(self.fname_celvls_raw, delim_whitespace=True, skiprows=0, names=['numb_of_lev'])
-                self.e_ic_raw   = file_content.values.astype('int16') - 1
-                self.e_ic_raw   = self.e_ic_raw.squeeze()
-            else:
-                raise ValueError(f' --> could not find file {self.fname_celvls_raw} !')
+            self.fname_celvls_raw = os.path.join(self.path, "cavity_elvls_raw.out")
+            if not os.path.isfile(self.fname_celvls_raw): raise ValueError(f" --> could not find file {self.fname_celvls_raw} !")
+            e_ic_raw = np.loadtxt(self.fname_celvls_raw, dtype=np.int16, ndmin=1)
+            self.e_ic_raw = np.ascontiguousarray(e_ic_raw - 1)
+            del e_ic_raw
         
         #_______________________________________________________________________
         return(self)
@@ -867,48 +922,25 @@ ___________________________________________""".format(
         --> part of fesom mesh class, find elements that cross over the periodic
         boundary
         
-        """
-        # identify the polar triangle
-        #self.e_pbnd_p = np.argmin(90.0-self.n_y[self.e_i].sum(axis=1)/3.0)
-        #self.n_x  = np.hstack((self.n_x , self.n_x[self.e_i[self.e_pbnd_p, :]].sum()/3.0))
-        #self.n_y  = np.hstack((self.n_y , 90.0))
-        #self.n_i  = np.hstack((self.n_i , 0))
-        #self.n_iz = np.hstack((self.n_iz, self.n_iz[self.e_i[self.e_pbnd_p, :]].max() ))
-        #self.n_z  = np.hstack((self.n_z , self.n_z[self.e_i[self.e_pbnd_p, :]].min() ))
-        #if isinstance(self.n_ic, np.ndarray):
-            #self.n_ic = np.hstack((self.n_ic , self.n_ic[self.e_i[self.e_pbnd_p, :]].min() ))
-        #if isinstance(self.n_c , np.ndarray):
-            #self.n_c  = np.hstack((self.n_c , self.n_c[self.e_i[self.e_pbnd_p, :]].min() ))
+        """         
+        e0  = self.e_i[:, 0]  
+        e1  = self.e_i[:, 1]
+        e2  = self.e_i[:, 2]
         
-        ## replace with 3 new augmeted polar triangles
-        #e_i_p = np.vstack( [self.e_i[self.e_pbnd_p, :]]*3 )
-        #e_i_p[0,0], e_i_p[1,1], e_i_p[2,2] = self.n2dn, self.n2dn, self.n2dn
-        #self.e_i  = np.vstack((self.e_i, e_i_p))
-        #self.e_iz = np.hstack((self.e_iz, [self.e_iz[self.e_pbnd_p]]*3 ))
-        #if isinstance(self.e_ic , np.ndarray): 
-            #self.e_ic = np.hstack((self.e_ic, [self.e_ic[self.e_pbnd_p]]*3 ))
-            
-        ## delete orignal polar triangle elemental row 
-        #self.e_i  = np.delete(self.e_i , self.e_pbnd_p, axis=0)
-        #self.e_iz = np.delete(self.e_iz, self.e_pbnd_p, axis=0)
-        #if isinstance(self.e_ic , np.ndarray): 
-            #self.e_ic = np.delete(self.e_ic, self.e_pbnd_p, axis=0)
-        
-        #self.e_pbnd_p = np.arange(self.n2de-1, self.n2de+2,1)
-        #self.n2dn +=1
-        #self.n2de +=2
-        
+        # compute per-element min/max in one pass without creating big (nelem,3) array
+        maxlon = np.maximum(np.maximum(self.n_x[e0], self.n_x[e1]), self.n_x[e2])
+        minlon = np.minimum(np.minimum(self.n_x[e0], self.n_x[e1]), self.n_x[e2])
+        dx     = maxlon - minlon
+
+        # threshold same as before
+        thresh = self.cyclic * (2.0/3.0)
+
+        idx_pbnd = dx > thresh
+        self.e_pbnd_1 = np.nonzero( idx_pbnd)[0]
+        self.e_pbnd_0 = np.nonzero(~idx_pbnd)[0]
         #_______________________________________________________________________
-        # find out 1st which element contribute to periodic boundary and 2nd
-        # which nodes are involed in periodic boundary
-        dx = self.n_x[self.e_i].max(axis=1)-self.n_x[self.e_i].min(axis=1)
-        self.e_pbnd_1 = np.argwhere(dx > self.cyclic*2/3).ravel()
-        self.e_pbnd_0 = np.argwhere(dx < self.cyclic*2/3).ravel()
-        #self.e_pbnd_1 = np.unique(np.hstack((self.e_pbnd_1, self.e_pbnd_p)))
-        
-        #_______________________________________________________________________
-        return(self)
-    
+        return self
+
     
     
     # ___AUGMENT PERIODIC BOUDNARY ELEMENTS____________________________________
@@ -918,113 +950,114 @@ ___________________________________________""".format(
     def pbnd_augment(self):
         """
         --> part of fesom mesh class, adds additional elements to augment the 
-        periodic boundary on the left and right side for an even non_periodic 
-        boundary is created left and right [-180, 180] of the domain         
-
+        periodic boundary on the left and right side so that an even non_periodic 
+        boundary is created left and right [-180, 180] of the domain.
+        
+        Vectorized version, semantics matching original loop implementation.
         """
+
         self.do_augmpbnd = True
+
         #_______________________________________________________________________
         # this are all the periodic boundary element
-        e_i_pbnd   = self.e_i[self.e_pbnd_1,:]
-        e_i_pbnd_x = self.n_x[e_i_pbnd]
-        
-        # in each periodic boundary element look what is the vertices indices with 
-        # max lon value for the right boundary
-        nidxine_l, nidxine_m, nidxine_r = np.squeeze(np.split(np.argsort(e_i_pbnd_x, axis=1), 3, axis=1))
-        
-        eidx       = np.arange(e_i_pbnd.shape[0])
-        n_pbnd_i_l = e_i_pbnd[eidx, nidxine_l.squeeze()]
-        n_pbnd_i_m = e_i_pbnd[eidx, nidxine_m.squeeze()]
-        n_pbnd_i_r = e_i_pbnd[eidx, nidxine_r.squeeze()]
-        del(e_i_pbnd_x, eidx)
-        
-        # now decide if the remaining "middle" point should be attributet to left 
-        # or right periodic boundary by its distance to the already known min left and 
-        # max right vertic points
-        is_pbnd_i_m_lr = np.abs(self.n_x[n_pbnd_i_r]-self.n_x[n_pbnd_i_m]) < np.abs(self.n_x[n_pbnd_i_l]-self.n_x[n_pbnd_i_m])
-        
-        # remaining "middle" point becomes part of right boundary
-        n_pbnd_i_r = np.hstack((n_pbnd_i_r, n_pbnd_i_m[is_pbnd_i_m_lr==True]))
-        n_pbnd_i_r = np.unique(n_pbnd_i_r)
-        
-        # remaining "middle" point becomes part of left boundary
-        n_pbnd_i_l = np.hstack((n_pbnd_i_l, n_pbnd_i_m[is_pbnd_i_m_lr==False]))
-        n_pbnd_i_l = np.unique(n_pbnd_i_l)        
-        
-        # total array of left and augmented periodic boundary nodes         
-        self.n_pbnd_a   = np.hstack((n_pbnd_i_r,n_pbnd_i_l))
-        nn_il,nn_ir= n_pbnd_i_l.size, n_pbnd_i_r.size
-        
+        e_i_pbnd = self.e_i[self.e_pbnd_1]      
+        lon_tri  = self.n_x[e_i_pbnd]     
+    
+        # number of triangles that participate in periodic boudnary
+        ntri = e_i_pbnd.shape[0]
+        rows = np.arange(ntri)
+
         #_______________________________________________________________________
-        # calculate augmentation positions for new left and right periodic boundaries
-        aux_pos    = np.zeros(self.n2dn,dtype='uint32')
-        aux_i      = np.linspace(self.n2dn,self.n2dn+nn_ir-1,nn_ir,dtype='uint32')
-        aux_pos[n_pbnd_i_r] =aux_i
-        aux_i      = np.linspace(self.n2dn+nn_ir,self.n2dn+nn_ir+nn_il-1,nn_il,dtype='uint32')
-        aux_pos[n_pbnd_i_l]= aux_i 
-        del(aux_i, n_pbnd_i_l, n_pbnd_i_r, n_pbnd_i_m)
-        
+        # sort vertices by longitude per triangle: left, middle, right (by lon)
+        idx_sort = np.argsort(lon_tri, axis=1)  # (ntri, 3)
+        idx_l = idx_sort[:, 0]                  # position of left vertex in tri (0,1,2)
+        idx_m = idx_sort[:, 1]                  # middle
+        idx_r = idx_sort[:, 2]                  # right
+
+        # node indices of left/mid/right vertices
+        n_l = e_i_pbnd[rows, idx_l]
+        n_m = e_i_pbnd[rows, idx_m]
+        n_r = e_i_pbnd[rows, idx_r]
+
         #_______________________________________________________________________
-        # Augment the vertices on the right and left side 
+        # decide whether middle vertex belongs to left or right boundary
+        # is_pbnd_i_m_lr == True  => middle closer to right
+        #                         => belongs to right boundary
+        dist_m_to_r = np.abs(self.n_x[n_r] - self.n_x[n_m])
+        dist_m_to_l = np.abs(self.n_x[n_l] - self.n_x[n_m])
+        m_to_right  = dist_m_to_r < dist_m_to_l   # same criterion as original code
+
+        # build sets of boundary nodes (same as original hstack + unique)
+        n_pbnd_r = np.concatenate((n_r, n_m[ m_to_right]))
+        n_pbnd_l = np.concatenate((n_l, n_m[~m_to_right]))
+        n_pbnd_r = np.unique(n_pbnd_r)
+        n_pbnd_l = np.unique(n_pbnd_l)
+
+        # total periodic boundary nodes (augmented)
+        self.n_pbnd_a = np.concatenate((n_pbnd_r, n_pbnd_l))
+
+        #_______________________________________________________________________
+        # mapping from original node index -> augmented node index
+        nn_r = n_pbnd_r.size
+        nn_l = n_pbnd_l.size
+        
+        aux_pos = np.full(self.n2dn, -1, dtype=np.int64)
+        aux_pos[n_pbnd_r] = np.arange(self.n2dn,        self.n2dn + nn_r       , dtype=np.int64)
+        aux_pos[n_pbnd_l] = np.arange(self.n2dn + nn_r, self.n2dn + nn_r + nn_l, dtype=np.int64)
+
+        #_______________________________________________________________________
+        # new augmented node coordinates (right boundary first at xmin, left at xmax)
         if self.cyclic == 360:
-            #xmin, xmax= np.floor(xmin),np.ceil(xmax)
-            xmin, xmax= -self.cyclic/2+self.focus, self.cyclic/2+self.focus
-        else:    
-            xmin, xmax = 0, self.cyclic
-        self.n_xa  = np.concatenate((np.zeros(nn_ir)+xmin, np.zeros(nn_il)+xmax))
+            xmin = -self.cyclic / 2.0 + self.focus
+            xmax =  self.cyclic / 2.0 + self.focus
+        else:
+            xmin, xmax = 0.0, float(self.cyclic)
+        
+        self.n_xa  = np.concatenate((np.full(nn_r, xmin), np.full(nn_l, xmax)))
         self.n_ya  = self.n_y[self.n_pbnd_a]
         self.n_za  = self.n_z[self.n_pbnd_a]
-        # self.n_ia = self.n_i[self.n_pbnd_a]
         self.n_iza = self.n_iz[self.n_pbnd_a]
-        
-        # if there is cavity information
-        if isinstance(self.n_c , np.ndarray): self.n_ca  = self.n_c[self.n_pbnd_a]
-        if isinstance(self.n_ic, np.ndarray): self.n_ica = self.n_ic[self.n_pbnd_a]
-        
-        # length of augmented vertice array
-        self.n2dna = self.n2dn + self.n_pbnd_a.size
-        
+
+        if isinstance(self.n_c, np.ndarray):
+            self.n_ca = self.n_c[self.n_pbnd_a]
+        if isinstance(self.n_ic, np.ndarray):
+            self.n_ica = self.n_ic[self.n_pbnd_a]
+
+        # new total node count (old + augmented)
+        self.n2dna = self.n2dn + nn_r + nn_l
+
         #_______________________________________________________________________
-        # (ii.a) 2d elements:
-        # List all triangles that touch the cyclic boundary segments
+        # augment triangles: create left and right augmented copies
+        elem_L = e_i_pbnd.copy()
+        elem_R = e_i_pbnd.copy()
+
+        # right vertex in left triangles gets augmented copy (right boundary → xmin)
+        elem_L[rows, idx_r] = aux_pos[n_r]
+        # left vertex in right triangles gets augmented copy (left boundary → xmax)
+        elem_R[rows, idx_l] = aux_pos[n_l]
+
+        # middle vertex augmentation:
+        # original code:
+        #   if is_pbnd_i_m_lr[ei] (middle closer to right):   elem_pbnd_l[...] = aux_pos[tri[idx_m]]
+        #   else:                                             elem_pbnd_r[...] = aux_pos[tri[idx_m]]
+        mid_aug = aux_pos[n_m]
+
+        # middle belongs to RIGHT boundary (m_to_right == True) → augment in LEFT element
+        elem_L[rows[m_to_right],  idx_m[m_to_right]]  = mid_aug[m_to_right]
+        # middle belongs to LEFT boundary (m_to_right == False) → augment in RIGHT element
+        elem_R[rows[~m_to_right], idx_m[~m_to_right]] = mid_aug[~m_to_right]
+
         #_______________________________________________________________________
-        elem_pbnd_l = np.copy(e_i_pbnd)
-        elem_pbnd_r = np.copy(e_i_pbnd)
-        for ei in range(0,self.e_pbnd_1.size):
-            # node indices of periodic boundary triangle
-            tri  = e_i_pbnd[ei,:]
-            
-            # which triangle points belong to left periodic bnde or right periodic
-            # boundary
-            idx_l, idx_r, idx_m = nidxine_l[ei], nidxine_r[ei], nidxine_m[ei]
-            
-            # change indices to left and right augmented boundary points
-            elem_pbnd_l[ei,idx_r]=aux_pos[tri[idx_r]]
-            elem_pbnd_r[ei,idx_l]=aux_pos[tri[idx_l]]
-            
-            # change indices of point beteen left and right vertices depending 
-            # if it will be attributet to left or the right boundary
-            if is_pbnd_i_m_lr[ei]: elem_pbnd_l[ei,idx_m]=aux_pos[tri[idx_m]]
-            else                 : elem_pbnd_r[ei,idx_m]=aux_pos[tri[idx_m]]
-                
-        del idx_l, idx_r, idx_m, tri, aux_pos
-        del nidxine_l, nidxine_m, nidxine_r, is_pbnd_i_m_lr
-        
-        #_______________________________________________________________________
-        # change existing periodic boundary triangles in elem_2d_i to augmented 
-        # left boundary triangles
-        #self.e_i[self.e_pbnd_1,:] = elem_pbnd_l
-        # add additional augmented right periodic boundary triangles
-        #self.e_ia = elem_pbnd_r
-        
-        # add augmented left, right periodic boundary triangles
-        self.e_ia     = np.vstack((elem_pbnd_r,elem_pbnd_l))
-        self.e_pbnd_a = np.hstack((self.e_pbnd_1,self.e_pbnd_1))
-        self.n2dea    = self.n2de + elem_pbnd_r.shape[0]
-        
-        #_______________________________________________________________________
-        return(self)
+        # stack augmented triangles: first right, then left (like your original)
+        self.e_ia     = np.vstack((elem_R, elem_L))
+        self.e_pbnd_a = np.hstack((self.e_pbnd_1, self.e_pbnd_1))
+        self.n2dea    = self.n2de + elem_R.shape[0]
     
+        #_______________________________________________________________________
+        return self
+
+
+
 
     #___COMPUTE/LOAD AREA OF ELEMENTS__________________________________________
     #| either load area of elements from fesom.mesh.diag.nc if its found in    |
@@ -1041,38 +1074,47 @@ ___________________________________________""".format(
         if len(self.e_area)==0:
             self.do_earea=True
             if os.path.isfile(os.path.join(self.path,'fesom.mesh.diag.nc')):
-                print(' > load e_area from fesom.mesh.diag.nc')
+                if getattr(self, 'do_info', True): print(' > load e_area from fesom.mesh.diag.nc')
                 #_______________________________________________________________
                 fid = Dataset(os.path.join(self.path,'fesom.mesh.diag.nc'),'r')
                 self.e_area = fid.variables['elem_area'][:]
             else: 
                 print(' > comp e_area')
                 #_______________________________________________________________
-                # pi     = 3.14159265358979
-                rad    = np.pi/180.0  
                 cycl   = self.cyclic*rad
-                Rearth = 6367500.0
                 
-                e_y    = self.n_y[self.e_i].sum(axis=1)/3.0
-                e_y    = np.cos(e_y*rad)
-                        
-                n_xy   = np.vstack([self.n_x, self.n_y])*rad     
-                a      = n_xy[:,self.e_i[:,1]] - n_xy[:,self.e_i[:,0]]
-                b      = n_xy[:,self.e_i[:,2]] - n_xy[:,self.e_i[:,0]]  
-                del(n_xy)
+                # convert lon/lat to radians
+                n_x = self.n_x * rad
+                n_y = self.n_y * rad
+
+                # coordinate differences
+                dx1 = n_x[self.e_i[:,1]] - n_x[self.e_i[:,0]]
+                dy1 = n_y[self.e_i[:,1]] - n_y[self.e_i[:,0]]
+
+                dx2 = n_x[self.e_i[:,2]] - n_x[self.e_i[:,0]]
+                dy2 = n_y[self.e_i[:,2]] - n_y[self.e_i[:,0]]
+                del(n_x, n_y)
                 
-                # trim cyclic
-                a[0,a[0,:]> cycl/2.0] = a[0,a[0,:]> cycl/2.0]-cycl
-                a[0,a[0,:]<-cycl/2.0] = a[0,a[0,:]<-cycl/2.0]+cycl
-                b[0,b[0,:]> cycl/2.0] = b[0,b[0,:]> cycl/2.0]-cycl
-                b[0,b[0,:]<-cycl/2.0] = b[0,b[0,:]<-cycl/2.0]+cycl
+                # sphere angle wrap dx back into -180...180 using modulo trick
+                # dx > 360: dx = dx - 360
+                dx1 = (dx1 + cycl/2) % cycl - cycl/2
+                dx2 = (dx2 + cycl/2) % cycl - cycl/2
                 
-                a[0,:] = a[0,:]*e_y
-                b[0,:] = b[0,:]*e_y
+                # mean latitude per element (3 nodes)
+                e_y = (self.n_y[self.e_i[:,0]] +
+                       self.n_y[self.e_i[:,1]] +
+                       self.n_y[self.e_i[:,2]]) / 3.0
+                e_y = np.cos(e_y * rad)
+                
+                # scale dx by cos(lat)
+                dx1 *= e_y
+                dx2 *= e_y
                 del(e_y)
-                
-                self.e_area = 0.5 * np.abs(a[0,:]*b[1,:] - b[0,:]*a[1,:])*(Rearth**2.0)
-                del(a, b)
+
+                # area of spherical triangles (planar approx)
+                self.e_area = 0.5 * np.abs(dx1*dy2 - dx2*dy1) * (R_earth*R_earth)
+            
+            self.e_area = np.ascontiguousarray(self.e_area)
         #_______________________________________________________________________
         return(self)
     
@@ -1084,75 +1126,96 @@ ___________________________________________""".format(
     #|           "max" : resolution based on maximum element edge length       |
     #|           "min" : resolution based on minimum element edge length       |
     #|_________________________________________________________________________|
-    def compute_e_resol(self, which='mean'):
+    def compute_e_resol(self, which='area'):
         """
         --> part of fesom mesh class, compute area of elements in [m], options:
 
             Parameter:
 
                 which: str,
-                        - "mean" ... resolution based on mean element edge legth
-                        - "max"  ... resolution based on maximum element edge length
-                        - "min"  ... resolution based on minimum element edge length
+                        - "mean"  ... resolution based on mean element edge legth
+                        - "max"   ... resolution based on maximum element edge length
+                        - "min"   ... resolution based on minimum element edge length
+                        - "height"... resolution based on height of element
+                        - "area"  ... resolution based on sqrt(2*area) of element
 
         """
         if len(self.e_resol) == 0 :
             self.do_eresol[0]=True
             self.do_eresol[1]=which
             
-            #______________::::_________________________________________________
-            # compute mean length of triangle sides
-            e_y  = self.n_y[self.e_i]
-            e_xy = np.array([self.n_x[self.e_i], e_y])
-                
-            #__________::::_____________________________________________________
-            # calc jacobi matrix for all triangles 
-            # | dx_12 dy_12 |
-            # | dx_13 dy_13 |_i , i=1....n2dea
-            jacobian     = e_xy[:,:,1]-e_xy[:,:,0]
-            jacobian     = np.array([jacobian,
-                                        e_xy[:,:,2]-e_xy[:,:,1],
-                                        e_xy[:,:,0]-e_xy[:,:,2] ])
-                
-            # account for triangles with periodic bounaries
-            for ii in range(3):
-                idx = np.where(jacobian[ii,0,:]>180); 
-                jacobian[ii,0,idx] = jacobian[ii,0,idx]-360;
-                idx = np.where(jacobian[ii,0,:]<-180); 
-                jacobian[ii,0,idx] = jacobian[ii,0,idx]+360;
-                del idx
-                
-            # calc from geocoord to cartesian coord
-            rad        = np.pi/180
-            R_earth    = 12735/2*1000;
-            jacobian   = jacobian*R_earth*rad
-            cos_theta  = np.cos(e_y*rad).mean(axis=1)
-            del e_y
-            for ii in range(3):    
-                jacobian[ii,0,:] = jacobian[ii,0,:]*cos_theta;
-            del cos_theta
-                
             #___________________________________________________________________
-            # calc vector length dr = sqrt(dx^2+dy^2)
-            jacobian     = np.power(jacobian,2);
-            jacobian     = np.sqrt(jacobian.sum(axis=1));
-            jacobian     = jacobian.transpose()
+            # compute mean length of triangle sides
+            e_x = self.n_x[self.e_i]   # longitudes
+            e_y = self.n_y[self.e_i]   # latitudes
+            
+            # Mean latitude per edge (needed for dx scaling)
+            cos_lat = np.cos(e_y * rad)
+            
+            #___________________________________________________________________
+            # Longitude/Latitude differences 
+            dx = (e_x[:, [1,2,0]] - e_x[:, [0,1,2]])
+            dy = (e_y[:, [1,2,0]] - e_y[:, [0,1,2]])
+            del(e_x, e_y)
+            
+            # cyclic wrap using modulo
+            dx = (dx + 180.0) % 360.0 - 180.0  # wrapped into [-180,180]
+
+            # compute cartesian dx, dy in [m]
+            dx *= cos_lat.mean(axis=1)[:, None] * rad * R_earth
+            dy *= rad * R_earth
+            
+            #___________________________________________________________________
+            #  compute triangle edge edge lengths
+            #  sqrt( dx^2 + dy^2 )
+            edge_len = np.sqrt(dx*dx + dy*dy)
             
             #___________________________________________________________________
             # mean resolutiuon per element
             if  which=='mean': 
-                print(' > comp. e_resol from mean')
-                self.e_resol = jacobian.mean(axis=1)
+                print(' > comp. e_resol from edge mean')
+                self.e_resol = edge_len.mean(axis=1)
+                
             elif which=='max': 
-                print(' > comp. e_resol from max')
-                self.e_resol = jacobian.max(axis=1)
+                print(' > comp. e_resol from edge max')
+                self.e_resol = edge_len.max(axis=1)
+                
             elif which=='min': 
-                print(' > comp. e_resol from min')
-                self.e_resol = jacobian.min(axis=1)    
+                print(' > comp. e_resol from edge min')
+                self.e_resol = edge_len.min(axis=1)   
+                
+            elif which == 'height':
+                if getattr(self, 'do_info', True): print(" > comp. e_resol from triangle height")
+                # semi-perimeter
+                s = edge_len.sum(axis=1) * 0.5
+
+                # Heron's formula area
+                area = np.sqrt(s * (s - edge_len[:,0]) * (s - edge_len[:,1]) * (s - edge_len[:,2]))
+
+                # height = 2*area / longest edge
+                self.e_resol = 2.0 * area / edge_len.max(axis=1)
+                
+            elif (which == 'area_q' or which=='area') :
+                print(" > comp. e_resol from sqrt(2*area)")
+                # semi-perimeter
+                s = edge_len.sum(axis=1) * 0.5
+
+                # Heron’s area
+                area = np.sqrt(s * (s - edge_len[:,0]) * (s - edge_len[:,1]) * (s - edge_len[:,2]))
+
+                # sqrt(2 * area)
+                if   which == 'area_q':
+                    # quad-equivalent grid spacing
+                    self.e_resol = np.sqrt(2.0 * area)
+                elif which == 'area':
+                    # exact equilateral edge
+                    self.e_resol = np.sqrt(2.0 * area)/(np.sqrt(2/np.sqrt(3)))
+                
             #___________________________________________________________________    
             else:
                 raise ValueError("The option which={} in compute_e_resol is not supported.".format(str(which)))
             
+            self.e_resol = np.ascontiguousarray(self.e_resol)
         #_______________________________________________________________________
         return(self)
     
@@ -1176,7 +1239,7 @@ ___________________________________________""".format(
             # load FESOM2 mesh
             if not self.do_f14cmip6:
                 if os.path.isfile(os.path.join(self.path,'fesom.mesh.diag.nc')):
-                    print(' > load n_area from fesom.mesh.diag.nc')
+                    if getattr(self, 'do_info', True): print(' > load n_area from fesom.mesh.diag.nc')
                     #_______________________________________________________________
                     fid = Dataset(os.path.join(self.path,'fesom.mesh.diag.nc'),'r')
                     self.n_area = fid.variables['nod_area'][:,:]
@@ -1187,26 +1250,28 @@ ___________________________________________""".format(
                     self.compute_e_area()
                     
                     #_______________________________________________________________
-                    e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
-                    e_iz_n    = np.vstack((self.e_iz  , self.e_iz  , self.e_iz  )).transpose().flatten()
-                    
-                    #_______________________________________________________________
-                    # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                    # over for i in range(3): ,for j in range(self.n2de):
-                    self.n_area = np.zeros((self.nlev, self.n2dn))
-                    count_e = 0
-                    for idx in self.e_i.flat:
-                        e_iz = e_iz_n[count_e]
-                        self.n_area[:e_iz, idx] = self.n_area[:e_iz, idx] + e_area_x3[count_e]
-                        count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
+                    z = np.arange(self.nlev, dtype=np.int32)[:, None]  
+                    # mask contains bottom topography information on elements
+                    mask = (z <= self.e_iz[None, :]).astype(np.float32)
+                    self.n_area = njit_ie2n_accum_2d(self.nlev, self.n2dn, self.n2de, 
+                                                     self.e_i, self.e_area, mask)
+                    del(mask, z)
+                    # each node gets 1/3 of each surrounding triangle's area --
+                    # njit_ie2n_accum_2d accumulates the full (unnormalized) sum
+                    # over all 3 vertices of every element, same as the FESOM1.4
+                    # branch below (see its own explicit /3.0). Missing here, this
+                    # made n_area exactly 3x too large whenever a mesh has no
+                    # fesom.mesh.diag.nc to load nod_area from directly -- verified
+                    # against a real fesom.mesh.diag.nc's nod_area (ratio 3.000000).
                     self.n_area = self.n_area/3.0
-                    del e_area_x3, e_iz_n, count_e
+                self.n_area = np.ascontiguousarray(self.n_area)
+                    
             
             #___________________________________________________________________
             # load FESOM1.4 mesh
             else:
                 if os.path.isfile(os.path.join(self.path,'griddes.nc')):
-                    print(' > load n_area from griddes.nc')
+                    if getattr(self, 'do_info', True): print(' > load n_area from griddes.nc')
                     #_______________________________________________________________
                     fid = Dataset(os.path.join(self.path,'griddes.nc'),'r')
                     self.n_area = fid.variables['cell_area'][:]
@@ -1216,18 +1281,15 @@ ___________________________________________""".format(
                     self.compute_e_area()
                     
                     #_______________________________________________________________
-                    e_area_x3 = np.vstack((self.e_area, self.e_area, self.e_area)).transpose().flatten()
-                    
-                    #_______________________________________________________________
-                    # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                    # over for i in range(3): ,for j in range(self.n2de):
-                    self.n_area = np.zeros((self.n2dn))
-                    count_e = 0
-                    for idx in self.e_i.flat:
-                        self.n_area[idx] = self.n_area[idx] + e_area_x3[count_e]
-                        count_e = count_e+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                        self.n_area = self.n_area/3.0
-                    del e_area_x3, count_e
+                    # scatter-add: every vertex collects 1/3 of the area of each
+                    # triangle it belongs to. np.bincount does this in one C pass.
+                    # (self.n_area[self.e_i.ravel()] += ... can NOT be used here:
+                    #  fancy-index assignment is buffered, so for the ~6 triangles
+                    #  sharing a vertex only the last one would survive)
+                    self.n_area = np.bincount(self.e_i.ravel(),
+                                              weights   = np.repeat(self.e_area, 3),
+                                              minlength = self.n2dn)/3.0
+                self.n_area = np.ascontiguousarray(self.n_area)    
         #_______________________________________________________________________
         return(self)
 
@@ -1240,7 +1302,7 @@ ___________________________________________""".format(
     #|           "e_resol": compute vertice resolution by interpolating elem   |
     #|                      resolution to vertices, default                    |
     #|_________________________________________________________________________|
-    def compute_n_resol(self,which='n_area'):
+    def compute_n_resol(self,which='e_resol'):
         """
         --> part of fesom mesh class, compute resolution at vertices in m, options:
 
@@ -1262,45 +1324,38 @@ ___________________________________________""".format(
                 
                 #_______________________________________________________________
                 self.compute_n_area()
-                print(' > comp n_resol from n_area')
+                if getattr(self, 'do_info', True): print(' > comp n_resol from 2*sqrt(n_area/pi)')
                 #_______________________________________________________________
+                # You assign a single horizontal resolution length 
+                # L such that:
+                #   A=pi * (L/2)^2
+                #   
+                # Solving:
+                #   L=2*np.sqrt(A/pi)
+                #   
+                # L is the diameter of a circle with the same area as the vertex 
+                # polygon. This gives the correct effective grid spacing for scalar 
+                # and vector operators that assume an isotropic control volume.
                 self.n_resol = np.sqrt(self.n_area[0,:]/np.pi)*2.0
             
             #___________________________________________________________________
             # compute vertices resolution based on interpolation from resolution
             # of elements    
             elif any(x in which for x in ['e_resol','eresol']):
-            
+                if getattr(self, 'do_info', True): print(' > comp n_resol from e2n interpolation of e_resol')
                 #_______________________________________________________________
                 self.compute_e_area()
                 self.compute_e_resol()
-                self.compute_n_area()
-                print(' > comp n_resol from e_resol')
-                aux = np.vstack((self.e_area,
-                                 self.e_area,
-                                 self.e_area)).transpose().flatten()
-                aux = aux * np.vstack((self.e_resol,
-                                       self.e_resol,
-                                       self.e_resol)).transpose().flatten()
-                    
-                #_______________________________________________________________
-                # single loop over self.e_i.flat is ~4 times faster than douple loop 
-                # over for i in range(3): ,for j in range(self.n2de):
-                self.n_resol = np.zeros((self.n2dn,))
-                count = 0
-                for idx in self.e_i.flat:
-                    self.n_resol[idx]=self.n_resol[idx] + aux[count]
-                    count=count+1 # count triangle index for aux_area[count] --> aux_area =[n2de*3,]
-                del aux, count
-                warnings.filterwarnings("ignore", category=RuntimeWarning, message="divide by zero encountered in divide")
-                self.n_resol=self.n_resol/self.n_area[0,:]/3.0
-                warnings.resetwarnings()
+                self.n_resol, _ = njit_ie2n_1d(self.n2dn, self.n2de, self.e_i, self.e_area, self.e_resol)
+                
             #___________________________________________________________________    
             else:
                 raise ValueError("The option which={} in compute_n_resol is not supported. either 'n_area' or 'e_resol'".format(str(which)))
             
+            self.n_resol = np.ascontiguousarray(self.n_resol)
         #_______________________________________________________________________
         return(self)
+    
     
     
     # ___COMPUTE LAND-SEA MASK CONOURLINE______________________________________
@@ -1314,286 +1369,342 @@ ___________________________________________""".format(
         periodic boundary based on boundary edges that contribute only to one triangle 
         and then checking which edges can be consequtive connected                                                   |
         """
-        print(' > compute lsmask')
+        if getattr(self, 'do_info', True): print(" > compute lsmask fast")
         self.do_lsmask = True
-        #_______________________________________________________________________
-        # build land boundary edge matrix
-        t1 = clock.time()
-        edge    = np.concatenate((self.e_i[:,[0,1]], \
-                                  self.e_i[:,[0,2]], \
-                                  self.e_i[:,[1,2]]),axis=0)
-        edge    = np.sort(edge,axis=1) 
         
-        # python  sortrows algorythm --> matlab equivalent
-        # twice as fast as list sorting
-        #sortidx = np.lexsort((edge[:,0],edge[:,1]))
-        #edge    = edge[sortidx,:].squeeze()
-        #edge    = np.array(edge)
+        # compute boundary edges (already fast)
+        bnde = njit_compute_boundary_edges(self.e_i)
+        bnde_nodes = np.unique(bnde.ravel())
+        nbnde_nodes = bnde_nodes.size
+        self.n_ibnde=bnde_nodes
         
-        ## python  sortrows algorythm --> matlab equivalent
-        edge    = edge.tolist()
-        edge.sort()
-        edge    = np.array(edge)
-        
-        idx     = np.diff(edge,axis=0)==0
-        idx     = np.all(idx,axis=1)
-        idx     = np.logical_or(np.concatenate((idx,np.array([False]))),\
-                                np.concatenate((np.array([False]),idx)))
-        
-        # all edges that belong to boundary
-        bnde    = edge[idx==False,:]
-        nbnde   = bnde.shape[0];
-        del edge, idx
-        
-        #_______________________________________________________________________
-        run_cont        = np.zeros((1,nbnde))*np.nan
-        run_cont[0,:2]  = bnde[0,:]  # initialise the first landmask edge
-        run_bnde        = bnde[1:,:] # remaining edges that still need to be distributed
-        count_init      = 1;
-        init_ind        = run_cont[0,0];
-        ind_lc_s        = 0;
-        
-        polygon_xy = []
-        for ii in range(0,nbnde):
-            #___________________________________________________________________
-            # search for next edge that contains that contains the last node index from 
-            # run_cont
-            kk_rc = np.column_stack(np.where( run_bnde==np.int32(run_cont[0,count_init]) ))
-            #kk_rc = np.argwhere( run_bnde==np.int32(run_cont[0,count_init]) ) --> slower than np.column_stack(np.where....
-            kk_r  = kk_rc[:,0]
-            kk_c  = kk_rc[:,1]
-            count_init  = count_init+1
+        # compute mapping global --> local
+        mapping = -np.ones(self.n2dn, dtype=np.int32)
+        for loc, glo in enumerate(bnde_nodes): mapping[glo] = loc
+    
+        # build adjacency using numba
+        adj     = njit_lsmask_build_adjacency(bnde, mapping, nbnde_nodes)
+
+        # trace contour loops --> the coordinates are needed to resolve which
+        # branch to follow at nodes where two coastlines touch in a single vertex
+        loops   = njit_lsmask_trace_loops(adj,
+                                          self.n_x[bnde_nodes].astype(np.float64),
+                                          self.n_y[bnde_nodes].astype(np.float64),
+                                          np.float64(self.cyclic))
+
+        # convert loops to XY polygons
+        polygons= []
+        n_x     = self.n_x
+        n_y     = self.n_y
+        for loop in loops:
+            # loop is in local numbering --> map to global via bnde_nodes
+            idx = bnde_nodes[loop]
             
-            #___________________________________________________________________
-            if kk_c[0] == 0 :
-                run_cont[0,count_init] = run_bnde[kk_r[0],1]
-            else:
-                run_cont[0,count_init] = run_bnde[kk_r[0],0]
-                
-            #___________________________________________________________________
-            # if a land sea mask polygon is closed
-            if  np.any(run_bnde[kk_r[0],:] == init_ind):
-                #_______________________________________________________________
-                # add points to polygon_list
-                aux_xy = np.vstack((self.n_x[np.int64(run_cont[0,0:count_init+1])], 
-                                    self.n_y[np.int64(run_cont[0,0:count_init+1])])).transpose()
-                polygon_xy.append(aux_xy)
-                del  aux_xy
-                
-                #_______________________________________________________________
-                # delete point from list
-                run_bnde   = np.delete(run_bnde,kk_r[0],0)
-                
-                #_______________________________________________________________
-                # if no points left break the while loop
-                if np.size(run_bnde)==0:
-                    break
-                
-                #_______________________________________________________________
-                # initialise new lsmask contour
-                run_cont        = np.zeros((1,nbnde))*np.nan
-                run_cont[0,:2]  = run_bnde[0,:]
-                run_bnde        = run_bnde[1:,:]
-                count_init      = 1;
-                init_ind        = run_cont[0,0]
-            else:
-                run_bnde = np.delete(run_bnde,kk_r[0],0)
+            # check clockwise direction --> Signed area (shoelace formula)   
+            # roll x,y by -1 to get xi+1, yi+1
+            aux_nx, aux_ny = n_x[idx], n_y[idx]
+            area2 = np.sum(aux_nx * np.roll(aux_ny, -1) - np.roll(aux_nx, -1) * aux_ny)    
             
+            # make all polygons clockwise rotated
+            if area2 > 0: aux_nx, aux_ny = aux_nx[::-1], aux_ny[::-1]
+            polygons.append(np.column_stack((aux_nx, aux_ny)))
+            
+            del(aux_nx, aux_ny)
+            
+        self.lsmask = polygons
         #_______________________________________________________________________
-        self.lsmask = polygon_xy
-        #t2 = clock.time()
-        #print(t2-t1)
         return(self)
     
     
     
-    # ___AUGMENT PERIODIC BOUNDARIES IN LAND-SEA MASK CONOURLINE_______________
+    # ___AUGMENT PERIODIC BOUNDARIES IN LAND-SEA MASK CONTOURLINE______________
     #| spilit contourlines that span over the periodic boundary into two       |
     #| separated countourlines for the left and right side of the periodic     |
     #| boundaries                                                              |
     #|_________________________________________________________________________|
     def augment_lsmask(self):
         """
-        --> part of fesom mesh class, split contourlines that span over the 
-        periodic boundary into two separated countourlines for the left and 
-        right side of the periodic boundaries
+        --> part of fesom mesh class, compute periodic boundary augmentation of 
+            land-sea mask contourline 
         """
-        print(' > augment lsmask')
-        #self.lsmask_a = self.lsmask.copy()
+        if getattr(self, 'do_info', True): print(" > augment lsmask")
+        cyclic = self.cyclic
+        half_cyclic =  cyclic * 0.5
+        xmin   = np.floor(self.n_x.min())
+        xmax   = xmin + cyclic
+        xmid   = 0.5 * (xmin + xmax)
+        
+        #_______________________________________________________________________
+        # main loop
         self.lsmask_a = []
-        #_______________________________________________________________________
-        # build land boundary edge matrix
-        nlsmask = len(self.lsmask)
+        for ii, poly in enumerate(self.lsmask):
+            
+            ## ensure polygon is clsoed 
+            if not (poly[0, 0] == poly[-1, 0] and poly[0, 1] == poly[-1, 1]):
+                poly = np.vstack((poly, poly[0])) 
+            
+            # check how many edges the contour has that span across the periodic 
+            # boudary. If there is 1 edge its a polar cap countour lines if it has
+            # two edges its a non-poalr contour like eurasia date includes the 
+            # dateline 
+            lon       = poly[:, 0]
+            lat       = poly[:, 1]
+            
+            dlon      = np.diff(lon)
+            crosspbnde_idx = np.where(np.abs(dlon) > half_cyclic)[0]
+            crosspbnde_nmb = crosspbnde_idx.size
+            #crosspbnde_idx = njit_find_period_crossings(lon, half_cyclic)
+            #crosspbnde_nmb = len(crosspbnde_idx)
+            
+            #___________________________________________________________________
+            # CASE 0: no seam crossings
+            if crosspbnde_nmb == 0: 
+                if poly.shape[0] > 3: self.lsmask_a.append(poly)
+            
+            
+            #___________________________________________________________________
+            # CASE 1: polar rings with exactly 1 seam crossing
+            elif crosspbnde_nmb == 1 :
+                pole_lat = -90.0 if np.all(poly[:,1]<0) else 90.0
+                idxpbnd = crosspbnde_idx[0]
+                
+                # determine left/right boudnary index build seam ponts 
+                if lon[idxpbnd] > lon[idxpbnd+1]:
+                    idxL, idxR = idxpbnd+1, idxpbnd
+                    x1, x2, x3, x4 = xmax, xmax, xmin, xmin 
+                    y1, y2, y3, y4 = lat[idxR], pole_lat, pole_lat, lat[idxL]
+                    
+                else:
+                    idxL, idxR = idxpbnd, idxpbnd+1
+                    x1, x2, x3, x4 = xmin, xmin, xmax, xmax 
+                    y1, y2, y3, y4 = lat[idxL], pole_lat, pole_lat, lat[idxR]
+                
+                # build seam edge for polar countours
+                seam = np.array([ [ x1, y1], [ x2, y2], [ x3, y3], [ x4, y4] ], dtype=float)                    
+                    
+                # add seam augmented polygon to final polygon list    
+                poly = np.vstack([ poly[:idxpbnd, :], seam,  poly[idxpbnd+1:, :] ])
+                if poly.shape[0] > 3: self.lsmask_a.append(poly)
+                
+            
+            #___________________________________________________________________    
+            # CASE 3: non-polar polygons with >= 2 seams    
+            elif crosspbnde_nmb>=2:
+                
+                # create main polygon 
+                #main_poly = poly.copy()
+                
+                # determine to which side L/R the main polygon is attributed to, 
+                # automatically the augmented polygons must be attributed to the 
+                # opposite side
+                if lon[crosspbnde_idx[0]]>xmid: main_xpos, augm_xpos= xmax, xmin
+                else                          : main_xpos, augm_xpos= xmin, xmax
+                
+                # loop over number of lsmask periodic boundary segments 
+                for ii in range(0, crosspbnde_nmb, 2):
+                    
+                    # vertice start indices of the first to segments that cross 
+                    # the periodic boundary. Between these two indices the first 
+                    # augmetned polygon is located 
+                    idxpbnd1 = crosspbnde_idx[ii]
+                    idxpbnd2 = crosspbnde_idx[ii+1]
+                    
+                    # Create an close augmented polygon 
+                    augm_poly= np.vstack([poly[idxpbnd1+1:idxpbnd2,:],
+                                          np.array([[augm_xpos, lat[idxpbnd2+1]],
+                                                    [augm_xpos, lat[idxpbnd1]]
+                                                    ])
+                                          ])
+                                          
+                    # add augmented polygon to final polygon list                       
+                    if augm_poly.shape[0] > 3: self.lsmask_a.append(augm_poly)
+                    
+                    # marke the vertice point of the augmetned polygon in the main
+                    # polygon with NaN, marker them to b e later deleted
+                    poly[idxpbnd2           ,0] = main_xpos
+                    poly[idxpbnd1+1         ,0] = main_xpos
+                    poly[idxpbnd1+2:idxpbnd2,0] = np.nan
+                    
+                # delete the augmented polygon points within the mainpolygon     
+                poly = poly[ ~np.isnan(poly[:,0]), :] 
+                
+                # add main polygon to final polygon list                       
+                if poly.shape[0] > 3: self.lsmask_a.append(poly)
         
-        # min/max of longitude box 
-        # xmin,xmax = -180+self.focus, 180+self.focus
-        xmin, xmax = np.floor(self.n_x.min()), np.ceil(self.n_x.max())
-        
-        for ii in range(0,nlsmask):
-            #___________________________________________________________________
-            polygon_xy = self.lsmask[ii].copy()
-            
-            #___________________________________________________________________
-            #import matplotlib.pyplot as plt 
-            #plt.figure()
-            #plt.plot(polygon_xy[:,0], polygon_xy[:,1])
-            #plt.show()
-            
-            #___________________________________________________________________
-            # idx compute how many periodic boudnaries are in the polygon 
-            idx        = np.argwhere(np.abs(self.lsmask[ii][1:,0]-self.lsmask[ii][:-1,0])>self.cyclic/2).ravel()
-            
-            #___________________________________________________________________
-            if len(idx)!=0:
-                # unify starting point of polygon, the total polygon should start
-                # at the left periodic boudnary at the most northward periodic point
-                aux_i      = np.hstack((idx,idx+1))
-                aux_x      = polygon_xy[aux_i,0]
-                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])
-                isort_y    = np.flip(np.argsort(polygon_xy[aux_il,1]))
-                aux_il     = aux_il[isort_y]
-                del isort_y, aux_x, aux_i
-                
-                # shift polygon indices so that new starting point is at index 0
-                polygon_xy = np.vstack(( (polygon_xy[aux_il[0]:,:]),(polygon_xy[:aux_il[0],:]) ))
-                del aux_il
-                
-                # ensure that total polygon is closed
-                if np.any(np.diff(polygon_xy[[0,-1],:])!=0): polygon_xy = np.vstack(( (polygon_xy,polygon_xy[0,:]) ))
-            
-            else: 
-                if polygon_xy.shape[0]<=3: 
-                    ...
-                else:    
-                    self.lsmask_a.append(polygon_xy)   
-                continue
-            
-            #___________________________________________________________________
-            # recompute indices of periodic boundaries 
-            # check if lsmask contour contains 0 (no periodic boundary), 1 (polar
-            # contour) or >2 (non polar contour) pbnd edges. 
-            # idx = np.argwhere(np.abs(self.lsmask[ii][1:,0]-self.lsmask[ii][:-1,0])>self.cyclic/2).ravel()
-            idx = np.argwhere(np.abs(polygon_xy[1:,0]-polygon_xy[:-1,0])>self.cyclic/2).ravel()
-            
-            #___________________________________________________________________
-            # none polar lsmask contour with pbnd boundary that needs to be cutted
-            # in two or more polygons
-            if   len(idx) >= 2:
-                aux_i      = np.hstack((idx,idx+1))
-                aux_x      = polygon_xy[aux_i,0]
-                
-                # compure index location of left and right pbnd points
-                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])
-                #aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])
-                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > (xmin+xmax)*0.5).ravel()])
-                del aux_x, aux_i
-                
-                #_______________________________________________________________
-                # do polygon on left periodic boundary
-                polygon_xyl = polygon_xy.copy()
-                for jj in range(0,len(aux_il),2):
-                    polygon_xyl[[aux_il[jj],aux_il[jj+1]],0]=xmin
-                    polygon_xyl[aux_ir[jj]:aux_ir[jj+1]+1,:]=np.nan
-                    
-                # eliminate nab points from right boundary    
-                polygon_xyl = np.delete(polygon_xyl,
-                                        np.argwhere(np.isnan(polygon_xyl[:,0])).ravel(),axis=0)    
-                
-                # close polygon
-                if np.any(np.diff(polygon_xyl[[0,-1],:])!=0): 
-                    polygon_xyl = np.vstack(( (polygon_xyl,polygon_xyl[0,:]) ))
-                
-                ## polygon must have at last 3 points
-                #if polygon_xyl.shape[0]==2: 
-                    #polygon_xyl = np.vstack(( polygon_xyl, polygon_xyl[0,:] ))
-                if polygon_xyl.shape[0]<=3: 
-                    ...
-                else:    
-                    self.lsmask_a.append(polygon_xyl)
-                
-                #_______________________________________________________________
-                # do polygon on right periodic boundary
-                polygon_xyr = polygon_xy.copy()
-                polygon_xyr[aux_ir[0],0]   = xmax
-                polygon_xyr[:aux_il[0]+1,:]= np.nan   
-                for jj in range(1,len(aux_ir)-1,2):
-                    polygon_xyr[[aux_ir[jj],aux_ir[jj+1]],0] = xmax
-                    polygon_xyr[aux_il[jj]:aux_il[jj+1]+1,:] = np.nan
-                polygon_xyr[aux_ir[-1],0]  = xmax
-                polygon_xyr[aux_il[-1]:,:] = np.nan  
-                
-                # eliminate nan points from left boudnary
-                polygon_xyr = np.delete(polygon_xyr,
-                                        np.argwhere(np.isnan(polygon_xyr[:,0])).ravel(),axis=0)    
-                
-                # close polygon
-                if np.any(np.diff(polygon_xyr[[0,-1],:])!=0): 
-                    polygon_xyr = np.vstack(( (polygon_xyr,polygon_xyr[0,:]) ))
-                
-                ## polygon must have at last 3 points
-                #if polygon_xyr.shape[0]==2: 
-                    #polygon_xyr = np.vstack(( polygon_xyr, polygon_xyr[0,:] ))
-                if polygon_xyr.shape[0]<=3: 
-                    ...
-                else:    
-                    self.lsmask_a.append(polygon_xyr)
-                
-                del polygon_xy, aux_il, aux_ir
-                
-            #polar lsmask contour with pbnd boundary
-            elif len(idx) == 1:
-                #_______________________________________________________________
-                # create single  polar polygon
-                aux_i      = np.hstack((idx,idx+1))
-                #aux_x,aux_y= self.lsmask_a[ii][aux_i,0], self.lsmask_a[ii][aux_i,1]
-                aux_x,aux_y= polygon_xy[aux_i,0], polygon_xy[aux_i,1]
-                
-                # indeces for left and right pbnd points
-                #aux_il     = np.sort(aux_i[np.argwhere(aux_x < self.focus).ravel()])[0]
-                #aux_ir     = np.sort(aux_i[np.argwhere(aux_x > self.focus).ravel()])[0]
-                aux_il     = np.sort(aux_i[np.argwhere(aux_x < (xmin+xmax)*0.5).ravel()])[0]
-                aux_ir     = np.sort(aux_i[np.argwhere(aux_x > (xmin+xmax)*0.5).ravel()])[0]
-                #polygon_xy = self.lsmask_a[ii]
-                
-                # set corner points for polar polygon
-                pbndl   ,pbndr    = polygon_xy[aux_ir,:], polygon_xy[aux_il,:]
-                pbndl[0],pbndr[0] = xmin, xmax
-                if np.all(aux_y<0): 
-                    pcrnl, pcrnr = np.array([xmin, -90],ndmin=2), np.array([xmax,-90],ndmin=2)
-                else:
-                    pcrnl, pcrnr = np.array([xmin, 90],ndmin=2), np.array([xmax,90],ndmin=2)
-                
-                # augment and close polygon wit corner points
-                if aux_ir<aux_il:
-                    polygon_xy = np.vstack((  polygon_xy[:aux_ir,:], 
-                                           pbndr, pcrnr, pcrnl ,pbndl, 
-                                           polygon_xy[aux_il+1:,:]  ))
-                    
-                else:
-                    polygon_xy = np.vstack((  polygon_xy[:aux_il,:], 
-                                           pbndl, pcrnl, pcrnr ,pbndr, 
-                                           polygon_xy[aux_ir+1:,:]  ))
-                
-                ## polygon must have at least 3 points
-                #if polygon_xy.shape[0]==2: 
-                    #polygon_xy = np.vstack(( polygon_xy,polygon_xy[0,:] ))
-                if polygon_xy.shape[0]<=3: 
-                    ...
-                else:
-                    self.lsmask_a.append(polygon_xy)
-                    
-                    
-                del polygon_xy, pbndr, pcrnr, pcrnl ,pbndl, 
-                del aux_il, aux_ir, aux_i, aux_x, aux_y
-                
         #_______________________________________________________________________
-        # create lsmask patch to plot 
+        # build patch for plotting
         self.lsmask_p = lsmask_patch(self.lsmask_a)
         
         #_______________________________________________________________________
+        return self
+
+
+
+    #
+    #
+    #___________________________________________________________________________
+    # compute nodal neighborhood with respect to elements 
+    def compute_n_nghbr_e(self):
+        """
+        --> part of fesom mesh class, compute node neighborhood connectivity with 
+            respect to elements
+            
+        """
+        self.n_nghbr_e, self.num_n_nghbr_e = njit_compute_n_nghbr_e(self.e_i)
+        
+        #_______________________________________________________________________
         return(self)
+    
+    
+    
+    #
+    #
+    #___________________________________________________________________________
+    # compute element neighborhood with respect to elements 
+    def compute_e_nghbr_e(self):
+        """
+        --> part of fesom mesh class, compute element neighborhood connectivity with 
+            respect to elements
+            
+        """
+        self.e_nghbr_e, self.num_e_nghbr_e = njit_compute_e_nghbr_e(self.e_i)
+        
+        #_______________________________________________________________________
+        return(self)
+
+
+
+    #
+    #
+    #___________________________________________________________________________
+    # compute nodal neighborhood with respect to nodes
+    def compute_n_nghbr_n(self):
+        """
+        --> part of fesom mesh class, compute node neighborhood connectivity with 
+            respect to nodes
+            
+        """
+        self.n_nghbr_n, self.num_n_nghbr_n = njit_compute_n_nghbr_n(self.e_i)
+        
+        #_______________________________________________________________________
+        return(self)
+
+
+
+    #
+    #
+    #___________________________________________________________________________
+    # smooth data on nodes
+    def smooth_nodes(self, data_n, num_iter=3, weaksmth_boxlist=False, rel_center_weight=1.0):
+        """
+        --> part of fesom mesh class, smooth data on nodes with a convolution filter
+        
+        Parameter: 
+            
+            data_n:  np.array or xr.DataArray with 1D vertice data
+            
+            num_iter: number of convolution cycles 
+            
+            weaksmth_boxlist: list (default=False) with box [lonmin, lonmax, latmin, latmax, coeff]
+                              where a weak smoothing should be applied
+            
+            rel_center_weight: float (default=1.0), center weight for convolution kernel
+        """
+        #_______________________________________________________________________
+        # compute node neighborhood with respect to nodes if not already computed
+        if len(self.n_nghbr_n)==0: self.compute_n_nghbr_n()
+        
+        #_______________________________________________________________________
+        # Convert Python list-of-lists into Numba friendly ndarray
+        if weaksmth_boxlist:
+            weak_boxes = np.asarray(weaksmth_boxlist, dtype=np.float64)
+        else:
+            weak_boxes = np.zeros((0, 5), dtype=np.float64)
+
+        #_______________________________________________________________________
+        # convert xarray --> numpy
+        if hasattr(data_n, "values"):       # xarray.DataArray
+            data_n_arr = data_n.values
+            is_xarray = True
+        else:
+            data_n_arr = data_n
+            is_xarray = False
+        
+        #_______________________________________________________________________
+        # call numba kernel
+        data_n_smth = njit_node_smoothing(self.n2dn, self.n_x, self.n_y, 
+                                          self.n_nghbr_n, self.num_n_nghbr_n,
+                                          data_n_arr, num_iter, weak_boxes, rel_center_weight)
+        
+        #_______________________________________________________________________
+        # write output back to xarray or numpy
+        if is_xarray:
+            data_n[:] = data_n_smth
+            return data_n
+        else:
+            return data_n_smth
+    
+    
+    
+    #
+    #
+    #___________________________________________________________________________
+    def smooth_elems(self, data_e, num_iter=3, weaksmth_boxlist=False, rel_center_weight=1.0):
+        """
+        --> part of fesom mesh class, smooth data on elements with a convolution filter
+        
+        Parameter: 
+            
+            data_e:  np.array or xr.DataArray with 1D element data
+            
+            num_iter: number of convolution cycles 
+            
+            weaksmth_boxlist: list (default=False) with box [lonmin, lonmax, latmin, latmax, coeff]
+                              where a weak smoothing should be applied
+            
+            rel_center_weight: float (default=1.0), center weight for convolution kernel
+        """
+
+        #_______________________________________________________________________
+        # compute elem neighborhood with respect to elements if not already computed
+        if len(self.e_nghbr_e) == 0: self.compute_e_nghbr_e()   # you already have this
+        
+        #_______________________________________________________________________
+        # ensure centroids exist
+        if not hasattr(self, "e_x"):
+            self.e_x = self.n_x[self.e_i].mean(axis=1)
+            self.e_y = self.n_y[self.e_i].mean(axis=1)
+        
+        #_______________________________________________________________________
+        # Convert Python list-of-lists into Numba friendly ndarray
+        if weaksmth_boxlist:
+            weak_boxes = np.asarray(weaksmth_boxlist, dtype=np.float64)
+        else:
+            weak_boxes = np.zeros((0, 5), dtype=np.float64)
+        
+        #_______________________________________________________________________
+        # convert xarray --> numpy
+        if hasattr(data_e, "values"):
+            data_e_arr = data_e.values
+            is_xarray = True
+        else:
+            data_e_arr = data_e
+            is_xarray = False
+        
+        #_______________________________________________________________________
+        # call numba kernel
+        data_e_smth = njit_elem_smoothing(self.n2de, self.e_x, self.e_y,
+                                        self.e_nghbr_e, self.num_e_nghbr_e,
+                                        data_e_arr, num_iter, weak_boxes, rel_center_weight)
+        
+        #_______________________________________________________________________
+        # write output back to xarray or numpy
+        if is_xarray:
+            data_e[:] = data_e_smth
+            return data_e
+        else:
+            return data_e_smth
+
 
 
 
@@ -1633,16 +1744,16 @@ def lsmask_patch(lsmask):
     from shapely.geometry import Polygon, MultiPolygon, GeometryCollection
     from shapely.validation import make_valid
     
-    # import matplotlib.pyplot as plt 
-    # hfig = plt.figure()
-    # ax = plt.gca()
+    #import matplotlib.pyplot as plt 
+    #hfig = plt.figure()
+    #ax = plt.gca()
     #___________________________________________________________________________
     polygonlist=[]
     #for xycoord in lsmask: polygonlist.append(Polygon(xycoord))
     for ii, xycoord in enumerate(lsmask):
         #print(ii, xycoord.shape)
         poly = Polygon(xycoord)
-        
+                    
         # Ensure polygons are counterclockwise
         if not poly.exterior.is_ccw:
             poly = Polygon(list(poly.exterior.coords)[::-1])
@@ -1650,16 +1761,16 @@ def lsmask_patch(lsmask):
         # Ensure polygon is valid
         if not poly.is_valid:
             poly = make_valid(poly)  # Attempt to fix the geometry
-
-        # npoly = len(polygonlist)
+        
+        #npoly = len(polygonlist)
         # Check if make_valid() returned a MultiPolygon
         if   isinstance(poly, MultiPolygon):
             polygonlist.extend(poly.geoms)  # Unpack MultiPolygon into list
             
-            # for auxpoly in polygonlist[npoly:]:
-            #     coords = np.array(auxpoly.exterior.coords)
-            #     ax.plot(coords[:,0], coords[:,1], 'c*')
-
+            #for auxpoly in polygonlist[npoly:]:
+                #coords = np.array(auxpoly.exterior.coords)
+                #ax.plot(coords[:,0], coords[:,1], 'c*')
+            
         # Check if make_valid() returned a GeometryCollection
         elif isinstance(poly, GeometryCollection):             
              # Extract only Polygon or MultiPolygon from the GeometryCollection
@@ -1669,23 +1780,24 @@ def lsmask_patch(lsmask):
                 elif isinstance(geom, MultiPolygon):
                     polygonlist.extend(geom.geoms)
             
-            # for auxpoly in polygonlist[npoly:]:
-            #     coords = np.array(auxpoly.exterior.coords)
-            #     ax.plot(coords[:,0], coords[:,1], 'r*')
+            #for auxpoly in polygonlist[npoly:]:
+                #coords = np.array(auxpoly.exterior.coords)
+                #ax.plot(coords[:,0], coords[:,1], 'r*')
         
         elif isinstance(poly, Polygon):
         #elif poly.is_valid:
             polygonlist.append(poly)
             
-            # for auxpoly in polygonlist[npoly:]:
-            #     coords = np.array(auxpoly.exterior.coords)
-            #     ax.plot(coords[:,0], coords[:,1], 'k*')
+            #for auxpoly in polygonlist[npoly:]:
+                #coords = np.array(auxpoly.exterior.coords)
+                #ax.plot(coords[:,0], coords[:,1], 'k*')
         
     
     lsmask_p = MultiPolygon(polygonlist)
-    # plt.show()
+    #plt.show()
     #___________________________________________________________________________
     return(lsmask_p)
+
 
 
 #
@@ -1799,16 +1911,20 @@ def lsmask_2shapefile(mesh, lsmask=[], path=[], fname=[], do_info=True):
     # if an extra path is given us this to store the shapefile         
     else:
         shppath = path
-        
+    
+    #___________________________________________________________________________
+    # Ensure the GeoDataFrame has a CRS
+    newdata.set_crs("EPSG:4326", inplace=True)  # Set to the correct CRS
+
     #___________________________________________________________________________
     # write lsmask to shapefile 
     if not fname:
-        shpfname = 'tripyview_fesom2'+'_'+mesh.id+'_'+'{}={}'.format('focus',mesh.focus)+'.shp'
-    else:
-        shpfname = fname+'.shp'
+        shpfname = 'tripyview_lsmask_{:s}_focus{:d}.shp'.format(mesh.id, mesh.focus)
+    else: 
+        shpfname = fname
     shppath = os.path.join(shppath,shpfname)
     if do_info: print(' > save *.shp to {}'.format(shppath))
-    newdata.to_file(shppath)
+    newdata.to_file(str(shppath))
     
     #___________________________________________________________________________
     return
@@ -1831,14 +1947,20 @@ def grid_rotmat(abg):
         :rmat:  array, [3 x 3] rotation matrix to transform from geo to rot
 
     """
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
     #___________________________________________________________________________
-    rad = np.pi/180
-    al  = abg[0] * rad 
-    be  = abg[1] * rad
-    ga  = abg[2] * rad
+    return njit_grid_rotmat(al, be, ga)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_rotmat(alpha_deg, beta_deg, gamma_deg):
+    #___________________________________________________________________________
+    #rad = np.pi/180
+    al  = alpha_deg * rad 
+    be  = beta_deg  * rad
+    ga  = gamma_deg * rad
         
     #___________________________________________________________________________
-    rmat= np.zeros((3,3))
+    rmat      = np.zeros((3,3), dtype=np.float64)
     rmat[0,0] =( np.cos(ga)*np.cos(al) - np.sin(ga)*np.cos(be)*np.sin(al) )
     rmat[0,1] =( np.cos(ga)*np.sin(al) + np.sin(ga)*np.cos(be)*np.cos(al) )
     rmat[0,2] =( np.sin(ga)*np.sin(be) )
@@ -1850,7 +1972,6 @@ def grid_rotmat(abg):
     rmat[2,0] =( np.sin(be)*np.sin(al) )
     rmat[2,1] =(-np.sin(be)*np.cos(al) )        
     rmat[2,2] =( np.cos(be) )
-        
     #___________________________________________________________________________
     return(rmat)
 
@@ -1859,40 +1980,40 @@ def grid_rotmat(abg):
 #
 #
 # ___COMPUTE3D CARTESIAN COORDINAT_____________________________________________
-def grid_cart3d(lon,lat,R=1.0, is_deg=False):
+def grid_cart3d(lon, lat, R=1.0, is_deg=False):
     """
     --> compute 3d cartesian coordinates from spherical geo coordinates (lon, lat, R=1.0)                                                           |
         
     Parameters: 
     
         :lon:       array, longitude coordinates in radians
-        
         :lat:       array, latitude coordinates in radians
-        
         :R:         float, (default=1.0), Radius of sphere
-        
         :is_deg:    bool, (default=False) is lon,lat in degree (True) otherwise 
                     otherwise (False) assumed its in radians
     
     Returns:
 
         :x:         array, x y z cartesian coordinates 
-        
         :y:         ...
-        
         :z:         ...
 
     """
-    if is_deg: 
-        rad = np.pi/180
-        lat = lat * rad
+    lon = np.asarray(lon)
+    lat = np.asarray(lat)
+    if is_deg:
         lon = lon * rad
-    
-    x = R*np.cos(lat) * np.cos(lon)
-    y = R*np.cos(lat) * np.sin(lon)
-    z = R*np.sin(lat)
+        lat = lat * rad
     #___________________________________________________________________________
-    return(x,y,z)
+    return njit_grid_cart3d(lon, lat, R)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_cart3d(lon_rad, lat_rad, R=1.0):
+    x = R * np.cos(lat_rad) * np.cos(lon_rad)
+    y = R * np.cos(lat_rad) * np.sin(lon_rad)
+    z = R * np.sin(lat_rad)
+    #___________________________________________________________________________
+    return(x, y, z)
 
 
 
@@ -1906,30 +2027,35 @@ def grid_r2g(abg, rlon, rlat):
     
     Parameters:
     
-        :abg:    list, with euler angles [alpha, beta, gamma]    
-
+        :abg:    list, with euler angles [alpha, beta, gamma]   
         :rlon:   array, longitude coordinates of sperical rotated frame in degree
-
         :rlat:   array,  latitude coordinates of sperical rotated frame in degree
 
     Returns: 
 
         :lon:    array, longitude coordinates in normal geo frame in degree
-
         :lat:    array, latitude coordinates in normal geo frame in degree
 
     """
+    rlon = np.asarray(rlon, dtype=np.float64)
+    rlat = np.asarray(rlat, dtype=np.float64)
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
     #___________________________________________________________________________
-    # build rotation matrix
-    rmat = grid_rotmat(abg)
-    rmat = np.linalg.pinv(rmat)
+    return njit_grid_r2g(al, be, ga, rlon, rlat)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_r2g(alpha_deg, beta_deg, gamma_deg, rlon_deg, rlat_deg):
+
+    #___________________________________________________________________________
+    # build inverse rotation matrix
+    rmat0= njit_grid_rotmat(alpha_deg, beta_deg, gamma_deg)
+    rmat = rmat0.T # --> inverse
 
     #___________________________________________________________________________
     # compute 3d cartesian coordinates
-    rad      = np.pi/180
-    rlat     = rlat * rad
-    rlon     = rlon * rad
-    xr,yr,zr = grid_cart3d(rlon,rlat)
+    rlat_rad   = rlat_deg * rad
+    rlon_rad   = rlon_deg * rad
+    xr, yr, zr = njit_grid_cart3d(rlon_rad, rlat_rad, 1.0)
     
     #___________________________________________________________________________
     # rotate to geographical cartesian coordinates:
@@ -1939,16 +2065,19 @@ def grid_r2g(abg, rlon, rlat):
     
     #___________________________________________________________________________
     # compute to geographical coordinates:
-    lon, lat = np.arctan2(yg,xg), np.arcsin(zg)        
-    lon, lat = lon/rad, lat/rad
+    lon_rad = np.arctan2(yg, xg)
+    lat_rad = np.arcsin(zg)   
+    lon_deg = lon_rad/rad 
+    lat_deg = lat_rad/rad
     
     #___________________________________________________________________________
-    return(lon,lat)
+    return(lon_deg, lat_deg)
+
 
 
 #
 #
-# ___ROTATE GRID FROM: GEO-->ROT_______________________________________________
+# ___ROTATE GRID FROM: GEO-->ROT________________________________________________
 def grid_g2r(abg, lon, lat):
     """
     --> compute grid rotation from normal geo frame towards sperical rotated
@@ -1969,16 +2098,23 @@ def grid_g2r(abg, lon, lat):
         :rlat:   array, latitude coordinates in sperical rotated frame in degree
     
     """
+    lon = np.asarray(lon, dtype=np.float64)
+    lat = np.asarray(lat, dtype=np.float64)
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
+    #___________________________________________________________________________
+    return njit_grid_g2r(al, be, ga, lon, lat)
+
+@njit(cache=True, fastmath=True)
+def njit_grid_g2r(alpha_deg, beta_deg, gamma_deg, lon_deg, lat_deg):
     #___________________________________________________________________________
     # build rotation matrix
-    rmat = grid_rotmat(abg)
+    rmat = njit_grid_rotmat(alpha_deg, beta_deg, gamma_deg)
     
     #___________________________________________________________________________
     # compute 3d cartesian coordinates
-    rad      = np.pi/180
-    lat      = lat * rad
-    lon      = lon * rad
-    xg,yg,zg = grid_cart3d(lon,lat)
+    lat_rad    = lat_deg * rad
+    lon_rad    = lon_deg * rad
+    xg, yg, zg = njit_grid_cart3d(lon_rad, lat_rad, 1.0)
 
     #___________________________________________________________________________
     # rotate to geographical cartesian coordinates:
@@ -1988,13 +2124,13 @@ def grid_g2r(abg, lon, lat):
 
     #___________________________________________________________________________
     # compute to geographical coordinates:
-    rlon = np.arctan2(yr,xr)     
-    rlat = np.arcsin(zr)        
-    rlon = rlon/rad
-    rlat = rlat/rad
+    rlon_rad = np.arctan2(yr,xr)     
+    rlat_rad = np.arcsin(zr)        
+    rlon_deg = rlon_rad/rad
+    rlat_deg = rlat_rad/rad
     
     #___________________________________________________________________________
-    return(rlon,rlat)
+    return(rlon_deg,rlat_deg)
 
 
 
@@ -2021,33 +2157,18 @@ def grid_focus(focus, rlon, rlat):
         :lat:   array, latitude in lon=[-180+focus...180+focus] frame in degree
 
     """
-    #___________________________________________________________________________
-    # build rotation matrix
-    abg = [-focus, 0, 0]
-    rmat = grid_rotmat(abg)
-    rmat = np.linalg.pinv(rmat)
-
-    #___________________________________________________________________________
-    # compute 3d cartesian coordinates
-    rad      = np.pi/180
-    rlat     = rlat * rad
-    rlon     = rlon * rad
-    xr,yr,zr = grid_cart3d(rlon,rlat)
-
-    #___________________________________________________________________________
-    # rotate to geographical cartesian coordinates:
-    xg=rmat[0,0]*xr + rmat[0,1]*yr + rmat[0,2]*zr;
-    yg=rmat[1,0]*xr + rmat[1,1]*yr + rmat[1,2]*zr;
-    zg=rmat[2,0]*xr + rmat[2,1]*yr + rmat[2,2]*zr;
-
-    #___________________________________________________________________________
-    # compute to geographical coordinates:
-    lon, lat = np.arctan2(yg,xg), np.arcsin(zg)        
-    lon, lat = lon/rad, lat/rad
-    lon      = lon + focus
+    rlon = np.asarray(rlon, dtype=np.float64)
+    rlat = np.asarray(rlat, dtype=np.float64)
+    al = -float(focus)
+    be = 0.0
+    ga = 0.0
     
     #___________________________________________________________________________
-    return(lon,lat)
+    lon_deg, lat_deg = njit_grid_r2g(al, be, ga, rlon, rlat)
+    lon_deg = lon_deg + focus
+    
+    #___________________________________________________________________________
+    return lon_deg, lat_deg
     
     
 
@@ -2086,88 +2207,273 @@ def vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False ):
     """
     #___________________________________________________________________________
     # create grid coorinates for geo and rotated frame
+    lon = np.asarray(lon, dtype=np.float64)
+    lat = np.asarray(lat, dtype=np.float64)
+    urot = np.asarray(urot, dtype=np.float64)
+    vrot = np.asarray(vrot, dtype=np.float64)
+    
     if any(x in gridis for x in ['geo','g','geographical']): 
         rlon, rlat = grid_g2r(abg, lon, lat)        
     elif any(x in gridis for x in ['rot','r','rotated']):     
         rlon, rlat = lon, lat 
-        lon,  lat  = grid_g2r(abg, rlon, rlat)
+        lon,  lat  = grid_r2g(abg, rlon, rlat)
     else:
         raise ValueError("The option gridis={} in vec_r2g is not supported.\n (only: 'geo','g','geographical', 'rot','r','rotated') ".format(str(gridis)))
     
     #___________________________________________________________________________
     # compute rotation matrix
-    rmat = grid_rotmat(abg)
-    rmat = np.linalg.pinv(rmat)
-    rad  = np.pi/180 
-
+    al, be, ga = float(abg[0]), float(abg[1]), float(abg[2])
+    rmat0 = njit_grid_rotmat(al, be, ga)
+    rmat  = rmat0.T
+    
     #___________________________________________________________________________
     # degree --> radian  
-    lon , lat  = lon*rad , lat*rad
-    rlon, rlat = rlon*rad, rlat*rad
+    lon_rad  = lon  * rad
+    lat_rad  = lat  * rad
+    rlon_rad = rlon * rad
+    rlat_rad = rlat * rad
     
     #___________________________________________________________________________
     # rotation of one dimensional vector data
-    if vrot.ndim==1 or urot.ndim==1: 
+    if   vrot.ndim==1 and urot.ndim==1: 
         if do_info: print('     > 1D rotation')
-        #_______________________________________________________________________
-        # compute vector in rotated cartesian coordinates
-        vxr = -vrot*np.sin(rlat)*np.cos(rlon) - urot*np.sin(rlon)
-        vyr = -vrot*np.sin(rlat)*np.sin(rlon) + urot*np.cos(rlon)
-        vzr =  vrot*np.cos(rlat)
-        
-        #_______________________________________________________________________
-        # compute vector in geo cartesian coordinates
-        vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
-        vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
-        vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
-        
-        #_______________________________________________________________________
-        # compute vector in geo coordinates 
-        vgeo= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
-        ugeo= vxg*-np.sin(lon) + vyg*np.cos(lon)
-        
-    #___________________________________________________________________________
-    # rotation of two dimensional vector data    
-    elif vrot.ndim==2 or urot.ndim==2: 
+    elif vrot.ndim==2 and urot.ndim==2: 
         if do_info: print('     > 2D rotation')
-        nd1,nd2=urot.shape
-        ugeo, vgeo = urot.copy(), vrot.copy()
-        if do_info: print('nlev:{:d}'.format(nd2))
-        for nd2i in range(0,nd2):
-            #___________________________________________________________________
-            if do_info: 
-                print('{:02d}|'.format(nd2i), end='')
-                if np.mod(nd2i+1,10)==0: print('')
-            
-            #___________________________________________________________________
-            t1=clock.time()
-            aux_urot, aux_vrot = urot[:,nd2i], vrot[:,nd2i]
-            
-            #___________________________________________________________________
-            # compute vector in rotated cartesian coordinates
-            t1=clock.time()
-            vxr = -aux_vrot*np.sin(rlat)*np.cos(rlon) - aux_urot*np.sin(rlon)
-            vyr = -aux_vrot*np.sin(rlat)*np.sin(rlon) + aux_urot*np.cos(rlon)
-            vzr =  aux_vrot*np.cos(rlat)
-            
-            #___________________________________________________________________
-            # compute vector in geo cartesian coordinates
-            t1=clock.time()
-            vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
-            vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
-            vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
-            
-            #___________________________________________________________________
-            # compute vector in geo coordinates 
-            t1=clock.time()
-            vgeo[:,nd2i]= vxg*-np.sin(lat)*np.cos(lon) - vyg* np.sin(lat)*np.sin(lon) + vzg* np.cos(lat)
-            ugeo[:,nd2i]= vxg*-np.sin(lon) + vyg*np.cos(lon)
-            
-    #___________________________________________________________________________    
-    else: raise ValueError('This number of dimensions is in moment not supported for vector rotation')    
+    elif vrot.ndim==3 and urot.ndim==3: 
+        if do_info: print('     > 3D rotation')
+    else: raise ValueError('This number of dimensions is in not supported for vector rotation \n' +
+                           ' or the number of dimensions between u and v does not match' )    
+    ugeo, vgeo = njit_vec_r2g_123d(rmat, lon_rad, lat_rad, rlon_rad, rlat_rad, urot, vrot)
+    
     #___________________________________________________________________________
     return(ugeo, vgeo)
 
+
+def dask_vec_r2g(abg, lon, lat, urot, vrot, gridis='geo', do_info=False):
+    """
+    --> In FESOM2 the vector variables are usually given in the rotated coordinate 
+    frame in which the model works and need to be rotated into normal geo    
+    coordinates, however in the latest FESOM2 version there is also the option that
+    they are rotated in the model via a flag. So make sure what applies to you                                                           
+    This version uses Dask for parallelization.
+    
+    Parameters:
+        
+        :abg:       list, with euler angles [alpha, beta, gamma]
+        
+        :lon:       array, longitude
+        
+        :lat:       array, latitude
+        
+        :urot:      array, zonal velocities in rotated frame
+        
+        :vrot:      array, meridional velocities in rotated frame
+        
+        :gridis:    str, in which coordinate frame are given lon, lat
+                    'geo','g','geographical': lon,lat is given in geo coordinates
+                    'rot','r','rotated'     : lon,lat is given in rot coordinates
+                    
+    Returns:
+    
+        :ugeo:      array, zonal velocities in normal geo frame
+        
+        :vgeo:      array, meridional velocities in normal geo frame
+    
+    """
+    # --- FAST PATH: if vector data is 1D, do NOT use Dask ---
+    if urot.ndim == 1:
+        #if do_info:
+        print("vec_r2g_dask: using fast direct numba kernel for 1D vector rotation")
+
+        # Convert all to numpy arrays
+        lon  = np.asarray(lon)
+        lat  = np.asarray(lat)
+        urot = np.asarray(urot)
+        vrot = np.asarray(vrot)
+        
+        # Compute rotated coordinate frame
+        if any(x in gridis for x in ['geo', 'g', 'geographical']):
+            rlon, rlat = grid_g2r(abg, lon, lat)
+        else:
+            rlon, rlat = lon, lat
+            lon, lat = grid_r2g(abg, rlon, rlat)
+
+        rad = np.pi / 180
+        lon_rad  = lon  * rad
+        lat_rad  = lat  * rad
+        rlon_rad = rlon * rad
+        rlat_rad = rlat * rad
+
+        rmat = grid_rotmat(abg).T  # inv rotation
+        
+        #t1 = clock.time()
+        
+        # DIRECT numba call → super fast
+        ugeo, vgeo = njit_vec_r2g_123d(rmat, lon_rad, lat_rad, rlon_rad, rlat_rad,
+                                       urot, vrot)
+            
+        #print(' elapsed time 1d fast', clock.time()-t1)
+        return ugeo, vgeo
+    
+    #___________________________________________________________________________
+    lon = np.asarray(lon)
+    lat = np.asarray(lat)
+    if lon.ndim != 1 or lat.ndim != 1:
+        raise ValueError("vec_r2g_dask: lon and lat must be 1D arrays (node coords).")
+    if lon.shape != lat.shape:
+        raise ValueError("vec_r2g_dask: lon and lat must have the same shape.")
+    npts = lon.size
+    
+    #___________________________________________________________________________
+    # create grid coorinates for geo and rotated frame
+    if any(x in gridis for x in ['geo', 'g', 'geographical']):
+        rlon, rlat = grid_g2r(abg, lon, lat)
+    elif any(x in gridis for x in ['rot', 'r', 'rotated']):
+        rlon, rlat = lon, lat
+        lon , lat  = grid_r2g(abg, rlon, rlat)
+    else:
+        raise ValueError(f"Unsupported gridis={gridis}, expected 'geo' or 'rot'.")
+
+    #___________________________________________________________________________
+    # compute rotation matrix
+    rmat0 = grid_rotmat(abg)
+    rmat  = rmat0.T
+    
+    #___________________________________________________________________________
+    # degree --> radian 
+    rad        = np.pi / 180  # Degree to radian conversion
+    lon_rad  = lon  * rad
+    lat_rad  = lat  * rad
+    rlon_rad = rlon * rad
+    rlat_rad = rlat * rad
+    
+    #___________________________________________________________________________
+    # 5. Ensure urot, vrot are dask arrays and chunked only in non-node dims
+    u_da = da.asarray(urot)
+    v_da = da.asarray(vrot)
+
+    if u_da.shape != v_da.shape:
+        raise ValueError("vec_r2g_dask: urot and vrot must have the same shape.")
+
+    if u_da.shape[-1] != npts:
+        raise ValueError("vec_r2g_dask: last dimension of urot/vrot ({}) "
+                         "must match len(lon)=={} as node dimension."
+                        .format(u_da.shape[-1], npts))
+
+    ## Rechunk so that the last axis (nodes) is a single chunk of length npts
+    ## and we only split along time/depth axes
+    #chunks = list(u_da.chunks)
+    ## Replace last-dim chunks with a single chunk spanning all nodes
+    #chunks[-1] = (npts,)
+    #u_da = u_da.rechunk(chunks)
+    #v_da = v_da.rechunk(chunks)
+
+    if do_info:
+        print("vec_r2g_dask:")
+        print("  u/v shape :", u_da.shape)
+        print("  chunks    :", u_da.chunks)
+        print("  npts      :", npts)
+    
+    #___________________________________________________________________________
+    # Block function: calls the numba kernel on each Dask block
+    # NOTE: lon/lat/rmat are closed over as NumPy objects
+    def _block(u_block, v_block):
+        ugeo_block, vgeo_block = njit_vec_r2g_123d(
+            rmat, lon_rad, lat_rad, rlon_rad, rlat_rad,
+            u_block, v_block
+        )
+        return np.stack((ugeo_block, vgeo_block), axis=0)  # (2, ...)
+
+    #___________________________________________________________________________
+    # Use map_blocks: output has an extra leading axis (2, ...)
+    stacked = da.map_blocks(_block, u_da, v_da, dtype=u_da.dtype,
+                            chunks=( (2,), ) + u_da.chunks,
+                            new_axis=0,
+                            )
+    ugeo_da = stacked[0]
+    vgeo_da = stacked[1]
+    #___________________________________________________________________________
+    return ugeo_da, vgeo_da
+
+
+@njit(cache=True, fastmath=True)
+def njit_vec_r2g_0d(rmat, 
+                    sin_lat , cos_lat , sin_lon , cos_lon ,
+                    sin_rlat, cos_rlat, sin_rlon, cos_rlon, 
+                    urot, vrot):
+    
+    # rotated cartesian components
+    vxr = -vrot*sin_rlat*cos_rlon - urot*sin_rlon
+    vyr = -vrot*sin_rlat*sin_rlon + urot*cos_rlon
+    vzr =  vrot*cos_rlat
+
+    # geo cartesian
+    vxg = rmat[0,0]*vxr + rmat[0,1]*vyr + rmat[0,2]*vzr
+    vyg = rmat[1,0]*vxr + rmat[1,1]*vyr + rmat[1,2]*vzr
+    vzg = rmat[2,0]*vxr + rmat[2,1]*vyr + rmat[2,2]*vzr
+
+    # back to lon/lat components
+    vgeo = (- vxg*sin_lat*cos_lon 
+            - vyg*sin_lat*sin_lon 
+            + vzg*cos_lat)
+    ugeo = (- vxg*sin_lon
+            + vyg*cos_lon)
+    
+    #___________________________________________________________________________
+    return ugeo, vgeo
+
+@njit(cache=True, fastmath=True)
+def njit_vec_r2g_123d(rmat, lon_rad, lat_rad,
+                      rlon_rad, rlat_rad,
+                      urot, vrot):
+
+    ndim = urot.ndim
+
+    # __________________________________________________________________________
+    # precompute trig values (1D arrays)
+    sin_lat  = np.sin(lat_rad);  cos_lat  = np.cos(lat_rad)
+    sin_lon  = np.sin(lon_rad);  cos_lon  = np.cos(lon_rad)
+    sin_rlat = np.sin(rlat_rad); cos_rlat = np.cos(rlat_rad)
+    sin_rlon = np.sin(rlon_rad); cos_rlon = np.cos(rlon_rad)
+
+    #___________________________________________________________________________
+    # 1 Dimensional urot, vrot = [npts] 
+    if ndim == 1:
+        ugeo, vgeo = njit_vec_r2g_0d(rmat,
+                                     sin_lat , cos_lat , sin_lon , cos_lon ,
+                                     sin_rlat, cos_rlat, sin_rlon, cos_rlon,
+                                     urot, vrot)
+        return ugeo, vgeo
+    #___________________________________________________________________________
+    # 2 Dimensional urot, vrot = [nlev, npts] 
+    elif ndim == 2:
+        nd, npts = urot.shape
+        ugeo = np.empty_like(urot)
+        vgeo = np.empty_like(vrot)
+        for di in range(nd):
+            ugeo[di,:], vgeo[di,:] = njit_vec_r2g_0d(
+                                                    rmat,
+                                                    sin_lat , cos_lat , sin_lon , cos_lon ,
+                                                    sin_rlat, cos_rlat, sin_rlon, cos_rlon,
+                                                    urot[di,:], vrot[di,:])
+        return ugeo, vgeo
+    #___________________________________________________________________________
+    # 3 Dimensional urot, vrot = [ntime, nlev, npts] 
+    elif ndim == 3:
+        nt, nd, npts = urot.shape
+        ugeo = np.empty_like(urot)
+        vgeo = np.empty_like(vrot)
+        for ti in range(nt):
+            for di in range(nd):
+                ugeo[ti, di, :], vgeo[ti, di, :] = njit_vec_r2g_0d(
+                                                    rmat,
+                                                    sin_lat , cos_lat , sin_lon , cos_lon ,
+                                                    sin_rlat, cos_rlat, sin_rlon, cos_rlon,
+                                                    urot[ti, di, :], vrot[ti, di, :])
+        return ugeo, vgeo
+    #___________________________________________________________________________
+    else: raise ValueError("invalid ndim")
+   
 
 
 #
@@ -2258,7 +2564,7 @@ def grid_cutbox_n(n_x, n_y, box):# , do_outTF=False):
 # ___INTERPOLATE FROM ELEMENTS TO VERTICES_____________________________________
 #|                                                                             |
 #|_____________________________________________________________________________|
-def grid_interp_e2n(mesh,data_e):
+def grid_interp_e2n(mesh, data_e, data_e2=None, client=None):
     """
     --> interpolate data from elements to vertices e.g velocity from elements to 
     velocity on nodes
@@ -2267,7 +2573,11 @@ def grid_interp_e2n(mesh,data_e):
     
         :mesh: fesom2 mesh object
         
-        :data_e: np.array with datas on elements either 2d or 3d 
+        :data_e: np.array with datas on elements either 2d or 3d
+        
+        :data_e2: np.array optional for vector data
+        
+        :client: provide load dask client
         
     Returns:
     
@@ -2278,65 +2588,509 @@ def grid_interp_e2n(mesh,data_e):
     # compute area weights if not already exist    
     mesh = mesh.compute_e_area()
     mesh = mesh.compute_n_area()
+    e_i    = np.ascontiguousarray(mesh.e_i, dtype=np.int32)
+    e_area = np.ascontiguousarray(mesh.e_area, dtype=np.float32)
+    data_e = np.ascontiguousarray(data_e, dtype=np.float32)
         
-    #___________________________________________________________________________    
+    #___________________________________________________________________________   
+    # do ie2n for 1d data [nelem]
+    t0= clock.time()
     if data_e.ndim==1:
-        
-        # compute data on elements times area of elements
-        data_exa = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)) * data_e
-        data_exa = data_exa.transpose().flatten()
-        
-        # single loop over self.e_i.flat is ~4 times faster than douple loop 
-        # over for i in range(3): ,for j in range(self.n2de):
-        data_n = np.zeros(mesh.n2dn)
-        for e_i, n_i in enumerate(mesh.e_i.flat): data_n[n_i] = data_n[n_i] + data_exa[e_i]
-        data_n=data_n/mesh.n_area[0,:]/3.0        
-        del data_exa
-        
-    #___________________________________________________________________________        
+        if data_e2 is None:
+            data_n, _       = njit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e)
+            print(' > jit 1d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )
+        else:
+            data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
+            data_n, data_n2 = njit_ie2n_1d(mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2)
+            print(' > jit 1d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )
+    
+    #___________________________________________________________________________  
+    # do ie2n for 2d data [ndi, nelem]
     elif data_e.ndim==2:
-        
-        nd        = data_e.shape[1]
-        data_n    = np.zeros((mesh.n2dn, nd))
-        data_area = np.vstack((mesh.e_area,mesh.e_area,mesh.e_area)).transpose().flatten()
-        
-        #_______________________________________________________________________
-        def e2n_di(di, data_e, area_e, e_i_flat, n_iz):
-            data_exa  = area_e * np.vstack((data_e[:,di],data_e[:,di],data_e[:,di])).transpose().flatten()
-            data_n_di = np.zeros(n_iz.shape)
-            data_a_di = np.zeros(n_iz.shape)
-        
-            # single loop over self.e_i.flat is ~4 times faster than douple loop 
-            # over for i in range(3): ,for j in range(self.n2de):
-            for e_i, n_i in enumerate(e_i_flat):
-                if n_iz[n_i]<di: continue
-                data_n_di[n_i] = data_n_di[n_i] + data_exa[ e_i]
-                data_a_di[n_i] = data_a_di[n_i] + area_e[   e_i]
-            with np.errstate(divide='ignore',invalid='ignore'):    
-                data_n_di = data_n_di/data_a_di
-            return(data_n_di)
-        
-        #_______________________________________________________________________
-        #t1 = clock.time()
-        #for di in range(0,nd):
-            #data_n[:, di] = e2n_di(di, data_e, aux1, mesh.e_i.flatten(), mesh.n_iz) 
-        #print(clock.time()-t1)
-        
-        t1 = clock.time()
-        from joblib import Parallel, delayed
-        results = Parallel(n_jobs=20)(delayed(e2n_di)(di, data_e, data_area, mesh.e_i.flatten(), mesh.n_iz) for di in range(0,nd))
-        data_n = np.vstack(results).transpose()
-        print(' --> elapsed time:', clock.time()-t1)
-        
+        nd       = data_e.shape[0]
+        blocksize= np.int32(12) # --> fixed vertical block size for dask 
+        if data_e2 is None:
+            data_n, _       = dask_njit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
+                                               client=client, blocksize=blocksize)
+            print(' 2d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
+        else:
+            data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
+            data_n, data_n2 = dask_njit_ie2n_2d(nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
+                                               client=client, blocksize=blocksize)
+            print(' 2d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
+            
+    #___________________________________________________________________________  
+    # do ie2n for 3d data [nti, ndi, nelem]
+    elif data_e.ndim==3:
+        nt       = data_e.shape[0]
+        nd       = data_e.shape[1]
+        blocksize= np.int32(12) # --> fixed vertical block size for dask 
+        if data_e2 is None:
+            data_n, _       = dask_njit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, 
+                                               client=client, blocksize=blocksize)
+            print(' 3d ie2n sca elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
+        else:
+            data_e2 = np.ascontiguousarray(data_e2, dtype=np.float32)
+            data_n, data_n2 = dask_njit_ie2n_3d(nt, nd, mesh.n2dn, mesh.n2de, mesh.e_i, e_area, data_e, data_e2, 
+                                               client=client, blocksize=blocksize)
+            print(' 3d ie2n vec elapsed time: {:2.3f} sec.'.format( clock.time()-t0) )      
+            
     #___________________________________________________________________________
-    return(data_n)
+    if data_e2 is None: return(data_n)
+    else              : return(data_n, data_n2)
+
+
+
+#
+#
+#_______________________________________________________________________________
+# inline numba protype caller routine to acumulate data from elem --> nodes
+@njit(inline='always', cache=True, fastmath=True)
+def njit_ie2n_accum(n2dn, n2de, e_i, e_area, data_e):
+    """
+    Accumulate area muliplied data from elements to nodes
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    """
+    
+    # this is for element blockwise treatment
+    if n2de==0: n2de = e_i.shape[0] 
+    data_n  = np.zeros(n2dn, dtype=np.float32)
+    for ii in range(n2de): 
+        v  = data_e[ii]
+        # check for land sea mask it can be either 0.0 or NaN,  v == v --> fastest NaN check
+        if (v == v) and (v != 0.0):          
+            # elem --> vertices indices
+            i0 = e_i[ii, 0]
+            i1 = e_i[ii, 1]
+            i2 = e_i[ii, 2]
+            
+            # compute elem area weighted data
+            a  = e_area[ii]
+            v  *= a 
+            
+            # data_e*e_area on vertice
+            data_n[ i0] += v 
+            data_n[ i1] += v
+            data_n[ i2] += v
+    #___________________________________________________________________________
+    return(data_n)       
+
+
+
+#
+#
+#_______________________________________________________________________________
+# inline numba protype caller routine to acumulate data from elem --> nodes
+@njit(inline='always', cache=True, fastmath=True)
+def njit_ie2n_accum_2d(nd, n2dn, n2de, e_i, e_area, data_e):
+    """
+    Accumulate area muliplied data from elements to nodes
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    """
+    
+    # this is for element blockwise treatment
+    if n2de==0: n2de = e_i.shape[0] 
+    data_n  = np.zeros((nd, n2dn), dtype=np.float32)
+        
+    # depth loop
+    for di in range(nd):
+        
+        for ii in range(n2de): 
+            v  = data_e[di, ii]
+            # check for land sea mask it can be either 0.0 or NaN,  v == v --> fastest NaN check
+            if (v == v) and (v != 0.0):          
+                # elem --> vertices indices
+                i0 = e_i[ii, 0]
+                i1 = e_i[ii, 1]
+                i2 = e_i[ii, 2]
+                
+                # compute elem area weighted data
+                a  = e_area[ii]
+                v  *= a 
+                
+                # data_e*e_area on vertice
+                data_n[di, i0] += v 
+                data_n[di, i1] += v
+                data_n[di, i2] += v
+    #___________________________________________________________________________
+    return(data_n)      
+
+
+
+#
+#
+#_______________________________________________________________________________
+# inline numba protype caller routine to acumulate data from elem --> nodes
+@njit(inline='always', cache=True, fastmath=True)
+def njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area, data_e, data_e2, out_n, out_n2, out_a, use2var):
+    """
+    Accumulate area muliplied data from elements to nodes
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    data_e2: (n2de,) float32  secondary variable (ignored if use2var=False)
+    out_n  : (n2dn,) float32  accumulated data_e*area
+    out_n2 : (n2dn,) float32  accumulated data_e2*area (or dummy)
+    out_a  : (n2dn,) float32  accumulated area per node
+    use2var: bool to use 1 or 2 variables as input 
+    """
+    
+    # this is for element blockwise treatment
+    if n2de==0: n2de = e_i.shape[0] 
+    
+    for ii in range(n2de): 
+        v  = data_e[ii]
+        # check for land sea mask it can be either 0.0 or NaN,  v == v --> fastest NaN check
+        if (v == v) and (v != 0.0):          
+            # elem --> vertices indices
+            i0 = e_i[ii, 0]
+            i1 = e_i[ii, 1]
+            i2 = e_i[ii, 2]
+            
+            # compute elem area weighted data
+            a  = e_area[ii]
+            v  *= a 
+            
+            # data_e*e_area on vertice
+            out_n[ i0] += v 
+            out_n[ i1] += v
+            out_n[ i2] += v
+            
+            # accumulated elem area  per vertice
+            out_a[ i0] += a
+            out_a[ i1] += a
+            out_a[ i2] += a
+            
+            # data2*e_area on vertice
+            if use2var:
+                v2 = data_e2[ii]*a
+                out_n2[i0] += v2
+                out_n2[i1] += v2
+                out_n2[i2] += v2
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 1 Dimensional numba optimized elem --> node interpolation for single variable 
+# and vector variable 
+@njit(cache=True, fastmath=True)
+def njit_ie2n_1d(n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+    """
+    compute area weighted mean from elements to nodes in 1Dimension
+
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (n2de,) float32  primary variable
+    data_e2: (n2de,) float32  secondary variable (ignored if use2var=False)
+    """
+    
+    # Determine if we have 2nd variable and # Create a dummy array so worker 
+    # always receives arrays
+    use2var = data_e2 is not None
+    if not use2var: data_e2 = np.zeros(2, dtype=np.float32) # just a dummy filler array if data_e2=None
+      
+    data_n  = np.zeros(n2dn, dtype=np.float32)
+    data_a  = np.zeros(n2dn, dtype=np.float32)
+    if not use2var: data_n2 = np.zeros(2   , dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : data_n2 = np.zeros(n2dn, dtype=np.float32)
+    
+    # compute data * area  per node
+    njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area,
+                           data_e, data_e2,
+                           data_n, data_n2, data_a, use2var)
+    
+    # compute area weighted mean on nodes 
+    for ii in range(n2dn):
+        a = data_a[ii]
+        if a > 0.0:
+            data_n[ ii] /= a
+            if use2var: data_n2[ii] /= a
+        else:
+            data_n[ ii] = np.nan
+            if use2var: data_n2[ii] = np.nan
+    #___________________________________________________________________________
+    return(data_n, data_n2)
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 2 Dimensional numba optimized elem --> node interpolation for single variable 
+# and vector variable 
+@njit(cache=True, fastmath=True)
+def njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension
+    
+    nd     : #depth levels
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (nd, n2de,) float32  primary variable
+    data_e2: (nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    """
+    
+    # Determine if we have 2nd variable and # Create a dummy array so worker 
+    # always receives arrays
+    use2var = data_e2 is not None
+    if not use2var: data_e2 = np.zeros((nd, 2), dtype=np.float32) # just a dummy filler array if data_e2=None
+    
+    data_n  = np.zeros((nd, n2dn), dtype=np.float32)
+    if not use2var: data_n2 = np.zeros((nd, 2   ), dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : data_n2 = np.zeros((nd, n2dn), dtype=np.float32)
+    
+    # auxilary arrays for each depth 
+    di_n  = np.zeros(n2dn, dtype=np.float32)
+    di_a  = np.zeros(n2dn, dtype=np.float32)
+    if not use2var: di_n2 = np.zeros(2   , dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : di_n2 = np.zeros(n2dn, dtype=np.float32)
+        
+    # depth loop
+    for di in range(nd):
+        
+        # faster than np.zeros within the loop 
+        for ni in range(n2dn):
+            di_n[ ni] = 0.0
+            di_a[ ni] = 0.0
+            if use2var: di_n2[ ni] = 0.0
+        
+        # compute data * area  per node and depth
+        njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area,
+                               data_e[di,:], data_e2[di,:],
+                               di_n, di_n2, di_a, use2var)
+        
+        # compute area weighted mean on nodes and depth
+        for ii in range(n2dn):
+            a = di_a[ii]
+            if a > 0.0:
+                data_n[ di, ii] = di_n[ ii] / a
+                if use2var: data_n2[di, ii] = di_n2[ii] / a
+            else:
+                data_n[ di, ii] = np.nan
+                if use2var: data_n2[di, ii] = np.nan
+    #___________________________________________________________________________
+    return data_n, data_n2
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 3 Dimensional numba optimized elem --> node interpolation for single variable 
+# and vector variable 
+@njit(cache=True, fastmath=True)
+def njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension
+    
+    nt     : #time slices
+    nd     : #depth levels
+    n2dn   : #nodes
+    n2de   : #elements
+    e_i    : (n2de, 3) int32  element->node connectivity
+    e_area : (n2de,) float32  element areas
+    data_e : (nt, nd, n2de,) float32  primary variable
+    data_e2: (nt, nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    """
+    
+    # Determine if we have 2nd variable and # Create a dummy array so worker 
+    # always receives arrays
+    use2var = data_e2 is not None
+    if not use2var: data_e2 = np.zeros((nt, nd, 2), dtype=np.float32) # just a dummy filler array if data_e2=None
+    
+    data_n  = np.zeros((nt, nd, n2dn), dtype=np.float32)
+    if not use2var: data_n2 = np.zeros((nt, nd, 2   ), dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : data_n2 = np.zeros((nt, nd, n2dn), dtype=np.float32)
+    
+    # auxilary arrays for each depth 
+    di_n  = np.zeros(n2dn, dtype=np.float32)
+    di_a  = np.zeros(n2dn, dtype=np.float32)
+    if not use2var: di_n2 = np.zeros(2   , dtype=np.float32) # just a dummy filler array if data_e2=None
+    else          : di_n2 = np.zeros(n2dn, dtype=np.float32)
+    
+    # time loop
+    for ti in range(nt):
+        
+        # depth loop
+        for di in range(nd):
+            
+            # faster than np.zeros within the loop 
+            for ni in range(n2dn):
+                di_n[ ni] = 0.0
+                di_a[ ni] = 0.0
+                if use2var: di_n2[ ni] = 0.0
+            
+            # compute data * area  per node and depth
+            njit_ie2n_accum_inline(n2dn, n2de, e_i, e_area,
+                                   data_e[ti, di,:], data_e2[ti, di,:],
+                                   di_n, di_n2, di_a, use2var)
+            
+            # compute area weighted mean on nodes and depth
+            for ii in range(n2dn):
+                a = di_a[ii]
+                if a > 0.0:
+                    data_n[ti, di, ii] = di_n[ ii] / a
+                    if use2var: data_n2[ti, di, ii] = di_n2[ii] / a
+                else:
+                    data_n[ti, di, ii] = np.nan
+                    if use2var: data_n2[ti, di, ii] = np.nan
+    #___________________________________________________________________________
+    return data_n, data_n2
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 2 Dimensional wrapped numba/dask optimized elem --> node interpolation for single variable 
+# and vector variable. The ie2n interpolation is parallelized with dask 
+# over the vertical dimension if a dask client is present
+def dask_njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
+                     client=None, blocksize=16):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension using dask 
+    wrapper to parallelize the vertical dimension
+    
+    nd        : #depth levels
+    n2dn      : #nodes
+    n2de      : #elements
+    e_i       : (n2de, 3) int32  element->node connectivity
+    e_area    : (n2de,) float32  element areas
+    data_e    : (nd, n2de,) float32  primary variable
+    data_e2   : (nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    client    : None or dask.client
+    blocksize : 16 vertical parallel blocksize
+    """
+    
+    # No Dask client → fallback to single-core numba version
+    if client is None:
+        print(' > use jit', end='')
+        return njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    # If nd small, Dask overhead not worth it
+    if nd <= blocksize:
+        print(' > use jit', end='')
+        return njit_ie2n_2d(nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    print(' > use dask/jit', end='')
+    # ---- Submit blocks ----
+    futures = []
+    for start in range(0, nd, blocksize):
+        end = min(start + blocksize, nd)
+        nd_block = end-start    
+        block_e  = data_e[start:end, :].copy()
+        block_e2 = None if data_e2 is None else data_e2[start:end, :].copy()
+
+        fut = client.submit(njit_ie2n_2d ,
+                            nd_block, n2dn, n2de, e_i, e_area, block_e, block_e2,
+                            pure=False
+                            )
+        futures.append((start, end, fut))
+
+    # ---- Assemble output ----
+    data_n  = np.zeros((nd, n2dn), dtype=np.float32)
+    data_n2 = None
+    use2var = data_e2 is not None
+    if use2var: data_n2 = np.zeros((nd, n2dn), dtype=np.float32)
+
+    for start, end, fut in futures:
+        dn_block, dn2_block = fut.result()
+        data_n[start:end, :] = dn_block
+        if use2var: data_n2[start:end, :] = dn2_block
+    #___________________________________________________________________________
+    return data_n, data_n2
+
+
+
+#
+#
+#_______________________________________________________________________________
+# 3 Dimensional wrapped numba/dask optimized elem --> node interpolation for single variable 
+# and vector variable. The ie2n interpolation is parallelized with dask 
+# over the vertical dimension if a dask client is present
+def dask_njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2=None, 
+                     client=None, blocksize=16):
+    """
+    compute area weighted mean from elements to nodes in 2Dimension using dask 
+    wrapper to parallelize the vertical dimension
+    
+    nt        : #time slices
+    nd        : #depth levels
+    n2dn      : #nodes
+    n2de      : #elements
+    e_i       : (n2de, 3) int32  element->node connectivity
+    e_area    : (n2de,) float32  element areas
+    data_e    : (nt, nd, n2de,) float32  primary variable
+    data_e2   : (nt, nd, n2de,) float32  secondary variable (ignored if use2var=False)
+    client    : None or dask.client
+    blocksize : 16 vertical parallel blocksize
+    """
+    
+    # No Dask client → fallback to single-core numba version
+    if client is None:
+        print(' > use jit', end='')
+        return njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    # If nd small, Dask overhead not worth it
+    if nd <= blocksize:
+        print(' > use jit', end='')
+        return njit_ie2n_3d(nt, nd, n2dn, n2de, e_i, e_area, data_e, data_e2)
+
+    print(' > use dask/jit', end='')
+    
+    # allocate 
+    data_n  = np.zeros((nt, nd, n2dn), dtype=np.float32)
+    use2var = data_e2 is not None
+    data_n2 = np.zeros((nt, nd, n2dn), dtype=np.float32) if use2var else None
+        
+    # parallelized loop over depth 
+    futures = []
+    for start in range(0, nd, blocksize):
+        end = min(start + blocksize, nd)
+        nd_block = end-start    
+        block_e  = data_e[:, start:end, :].copy()
+        block_e2 = None if data_e2 is None else data_e2[:, start:end, :].copy()
+            
+        fut = client.submit(njit_ie2n_3d,
+                            nt, nd_block, n2dn, n2de, e_i, e_area, block_e, block_e2,
+                            pure=False
+                            )
+        futures.append((start, end, fut))
+        
+    # gather block together´
+    for start, end, fut in futures:
+        dn_block, dn2_block = fut.result()
+        data_n[:, start:end, :] = dn_block
+        if use2var: data_n2[:, start:end, :] = dn2_block
+    #___________________________________________________________________________
+    return data_n, data_n2
 
 
 
 #
 #
 # ___COMPUTE BOUNDARY EDGES____________________________________________________
-def compute_boundary_edges(e_i):
+@njit(cache=True)
+def njit_compute_boundary_edges(e_i):
     """
     --> compute edges that have only one adjacenbt triangle
     
@@ -2349,63 +3103,696 @@ def compute_boundary_edges(e_i):
         :bnde:
     
     """
-    # set boundary depth to zero
-    edge    = np.concatenate((e_i[:,[0,1]], e_i[:,[0,2]], e_i[:,[1,2]]),axis=0)
-    edge    = np.sort(edge,axis=1) 
-        
-    ## python  sortrows algorythm --> matlab equivalent
-    edge    = edge.tolist()
-    edge.sort()
-    edge    = np.array(edge)
-        
-    idx     = np.diff(edge,axis=0)==0
-    idx     = np.all(idx,axis=1)
-    idx     = np.logical_or(np.concatenate((idx,np.array([False]))),\
-                            np.concatenate((np.array([False]),idx)))
-
-    # all edges that belong to boundary own jsut one triangle 
-    bnde    = edge[idx==False,:]
     
-    return(bnde)
+    # create dict: link int64 keys -> int64 values
+    edge_count = Dict.empty(key_type=types.int64, value_type=types.int64)
+
+    #___________________________________________________________________________
+    # build edges and count occurrences
+    n2de = e_i.shape[0]
+    for ii in range(n2de):
+        
+        # vertice indices of triangle 
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # form edges --> smallest vertice index first
+        if a < b: edp11, edp12 = a, b
+        else    : edp11, edp12 = b, a
+        
+        if a < c: edp21, edp22 = a, c
+        else    : edp21, edp22 = c, a
+        
+        if b < c: edp31, edp32 = b, c
+        else    : edp31, edp32 = c, b
+        
+        # trick here: 64-bit packed keys:
+        # you originally needed to store an edge as: (low, high) tuple But Numba 
+        # has trouble with tuple keys. The workaround is to encode the pair into 
+        # a single integer.
+        # Given: 
+        #   low0  = the smaller node index
+        #   high0 = the larger node index
+        #
+        # We create a single 64-bit value: key0 = (low0 << 32) | high0
+        #  low0 << 32       This shifts all bits of low0 32 bits to the left
+        #  | high0          is bitwise OR. This fills the lower 32 bits with high0
+        #
+        # So the packed format becomes:  
+        #   key = (low << 32) + high
+        # This is reversible and unique as long as low and high are ≤ 2^32−1 
+        # (which they are for all FESOM nodes).   
+        #
+        # We reverse the process:
+        #   low  = key >> 32            shifts everything down → gets low
+        #   high = key & 0xffffffff     key & 0xffffffff masks the lower 32 bits → gets high
+        # 
+        key0 = (edp11 << 32) | edp12
+        key1 = (edp21 << 32) | edp22
+        key2 = (edp31 << 32) | edp32
+
+        # count edge occurence. If its inner edge, edge_count==2 if its boundary 
+        # edge edge count should be 1
+        edge_count[key0] = edge_count.get(key0, 0) + 1
+        edge_count[key1] = edge_count.get(key1, 0) + 1
+        edge_count[key2] = edge_count.get(key2, 0) + 1
+
+    #___________________________________________________________________________
+    # compute exact number of boundary edges to allocate boundary edge array 
+    # properly
+    nbnde = 0
+    for _, cnt in edge_count.items():
+        if cnt == 1: nbnde += 1
+    bnde = np.empty((nbnde, 2), np.int64)
+    
+    #___________________________________________________________________________
+    # fill up boundary edge array
+    k = 0
+    for key, cnt in edge_count.items():
+        # whereever edge_count==1 must be boundary edge
+        if cnt == 1:
+            
+            # extract vertice indices from 64-bit packed keys
+            edp1 = key >> 32
+            edp2 = key & 0xffffffff
+            
+            # write boundary edge vertice indices into boundary edge array
+            bnde[k, 0] = edp1
+            bnde[k, 1] = edp2
+            k += 1
+    #___________________________________________________________________________
+    return bnde
 
 
 
 #
 #
-# ___COMPUTE LIST/ARRAY NODE_IN_ELEM____________________________________________
-def compute_nod_in_elem2D(n2dn, e_i, do_arr=False):
+# ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
+@njit(cache=True)
+def njit_compute_n_nghbr_e(e_i):
     """
-    --> compute element indices list that contribute to cetain vertice
-    
+    --> compute element indices list that contribute to cetain vertice, determine
+        vertice neighborhood with respect to elements
+        
     Parameters:
     
-        :n2dn:      int, number of vertices
         :e_i:       np.array([n2de x 3]), elemental array
-        :do_arr:    bool (default=False) shut output be list or numpy array
     
     Returns:
     
-        :nod_in_elem2D:
+        :nINe:
+        :nINe_num:
     
     """
-    t1=clock.time()
-    # allocate list of size n2dn, create independent empty lists for each entry, 
-    nod_in_elem2D     = [[] for _ in range(n2dn)]
-    nod_in_elem2D_num = [0]*n2dn
+    n2de = e_i.shape[0]
+    n2dn = np.max(e_i) + 1
     
-    # append element index to each vertice list entry where it appears
-    for e_i, n_i in enumerate(e_i.flatten()): 
-        nod_in_elem2D[    n_i].append(np.int32(e_i/3))
-        nod_in_elem2D_num[n_i] += 1
+    #___________________________________________________________________________
+    # compute maximum number of elements that contribute to node
+    nINe_num = np.zeros(n2dn, dtype=np.int32)
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        nINe_num[a] += 1
+        nINe_num[b] += 1
+        nINe_num[c] += 1
+
+    # max number of elements connected to any node
+    max_nINe_num = np.max(nINe_num)
+
+    #___________________________________________________________________________
+    # allocate node in elem output array, initilaise with -1
+    n_nghbr_e = -1 * np.ones((n2dn, max_nINe_num), dtype=np.int32)
+
+    # pointer array to track next insertion pos per node
+    pos_fill = np.zeros(n2dn, dtype=np.int32)
+
+    #___________________________________________________________________________
+    # fill in node in elem array, use filling pointer to keep track of fill in 
+    # position
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # take out fill position 
+        pa = pos_fill[a]
+        pb = pos_fill[b]
+        pc = pos_fill[c]
+        
+        # fill node in elem position with elem index
+        n_nghbr_e[a, pa] = ii
+        n_nghbr_e[b, pb] = ii
+        n_nghbr_e[c, pc] = ii
+        
+        # count up fill position
+        pos_fill[a] = pa + 1
+        pos_fill[b] = pb + 1
+        pos_fill[c] = pc + 1
+    #___________________________________________________________________________
+    return n_nghbr_e, nINe_num
+
+
+
+#
+#
+# ___COMPUTE ELEM NEIGHBORHOOD WITH RESPECT TO ELEMENTS_________________________
+@njit(cache=True)
+def njit_compute_e_nghbr_e(e_i):
+    """
+    --> compute element indices list that contribute to cetain element, determine
+        elem neighborhood with respect to elements
+        
+    Parameters:
     
-    # convert list into numpy array
-    if do_arr:
-        nod_in_elem2D_arr = np.full((n2dn, max(nod_in_elem2D_num)), -1, dtype=np.int32)
-        for ii, lst_ii in enumerate(nod_in_elem2D):
-            nod_in_elem2D_arr[ii, :len(lst_ii)] = lst_ii
-        nod_in_elem2D = nod_in_elem2D_arr    
-        print(' --> elapsed time for nod_in_elem2D:', clock.time()-t1)
-        return(nod_in_elem2D, nod_in_elem2D_num)
-    else:   
-        print(' --> elapsed time for nod_in_elem2D:', clock.time()-t1)
-        return(nod_in_elem2D)
+        :e_i:       np.array([n2de x 3]), elemental array
+    
+    Returns:
+    
+        :e_nghbr_e:
+        :eINe_num:
+    
+    """
+    #___________________________________________________________________________
+    # allocate
+    n2de = e_i.shape[0]   
+    nedg = 3 * n2de
+    key  = np.empty(nedg, dtype=np.int64)
+    elem = np.empty(nedg, dtype=np.int32)
+    
+    #___________________________________________________________________________
+    # loop over elements
+    kk = 0
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # trick here: 64-bit packed keys:
+        # you originally needed to store an edge as: (low, high) tuple But Numba 
+        # has trouble with tuple keys. The workaround is to encode the pair into 
+        # a single integer.
+        # Given: 
+        #   low0  = the smaller node index
+        #   high0 = the larger node index
+        #
+        # We create a single 64-bit value: key0 = (low0 << 32) | high0
+        #  low0 << 32       This shifts all bits of low0 32 bits to the left
+        #  | high0          is bitwise OR. This fills the lower 32 bits with high0
+        #
+        # So the packed format becomes:  
+        #   key = (low << 32) + high
+        # This is reversible and unique as long as low and high are ≤ 2^32−1 
+        # (which they are for all FESOM nodes).   
+        #
+        # We reverse the process:
+        #   low  = key >> 32            shifts everything down → gets low
+        #   high = key & 0xffffffff     key & 0xffffffff masks the lower 32 bits → gets high
+        # 
+        # sorted edges a<b<c, create unique edge key based on node indexes that 
+        # build up the edge, i have three edges --> create three keys k1,k2,k3
+        # edge 0–1
+        
+        # edge a-b
+        if a < b: key[kk] = (a << 32) | b
+        else:     key[kk] = (b << 32) | a
+        elem[kk] = ii
+        kk += 1
+        
+        # edge a-c
+        if a < c: key[kk] = (a << 32) | c
+        else:     key[kk] = (c << 32) | a
+        elem[kk] = ii
+        kk += 1
+        
+        # edge b-c
+        if b < c: key[kk] = (b << 32) | c
+        else:     key[kk] = (c << 32) | b
+        elem[kk] = ii
+        kk += 1
+    
+    #___________________________________________________________________________
+    # correct lexicographic sorting of keys that means elem that share the same 
+    # edge have the same edge key and are thus near togehther after sorting
+    idx  = np.argsort(key)
+    key  = key[idx]
+    elem = elem[idx]
+
+    #___________________________________________________________________________
+    # allocate adjacency arrays
+    e_nghbr_e = -1 * np.ones((n2de, 3), dtype=np.int32)
+    eINe_num = np.zeros(n2de, dtype=np.int32)
+
+    #___________________________________________________________________________
+    # loop over all the eges 
+    ii = 0
+    while ii < nedg - 1:
+        if key[ii] == key[ii+1]:
+            a = elem[ii]
+            b = elem[ii+1]
+            
+            na = eINe_num[a]
+            nb = eINe_num[b]
+            
+            e_nghbr_e[a, na] = b
+            e_nghbr_e[b, nb] = a
+            
+            eINe_num[a] = na+1
+            eINe_num[b] = nb+1
+            
+            ii += 2
+        else:
+            ii += 1
+    #___________________________________________________________________________        
+    return e_nghbr_e, eINe_num
+
+
+
+#
+#
+# ___COMPUTE NODE NEIGHBORHOOD WITH RESPECT TO VERTICES_________________________
+@njit(cache=True)
+def njit_compute_n_nghbr_n(e_i):
+    """
+    --> compute nodes indices list that contribute to cetain vertice, determine
+        vertice neighborhood with respect to vertices
+        
+    Parameters:
+    
+        :e_i:       np.array([n2de x 3]), elemental array
+    
+    Returns:
+    
+        :nINn:
+        :nINn_num:
+    
+    """
+    n2de = e_i.shape[0]
+    n2dn = np.max(e_i) + 1
+
+    #___________________________________________________________________________
+    # count node degrees
+    nINn_num_est = np.zeros(n2dn, dtype=np.int32)
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+        
+        # Each triangle connects a,b,c pairwise
+        #            o a --> a has neighbor b and c, thats why count up +2
+        #           / \ 
+        #          /   \
+        #         /     \  
+        #        /       \
+        #     c o---------o b 
+        nINn_num_est[a] += 2       # b,c
+        nINn_num_est[b] += 2       # a,c
+        nINn_num_est[c] += 2       # a,b
+
+    # BUT this counts duplicates via multiple triangles, so we will fix it
+    # by filling adjacency and removing duplicates afterwards.
+    max_nINn_num_est = np.max(nINn_num_est)
+    nINn = -1 * np.ones((n2dn, max_nINn_num_est), dtype=np.int32)
+    pos = np.zeros(n2dn, dtype=np.int32)
+
+    #___________________________________________________________________________
+    # Insert neighbors (may contain duplicates)
+    for ii in range(n2de):
+        a = e_i[ii, 0]
+        b = e_i[ii, 1]
+        c = e_i[ii, 2]
+
+        # a neighbors: b,c
+        pa = pos[a]
+        nINn[a, pa] = b
+        nINn[a, pa+1] = c
+        pos[a] = pa + 2
+
+        # b neighbors: a,c
+        pb = pos[b]
+        nINn[b, pb] = a
+        nINn[b, pb+1] = c
+        pos[b] = pb + 2
+
+        # c neighbors: a,b
+        pc = pos[c]
+        nINn[c, pc] = a
+        nINn[c, pc+1] = b
+        pos[c] = pc + 2
+
+    #___________________________________________________________________________
+    # Deduplicate neighbors per node
+    nINn_num = np.zeros(n2dn, dtype=np.int32)
+    mask     = np.zeros(n2dn, dtype=np.uint8)
+    for node in range(n2dn):
+        row_end = pos[node]
+        write = 0
+
+        for i in range(row_end):
+            nb = nINn[node][i]
+            if mask[nb] == 0:
+                mask[nb] = 1
+                nINn[node][write] = nb
+                write += 1
+
+        # clear mask
+        for i in range(write):
+            mask[nINn[node][i]] = 0
+
+        # mark remainder as unused
+        for i in range(write, row_end):
+            nINn[node][i] = -1
+
+        nINn_num[node] = write
+
+    #___________________________________________________________________________
+    # Build compact adjacency array
+    real_max = 0
+    for i in range(n2dn):
+        if nINn_num[i] > real_max:
+            real_max = nINn_num[i]
+
+    n_nghbr_n = -1 * np.ones((n2dn, real_max), dtype=np.int32)
+    for node in range(n2dn):
+        deg = nINn_num[node]
+        for j in range(deg):
+            n_nghbr_n[node, j] = nINn[node, j]
+    #___________________________________________________________________________
+    return n_nghbr_n, nINn_num
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit(cache=True)
+def njit_lsmask_build_adjacency(bnde, bnde_mapping, bnde_nodes):
+    """
+    Build adjacency for compressed boundary-node space.
+
+    bnde          : (nbnde, 2)
+    bnde_mapping  : global -> compressed id
+    bnde_nodes    : number of compressed nodes (len(b_nodes))
+
+    RETURNS:
+        adj : (nb_nodes, 2)   with neighbor indices
+    """
+    
+    # An edge node can have under certain circumstance have more than just 2 neighboring
+    # boundary nodes. under certain conditions it can be 4 thats why  (bnde_nodes, 4) 
+    adj   = -np.ones((bnde_nodes, 4), dtype=np.int32)
+    count =  np.zeros(bnde_nodes    , dtype=np.int32)
+
+    for ii in range(bnde.shape[0]):
+        a             = bnde[ii, 0]
+        b             = bnde[ii, 1]
+        
+        idxa          = bnde_mapping[a]
+        idxb          = bnde_mapping[b]
+        
+        # neighbothood mapping of first bnde node
+        ka            = count[idxa]
+        adj[idxa, ka] = idxb
+        count[idxa]   = ka + 1
+        
+        # neighbothood mapping of second bnde node
+        kb            = count[idxb]
+        adj[idxb, kb] = idxa
+        count[idxb]   = kb + 1
+        #if count[idxa]>2 or count[idxb]>2: print('--> Careful found boundary edge node with more than 2 neighbors')
+        
+    #___________________________________________________________________________
+    return adj
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit(cache=True)
+def njit_lsmask_trace_loops(adj, bnde_x, bnde_y, cyclic):
+    """
+    --> trace coastline loops using compact boundary-node adjacency
+
+    Walks the boundary-edge graph and returns each closed coastline contour.
+    Most boundary nodes have exactly 2 boundary neighbors, but a node where two
+    coastline branches touch in a single vertex ("pinch point") has 4. There the
+    walk has a genuine choice which branch to continue on, and picking the wrong
+    one welds two separate coastlines into one topologically wrong ring:
+
+              branch A                    the walk arrives on (1) and must
+                 \\   /  (2)              continue on (2) -- the sharpest turn
+                  \\ /                    in a consistent rotational sense.
+                   X   <-- pinch node     Taking (3) instead would jump onto
+                  / \\                    branch B and merge both loops into a
+             (1) /   \\  (3)              single ring enclosing a bogus area.
+                     branch B
+
+    The branch is therefore resolved geometrically, by turn angle relative to
+    the incoming edge (always take the sharpest clockwise turn), not by the
+    order the neighbors happen to sit in the adjacency array -- that order comes
+    from the order the edges appear in `bnde` and carries no topological meaning.
+    Traversal is tracked per *edge* (each undirected boundary edge is walked
+    exactly once) rather than per node, because at a pinch node the walk must be
+    allowed to pass through the same node twice, once per branch.
+
+    Parameters:
+
+        :adj:       int32 array (nbnde_nodes, 4), boundary-node adjacency in
+                    compressed boundary-node numbering, -1 for unused slots
+
+        :bnde_x:    float array (nbnde_nodes,), longitude of the boundary nodes
+
+        :bnde_y:    float array (nbnde_nodes,), latitude of the boundary nodes
+
+        :cyclic:    float, periodicity of the longitude axis (usually 360.0),
+                    needed so edges across the periodic boundary get the correct
+                    direction instead of a spurious ~360 degree jump
+
+    Returns:
+
+        :loops:     list of lists, each a closed contour of compressed indices
+
+    ____________________________________________________________________________
+    """
+    nbnde_nodes = adj.shape[0]
+    nslot       = adj.shape[1]
+    half_cyclic = cyclic*0.5
+    twopi       = 2.0*np.pi
+
+    # track consumed edges, not visited nodes --> a pinch node is legitimately
+    # passed twice, once for each of the two coastline branches meeting there
+    used        = np.zeros((nbnde_nodes, nslot), dtype=np.int8)
+    loops       = []
+
+    #___________________________________________________________________________
+    # loop over all boundary nodes
+    for start in range(nbnde_nodes):
+
+        # a pinch node starts more than one loop --> keep going until every edge
+        # attached to this node has been walked
+        while True:
+
+            # find an unused edge to leave the start node on
+            kstart = -1
+            for k in range(nslot):
+                if adj[start, k] >= 0 and used[start, k] == 0:
+                    kstart = k
+                    break
+            if kstart < 0: break
+
+            #___________________________________________________________________
+            # consume the starting edge in both directions
+            nxt = adj[start, kstart]
+            used[start, kstart] = 1
+            for k in range(nslot):
+                if adj[nxt, k] == start and used[nxt, k] == 0:
+                    used[nxt, k] = 1
+                    break
+
+            loop = [start]
+            prev = start
+            cur  = nxt
+
+            #___________________________________________________________________
+            # walk the contour until the start node is reached again
+            while cur != start:
+                loop.append(cur)
+
+                # direction back along the incoming edge, periodic-safe
+                dxb = bnde_x[prev]-bnde_x[cur]
+                dyb = bnde_y[prev]-bnde_y[cur]
+                if   dxb >  half_cyclic: dxb -= cyclic
+                elif dxb < -half_cyclic: dxb += cyclic
+                ang_in = np.arctan2(dyb, dxb)
+
+                # among the unused edges at cur pick the sharpest clockwise turn.
+                # Going straight back where we came from scores a zero turn, so it
+                # is pushed to 2*pi and only taken when nothing else is left.
+                kbest    = -1
+                turnbest = 0.0
+                for k in range(nslot):
+                    cand = adj[cur, k]
+                    if cand < 0 or used[cur, k] == 1: continue
+
+                    dxo = bnde_x[cand]-bnde_x[cur]
+                    dyo = bnde_y[cand]-bnde_y[cur]
+                    if   dxo >  half_cyclic: dxo -= cyclic
+                    elif dxo < -half_cyclic: dxo += cyclic
+
+                    turn = ang_in - np.arctan2(dyo, dxo)
+                    while turn <= 1.0e-12: turn += twopi
+                    while turn >  twopi  : turn -= twopi
+
+                    if kbest < 0 or turn < turnbest:
+                        kbest    = k
+                        turnbest = turn
+
+                # dead end: open contour, cannot be closed
+                if kbest < 0: break
+
+                #_______________________________________________________________
+                # consume the chosen edge in both directions
+                nxt = adj[cur, kbest]
+                used[cur, kbest] = 1
+                for k in range(nslot):
+                    if adj[nxt, k] == cur and used[nxt, k] == 0:
+                        used[nxt, k] = 1
+                        break
+
+                prev = cur
+                cur  = nxt
+
+            #___________________________________________________________________
+            # only if loop is large enough add it to the contour list
+            if len(loop) > 4: loops.append(loop)
+
+    #___________________________________________________________________________
+    return loops
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit(cache=True, fastmath=True)
+def njit_node_smoothing(n2dn, n_x, n_y, n_nghbr_n, num_n_nghbr_n, 
+                        data_n_orig, num_iter, weak_boxes, rel_cent_weight):
+    
+    #___________________________________________________________________________
+    data_n_smth = data_n_orig.copy()
+    for iteri in range(num_iter):
+        
+        # sort nodes by decreasing value (replacement for argmax + masking)
+        order = np.argsort(-data_n_smth)
+        
+        #_______________________________________________________________________
+        for kk in range(n2dn):
+            idx = order[kk]
+            
+            #___________________________________________________________________
+            # region-dependent weight
+            coeff1 = 1.0
+            for b in range(weak_boxes.shape[0]):
+                xmin = weak_boxes[b, 0]
+                xmax = weak_boxes[b, 1]
+                ymin = weak_boxes[b, 2]
+                ymax = weak_boxes[b, 3]
+                cf   = weak_boxes[b, 4]
+                if (n_x[idx] >= xmin and n_x[idx] <= xmax and
+                    n_y[idx] >= ymin and n_y[idx] <= ymax):
+                    coeff1 = cf
+                    break
+            
+            #___________________________________________________________________
+            # sum over neighbours 
+            nn = num_n_nghbr_n[idx]          # number of neighbours for node idx
+            dsum = 0.0
+            for j in range(nn):
+                nb = n_nghbr_n[idx, j]
+                dsum += data_n_smth[nb]  # Gauss–Seidel style: uses updated values
+            
+            #___________________________________________________________________
+            # center contribution
+            center_w = coeff1 * rel_cent_weight * (nn - 1.0) - 1.0
+            dsum    += center_w * data_n_smth[idx]
+            denom    = nn + center_w
+            data_n_smth[idx] = dsum / denom
+            
+    #___________________________________________________________________________
+    return data_n_smth
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit(cache=True, fastmath=True)
+def njit_elem_smoothing(n2de, elem_x, elem_y, e_nghbr_e, eINe_num,
+                        data_e_orig, num_iter, weak_boxes, rel_cent_weight):
+
+    #___________________________________________________________________________
+    data_e_smth = data_e_orig.copy()
+    for _ in range(num_iter):
+        
+        # Sort elements by decreasing data value
+        order = np.argsort(-data_e_smth)
+        
+        #_______________________________________________________________________
+        for kk in range(n2de):
+            idx = order[kk]
+            
+            #___________________________________________________________________
+            # region-dependent weight (using element centroid)
+            coeff1 = 1.0
+            x = elem_x[idx]
+            y = elem_y[idx]
+            for b in range(weak_boxes.shape[0]):
+                xmin = weak_boxes[b, 0]
+                xmax = weak_boxes[b, 1]
+                ymin = weak_boxes[b, 2]
+                ymax = weak_boxes[b, 3]
+                cf   = weak_boxes[b, 4]
+                if (x >= xmin and x <= xmax and y >= ymin and y <= ymax):
+                    coeff1 = cf
+                    break
+            
+            #___________________________________________________________________
+            # sum over neighbouring elements
+            nne  = eINe_num[idx]
+            dsum = 0.0
+            for j in range(nne):
+                nb = e_nghbr_e[idx, j]
+                dsum += data_e_smth[nb]    # Gauss–Seidel: uses updated values
+            
+            #___________________________________________________________________
+            # center weight contribution
+            center_w = coeff1 * rel_cent_weight * (nne - 1.0) - 1.0
+            dsum    += center_w * data_e_smth[idx]
+            denom    = nne + center_w
+            data_e_smth[idx] = dsum / denom
+            
+    #___________________________________________________________________________
+    return data_e_smth
+
+
+
+#
+#
+#_______________________________________________________________________________
+@njit
+def njit_find_period_crossings(x, half):
+    """
+    Find indices i where edge (i → i+1) crosses periodic boundary.
+    """
+    n = x.size - 1
+    out = []
+    for i in range(n):
+        dx = x[i+1] - x[i]
+        if dx > half or dx < -half:
+            out.append(i)
+    #___________________________________________________________________________        
+    return out

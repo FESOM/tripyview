@@ -9,7 +9,7 @@ python=3.9, 3.10, 3.11 and 3.12 (python 3.8 made recently some problems to resol
 It is tested up to dart mesh size (3M surface vertices) where it allows for a decent
 working speed (but only when used in parallel)
 <br />
-version: 0.3.1
+version: 0.4.0
 <br />
 
 ## Installation
@@ -32,8 +32,10 @@ make sure your conda environment uses python 3.9, 3.10, 3.11 or 3.12
 #  gets one thread
 # -install libstdcxx-ng with conda since there is no pip package for it is needed
 #  so that pyvista is able to plot interactively
+# -libnetcdf (optional, conda only) brings the netcdf command line tools ncdump, 
+#  nccopy, ncgen, ... that are handy to inspect files, tripyview itself does not need them
 # -all other packages will be automatically installed by pip
-conda install -c conda-forge libstdcxx-ng
+conda install -c conda-forge libstdcxx-ng libnetcdf
 cd tripyview
 pip install -e .
 
@@ -81,6 +83,10 @@ vertice/element- resolution and area)
   <img width=40% src="docs/images/tripyview_mov_channel.gif">
 </p>
 
+* `hslice_neverworld2`- plot horizontal slices of variables in the neverworld2 configuration (provide routine to make neverworld2 movie)
+<p align="center" width="100%">
+  <img width=40% src="docs/images/tripyview_neverworld_curl.png">
+</p>
 
 * `hquiver`          - plot horizontal arrow vector field in various projections
 <p align="center" width="100%">
@@ -97,6 +103,8 @@ vertice/element- resolution and area)
 * `transect_hflx_t`  - plot time-series of heat transport through arbitrary transects 
 * `transect_zmean`   - plot zonally averaged transects of 3d ocean variables
 * `transect_zmean_clim`- plot zonally averaged transects of 3d temperature, salinity and density climatology
+* `transect_mmean`   - plot meridionally averaged transects of 3d ocean variables
+* `transect_mmean_clim`- plot meridionally averaged transects of 3d temperature, salinity and density climatology
 <p align="center" width="100%">
   <img height=150px src="docs/images/tripyview_transect_pos.png">
   <img height=150px src="docs/images/tripyview_transect.png">
@@ -203,10 +211,15 @@ subset of one specific driver driver from .yml file
 render the html file from hand based on the saved json file. The json file is update after each finished
 driver section.
 
+If a template notebook fails, tripyrun keeps going with the remaining diagnostics, lists the failed 
+notebooks at the end (their traceback is stored in the executed notebook) and exits with status 1, 
+so a batch job does not look successful. The notebooks are executed with the jupyter kernel `python3`; 
+set `TRIPYVIEW_KERNEL=<kernelname>` to use a different kernel (e.g. the one of your conda environment).
+
 <p align="center" width="100%">
   <img width=75% src="docs/images/tripyview_tripyrun.png">
 </p>
 
 ## Credits:
-If you use the package please give the package or the author some credit.
+If you use the package, please cite the package or the author as the source.
 

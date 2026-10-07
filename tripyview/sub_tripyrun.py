@@ -14,14 +14,11 @@ import time      as clock
 #sys.path.append(os.path.join(pkg_path,"src/"))
 from .sub_tripyrundriver import *
 
-#_______________________________________________________________________________       
+#_______________________________________________________________________________
 # open htnl template file
 #try: pkg_path = os.environ['PATH_TRIPYVIEW']
-#except: pkg_path='' 
-pkg_path          = os.path.dirname(os.path.dirname(__file__))
-templates_path    = os.path.join(pkg_path,'templates_html')
-templates_nb_path = os.path.join(pkg_path,'templates_notebooks')
-print(pkg_path)
+#except: pkg_path=''
+# pkg_path, templates_path, templates_nb_path, templates_installed come from sub_tripyrundriver
 
 #
 #
@@ -49,11 +46,10 @@ class cd:
 def render_experiment_html(webpages, yaml_settings):
     fname_html     = f"{yaml_settings['tripyrun_name']}.html"
     save_path_html = os.path.join(yaml_settings['save_path'], fname_html)
-    ofile          = open(save_path_html, "w")
     template       = env.get_template("experiment.html")
     output         = template.render(webpages)
-    ofile.write(output)
-    ofile.close()   
+    with open(save_path_html, "w") as ofile:
+        ofile.write(output)
     return
     
     
@@ -65,6 +61,7 @@ def render_experiment_html(webpages, yaml_settings):
 def tripyrun():
     ts = clock.time()
     print(" --> start time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
+    failed_notebooks.clear()
 
     # command line input arguments
     parser = argparse.ArgumentParser(prog='tripyrun', description='do FESOM tripyview diagnostics in command line')
@@ -95,7 +92,7 @@ def tripyrun():
                              ' - dmoc_z, dmoc_srf_z, dmoc_inner_z \n'+ \
                              ' - dmoc_wdiap, dmoc_srfcbflx \n'+ \
                              ' - hbarstreamf \n'+ \
-                             ' - ghflx, mhflx, zhflx \n')
+                             ' - gmhflx, mhflx, gzhflx \n')
     
     # only run specific variable within diagnostic driver
     parser.add_argument('--variable',
@@ -128,10 +125,12 @@ def tripyrun():
     #____DICTIONARY CONTENT_____________________________________________________
     # name of workflow runs --> also folder name 
     tripyrun_name = yaml_settings['tripyrun_name']
+    
     append_run_name_to_save_path = yaml_settings.get("append_run_name_to_save_path", True)  # NOTE(PG): Preserve current behaviour
     notebook_dir = yaml_settings.get("notebook_dir")
     figure_dir = yaml_settings.get("figure_dir")
-
+    
+    
     # setup data input paths & input names
     input_paths = yaml_settings['input_paths']
     if 'input_names' in yaml_settings:
@@ -143,13 +142,15 @@ def tripyrun():
     if len(input_names) != len(input_paths): raise ValueError("The size of input_names & input_paths is not equal") 
     
     # setup save path    
-    if 'save_path' in yaml_settings: 
+    if 'save_path' in yaml_settings:
         if append_run_name_to_save_path:
             save_path = f"{yaml_settings['save_path']}/{tripyrun_name}"
         else:
             save_path = yaml_settings['save_path']
     else:
-        save_path = os.path.join(pkg_path, f"Results/{tripyrun_name}") 
+        # dev checkout: keep results in the repo; installed package: never write into site-packages
+        results_root = os.getcwd() if templates_installed else pkg_path
+        save_path = os.path.join(results_root, f"Results/{tripyrun_name}")
     save_path = os.path.expanduser(save_path)
     save_path = os.path.abspath(save_path)
 
@@ -162,6 +163,8 @@ def tripyrun():
     yaml_settings['do_papermill']      = True
     
     yaml_settings['save_path']         = save_path
+    #yaml_settings['tripyrun_spath_nb' ]= os.path.join(save_path, "notebooks")
+    #yaml_settings['tripyrun_spath_fig']= os.path.join(save_path, "figures") 
     yaml_settings['tripyrun_spath_nb' ]= notebook_dir or os.path.join(save_path, "notebooks")
     yaml_settings['tripyrun_spath_fig']= figure_dir or os.path.join(save_path, "figures")  
     
@@ -204,8 +207,10 @@ def tripyrun():
     analyses_driver_list["transect_transp_t"  ] = drive_transect_Xtransp_t
     analyses_driver_list["transect_hflx"      ] = drive_transect_Xtransp
     analyses_driver_list["transect_hflx_t"    ] = drive_transect_Xtransp_t
-    analyses_driver_list["transect_zmean"     ] = drive_transect_zmean
-    analyses_driver_list["transect_zmean_clim"] = drive_transect_zmean_clim
+    analyses_driver_list["transect_zmean"     ] = drive_transect_zm_mean
+    analyses_driver_list["transect_zmean_clim"] = drive_transect_zm_mean_clim
+    analyses_driver_list["transect_mmean"     ] = drive_transect_zm_mean
+    analyses_driver_list["transect_mmean_clim"] = drive_transect_zm_mean_clim
     
     analyses_driver_list["vprofile"           ] = drive_vprofile
     analyses_driver_list["vprofile_clim"      ] = drive_vprofile_clim
@@ -226,8 +231,10 @@ def tripyrun():
     analyses_driver_list["dmoc_t"             ] = drive_dmoc_t
     
     analyses_driver_list["hbarstreamf"        ] = drive_hbarstreamf
-    analyses_driver_list["ghflx"              ] = drive_ghflx
+    analyses_driver_list["gmhflx"             ] = drive_gmhflx
+    analyses_driver_list["gzhflx"             ] = drive_gmhflx
     analyses_driver_list["mhflx"              ] = drive_mhflx
+    analyses_driver_list["zhflx"              ] = drive_mhflx
     
     #___________________________________________________________________________
     # initialise/create webpage interface based on .json file, if it exist
@@ -254,6 +261,7 @@ def tripyrun():
     webpages["general"] = {}
     webpages["general"]["name"] = yaml_settings["tripyrun_name"]
     webpages["logo"] = {}
+    # webpages["logo"]["path"] =os.path.join(templates_path, 'fesom2_logo.png')
     # Copy logo to output directory and use relative path
     logo_src = os.path.join(templates_path, 'fesom2_logo.png')
     logo_dst = os.path.join(save_path, 'fesom2_logo.png')
@@ -277,20 +285,29 @@ def tripyrun():
                     # if -v vname1 vname2 ... flag is setted perform specific 
                     # variables in specific yml file diagnostic    
                     if inargs.variable:
+                        # diagnostic has no prior results at all (never computed
+                        # before, e.g. -d/-v used before a first full run, or the
+                        # driver was added to the yaml after the last run) --> warn
+                        # clearly instead of letting the lookup below raise KeyError
+                        if analysis_name not in webpages["analyses"]:
+                            print(f" --> diagnostic '{analysis_name}' was not found in the "
+                                  f"previously saved results ({fname_json}). It looks like this "
+                                  f"is the first time '{analysis_name}' is computed -> it will be "
+                                  f"created fresh for the requested variable(s): {inargs.variable}")
                         for vname in inargs.variable:
                             cnt, cnt_max = -1, -1
-                            
+
                             # drive specific analysis from analyses_driver_list only
                             # for one specifc anlysis
-                            for values in webpages["analyses"][analysis_name].values():
+                            for values in webpages["analyses"].get(analysis_name, {}).values():
                                 cnt_max = np.maximum(cnt_max,values['cnt'])
-                                if values['variable']==vname: 
+                                if values['variable']==vname:
                                     cnt = values['cnt']
                                     break
-                            if cnt==-1: 
-                                print(" --> could not find variable: {vname} in loaded webpage. This variable will be attached if it exist")
+                            if cnt==-1:
+                                print(f" --> could not find variable: {vname} in loaded webpage. This variable will be attached if it exist")
                                 cnt=cnt_max+1
-                            webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=webpages["analyses"][analysis_name], image_count=cnt, vname=vname)
+                            webpage = analyses_driver_list[analysis_name](yaml_settings, analysis_name, webpage=webpages["analyses"].get(analysis_name, dict()), image_count=cnt, vname=vname)
                             webpages["analyses"][analysis_name] = webpage
                     
                     #___________________________________________________________
@@ -309,8 +326,10 @@ def tripyrun():
                 webpages["analyses"][analysis_name] = webpage
             
             #___________________________________________________________________
-            # write linked analysis to .json file
-            with open(save_path_json, "w") as fp: json.dump(webpages, fp)
+            # write linked analysis to .json file -- via a temp file + atomic rename,
+            # so a job killed mid-write (e.g. walltime) cannot corrupt the resume file
+            with open(save_path_json+'.tmp', "w") as fp: json.dump(webpages, fp)
+            os.replace(save_path_json+'.tmp', save_path_json)
             
     #___________________________________________________________________________
     # save everything to .html and render it 
@@ -321,7 +340,15 @@ def tripyrun():
     #render_main_page()
     print(" --> end time:", clock.strftime("%Y-%m-%d %H:%M:%S", clock.localtime()))
     print(" --> elapsed time: {:2.2f} min.".format((clock.time()-ts)/60))
-    
+
+    #___________________________________________________________________________
+    # report failed notebooks and return a non-zero exit code for the console
+    # script (sys.exit(tripyrun())), so batch jobs are not reported as successful
+    if len(failed_notebooks)>0:
+        print(f"\n --> {len(failed_notebooks)} notebook(s) FAILED, see their stored traceback:")
+        for path_nb in failed_notebooks: print(f"     {path_nb}")
+        return 1
+
 #
 #
 #_______________________________________________________________________________
