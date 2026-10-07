@@ -6683,8 +6683,12 @@ def do_cbar(hcb_ii, hax_ii, hp, data, cinfo, do_rescale, cb_label, cb_lunit, cb_
         if 'str_ldep' in loc_attrs: cb_label = cb_label+loc_attrs['str_ldep']
         
     else:
-        if cb_lunit  is None: cb_label = cb_label+' / '+loc_attrs['units']
-        else:                 cb_label = cb_label+' / '+cb_lunit
+        if cb_lunit is None: 
+            if loc_attrs['units'] is None:
+                cb_label = cb_label
+            else: 
+                cb_label = cb_label+' / '+loc_attrs['units']
+        else: cb_label = cb_label+' / '+cb_lunit
         if cb_ltime is None:
             if 'str_ltim' in loc_attrs: cb_label = cb_label+'\n'+loc_attrs['str_ltim']
         else: cb_label = cb_label+'\n'+cb_ltime

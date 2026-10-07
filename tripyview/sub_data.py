@@ -2,6 +2,7 @@
 import numpy as np
 import time  as clock
 import os
+import re
 #___________________________________________________________________________
 # switch off certain warnings
 import warnings
@@ -836,6 +837,13 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
     ____________________________________________________________________________ 
     """
 
+    #print("DEBUG do_pathlist:")
+    #print("  year:", year)
+    #print("  type(year):", type(year))
+    #print("  do_filename:", do_filename)
+    #print("  type(datapath):", type(datapath))
+    #print("  datapath:", datapath)
+    
     pathlist=[]
     if datapath is None: return(pathlist,'')
 
@@ -845,17 +853,18 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
         if isinstance(datapath, list):
             if isinstance(year, list) and len(year)==2:
                 str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
-                
-            elif isinstance(year, int):
-                str_mtim = 'y:{}'.format(year)    
-                
+            elif isinstance(year, (int, str)):
+                str_mtim = 'y:{}'.format(year)
+            else:
+                str_mtim = os.path.basename(datapath[0]) if datapath else ''
         else:
             str_mtim = os.path.basename(datapath)
         
     # list, np.array or range of years is given to load files
     elif isinstance(year, (list, np.ndarray, range)):
         # year = [yr_start, yr_end]
-        if isinstance(year, list) and len(year)==2: 
+        if (isinstance(year, list) and len(year)==2 and
+                all(isinstance(value, (int, np.integer)) for value in year)):
             year_in = range(year[0],year[1]+1)
             str_mtim = 'y:{}-{}'.format(str(year[0]), str(year[1]))
         # year = [year1,year2,year3....]            
@@ -884,7 +893,9 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
                     print(f'--> No file: {path}')
     
     # a single year is given to load
-    elif isinstance(year, int):
+    elif isinstance(year, (int, str)):
+        if isinstance(year, str) and re.fullmatch(r'\d{4}_\d{2}', year) is None:
+            raise ValueError("year string must use the YYYY_MM format")
         fname = do_fnamemask(do_file,vname,runid,year)
         if '*' in fname:
             pattern  = os.path.join(datapath,fname)    
@@ -905,7 +916,7 @@ def do_pathlist(year, datapath, do_filename, do_file, vname, runid):
                 print(f'--> No file: {path}')
         str_mtim = 'y:{}'.format(year)
     else:
-        raise ValueError( " year can be integer, list, np.array or range(start,end)")
+        raise ValueError("year can be an integer, YYYY_MM string, list, np.array, or range(start,end)")
     
     #___________________________________________________________________________
     return(pathlist,str_mtim)
