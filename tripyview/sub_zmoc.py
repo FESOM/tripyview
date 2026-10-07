@@ -937,18 +937,25 @@ def calc_zmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_d):
     # Sum data based on binned indices with time dimension: [2, ntime, nlat, nlev]
     if   np.ndim(chnk_d) == 3:    
         chnk_d  = chnk_d[ :, :, idx_valid]
-        for nod_i in range(0,nnod):
-            jj = idx_lat[nod_i]
-            binned_d[0, :, :, jj] = binned_d[0, :, :, jj] + chnk_d[ :, :, nod_i] * chnk_wA[:, nod_i]
-            binned_d[1, :, :, jj] = binned_d[1, :, :, jj] + chnk_wA[   :, nod_i]
+        # np.bincount sums all weights of the nodes in the same lat bin in one
+        # vectorized call (float64 accumulation, stored as float32) instead of
+        # a python loop over every node:
+        #   idx_lat = [0 2 2 1], weights = [a b c d] --> bin0=a, bin1=d, bin2=b+c
+        # data*area: one bincount per (time, level) row
+        for t_i in range(0, ntime):
+            for lev_i in range(0, nlev):
+                binned_d[0, t_i, lev_i, :] = np.bincount(idx_lat, weights=chnk_d[t_i, lev_i, :]*chnk_wA[lev_i, :], minlength=nlat)
+        # area weight sum: depends only on the level, same for every time step
+        for lev_i in range(0, nlev):
+            binned_d[1, :, lev_i, :] = np.bincount(idx_lat, weights=chnk_wA[lev_i, :], minlength=nlat)[None, :]
     
     # Sum data based on binned indices withou time dimension: [2, nlat, nlev]
     elif np.ndim(chnk_d) == 2:  
         chnk_d  = chnk_d[:,  idx_valid]
-        for nod_i in range(0,nnod):
-            jj = idx_lat[nod_i]
-            binned_d[0, :, jj] = binned_d[0, :, jj] + chnk_d[ :, nod_i] * chnk_wA[:, nod_i]
-            binned_d[1, :, jj] = binned_d[1, :, jj] + chnk_wA[:, nod_i]
+        # one bincount per level instead of a python loop over every node
+        for lev_i in range(0, nlev):
+            binned_d[0, lev_i, :] = np.bincount(idx_lat, weights=chnk_d[lev_i, :]*chnk_wA[lev_i, :], minlength=nlat)
+            binned_d[1, lev_i, :] = np.bincount(idx_lat, weights=chnk_wA[lev_i, :]                 , minlength=nlat)
     
     #___________________________________________________________________________
     return binned_d.flatten()

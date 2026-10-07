@@ -2323,6 +2323,7 @@ def calc_transect_zm_mean_dask(mesh                   ,
                                do_info       = False  , 
                                client        = None   ,
                                do_persist    = True   ,
+                               chunk_minmb   = 32     ,
                                **kwargs,):
     """
     --> compute zonal or meridional means transect, defined by regional box_list
@@ -2359,10 +2360,16 @@ def calc_transect_zm_mean_dask(mesh                   ,
         :do_checkbasin: bool, (default=False) additional plot with selected region/
                         basin information
                         
-        :do_info:       bool (defalt=False), print variable info at the end 
-                      
+        :do_info:       bool (defalt=False), print variable info at the end
+
+        :chunk_minmb:   float (default=32), minimum size in MB of the pieces the
+                        regional data are split into for the parallel binning,
+                        at most parallel_nprc pieces (<=0: always parallel_nprc pieces). Small data (e.g. a time mean
+                        on a small mesh) stay one task, splitting them would cost
+                        more dask overhead than the binning itself
+
     Returns:
-    
+
         :index_list:    list with xarray dataset of zonal/meridional mean array
     
     ____________________________________________________________________________
@@ -2382,17 +2389,47 @@ def calc_transect_zm_mean_dask(mesh                   ,
     elif ('elem' in data.dims): dimn_h, do_elem = 'elem', False
     if   'nz'  in list(data[vname].dims): 
         dimn_v  = 'nz'    
-    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims): 
+    elif 'nz1' in list(data[vname].dims) or 'nz_1' in list(data[vname].dims):
         dimn_v  = 'nz1'
+
+    #___________________________________________________________________________
+    # compute lazy input data once before the region loop. Otherwise every
+    # region's isel(...).persist() below recomputes the whole lazy graph, e.g.
+    # a 41-year time mean is read from disk again for every region:
+    #
+    #   before:  files -> time mean -> region 1      (read 1)
+    #            files -> time mean -> region 2      (read 2) ...
+    #   now   :  files -> time mean -+-> region 1    (read 1)
+    #                                +-> region 2 ...
+    #
+    # The data here are already time reduced (depth x horizontal), so this is
+    # small. Same graph --> bit-identical results.
+    if do_persist and isinstance(data[vname].data, da.Array): data = data.persist()
     
+    # prepared (chunked, persisted) full data, created at the first region and
+    # reused for all others, see below
+    data_zm = None
+    
+    #___________________________________________________________________________
+    # region masks of all boxes in parallel, all regions in one dask.compute
+    # (identical to do_boxmask(mesh, box, do_elem) per box, see do_boxmask_parallel).
+    # The box format conversion mirrors the one in the loop below
+    box_mask = list()
     for box in box_list:
+        if not isinstance(box, shp.Reader) and not (isinstance(box, str) and box=='global') and box is not None:
+            if len(box)==2: box = box[0]
+        box_mask.append(box)
+    idxin_all = do_boxmask_parallel(mesh, box_mask, do_elem=do_elem)
+    del(box_mask)
+    
+    for bi, box in enumerate(box_list):
         if not isinstance(box, shp.Reader) and not (isinstance(box, str) and box=='global') and box is not None:
             if   len(box)==2: boxname, box = box[1], box[0]
             elif len(box)==4 and boxname==None: boxname = '[{:03.2f}...{:03.2f}°E, {:03.2f}...{:03.2f}°N]'.format(box[0],box[1],box[2],box[3])
             
         #_______________________________________________________________________
         # compute box mask index for nodes
-        idxin = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+        idxin = xr.DataArray(idxin_all[bi], dims=dimn_h)
             
         #___________________________________________________________________________
         if do_checkbasin:
@@ -2444,9 +2481,6 @@ def calc_transect_zm_mean_dask(mesh                   ,
                     raise ValueError('could not find ...mesh.diag.nc file')
                 data = data.assign_coords(w_A=nz_w_A)
             
-            #___________________________________________________________________
-            # select basin to compute mean over
-            data_zm = data.isel(elem=idxin)
         
         # compute area weighted vertical velocities on vertices
         else:     
@@ -2469,48 +2503,72 @@ def calc_transect_zm_mean_dask(mesh                   ,
                 
                 data = data.assign_coords(w_A=nz_w_A)
                 
-            #___________________________________________________________________
-            # select basin to compute mean over
-            data_zm = data.isel(nod2=idxin)
             
             
-        #data_zm = data_zm.load()
         #_______________________________________________________________________
-        # determine/adapt actual chunksize
-        nchunk = 1
-        if do_parallel and isinstance(data_zm[vname].data, da.Array)==True :
-            nchunk = len(data_zm.chunks[dimn_h])
-            print(' --> nchunk=', nchunk)   
-            
-            # after all the time and depth operation after the loading there will 
-            # be worker who have no chunk piece to work on  --> therfore we need
-            # to rechunk make sure the workload is distributed between all 
-            # availabel worker equally         
-            if nchunk<parallel_nprc*0.75:
-                print(' --> rechunk array size', end='')
-                data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1})
+        # The region is NOT cut out of the data anymore (data.isel(nod2=idxin)
+        # copied all selected nodes for every region: on large meshes several
+        # seconds per region, e.g. 11 s for the global region on dart). Instead
+        # the binning runs over the full data and skips the nodes outside the
+        # region through the exclusion mask that already exists for the
+        # periodic boundary nodes:
+        #
+        #   exclude = ispbnd | ~idxin     (outside region or pbnd node)
+        #
+        # The full data are chunked and persisted only once, at the first region,
+        # and reused for all others. Same nodes per bin --> same result up to
+        # float32 summation order.
+        if data_zm is None:
+            data_zm = data
+            #_______________________________________________________________________
+            # determine/adapt actual chunksize
+            # number of pieces that pays off: at least chunk_minmb MB per piece, at
+            # most parallel_nprc pieces. Small data (e.g. a time mean on core2,
+            # ~24 MB) stays a single task, splitting it costs more scheduler/
+            # transfer overhead than the binning itself; large data (large meshes)
+            # are spread over the workers as before
+            #
+            #   nbytes =   24 MB, chunk_minmb=32 --> nchunk_trgt =  1
+            #   nbytes = 1000 MB, chunk_minmb=32 --> nchunk_trgt = 31 (<= parallel_nprc)
+            nchunk      = 1
+            #   chunk_minmb<=0                   --> nchunk_trgt = parallel_nprc (always split)
+            if chunk_minmb>0: nchunk_trgt = int(np.clip(np.floor(data_zm[vname].nbytes/(chunk_minmb*1024**2)), 1, parallel_nprc))
+            else            : nchunk_trgt = int(parallel_nprc)
+            if do_parallel and isinstance(data_zm[vname].data, da.Array)==True :
                 nchunk = len(data_zm.chunks[dimn_h])
-                print(' --> nchunk_new=', nchunk)    
+                if do_info: print(' --> nchunk=', nchunk)
+
+                # after all the time and depth operation after the loading there will
+                # be worker who have no chunk piece to work on  --> therfore we need
+                # to rechunk make sure the workload is distributed between all
+                # availabel worker equally
+                if nchunk<nchunk_trgt*0.75:
+                    if do_info: print(' --> rechunk array size', end='')
+                    data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(nchunk_trgt)).astype('int'), dimn_v:-1})
+                    nchunk = len(data_zm.chunks[dimn_h])
+                    if do_info: print(' --> nchunk_new=', nchunk)
+
+            # in case of climatology data because there i need to make compute() after
+            # interpolation which destroys the chunking so i try to rechunk it
+            elif do_parallel and isinstance(data_zm[vname].data, da.Array)==False:
+                data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(nchunk_trgt)).astype('int'), dimn_v:-1}).unify_chunks()
+                nchunk = len(data_zm.chunks[dimn_h])
+                if do_info: print(' --> nchunk_new=', nchunk)
         
-        # in case of climatology data because there i need to make compute() after 
-        # interpolation which destroys the chunking so i try to rechunk it
-        elif do_parallel and isinstance(data_zm[vname].data, da.Array)==False: 
-            data_zm = data_zm.chunk({dimn_h: np.ceil(data_zm.sizes[dimn_h]/(parallel_nprc)).astype('int'), dimn_v:-1}).unify_chunks()
-            nchunk = len(data_zm.chunks[dimn_h])
-            print(' --> nchunk_new=', nchunk)        
+            #___________________________________________________________________
+            if do_persist: data_zm = data_zm.persist()
+            # lon/lat of all points, to derive the bin range of every region
+            lonlat_all = np.asarray(data_zm[do_lonlat].values)
         
         #_______________________________________________________________________
-        # create zonal/meridional bins
-        lonlat_min    = float(np.floor(data_zm[do_lonlat].min().compute()))
-        lonlat_max    = float(np.ceil( data_zm[do_lonlat].max().compute()))
+        # create zonal/meridional bins, range of the points in the region
+        idxin_np      = np.asarray(idxin)
+        lonlat_min    = float(np.floor(lonlat_all[idxin_np].min()))
+        lonlat_max    = float(np.ceil( lonlat_all[idxin_np].max()))
         if do_info: print(' --> lonlat_min, lonlat_max =',lonlat_min,lonlat_max)
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
         lonlat        = (lonlat_bins[:-1]+lonlat_bins[1:])*0.5
         nlonlat, nlev = len(lonlat_bins)-1, data_zm.sizes[dimn_v]
-        
-        #_______________________________________________________________________
-        if do_persist: data_zm = data_zm.persist()
-        #display(data_zm)
         
         #_______________________________________________________________________
         # Apply zonal mean over chunk
@@ -2524,7 +2582,13 @@ def calc_transect_zm_mean_dask(mesh                   ,
         # as a flattened array the attempt to return as a more dimensional matrix
         # failed. THats why i need to use shape afterwards 
         chnk_lonlat = data_zm[do_lonlat].data[None, :] 
-        chnk_ispbnd = data_zm['ispbnd' ].data[None, :]
+        # exclusion mask: periodic boundary point or outside the region, chunked
+        # like the data along the horizontal dimension
+        if isinstance(data_zm[vname].data, da.Array):
+            idxin_da = da.from_array(idxin_np, chunks=(data_zm[vname].chunks[data_zm[vname].dims.index(dimn_h)],))
+        else:
+            idxin_da = idxin_np
+        chnk_ispbnd = (data_zm['ispbnd'].data | ~idxin_da)[None, :]
         # when we are on elements w_A is a 1D field, whereas when we are on 
         # vertices w_A is 2D, that why we need to add a dimension for the elem case
         if np.ndim(data_zm['w_A'].data)==1: chnk_wA = data_zm['w_A'].data[None, :] 
@@ -2667,23 +2731,27 @@ def calc_transect_zm_mean_chnk(lonlat_bins, chnk_lonlat, chnk_wA, chnk_ispbnd, c
     nnod        = len(idx_lonlat)
     
     # Sum data based on binned indices
+    # np.bincount sums the weights of all nodes that fall into the same bin in
+    # one vectorized call (accumulates in float64, stored as float32), instead
+    # of a python loop over every single node:
+    #
+    #   idx_lonlat = [ 0  2  2  1 ]       weights = [ a  b  c  d ]
+    #   bincount   --> bin0 = a, bin1 = d, bin2 = b+c
+    #
     # data for zonal mean are 1d [nlonlat, ]
     if   np.ndim(chnk_d) == 1:
         chnk_d      = chnk_d[ idx_valid]
         chnk_wA     = chnk_wA[idx_valid]
-        for nod_i in range(0,nnod):
-            jj = idx_lonlat[nod_i]
-            binned_d[0, jj] = binned_d[0, jj] + chnk_d[ nod_i] * chnk_wA[nod_i]
-            binned_d[1, jj] = binned_d[1, jj] + chnk_wA[nod_i]
-    
-    # data for zonal mean are 2d [nlonlat, nlev]
+        binned_d[0, :] = np.bincount(idx_lonlat, weights=chnk_d*chnk_wA, minlength=nlonlat)
+        binned_d[1, :] = np.bincount(idx_lonlat, weights=chnk_wA       , minlength=nlonlat)
+
+    # data for zonal mean are 2d [nlonlat, nlev] --> one bincount per level
     elif np.ndim(chnk_d) == 2:
         chnk_d      = chnk_d[ :, idx_valid]
         chnk_wA     = chnk_wA[:, idx_valid]
-        for nod_i in range(0,nnod):
-            jj = idx_lonlat[nod_i]
-            binned_d[0, :, jj] = binned_d[0, :, jj] + chnk_d[ :, nod_i] * chnk_wA[:, nod_i]
-            binned_d[1, :, jj] = binned_d[1, :, jj] + chnk_wA[:, nod_i]
+        for lev_i in range(0,nlev):
+            binned_d[0, lev_i, :] = np.bincount(idx_lonlat, weights=chnk_d[lev_i, :]*chnk_wA[lev_i, :], minlength=nlonlat)
+            binned_d[1, lev_i, :] = np.bincount(idx_lonlat, weights=chnk_wA[lev_i, :]                  , minlength=nlonlat)
     
     # data for zonal mean are 3d [ntime, nlonlat, nlev]
     elif np.ndim(chnk_d) == 3:    

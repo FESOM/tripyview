@@ -1606,27 +1606,37 @@ def calc_dmoc_chnk(lat_bins, chnk_lat, chnk_wA, chnk_ispbnd,
         # whole (lev, lat-bin) cell for every other node summed into it -- the comments
         # above already said this was supposed to happen, it just never did.
         for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = np.nan_to_num(chnk_var[:, :, idx_valid], nan=0.0)
-        for nod_i in range(0,nnod):
-            jj = idx_lat[nod_i]
-            for ii, chnk_var in enumerate(chnk_var_list):
-                binned_d[ii, :, :, jj] = binned_d[ii, :, :, jj] + chnk_var[:, :, nod_i]
-            
-            if chnk_h is not None:    
-                binned_d[-2, :, :, jj] = binned_d[-2, :, :, jj] + chnk_h[  :, :, nod_i]*chnk_wA[:, nod_i]    
-                binned_d[-1, :, :, jj] = binned_d[-1, :, :, jj] + chnk_wA[    :, nod_i]
+        # np.bincount sums all values of the nodes in the same lat bin in one
+        # vectorized call (float64 accumulation, stored as float32) instead of a
+        # python loop over every node:
+        #   idx_lat = [0 2 2 1], weights = [a b c d] --> bin0=a, bin1=d, bin2=b+c
+        # one bincount per (variable, time, level) row
+        for ii, chnk_var in enumerate(chnk_var_list):
+            for t_i in range(0, ntime):
+                for lev_i in range(0, nlev):
+                    binned_d[ii, t_i, lev_i, :] = np.bincount(idx_lat, weights=chnk_var[t_i, lev_i, :], minlength=nlat)
+        
+        if chnk_h is not None:
+            for t_i in range(0, ntime):
+                for lev_i in range(0, nlev):
+                    binned_d[-2, t_i, lev_i, :] = np.bincount(idx_lat, weights=chnk_h[t_i, lev_i, :]*chnk_wA[lev_i, :], minlength=nlat)
+            # area weight sum: depends only on the level, same for every time step
+            for lev_i in range(0, nlev):
+                binned_d[-1, :, lev_i, :] = np.bincount(idx_lat, weights=chnk_wA[lev_i, :], minlength=nlat)[None, :]
     
     # Sum data based on binned indices withou time dimension: [2, nlat, nlev]
     elif np.ndim(chnk_var_list[0]) == 2:
         if chnk_h is not None: chnk_h = np.nan_to_num(chnk_h[:, idx_valid], nan=0.0)
         for ii, chnk_var in enumerate(chnk_var_list): chnk_var_list[ii] = np.nan_to_num(chnk_var[:, idx_valid], nan=0.0)
-        for nod_i in range(0,nnod):
-            jj = idx_lat[nod_i]
-            for ii, chnk_var in enumerate(chnk_var_list):
-                binned_d[ii, :, jj] = binned_d[ii, :, jj] + chnk_var[:, nod_i]
-                
-            if chnk_h is not None:        
-                binned_d[-2, :, jj] = binned_d[-2, :, jj] + chnk_h[ :, nod_i]*chnk_wA[:, nod_i]
-                binned_d[-1, :, jj] = binned_d[-1, :, jj] + chnk_wA[:, nod_i]
+        # one bincount per (variable, level) row instead of a python loop over every node
+        for ii, chnk_var in enumerate(chnk_var_list):
+            for lev_i in range(0, nlev):
+                binned_d[ii, lev_i, :] = np.bincount(idx_lat, weights=chnk_var[lev_i, :], minlength=nlat)
+        
+        if chnk_h is not None:
+            for lev_i in range(0, nlev):
+                binned_d[-2, lev_i, :] = np.bincount(idx_lat, weights=chnk_h[lev_i, :]*chnk_wA[lev_i, :], minlength=nlat)
+                binned_d[-1, lev_i, :] = np.bincount(idx_lat, weights=chnk_wA[lev_i, :]                , minlength=nlat)
     
     #___________________________________________________________________________
     return binned_d.flatten()
@@ -1646,9 +1656,9 @@ def bottommax_latbin_chnk(lat_bins, chnk_lat, chnk_d):
     idx_valid = (idx_lat >= 0) & (idx_lat < nlat)
     idx_lat   = idx_lat[idx_valid]
     chnk_d    = chnk_d[idx_valid]
-    for nod_i in range(0,len(idx_lat)):
-        jj = idx_lat[nod_i]
-        binned_d[jj] = np.maximum(binned_d[jj], chnk_d[nod_i])
+    # maximum per bin in one vectorized call instead of a python loop over
+    # every node (order independent --> identical to the loop)
+    np.maximum.at(binned_d, idx_lat, chnk_d.astype(binned_d.dtype))
     #___________________________________________________________________________
     return(binned_d.flatten())    
     

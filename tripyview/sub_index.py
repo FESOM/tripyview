@@ -129,7 +129,9 @@ def load_index_fesom2(mesh                  ,
         dimn_v  = 'nz1'
         
     #___________________________________________________________________________
-    # loop over box_list
+    # 1st pass: convert every box into its name + geometry and build its region
+    # mask lazily (nothing computed yet)
+    box_info, idxin_lazy = list(), list()
     for bi, box in enumerate(box_list):
         #_______________________________________________________________________
         if not isinstance(box, shp.Reader):
@@ -144,23 +146,48 @@ def load_index_fesom2(mesh                  ,
             boxname = os.path.basename(box.shapeName).replace('_',' ')  
             shape_data = [shape.points for shape in box.shapes()]  # Extract raw data
             box = MultiPolygon([Polygon(shape) for shape in shape_data])
-          
+        box_info.append((boxname, box))
+        
         #_______________________________________________________________________
-        # compute  mask index to select index region 
-        if do_idxin_in is None:
-            if box != 'global': 
-                #idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
-                idxin = da.map_blocks(  do_boxmask_dask,
-                                        data['lon'].data,
-                                        data['lat'].data,
-                                        data['ispbnd'].data,
-                                        box,
-                                        dtype=bool).compute()
-                if isinstance(idxin, da.Array): idxin = idxin.compute() # ---> we can not index whit a dask array 
-            else:
-                idxin = None
+        # lazy mask index to select index region, one map_blocks task per chunk
+        if do_idxin_in is None and box != 'global':
+            #idxin=xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+            idxin_lazy.append(da.map_blocks(do_boxmask_dask,
+                                            data['lon'].data,
+                                            data['lat'].data,
+                                            data['ispbnd'].data,
+                                            box,
+                                            dtype=bool))
         else:
-            idxin = do_idxin_in[bi]
+            idxin_lazy.append(None)
+    
+    #___________________________________________________________________________
+    # compute the masks of all regions in ONE dask.compute: their tasks are
+    # independent and are spread over the workers, instead of one region
+    # after the other with a scheduler round trip each
+    #
+    #   before:  [mask 1] -> [mask 2] -> ... -> [mask n]   one .compute() each
+    #   now   :  [mask 1]
+    #            [mask 2]   all in one dask.compute()
+    #            ...
+    #            [mask n]
+    import dask
+    idxin_all = [None]*len(box_list)
+    idx_todo  = [ii for ii, idx in enumerate(idxin_lazy) if idx is not None]
+    if len(idx_todo)>0:
+        idx_res = dask.compute(*[idxin_lazy[ii] for ii in idx_todo])
+        for ii, idxin in zip(idx_todo, idx_res):
+            if isinstance(idxin, da.Array): idxin = idxin.compute() # ---> we can not index whit a dask array 
+            idxin_all[ii] = idxin
+    del(idxin_lazy)
+    
+    #___________________________________________________________________________
+    # 2nd pass: loop over the regions, the mask is only looked up
+    for bi, (boxname, box) in enumerate(box_info):
+        #_______________________________________________________________________
+        # mask index to select index region (None = global)
+        if do_idxin_in is None: idxin = idxin_all[bi]
+        else                  : idxin = do_idxin_in[bi]
         
         #_______________________________________________________________________
         # check basin selection

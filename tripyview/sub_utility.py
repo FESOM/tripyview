@@ -501,14 +501,125 @@ def do_boxmask(mesh, box, do_elem=False, mesh_x=None, mesh_y=None):
 #
 #
 #_______________________________________________________________________________
+def _boxmask_chnk(mesh_x, mesh_y, box):
+    """
+    --> region mask for one piece of the coordinates, runs inside a dask task.
+        box is any box format of do_boxmask, or ('geoms', [geom, ...]) for a
+        shapefile converted into its shapely geometries (shp.Reader objects
+        can not be sent to the dask workers)
+    ____________________________________________________________________________
+    """
+    if isinstance(box, tuple) and len(box)==2 and isinstance(box[0], str) and box[0]=='geoms':
+        # same as the shp.Reader branch of do_boxmask: OR over all shapes
+        idx_IN = np.zeros((mesh_x.size,), dtype=bool)
+        for geom in box[1]:
+            idx_IN = np.logical_or(idx_IN, contains(geom, mesh_x, mesh_y))
+        return(idx_IN)
+    return(do_boxmask(None, box, mesh_x=mesh_x, mesh_y=mesh_y))
+
+
+
+#
+#
+#_______________________________________________________________________________
+def do_boxmask_parallel(mesh, box_list, do_elem=False, npiece_max=64, npts_min=100000):
+    """
+    --> compute the region masks of all boxes in box_list in parallel: the mesh
+        coordinates are split into pieces and every (region, piece) is one dask
+        task, all regions are computed in one dask.compute. Uses do_boxmask on
+        the pieces, the point in polygon test is independent for every point,
+        so the masks are identical to calling do_boxmask(mesh, box, do_elem)
+        for every box serially.
+
+        ::
+
+            coordinates : [ piece 0 ][ piece 1 ] ... [ piece n ]
+            region 1    : [  task   ][  task   ] ... [  task   ]
+            region 2    : [  task   ][  task   ] ... [  task   ]   one dask.compute
+            ...                                                    --> all workers
+
+    Parameters:
+
+        :mesh:        fesom2 mesh object
+
+        :box_list:    list of boxes in any format do_boxmask accepts ('global',
+                      None, [lonmin, lonmax, latmin, latmax], polygon, shapely
+                      geometry, shp.Reader)
+
+        :do_elem:     bool, (default=False) mask for elements (centroids) instead
+                      of vertices
+
+        :npiece_max:  int, (default=64) maximum number of pieces per region
+
+        :npts_min:    int, (default=100000) minimum number of points per piece,
+                      smaller pieces cost more dask overhead than they save
+
+    Returns:
+
+        :idxin_list:  list of boolean np.arrays, one mask per box
+
+    ____________________________________________________________________________
+    """
+    import dask
+    #___________________________________________________________________________
+    # mesh coordinates, exactly as in do_boxmask
+    if do_elem:
+        mesh_y = mesh.n_y[mesh.e_i].sum(axis=1)/3.0
+        mesh_x = mesh.n_x[mesh.e_i]
+        # account for cyclic boundary
+        xmin   = mesh_x.min(axis=1)
+        xmin   = np.transpose(mesh_x.T - xmin)
+        mesh_x[xmin>=180.0] = mesh_x[xmin>=180.0]-360.0
+        mesh_x[xmin<-180.0] = mesh_x[xmin<-180.0]+360.0
+        mesh_x = mesh_x.sum(axis=1)/3.0
+        del(xmin)
+    else:
+        mesh_x, mesh_y = mesh.n_x, mesh.n_y
+    npts = mesh_x.size
+
+    #___________________________________________________________________________
+    # split coordinates into pieces, each piece one graph node shared by all
+    # regions (embedded only once in the graph)
+    npiece = int(np.clip(npts//npts_min, 1, npiece_max))
+    edges  = np.linspace(0, npts, npiece+1).astype(int)
+    pcs_x  = [dask.delayed(mesh_x[s:e]) for s, e in zip(edges[:-1], edges[1:])]
+    pcs_y  = [dask.delayed(mesh_y[s:e]) for s, e in zip(edges[:-1], edges[1:])]
+
+    #___________________________________________________________________________
+    # lazy tasks per (region, piece); global regions need no work
+    tasks, idx_todo = list(), list()
+    for bi, box in enumerate(box_list):
+        if box is None or (isinstance(box, str) and box == 'global'): continue
+        # shp.Reader can not be pickled --> its shapes as shapely geometries
+        if isinstance(box, shp.Reader): box = ('geoms', [shp_shape_to_geom(s) for s in box.shapes()])
+        tasks.append([dask.delayed(_boxmask_chnk, pure=True)(px, py, box) for px, py in zip(pcs_x, pcs_y)])
+        idx_todo.append(bi)
+
+    #___________________________________________________________________________
+    # all regions in one go
+    idxin_list = [np.ones((npts,), dtype=bool) for box in box_list]
+    if len(tasks)>0:
+        res = dask.compute(*tasks)
+        for bi, pieces in zip(idx_todo, res):
+            idxin_list[bi] = np.concatenate(pieces)
+    return(idxin_list)
+
+
+
+#
+#
+#_______________________________________________________________________________
 def do_boxmask_dask(lon, lat, ispbnd, box):
-    
+    # --> boolean mask of the points (lon, lat) inside box. Runs inside dask
+    #     tasks (da.map_blocks, one call per chunk) on plain numpy blocks, so
+    #     the mask is built with numpy: inner dask arrays would be returned
+    #     unevaluated and need an extra compute round trip per region/chunk
     
     #___________________________________________________________________________
     # a rectangular box is given --> translate into shapefile object
     # (identity/type checks: box may be an ndarray, where == is elementwise)
     if  box is None or (isinstance(box, str) and box == 'global'): # if None do global
-        idxin = da.ones((lon.shape), dtype=bool)
+        idxin = np.ones((lon.shape), dtype=bool)
         
     #___________________________________________________________________________    
     elif  (isinstance(box,list) or isinstance(box, np.ndarray)) and len(box)==4: 
@@ -540,17 +651,17 @@ def do_boxmask_dask(lon, lat, ispbnd, box):
             idxin = contains(box, lon, lat)
                 
         elif isinstance(box, MultiPolygon):
-            idxin = da.zeros((lon.shape), dtype=bool)
+            idxin = np.zeros((lon.shape), dtype=bool)
             for p in box.geoms:
-                idxin  = da.logical_or(idxin, contains(p, lon, lat))
+                idxin  = np.logical_or(idxin, contains(p, lon, lat))
                 
     #___________________________________________________________________________    
     # index selection by shapefile 
     elif (isinstance(box, shp.Reader)):
-        idxin = da.zeros((lon.shape), dtype=bool)
+        idxin = np.zeros((lon.shape), dtype=bool)
         for shp_shape in box.shapes():
             p      = shp_shape_to_geom(shp_shape)
-            idxin  = da.logical_or(idxin, contains(p, lon, lat))
+            idxin  = np.logical_or(idxin, contains(p, lon, lat))
     
     #___________________________________________________________________________    
     # otherwise

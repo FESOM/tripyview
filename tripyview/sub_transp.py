@@ -800,10 +800,11 @@ def calc_mhflx_box_dask(mesh, data_edge           ,
             #  boundary triangles might not get selected therefore we if any node
             #  points of an edge triangle is within the shapefile
             #e_idxin = do_boxmask(mesh,box,do_elem=True)
-            e_idxin = do_boxmask_dask(mesh.n_x[mesh.e_i].sum(axis=1)/3.0,
+            # (do_boxmask_dask returns a numpy mask, np.asarray keeps this robust)
+            e_idxin = np.asarray(do_boxmask_dask(mesh.n_x[mesh.e_i].sum(axis=1)/3.0,
                                       mesh.n_y[mesh.e_i].sum(axis=1)/3.0,
                                       np.isin(np.arange(0, mesh.n2de, dtype='int32'), mesh.e_pbnd_1), 
-                                      box).compute()
+                                      box))
             e_idxin = e_idxin
             
             e_i     = mesh.e_i[e_idxin,:]
@@ -1538,6 +1539,7 @@ def calc_gzmhflx_box_dask(mesh                  ,
                           do_checkbasin = False  , 
                           do_persist    = True   ,
                           do_info       = False  , 
+                          chunk_minmb   = 32     ,
                           ):
     #___________________________________________________________________________
     vname = list(data.keys())[0]
@@ -1554,9 +1556,30 @@ def calc_gzmhflx_box_dask(mesh                  ,
     if 'elem' in list(data.dims) : dimn_h, do_elem = 'elem', True
     
     #___________________________________________________________________________
+    # compute lazy input data once before the region loop, otherwise every
+    # region recomputes the whole lazy graph (e.g. a time mean read from disk
+    # again for every region)
+    if do_persist and isinstance(data[vname].data, da.Array): data = data.persist()
+    
+    #___________________________________________________________________________
+    # region masks of all boxes in parallel, all regions in one dask.compute
+    # (identical to do_boxmask(mesh, box, do_elem) per box, see do_boxmask_parallel).
+    # The box format conversion mirrors the one in the loop below
+    box_mask = list()
+    for box in box_list:
+        if not isinstance(box, shp.Reader) and len(box)==2: box = box[0]
+        box_mask.append(box)
+    idxin_all = do_boxmask_parallel(mesh, box_mask, do_elem=do_elem)
+    del(box_mask)
+    
+    # prepared (chunked, persisted) full data, created at the first region and
+    # reused for all others, see below
+    data_box = None
+    
+    #___________________________________________________________________________
     # Loop over boxes
     list_gmhflx=list()
-    for box in box_list:
+    for bi, box in enumerate(box_list):
         #_______________________________________________________________________
         if not isinstance(box, shp.Reader):
             if len(box)==2: boxname, box = box[1], box[0]
@@ -1566,7 +1589,7 @@ def calc_gzmhflx_box_dask(mesh                  ,
            
         #_______________________________________________________________________
         # compute  mask index
-        idxin   = xr.DataArray(do_boxmask(mesh, box, do_elem=do_elem), dims=dimn_h)
+        idxin   = xr.DataArray(idxin_all[bi], dims=dimn_h)
         
         #___________________________________________________________________________
         if do_checkbasin:
@@ -1582,54 +1605,73 @@ def calc_gzmhflx_box_dask(mesh                  ,
             plt.show()
             
         #_______________________________________________________________________
-        # select box area
-        data_box = data.isel({dimn_h:idxin})
-        
-        #_______________________________________________________________________
-        # determine/adapt actual chunksize
-        nchunk = 1
-        if do_parallel and isinstance(data_box[vname].data, da.Array)==True :
-            nchunk = len(data_box.chunks[dimn_h])
-            print(' --> nchunk=', nchunk)   
-            
-            # after all the time and depth operation after the loading there will 
-            # be worker who have no chunk piece to work on  --> therfore we need
-            # to rechunk make sure the workload is distributed between all 
-            # availabel worker equally         
-            if nchunk<parallel_nprc*0.75:
-                print(' --> rechunk array size', end='')
-                data_box = data_box.chunk({dimn_h: np.ceil(data_box.dims[dimn_h]/(parallel_nprc)).astype('int')})
+        # The region is NOT cut out of the data anymore (isel copied the selected
+        # points for every region). The binning runs over the full data and skips
+        # the points outside the region through the exclusion mask that already
+        # exists for the periodic boundary elements:
+        #
+        #   exclude = elem_pbnd | ~idxin     (outside region or pbnd element)
+        #
+        # The full data are chunked and persisted only once, at the first region,
+        # and reused for all others. Same points per bin --> same result up to
+        # float32 summation order.
+        if data_box is None:
+            data_box = data
+            #___________________________________________________________________
+            # determine/adapt actual chunksize: pieces of at least chunk_minmb MB,
+            # at most parallel_nprc pieces (chunk_minmb<=0: always parallel_nprc).
+            # Small data stay one task, splitting them costs more dask overhead
+            # than the binning itself
+            if chunk_minmb>0: nchunk_trgt = int(np.clip(np.floor(data_box[vname].nbytes/(chunk_minmb*1024**2)), 1, parallel_nprc))
+            else            : nchunk_trgt = int(parallel_nprc)
+            nchunk = 1
+            if do_parallel and isinstance(data_box[vname].data, da.Array)==True :
                 nchunk = len(data_box.chunks[dimn_h])
-                print(' --> nchunk_new=', nchunk)    
+                if do_info: print(' --> nchunk=', nchunk)
+                if nchunk<nchunk_trgt*0.75:
+                    if do_info: print(' --> rechunk array size', end='')
+                    data_box = data_box.chunk({dimn_h: np.ceil(data_box.sizes[dimn_h]/(nchunk_trgt)).astype('int')})
+                    nchunk = len(data_box.chunks[dimn_h])
+                    if do_info: print(' --> nchunk_new=', nchunk)
             
-            data_box = data_box.persist()
+            # in case of climatology data because there i need to make compute() after 
+            # interpolation which destroys the chunking so i try to rechunk it
+            elif do_parallel and isinstance(data_box[vname].data, da.Array)==False: 
+                data_box = data_box.chunk({dimn_h: np.ceil(data_box.sizes[dimn_h]/(nchunk_trgt)).astype('int')}).unify_chunks()
+                nchunk = len(data_box.chunks[dimn_h])
+                if do_info: print(' --> nchunk_new=', nchunk)
             
-        # in case of climatology data because there i need to make compute() after 
-        # interpolation which destroys the chunking so i try to rechunk it
-        elif do_parallel and isinstance(data_box[vname].data, da.Array)==False: 
-            data_box = data_box.chunk({dimn_h: np.ceil(data_box.dims[dimn_h]/(parallel_nprc)).astype('int')}).unify_chunks()
-            nchunk = len(data_box.chunks[dimn_h])
-            print(' --> nchunk_new=', nchunk)  
+            #___________________________________________________________________
+            # The centroid position of the periodic boundary triangle causes problems 
+            # when determining in which bin they should be --> therefor we kick them out 
+            # with this index
+            if 'elem_pbnd' not in data_box.coords: 
+                data_box = data_box.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data_box[do_lonlat].shape, dtype=bool), dims=data_box[do_lonlat].dims))
+                if isinstance(data_box[do_lonlat].data, da.Array)==True: 
+                    data_box['elem_pbnd'] = data_box['elem_pbnd'].chunk(data_box[do_lonlat].chunks)
             
-        #_______________________________________________________________________
-        # The centroid position of the periodic boundary triangle causes problems 
-        # when determining in which bin they should be --> therefor we kick them out 
-        # with this index
-        if 'elem_pbnd' not in data_box.coords: 
-            data_box = data_box.assign_coords(elem_pbnd=xr.DataArray(np.zeros(data_box[do_lonlat].shape, dtype=bool), dims=data_box[do_lonlat].dims))
-            if isinstance(data_box[do_lonlat].data, da.Array)==True: 
-                data_box['elem_pbnd'] = data_box['elem_pbnd'].chunk(data_box[do_lonlat].chunks)
+            #___________________________________________________________________
+            if do_persist: data_box = data_box.persist()
+            # lon/lat of all points, to derive the bin range of every region
+            lonlat_all = np.asarray(data_box[do_lonlat].values)
         
         #_______________________________________________________________________
-        # create zonal/meridional bins
-        lonlat_min    = float(np.floor(data_box[ do_lonlat ].min().compute()))
-        lonlat_max    = float(np.ceil( data_box[ do_lonlat ].max().compute()))
+        # create zonal/meridional bins, range of the points in the region
+        idxin_np      = np.asarray(idxin)
+        lonlat_min    = float(np.floor(lonlat_all[idxin_np].min()))
+        lonlat_max    = float(np.ceil( lonlat_all[idxin_np].max()))
         lonlat_bins   = np.arange(lonlat_min, lonlat_max+dlonlat/2, dlonlat)
         lonlat        = (lonlat_bins[1:] + lonlat_bins[:-1])*0.5
         nlonlat       = len(lonlat_bins)-1
-           
+        
         #_______________________________________________________________________
-        if do_persist: data_box = data_box.persist()
+        # exclusion mask: periodic boundary element or outside the region, chunked
+        # like the data along the horizontal dimension
+        if isinstance(data_box[vname].data, da.Array):
+            idxin_da = da.from_array(idxin_np, chunks=(data_box[vname].chunks[data_box[vname].dims.index(dimn_h)],))
+        else:
+            idxin_da = idxin_np
+        chnk_excl = data_box['elem_pbnd'].data | ~idxin_da
         
         #_______________________________________________________________________
         # Apply zonal area weighted integration
@@ -1644,7 +1686,7 @@ def calc_gzmhflx_box_dask(mesh                  ,
                                   lonlat_bins                ,   # mean bin definitions
                                   data_box[do_lonlat  ].data ,   # lon/lat nod2 coordinates
                                   data_box['w_A'      ].data ,   # area weight
-                                  data_box['elem_pbnd'].data ,   # if elem is pbnd element
+                                  chnk_excl                  ,   # pbnd element or outside region
                                   data_box[vname      ].data ,   # data chunk piece
                                   dtype     = np.float32     ,   # Tuple dtype
                                   chunks    = (2*nlonlat, ) # Output shape

@@ -207,6 +207,18 @@ def plot_hslice(mesh                   ,
 
         :pltcl_opt: dict, (default: dict()) additional options that are given to clabel via the kwarg argument
 
+        :do_climcont: xr.Dataset or False, (default: False) overlay contour lines of an
+                      external gridded dataset (e.g. observed sea-ice concentration),
+                      first data variable, coordinates lon, lat
+
+        :climcont_opt: dict, (default: dict()) options given to contour() via kwarg,
+                      the contour levels have to be given here, e.g. 'levels':[0.15, 0.75].
+                      If the coordinates of do_climcont are not in the map projection
+                      itself, give their projection via 'transform' (e.g. ccrs.PlateCarree()
+                      for a regular lon/lat grid). Additional keys: 'do_lbl':True labels
+                      every contour level, 'lbl_opt':dict() options given to clabel
+                      (default: fontsize=6, fmt='%1.2f')
+
         ___plot mesh________________________________________
 
         :do_mesh:   bool, (default: True), overlay FESOM grid over dataplot
@@ -531,13 +543,27 @@ def plot_hslice(mesh                   ,
             
             #___________________________________________________________________
             # add clim contour line, the levels of the contour lines have to be 
-            # specified in climcont_opt=dict({'levels':[0.15]})
+            # specified in climcont_opt=dict({'levels':[0.15]}). With 'do_lbl':True
+            # in climcont_opt every contour level gets a label, clabel options
+            # can be given via 'lbl_opt', e.g.
+            # climcont_opt=dict({'levels':[0.15, 0.75], 'do_lbl':True,
+            #                    'lbl_opt':dict({'fmt':{0.15:'15%', 0.75:'75%'}})})
             if isinstance(do_climcont, xr.Dataset):
                 cvname = list(do_climcont.keys())[0]
                 climcont_optdefault= dict({'colors':'k', 'linestyles':'dashed', 'linewidths':1.0, 'zorder':56})
                 climcont_optdefault.update(climcont_opt)
-                hax_ii.contour(do_climcont.lon, do_climcont.lat, do_climcont[cvname], 
+                # label switches are no contour() arguments --> take them out
+                # (climcont_optdefault is a new dict per panel, climcont_opt stays untouched)
+                do_lbl  = climcont_optdefault.pop('do_lbl' , False )
+                lbl_opt = climcont_optdefault.pop('lbl_opt', dict())
+                h0cc = hax_ii.contour(do_climcont.lon, do_climcont.lat, do_climcont[cvname],
                               **climcont_optdefault) #transform=ccrs.PlateCarree()
+
+                # label every contour level, defaults like for the plt_contl labels
+                if do_lbl:
+                    lbl_optdefault = dict({'inline':1, 'inline_spacing':1, 'fontsize':6, 'fmt':'%1.2f', 'zorder':57})
+                    lbl_optdefault.update(lbl_opt)
+                    hax_ii.clabel(h0cc, h0cc.levels, **lbl_optdefault)
                 
             #___________________________________________________________________
             # add mesh land-sea mask

@@ -2957,20 +2957,22 @@ def coarsegrain_h_chnk(lon_bins, lat_bins, chnk_lon, chnk_lat, chnk_wA, chnk_pbn
         chnk_d2 = chnk_d2[    idx_valid]
     nnod        = len(chnk_d)
     
+    # np.bincount over the combined 2d bin index instead of a python loop over
+    # every node: bin (jj, ii) --> jj*nlon + ii, reshaped back to [nlat, nlon]
+    #   lat jj: 0 0 1     lon ii: 0 1 1    --> idx2d = 0, 1, nlon+1
+    idx2d = lat_indices*nlon + lon_indices
+    nbin  = nlat*nlon
+    
     # do binning for single data
     if chnk_d2 is None:
-        for nod_i in range(nnod):
-            ii, jj = lon_indices[nod_i], lat_indices[nod_i]
-            binned_d[0, jj, ii] = binned_d[0, jj, ii] + chnk_d[ nod_i] * chnk_wA[nod_i]
-            binned_d[1, jj, ii] = binned_d[1, jj, ii] + chnk_wA[nod_i] # area weight counter
+        binned_d[0] = np.bincount(idx2d, weights=chnk_d *chnk_wA, minlength=nbin).reshape(nlat, nlon)
+        binned_d[1] = np.bincount(idx2d, weights=chnk_wA        , minlength=nbin).reshape(nlat, nlon) # area weight counter
     
     # do binning for zonal/merid data
     else:
-        for nod_i in range(nnod):
-            ii, jj = lon_indices[nod_i], lat_indices[nod_i]
-            binned_d[0, jj, ii] = binned_d[0, jj, ii] + chnk_d[ nod_i] * chnk_wA[nod_i]
-            binned_d[1, jj, ii] = binned_d[1, jj, ii] + chnk_d2[nod_i] * chnk_wA[nod_i]
-            binned_d[2, jj, ii] = binned_d[2, jj, ii] + chnk_wA[nod_i] # area weight counter
+        binned_d[0] = np.bincount(idx2d, weights=chnk_d *chnk_wA, minlength=nbin).reshape(nlat, nlon)
+        binned_d[1] = np.bincount(idx2d, weights=chnk_d2*chnk_wA, minlength=nbin).reshape(nlat, nlon)
+        binned_d[2] = np.bincount(idx2d, weights=chnk_wA        , minlength=nbin).reshape(nlat, nlon) # area weight counter
 
     return binned_d.flatten()
 
