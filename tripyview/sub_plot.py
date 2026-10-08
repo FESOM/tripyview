@@ -3141,6 +3141,21 @@ def plot_tline(data,
         cmap = ListedColormap(expanded_cmap_array)
     
     #___________________________________________________________________________
+    # do_concat: the spinup cycles of a run are attached behind each other into
+    # one continuous time series --> one color per run is enough instead of a
+    # light-->dark sub-color per cycle. Each run color is repeated n_cycl times,
+    # so that the line counter cnt still addresses the colors as before:
+    #
+    #   data   : [run1 c1, run1 c2, run1 c3, run2 c1, ...]   (+ clim first)
+    #   colors : [col1   , col1   , col1   , col2   , ...]   (+ black first)
+    if do_allcycl and do_concat and n_cycl is not None:
+        nrun       = np.int32((ndat-1 if do_clim else ndat)/n_cycl)
+        which_cmap = 'tab20' if nrun>10 else 'tab10'
+        cmap_array = np.repeat(np.array(categorical_cmap(nrun, 1, cmap=which_cmap).colors), n_cycl, axis=0)
+        if do_clim: cmap_array = np.vstack([np.array([[0, 0, 0]]), cmap_array])  # prepend black for clim
+        cmap = ListedColormap(cmap_array)
+
+    #___________________________________________________________________________
     # --> loop over axes
     hp, hbot, hmsh, hlsm, hgrd = list(), list(), list(), list(), list()
     cnt, xmin, xmax, ymin, ymax = 0, np.inf, -np.inf, np.inf, -np.inf
@@ -3283,6 +3298,16 @@ def plot_tline(data,
                     str_blabel = str_blabel.replace('MOC','').replace('_','')
                     if bi==0: list_strdatalabel.append(str_llabel)
                     if jj==0: list_strboxlabel.append(str_blabel)
+                    
+                    # do_concat: all cycles of a run share one color (see above) --> only one
+                    # legend entry per run: the first cycle without its 'scycle N, ' prefix,
+                    # the following cycles of the same run are kept out of the legend
+                    if do_allcycl and do_concat and n_cycl is not None and not (do_clim and jj==0):
+                        icycl = (jj-1)%n_cycl if do_clim else jj%n_cycl   # cycle index of this line
+                        if icycl==0 and str_llabel.startswith('scycle ') and ', ' in str_llabel:
+                            str_llabel = str_llabel.split(', ', 1)[1]
+                        elif icycl>0:
+                            str_llabel = '_nolegend_'
                     
                     #_______________________________________________________________
                     # plot lines 
