@@ -402,8 +402,17 @@ def load_data_fesom2(mesh,
     # objects, continuing using cftime.datetime objects instead, reason: dates out 
     # of range dtype = _decode_cf_datetime_dtype(data, u
     use_cftime = False
-    if year[0]>2262 or year[1]>2262: use_cftime=True
+    if year is not None and np.max(np.atleast_1d(year))>2262: use_cftime=True
     if (do_cftime): use_cftime=True
+
+    # FESOM2 writes time:calendar (e.g. '365_day' for runs without leap years,
+    # include_fleapyear=.false.); pandas datetime64 can only decode standard
+    # calendars --> use cftime for anything else. Header-only read of one file.
+    if not use_cftime:
+        with xr.open_dataset(pathlist[0], decode_times=False) as ds0:
+            if 'time' in ds0.variables:
+                cal = str(ds0['time'].attrs.get('calendar', 'standard')).lower()
+                if cal not in ('standard', 'gregorian', 'proleptic_gregorian'): use_cftime=True
     
     # Build decode_times argument correctly
     # xr.coders.CFDatetimeCoder was only added in xarray ~2024.09; older xarray
@@ -430,8 +439,12 @@ def load_data_fesom2(mesh,
                                 'invalid_netcdf':'ignore',
                                 #'lock': False,  !!! ATTENTION THIS CAUSES ERROR
                                 }})# load normal FESOM2 run file
+    # time bounds are dropped below anyway; skip them already at opening, since
+    # with cftime decoding (non-standard calendar) they become an object-dtype
+    # data variable that dask 'auto' chunking cannot size (NotImplementedError)
     engine_dict.update({'combine'       :'by_coords'   ,
                         'decode_coords' :decode_coords ,
+                        'drop_variables':['time_bnds', 'time_bounds'],
                         **decode_times_kwargs           , })
                         #'combine'       :'nested', 
                         #'concat_dim'    :'time'
