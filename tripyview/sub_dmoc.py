@@ -366,7 +366,9 @@ def load_dmoc_data(mesh                           ,
                 # make land sea mask nan --> here ref density is already substracted
                 data_sigma2 = data_sigma2.where(data_sigma2!=0.0)
             
-            data_sigma2  = data_sigma2.drop_vars(['ndens','lon','lat', 'nodi', 'nodiz', 'w_A']) 
+            # density_dMOC/sigma2 live on (nz1, nod2) and have no 'ndens' (unlike the
+            # std_dens_* files) --> drop only what is present
+            data_sigma2  = data_sigma2.drop_vars(['ndens','lon','lat', 'nodi', 'nodiz', 'w_A'], errors='ignore')
             data_sigma2  = data_sigma2.assign_coords({'dens':dens})
             
             # have to do it via assign otherwise cant write [elem x ndens] into [nod2d x ndens] 
