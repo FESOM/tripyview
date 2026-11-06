@@ -274,7 +274,7 @@ def load_mesh_fesom2(
                 if len(mesh.lsmask)==0:
                     mesh.compute_lsmask()
                     if do_augmpbnd: mesh.augment_lsmask()
-                # if lsmask exist than only augment pbnd     
+                # if lsmask exist than only augment pbnd      
                 else:
                     if do_augmpbnd: mesh.augment_lsmask()
         else:

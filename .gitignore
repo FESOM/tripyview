@@ -5,3 +5,5 @@ docs/_build/
 docs/_static/
 docs/.doctrees
 docs/.buildinfo
+__pycache__/
+*.py[cod]
